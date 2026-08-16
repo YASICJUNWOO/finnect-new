@@ -51,7 +51,7 @@ uv run ruff check .
 
 ## 문서
 
-전부 `docs/`에 있다.
+실행 방법은 [`README.md`](README.md)에 있다. 나머지는 전부 `docs/`다.
 
 - [`docs/SPEC.md`](docs/SPEC.md) — **정본.** 무엇을 만드는가. 현재 진실이고, 충돌 시 이 문서가 이긴다. 구현 중 검수 기준으로 참조하되 임의로 고치지 않는다
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다

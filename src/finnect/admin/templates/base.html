@@ -60,6 +60,10 @@ td.desc { width: 240px; color: #444; }
 .undoc { color: #cf222e; font-style: italic; }
 .bad { color: #cf222e; }
 pre { margin: 0; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
+/* 원문 JSON. 기본은 접어 둔다 — 파싱한 컬럼이 먼저 읽혀야 한다. */
+details.raw { border: 1px solid #ccc; border-radius: 4px; padding: 9px 12px; margin: 8px 0; }
+details.raw > summary { cursor: pointer; }
+details.raw > pre { margin-top: 10px; max-height: 460px; overflow: auto; }
 </style>
 </head>
 <body>

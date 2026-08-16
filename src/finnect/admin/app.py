@@ -7,6 +7,7 @@ design/ 의 토큰·컴포넌트를 따르지 않는다. 제품 화면이 아니
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -23,7 +24,7 @@ from sqlalchemy.exc import OperationalError
 from finnect import fields
 from finnect.db import SessionFactory
 from finnect.ingest import jobs, runs, service
-from finnect.models import Attachment, BizinfoNotice, KstartupNotice, RunStatus, Source
+from finnect.models import Attachment, BizinfoNotice, KstartupNotice, RawFetch, RunStatus, Source
 from finnect.views import Notice
 
 
@@ -66,6 +67,35 @@ SORTS = {
     "recent": (Notice.first_seen_at.desc(), "최근 수집순"),
     "title": (Notice.title.asc(), "이름순"),
 }
+
+# raw_fetch.payload 안에서 공고 배열이 어디 있고, 그 안의 자연키가 무엇인지.
+# 봉투 형태는 ingest/envelope.py 가 정본이다.
+RAW_ITEMS_KEY = {str(Source.BIZINFO): "jsonArray", str(Source.KSTARTUP): "data"}
+RAW_PK = {str(Source.BIZINFO): "pblancId", str(Source.KSTARTUP): "pbanc_sn"}
+
+
+def _dump(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+
+
+def _split_payload(payload: Any, source: str, external_id: str) -> tuple[str, str | None, int]:
+    """응답 통째에서 봉투와 이 공고의 원문 item 을 갈라 낸다.
+
+    payload 는 응답 한 건 전체다. 기업마당은 한 번에 1,538건이 들어와 3.67MB 라
+    그대로 펴면 화면이 못 쓴다. 공고 배열은 봉투에서 빼고 이 공고 것만 꺼낸다.
+    """
+    if not isinstance(payload, dict):
+        return _dump(payload), None, 0
+
+    items_key = RAW_ITEMS_KEY.get(source)
+    items = payload.get(items_key)
+    items = items if isinstance(items, list) else []
+
+    envelope = {k: v for k, v in payload.items() if k != items_key}
+    pk = RAW_PK.get(source)
+    mine = next((i for i in items if isinstance(i, dict) and str(i.get(pk)) == external_id), None)
+
+    return _dump(envelope), (_dump(mine) if mine is not None else None), len(items)
 
 
 @app.get("/", include_in_schema=False)
@@ -161,6 +191,13 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
             entry = (col.name, value, fields.describe(source, col.name))
             (api_fields if col.name in model.API_FIELDS else ours).append(entry)
 
+        # 원문. 파싱한 컬럼과 나란히 놓고 무엇이 빠졌는지 눈으로 본다.
+        raw = s.get(RawFetch, row.raw_fetch_id) if row.raw_fetch_id else None
+        envelope = item = None
+        siblings = 0
+        if raw is not None:
+            envelope, item, siblings = _split_payload(raw.payload, source, external_id)
+
     known, total = fields.coverage(source, [n for n, _, _ in api_fields])
 
     return templates.TemplateResponse(
@@ -178,6 +215,10 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
             "doc": fields.DOCS[source],
             "described": known,
             "described_total": total,
+            "raw": raw,
+            "raw_envelope": envelope,
+            "raw_item": item,
+            "raw_siblings": siblings,
         },
     )
 

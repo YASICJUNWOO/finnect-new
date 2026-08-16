@@ -62,7 +62,8 @@
   {% if source == 'kstartup' %}
     K-Startup 목록 API 에는 첨부 필드가 없다. detl_pg_url 을 긁어야 나온다 (plan/02).
   {% else %}
-    첨부 0건. 목록 API 가 알려준 확인된 0건이다 (기업마당의 28%).
+    첨부 0건. printFileNm 도 fileNm 도 비어 있다.
+    <b>2026-08-17 실측 1,538건에는 이런 공고가 없었다</b> — 기업마당은 공고문을 100% 붙인다. 새로 생긴 형태다.
   {% endif %}
 </p>
 {% endif %}
@@ -82,5 +83,42 @@
   {% endfor %}
   </tbody>
 </table>
+
+<h2>원문 — API 가 준 응답 그대로</h2>
+{% if raw is none %}
+<p class="muted">
+  이 공고에 <code>raw_fetch_id</code> 가 없다. 원문 응답을 못 찾는다.
+</p>
+{% else %}
+<p class="muted">
+  <code>raw_fetch#{{ raw.id }}</code> ·
+  {{ raw.fetched_at | ts }} 수신 ·
+  응답 {{ raw.item_count }}건 / {{ '{:,}'.format(raw.byte_size) }}B
+  {%- if raw.page is not none %} · {{ raw.page }}페이지{% endif %}
+  {%- if raw.ratelimit_remaining is not none %} · 잔여 쿼터 {{ '{:,}'.format(raw.ratelimit_remaining) }}{% endif %}
+  <br>
+  <span class="val">{{ raw.request_url }}</span>
+</p>
+
+<details class="raw">
+  <summary>이 공고의 원문 item{% if raw_siblings %} — 같은 응답에 {{ '{:,}'.format(raw_siblings) }}건이 함께 왔다{% endif %}</summary>
+  {% if raw_item %}
+  <pre>{{ raw_item }}</pre>
+  {% else %}
+  <p class="muted">
+    이 응답 안에서 <code>{{ external_id }}</code> 를 못 찾았다.
+    공고가 뒤에 갱신되면서 <code>raw_fetch_id</code> 가 다른 응답을 가리켰을 수 있다.
+  </p>
+  {% endif %}
+</details>
+
+<details class="raw">
+  <summary>봉투 — 공고 배열을 뺀 나머지</summary>
+  <pre>{{ raw_envelope }}</pre>
+</details>
+<p class="muted">
+  <b>두 API 모두 실패를 HTTP 200 으로 준다.</b> 봉투를 남기는 것은 그래서다 (ingest/envelope.py).
+</p>
+{% endif %}
 
 {% endblock %}

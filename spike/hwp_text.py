@@ -118,6 +118,33 @@ def from_hwpx(path: Path) -> str:
     return "".join(texts)
 
 
+def from_docx(path: Path) -> str:
+    """DOCX 도 ZIP + XML 이다. 본문은 word/document.xml 의 <w:t>.
+
+    표 안 텍스트도 같은 <w:t> 에 들어가므로 그대로 잡힌다.
+    머리글·바닥글·텍스트박스까지 보려면 header*/footer* 도 훑는다.
+    """
+    texts = []
+    with zipfile.ZipFile(path) as z:
+        names = [n for n in z.namelist()
+                 if re.match(r"word/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$", n)]
+        for n in sorted(names):
+            xml = z.read(n).decode("utf-8", errors="replace")
+            # 단락 경계를 줄바꿈으로, 표 셀 경계를 탭으로 살린다
+            xml = re.sub(r"</w:p>", "\n", xml)
+            xml = re.sub(r"</w:tc>", "\t", xml)
+            for m in re.finditer(r"<w:t(?:\s[^>]*)?>(.*?)</w:t>|(\n|\t)", xml, re.S):
+                if m.group(1) is not None:
+                    frag = re.sub(r"<[^>]+>", "", m.group(1))
+                    texts.append(
+                        frag.replace("&lt;", "<").replace("&gt;", ">")
+                            .replace("&amp;", "&").replace("&quot;", '"')
+                    )
+                else:
+                    texts.append(m.group(2))
+    return "".join(texts)
+
+
 def from_pdf(path: Path) -> str:
     import pdfplumber
 
@@ -137,4 +164,6 @@ def extract(path: Path) -> tuple[str, str]:
         return from_hwpx(path), "hwpx/zip"
     if ext == "pdf":
         return from_pdf(path), "pdf/plumber"
+    if ext in ("docx", "docm"):
+        return from_docx(path), "docx/zip"
     raise ValueError(f"지원하지 않는 확장자: {ext}")

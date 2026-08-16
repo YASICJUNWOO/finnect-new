@@ -1,0 +1,30 @@
+# 환경/시크릿
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+
+# Node
+node_modules/
+dist/
+.next/
+
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/
+
+# 로컬 데이터 산출물 (수집 스크립트로 재생성 가능 — git 미포함)
+data/attachments/
+*.hwp
+*.hwpx

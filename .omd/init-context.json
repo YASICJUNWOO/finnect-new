@@ -1,0 +1,22 @@
+{
+  "reference_id": "team-authored",
+  "description": "finnect — 내 사업 정보로 신청 가능한 창업 지원공고를 판정하고, 그 판정을 공고가 요구하는 사업계획서 초안으로 잇는다. 대상은 초기창업자. 표 중심 업무 도구이자 긴 글을 쓰는 워크스페이스.",
+  "mode": "clone",
+  "source": {
+    "kind": "user-supplied",
+    "origin": "팀원 작성 DESIGN.md (업로드 파일 'DESIGN _1_.md', 2026-08-16)",
+    "catalog_reference": null,
+    "note": "oh-my-design 카탈로그 440개 중 어느 레퍼런스에서도 파생되지 않았다. 본문은 업로드본과 바이트 동일하며 프론트매터와 omd:limitation 주석만 추가했다."
+  },
+  "delta_set": {
+    "axes": {},
+    "voiceHints": ["해요체", "니다체·명령형 금지", "잡초 제거", "강요와 공포 금지"],
+    "matchedKeywords": [],
+    "warnings": [
+      "이 DESIGN.md는 다른 프로젝트(위키 그래프 기반 제품)를 전제로 쓰였다. docs/SPEC.md와 충돌하는 항목이 다섯 있다. 상세는 DESIGN.md 상단 omd:limitation 주석 참조.",
+      "문서가 참조하는 context.md · v2/HANDOFF.md · v2/internal/ · 02_기능명세.md · 서비스_설계_개발논의용.md · Lastmile/CLAUDE.md 가 이 레포에 존재하지 않는다.",
+      "토큰 실값이 없다. 색·타입·반경 모두 '5.1에서 확정'으로 미정이라 shim에 옮길 구체 값이 없다."
+    ]
+  },
+  "bootstrapped_at": "2026-08-16"
+}

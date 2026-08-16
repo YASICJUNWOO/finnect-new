@@ -1,0 +1,226 @@
+"""저장 모델 — 출처별 원본 테이블 + 통합 뷰.
+
+**API 가 준 컬럼을 전부 만든다. 이름도 API 필드명 그대로다.** 대소문자까지 지킨다.
+Postgres 는 대소문자 섞인 식별자에 따옴표가 필요하지만 SQLAlchemy 가 자동으로 붙인다.
+
+  raw_fetch          응답 통째 (봉투·쿼터 포함)
+  bizinfo_notice     기업마당 22컬럼 전부
+  kstartup_notice    K-Startup 30컬럼 전부
+  notice (뷰)        둘을 공통 8필드로 매핑해 UNION ALL  → views.py
+  attachment         첨부 메타
+
+전부 TEXT 로 받는다. API 가 날짜도 "20260827" 문자열로 준다.
+타입을 여기서 강제하면 이상한 값 하나에 적재가 통째로 깨진다.
+파생 값은 derived_ 접두사로 구분한다. API 가 준 값과 우리가 만든 값을 섞지 않는다.
+
+L1(요건·평가·양식), 근거 구간, 신뢰도, 프로필, 판정은 여기 없다.
+plan/01 · plan/02 · plan/03 의 몫이다.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import enum
+
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Source(enum.StrEnum):
+    BIZINFO = "bizinfo"
+    KSTARTUP = "kstartup"
+
+
+class AttachmentStatus(enum.StrEnum):
+    """첨부 0건과 '아직 안 봄'을 구분한다.
+
+    기업마당은 목록 API 가 첨부를 알려준다. 첨부 0개가 431/1,538(28%)라
+    LISTED + 0건이 정상 상태다.
+    K-Startup 은 목록 API 에 첨부 필드 자체가 없다. detl_pg_url 을 긁기 전까지 UNKNOWN 이다.
+    """
+
+    LISTED = "listed"
+    UNKNOWN = "unknown"
+
+
+class AttachmentKind(enum.StrEnum):
+    NOTICE_DOC = "공고문"  # printFileNm / printFlpthNm
+    OTHER = "기타"  # fileNm / flpthNm
+
+
+class RawFetch(Base):
+    """응답 원문 한 건. 봉투까지 통째로 남긴다."""
+
+    __tablename__ = "raw_fetch"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16), index=True)
+    request_url: Mapped[str] = mapped_column(Text)  # 인증키는 마스킹해서 넣는다
+    page: Mapped[int | None] = mapped_column(Integer)
+    fetched_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    payload: Mapped[dict] = mapped_column(JSONB)
+    item_count: Mapped[int] = mapped_column(Integer)
+    byte_size: Mapped[int] = mapped_column(Integer)
+    # K-Startup 은 x-ratelimit-remaining 을 매 응답에 준다. 기업마당은 안 준다.
+    ratelimit_remaining: Mapped[int | None] = mapped_column(Integer)
+
+
+class _NoticeMixin:
+    """출처 테이블 공통 부가 컬럼. API 필드가 아니라 우리가 붙이는 것이다."""
+
+    # API 에 없던 필드가 오면 여기 담고 건수를 보고한다. 조용히 사라지지 않게.
+    extra: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    # 파생 값. API 가 준 값과 섞지 않으려고 접두사를 단다.
+    derived_apply_start: Mapped[dt.date | None] = mapped_column(Date)
+    derived_apply_end: Mapped[dt.date | None] = mapped_column(Date)
+
+    # K-Startup 은 수정일시 필드가 없다. 변경 감지 수단이 해시뿐이다.
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    first_seen_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_seen_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    changed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    raw_fetch_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("raw_fetch.id", ondelete="SET NULL")
+    )
+
+
+class BizinfoNotice(_NoticeMixin, Base):
+    """기업마당 공고. API 22컬럼 전부, 이름 그대로."""
+
+    __tablename__ = "bizinfo_notice"
+    __table_args__ = (Index("ix_bizinfo_notice_apply_end", "derived_apply_end"),)
+
+    # PK 는 API 자연키. 실측 1,538/1,538 유일, 빈 값 0.
+    pblancId: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    bsnsSumryCn: Mapped[str | None] = mapped_column(Text)
+    creatPnttm: Mapped[str | None] = mapped_column(Text)
+    excInsttNm: Mapped[str | None] = mapped_column(Text)
+    fileNm: Mapped[str | None] = mapped_column(Text)
+    flpthNm: Mapped[str | None] = mapped_column(Text)
+    hashtags: Mapped[str | None] = mapped_column(Text)
+    inqireCo: Mapped[str | None] = mapped_column(Text)
+    jrsdInsttNm: Mapped[str | None] = mapped_column(Text)
+    pblancNm: Mapped[str | None] = mapped_column(Text)
+    pblancUrl: Mapped[str | None] = mapped_column(Text)
+    pldirSportRealmLclasCodeNm: Mapped[str | None] = mapped_column(Text)
+    pldirSportRealmMlsfcCodeNm: Mapped[str | None] = mapped_column(Text)
+    printFileNm: Mapped[str | None] = mapped_column(Text)
+    printFlpthNm: Mapped[str | None] = mapped_column(Text)
+    rceptEngnHmpgUrl: Mapped[str | None] = mapped_column(Text)
+    refrncNm: Mapped[str | None] = mapped_column(Text)
+    reqstBeginEndDe: Mapped[str | None] = mapped_column(Text)
+    reqstMthPapersCn: Mapped[str | None] = mapped_column(Text)
+    totCnt: Mapped[str | None] = mapped_column(Text)  # 응답 메타가 item 마다 반복된다
+    trgetNm: Mapped[str | None] = mapped_column(Text)
+    updtPnttm: Mapped[str | None] = mapped_column(Text)
+
+    #: 이 출처의 API 필드 목록. 적재기가 미지 필드를 가려내는 데 쓴다.
+    API_FIELDS: frozenset[str] = frozenset(
+        {
+            "bsnsSumryCn", "creatPnttm", "excInsttNm", "fileNm", "flpthNm",
+            "hashtags", "inqireCo", "jrsdInsttNm", "pblancId", "pblancNm",
+            "pblancUrl", "pldirSportRealmLclasCodeNm", "pldirSportRealmMlsfcCodeNm",
+            "printFileNm", "printFlpthNm", "rceptEngnHmpgUrl", "refrncNm",
+            "reqstBeginEndDe", "reqstMthPapersCn", "totCnt", "trgetNm", "updtPnttm",
+        }
+    )  # fmt: skip
+
+
+class KstartupNotice(_NoticeMixin, Base):
+    """K-Startup 공고. API 30컬럼 전부, 이름 그대로."""
+
+    __tablename__ = "kstartup_notice"
+    __table_args__ = (Index("ix_kstartup_notice_apply_end", "derived_apply_end"),)
+
+    # PK 는 API 자연키. 실측 4,000/4,000 유일, 빈 값 0.
+    pbanc_sn: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    aply_excl_trgt_ctnt: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_eml_rcpt_istc: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_etc_istc: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_fax_rcpt_istc: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_onli_rcpt_istc: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_pssr_rcpt_istc: Mapped[str | None] = mapped_column(Text)
+    aply_mthd_vst_rcpt_istc: Mapped[str | None] = mapped_column(Text)
+    aply_trgt: Mapped[str | None] = mapped_column(Text)
+    aply_trgt_ctnt: Mapped[str | None] = mapped_column(Text)
+    biz_aply_url: Mapped[str | None] = mapped_column(Text)
+    biz_enyy: Mapped[str | None] = mapped_column(Text)  # 업력. F2 자격 판별
+    biz_gdnc_url: Mapped[str | None] = mapped_column(Text)
+    biz_pbanc_nm: Mapped[str | None] = mapped_column(Text)
+    biz_prch_dprt_nm: Mapped[str | None] = mapped_column(Text)
+    biz_trgt_age: Mapped[str | None] = mapped_column(Text)  # 연령. F2
+    detl_pg_url: Mapped[str | None] = mapped_column(Text)  # 첨부는 여기를 긁어야 나온다
+    id: Mapped[str | None] = mapped_column(Text)  # API 가 주는 행 번호. 안정적이지 않다
+    intg_pbanc_biz_nm: Mapped[str | None] = mapped_column(Text)  # HTML 엔티티가 섞여 온다
+    intg_pbanc_yn: Mapped[str | None] = mapped_column(Text)
+    pbanc_ctnt: Mapped[str | None] = mapped_column(Text)
+    pbanc_ntrp_nm: Mapped[str | None] = mapped_column(Text)
+    pbanc_rcpt_bgng_dt: Mapped[str | None] = mapped_column(Text)
+    pbanc_rcpt_end_dt: Mapped[str | None] = mapped_column(Text)
+    prch_cnpl_no: Mapped[str | None] = mapped_column(Text)
+    prfn_matr: Mapped[str | None] = mapped_column(Text)
+    rcrt_prgs_yn: Mapped[str | None] = mapped_column(Text)  # 모집중 여부. 검증된 서버측 필터
+    sprv_inst: Mapped[str | None] = mapped_column(Text)
+    supt_biz_clsfc: Mapped[str | None] = mapped_column(Text)
+    supt_regin: Mapped[str | None] = mapped_column(Text)  # 지역. F2
+
+    API_FIELDS: frozenset[str] = frozenset(
+        {
+            "aply_excl_trgt_ctnt", "aply_mthd_eml_rcpt_istc", "aply_mthd_etc_istc",
+            "aply_mthd_fax_rcpt_istc", "aply_mthd_onli_rcpt_istc",
+            "aply_mthd_pssr_rcpt_istc", "aply_mthd_vst_rcpt_istc", "aply_trgt",
+            "aply_trgt_ctnt", "biz_aply_url", "biz_enyy", "biz_gdnc_url",
+            "biz_pbanc_nm", "biz_prch_dprt_nm", "biz_trgt_age", "detl_pg_url", "id",
+            "intg_pbanc_biz_nm", "intg_pbanc_yn", "pbanc_ctnt", "pbanc_ntrp_nm",
+            "pbanc_rcpt_bgng_dt", "pbanc_rcpt_end_dt", "pbanc_sn", "prch_cnpl_no",
+            "prfn_matr", "rcrt_prgs_yn", "sprv_inst", "supt_biz_clsfc", "supt_regin",
+        }
+    )  # fmt: skip
+
+
+class Attachment(Base):
+    """첨부 메타데이터. 이 슬라이스는 내려받지도 파싱하지도 않는다(plan/02).
+
+    출처 테이블이 둘이라 FK 를 걸지 않고 (source, external_id) 로 가리킨다.
+    """
+
+    __tablename__ = "attachment"
+    __table_args__ = (
+        Index("ix_attachment_owner", "source", "external_id"),
+        Index("ix_attachment_ext", "ext"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+    position: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    filename: Mapped[str] = mapped_column(Text)
+    ext: Mapped[str | None] = mapped_column(String(16))
+    url: Mapped[str | None] = mapped_column(Text)

@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: finnect-db
+    environment:
+      POSTGRES_USER: finnect
+      POSTGRES_PASSWORD: finnect
+      POSTGRES_DB: finnect
+    ports:
+      # 호스트 5432 를 점유하지 않는다. .env 의 DATABASE_URL 과 맞춰야 한다.
+      - "127.0.0.1:55433:5432"
+    volumes:
+      # postgres:18+ 는 /var/lib/postgresql 에 마운트한다. 하위에 data/ 를 스스로 만든다.
+      # 17 이하 방식(/var/lib/postgresql/data)으로 걸면 기동 시 Exited(1) 로 죽는다.
+      - finnect-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finnect -d finnect"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  finnect-pgdata:

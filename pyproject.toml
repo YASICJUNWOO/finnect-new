@@ -1,0 +1,48 @@
+[project]
+name = "finnect"
+version = "0.1.0"
+description = "공고 판정과 사업계획서 집필"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "alembic>=1.14",
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "jinja2>=3.1",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.7",
+    "sqlalchemy>=2.0.36",
+    "uvicorn[standard]>=0.34",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.9",
+]
+# 버리는 코드(spike/)를 다시 돌릴 때만. `uv sync --group spike`
+# T-0005 배점 명시율 재검증이 measure_rate.py 의 탐지기를 그대로 쓴다.
+spike = [
+    "beautifulsoup4>=4.12",
+    "lxml>=5.3",
+    "olefile>=0.47",
+    "pdfplumber>=0.11",
+    "requests>=2.32",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finnect"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

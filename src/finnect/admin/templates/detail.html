@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ external_id }} — finnect 관리{% endblock %}
+{% block body %}
+
+<p><a href="/notices">← 목록</a></p>
+<h1>{{ source }} / {{ external_id }}</h1>
+<p class="muted">{{ table }} 테이블에서 직접 읽는다. 뷰를 거치지 않는다.</p>
+
+<h2>API 컬럼 {{ api_fields | length }}개 — 출처가 준 그대로</h2>
+<table>
+  <tbody>
+  {% for name, value in api_fields %}
+    <tr>
+      <td class="key">{{ name }}</td>
+      <td class="val">{% if value is none %}<span class="null">null</span>{% else %}{{ value }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if extra %}
+<h2>⚠ 처음 보는 필드 {{ extra | length }}개 — API 가 늘어났다</h2>
+<table>
+  <tbody>
+  {% for name, value in extra.items() %}
+    <tr><td class="key">{{ name }}</td><td class="val">{{ value }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>첨부 {{ attachments | length }}건 — 메타데이터만. 내려받지 않았다</h2>
+{% if attachments %}
+<table>
+  <thead><tr><th>#</th><th>구분</th><th>파일명</th><th>확장자</th><th>URL</th></tr></thead>
+  <tbody>
+  {% for a in attachments %}
+    <tr>
+      <td class="num">{{ a.position }}</td>
+      <td><span class="tag">{{ a.kind }}</span></td>
+      <td class="val">{{ a.filename }}</td>
+      <td>{{ a.ext or '' }}</td>
+      <td>{% if a.url %}<a href="{{ a.url }}" rel="noreferrer">열기</a>{% else %}<span class="null">URL 없음</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">
+  {% if source == 'kstartup' %}
+    K-Startup 목록 API 에는 첨부 필드가 없다. detl_pg_url 을 긁어야 나온다 (plan/02).
+  {% else %}
+    첨부 0건. 목록 API 가 알려준 확인된 0건이다 (기업마당의 28%).
+  {% endif %}
+</p>
+{% endif %}
+
+<h2>우리가 붙인 컬럼 {{ ours | length }}개 — API 가 준 값이 아니다</h2>
+<table>
+  <tbody>
+  {% for name, value in ours %}
+    {% if name != 'extra' %}
+    <tr>
+      <td class="key">{{ name }}</td>
+      <td class="val">{% if value is none %}<span class="null">null</span>{% else %}{{ value }}{% endif %}</td>
+    </tr>
+    {% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}finnect 관리{% endblock %}</title>
+<style>
+/* 임시 스타일이다. design/ 의 토큰을 따르지 않는다. 제품 화면이 아니다. */
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px;
+  font: 14px/1.5 ui-sans-serif, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+a { color: #0645ad; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+h2 { font-size: 14px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
+.muted { color: #767676; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+input[type=search], select { padding: 5px 8px; font: inherit; }
+button { padding: 5px 12px; font: inherit; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
+th { font-weight: 600; white-space: nowrap; background: rgba(127,127,127,.08); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.key { width: 260px; font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+td.val { white-space: pre-wrap; word-break: break-word; }
+.tag { font-size: 11px; padding: 1px 6px; border: 1px solid #999; border-radius: 3px; white-space: nowrap; }
+.null { color: #999; font-style: italic; }
+.pager { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

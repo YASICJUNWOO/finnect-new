@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}수집 · finnect 관리{% endblock %}
+
+{# 도는 동안만 새로 고친다. 끝나면 멈춘다. #}
+{% block head %}{% if busy %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+
+{% block body %}
+
+<h1>수집</h1>
+<p class="muted">목록 API를 받아 DB에 넣는다. 첨부는 메타데이터만 담고 내려받지 않는다.</p>
+
+{% if ok != -1 %}
+<div class="banner {{ 'ok' if ok == 1 else 'no' }}">{{ reason }}</div>
+{% endif %}
+
+<div class="cards">
+{% for c in cards %}
+  <div class="card">
+    <h3>{{ c.info.label }} <span class="tag">{{ c.info.name }}</span></h3>
+    <p class="muted">실측 {{ "{:,}".format(c.info.expected) }}건 · {{ c.info.requests }}</p>
+
+    <div class="stored">{{ "{:,}".format(c.stored) }}<span class="muted" style="font-size:13px">건 저장됨</span></div>
+
+    {% if c.missing_key %}
+      <p class="bad">{{ c.missing_key }} 가 .env 에 없다. 눌러도 실패로 끝난다.</p>
+    {% endif %}
+
+    {% if c.running %}
+      {% if c.progress %}
+        {% if c.progress.percent is not none %}
+        <div class="meter"><i style="width: {{ c.progress.percent }}%"></i></div>
+        {% endif %}
+        <p class="muted">
+          수집 중 — 응답 {{ c.progress.pages }}건 · 공고 {{ "{:,}".format(c.progress.items) }}
+          {%- if c.progress.goal %} / {{ "{:,}".format(c.progress.goal) }}{% endif %}
+          {%- if c.progress.target %} <span class="tag">맛보기</span>{% endif %}
+        </p>
+      {% elif c.elsewhere %}
+        <p class="muted">다른 프로세스에서 수집 중 (pid {{ c.elsewhere.pid }} · {{ c.elsewhere.trigger }}). 진행률은 여기서 못 본다.</p>
+      {% else %}
+        <p class="muted">수집 중 — 첫 응답을 기다리는 중이다.</p>
+      {% endif %}
+    {% elif c.last %}
+      <p class="muted">
+        마지막 {{ c.last.started_at | ts }}
+        <span class="pill {{ c.last.status }}">{{ c.last.status }}</span>
+        · {{ c.last.elapsed }}
+        {%- if c.last.status == 'ok' %} · 신규 {{ "{:,}".format(c.last.inserted) }} · 변경 {{ "{:,}".format(c.last.changed) }}{% endif %}
+        {%- if c.last.truncated %}<br><span class="warn">⚠ 맛보기였다 — {{ "{:,}".format(c.last.items) }}건만 받았다{% if c.last.expected %} (전량 {{ "{:,}".format(c.last.expected) }}){% endif %}</span>{% endif %}
+      </p>
+    {% else %}
+      <p class="muted">아직 한 번도 안 돌렸다.</p>
+    {% endif %}
+
+    <form class="actions" method="post" action="/ingest/run/{{ c.info.name }}">
+      <label class="muted">건수
+        <input type="number" name="limit" min="1" max="{{ c.info.expected }}"
+               placeholder="전량 {{ "{:,}".format(c.info.expected) }}" size="8"
+               {% if c.running %}disabled{% endif %}>
+      </label>
+      <button type="submit" {% if c.running %}disabled{% endif %}>수집</button>
+    </form>
+    <p class="muted">비워 두면 전량이다. 넣으면 그만큼만 받고 <b>잘렸다는 표시가 기록에 남는다</b>.</p>
+
+    {% if c.info.name == 'kstartup' %}
+    <form class="actions" method="post" action="/ingest/run/kstartup?only_open=true">
+      <button type="submit" {% if c.running %}disabled{% endif %}>모집중만 (274건)</button>
+      <span class="muted">검증된 서버측 필터 rcrt_prgs_yn=Y</span>
+    </form>
+    {% endif %}
+
+    <p class="muted" style="margin-bottom:0">{{ c.info.note }}</p>
+  </div>
+{% endfor %}
+</div>
+
+<h2>실행 기록</h2>
+<table>
+  <thead>
+    <tr>
+      <th>시작</th><th>출처</th><th>경로</th><th>상태</th><th>걸린 시간</th>
+      <th>응답</th><th>공고</th><th>신규</th><th>변경</th><th>그대로</th><th>남긴 것</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td class="muted">{{ r.started_at | ts }}</td>
+      <td>
+        <span class="tag">{{ r.source }}</span>
+        {%- if r.only_open %} <span class="tag">모집중만</span>{% endif %}
+        {%- if r.item_limit %} <span class="tag warn">{{ "{:,}".format(r.item_limit) }}건만</span>{% endif %}
+      </td>
+      <td class="muted">{{ r.trigger }}</td>
+      <td><span class="pill {{ r.status }}">{{ r.status }}</span></td>
+      <td class="num muted">{{ r.elapsed }}</td>
+      <td class="num">{{ r.pages }}</td>
+      <td class="num">{{ "{:,}".format(r.items) }}</td>
+      <td class="num">{{ "{:,}".format(r.inserted) }}</td>
+      <td class="num">{{ "{:,}".format(r.changed) }}</td>
+      <td class="num">{{ "{:,}".format(r.unchanged) }}</td>
+      <td>
+        {%- if r.error %}<span class="bad">{{ r.error }}</span>
+        {%- elif r.report %}<pre>{{ r.report }}</pre>
+        {%- endif %}
+        {%- if r.unknown_fields %}
+        <div class="warn">⚠ 처음 보는 필드 → extra: {% for k, v in r.unknown_fields.items() %}{{ k }}({{ v }}){% if not loop.last %}, {% endif %}{% endfor %}</div>
+        {%- endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="11" class="muted">아직 실행 기록이 없다.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p class="muted">
+  같은 수집을 두 번 돌려도 건수는 같다. 콘텐츠 해시가 같으면 최종 확인 시각만 올린다.
+  CLI로 돌린 것도 같은 표에 남는다 — <code>uv run python -m finnect.ingest --source bizinfo</code>
+</p>
+
+{% endblock %}

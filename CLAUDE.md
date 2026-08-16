@@ -24,7 +24,8 @@ docker compose up -d db                          # PostgreSQL (127.0.0.1:55433)
 uv run alembic upgrade head                      # 스키마
 uv run python -m finnect.ingest --source bizinfo    # 1,538건 · 요청 1회
 uv run python -m finnect.ingest --source kstartup   # 29,789건 · 요청 149회
-uv run uvicorn finnect.admin.app:app --reload    # http://127.0.0.1:8000
+uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘림이 기록에 남는다
+uv run uvicorn finnect.admin.app:app --reload    # http://127.0.0.1:8000 (/notices · /ingest)
 uv run pytest
 uv run ruff check .
 ```
@@ -40,10 +41,13 @@ uv run ruff check .
 | `kstartup_notice` | K-Startup 30컬럼 |
 | `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py` |
 | `attachment` | 첨부 메타 |
+| `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |
 
 두 출처는 **필드 이름을 하나도 공유하지 않는다**(22 · 30 · 교집합 0). 전부 수동 매핑이다.
 전부 TEXT로 받는다. 파생 값은 `derived_` 접두사로 API 값과 구분한다.
 처음 보는 필드는 `extra` JSONB로 흘리되 **건수를 보고한다.** 조용히 버리지 않는다.
+
+필드 설명은 `src/finnect/fields.py`가 정본이고 **공식 문서에서 옮긴 것만 담는다.** 기업마당 20/22 · K-Startup 28/30이고 나머지는 '문서에 없음'으로 화면에 적는다. 이름으로 뜻을 추측해 채우지 않는다.
 
 ## 문서
 

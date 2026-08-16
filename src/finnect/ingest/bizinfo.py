@@ -34,14 +34,20 @@ class BizinfoAdapter:
     source = str(Source.BIZINFO)
     model = BizinfoNotice
 
-    def __init__(self, client: httpx.Client, api_key: str | None = None) -> None:
+    def __init__(
+        self, client: httpx.Client, api_key: str | None = None, limit: int | None = None
+    ) -> None:
         self.client = client
         self.api_key = api_key if api_key is not None else settings.bizinfo_api_key
+        self.limit = limit
         if not self.api_key:
             raise RuntimeError("BIZINFO_API_KEY 가 없다")
 
     def pages(self) -> Iterator[FetchedPage]:
-        params = {"crtfcKey": self.api_key, "dataType": "json", "searchCnt": str(SEARCH_CNT)}
+        # searchCnt 가 그대로 건수 제한이다. 2026-08-16 실측: 10→10건, 100→100건, 500→500건.
+        # 잘라 받아도 totCnt 는 1538 로 오므로 전량이 몇 건인지 잃지 않는다.
+        count = self.limit if self.limit else SEARCH_CNT
+        params = {"crtfcKey": self.api_key, "dataType": "json", "searchCnt": str(count)}
         resp = self.client.get(ENDPOINT, params=params, timeout=settings.request_timeout_sec)
         items = bizinfo_items(resp)  # 인증 실패(HTTP 200 + reqErr)를 여기서 잡는다
         yield FetchedPage(
@@ -51,6 +57,7 @@ class BizinfoAdapter:
             items=items,
             byte_size=len(resp.content),
             ratelimit_remaining=ratelimit_remaining(resp),
+            total_count=_total_count(items),
         )
 
     def normalize(self, item: dict[str, Any]) -> NormalizedNotice | None:
@@ -73,6 +80,20 @@ class BizinfoAdapter:
             attachments=_attachments(item),
             content_hash=content_hash(item),
         )
+
+
+def _total_count(items: list[dict[str, Any]]) -> int | None:
+    """이 출처의 전량 건수. **잘라 받아도 값이 안 변한다.**
+
+    응답 메타인 totCnt 가 item 마다 반복해서 온다. searchCnt=10 으로 10건만 받아도
+    totCnt 는 1538 이다(2026-08-16 실측). 그래서 '500건만 받았다'와 '500건뿐이다'가 구분된다.
+    """
+    if not items:
+        return 0
+    try:
+        return int(items[0].get("totCnt"))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
 
 
 def _pairs(item: dict[str, Any], name_field: str, url_field: str) -> list[tuple[str, str | None]]:

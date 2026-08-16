@@ -8,6 +8,7 @@ Postgres 는 대소문자 섞인 식별자에 따옴표가 필요하지만 SQLAl
   kstartup_notice    K-Startup 30컬럼 전부
   notice (뷰)        둘을 공통 8필드로 매핑해 UNION ALL  → views.py
   attachment         첨부 메타
+  ingest_run         수집 실행 기록. 코퍼스가 아니라 운영 기록이다
 
 전부 TEXT 로 받는다. API 가 날짜도 "20260827" 문자열로 준다.
 타입을 여기서 강제하면 이상한 값 하나에 적재가 통째로 깨진다.
@@ -24,6 +25,7 @@ import enum
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -61,6 +63,20 @@ class AttachmentStatus(enum.StrEnum):
 class AttachmentKind(enum.StrEnum):
     NOTICE_DOC = "공고문"  # printFileNm / printFlpthNm
     OTHER = "기타"  # fileNm / flpthNm
+
+
+class RunStatus(enum.StrEnum):
+    """수집 실행의 끝.
+
+    INTERRUPTED 가 따로 있는 이유는 **RUNNING 인 채로 프로세스가 죽으면 아무도 못 고치기**
+    때문이다. 그 행을 그대로 두면 화면에서 영원히 '수집 중'으로 보인다.
+    죽은 것을 성공으로도 실패로도 부르지 않는다.
+    """
+
+    RUNNING = "running"
+    OK = "ok"
+    FAILED = "failed"
+    INTERRUPTED = "interrupted"
 
 
 class RawFetch(Base):
@@ -224,3 +240,76 @@ class Attachment(Base):
     filename: Mapped[str] = mapped_column(Text)
     ext: Mapped[str | None] = mapped_column(String(16))
     url: Mapped[str | None] = mapped_column(Text)
+
+
+class IngestRun(Base):
+    """수집 실행 한 건. CLI 와 관리 화면 버튼이 **같은 표에** 남긴다.
+
+    코퍼스가 아니라 운영 기록이다. 여기 있는 값은 API 가 준 것이 아니라 우리가 센 것이라
+    derived_ 접두사 규칙의 대상이 아니다.
+
+    **실패한 실행도 행으로 남는다.** 적재 트랜잭션이 롤백돼도 이 행은 별도 세션에 커밋된다.
+    두 API 모두 실패를 HTTP 200 으로 주기 때문에, 실패가 화면에서 '아무 일도 없었음'과
+    구분되지 않으면 이 표는 없느니만 못하다.
+    """
+
+    __tablename__ = "ingest_run"
+    __table_args__ = (Index("ix_ingest_run_source_started", "source", "started_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16))
+    only_open: Mapped[bool] = mapped_column(Boolean, default=False)
+    trigger: Mapped[str] = mapped_column(String(16))  # cli | admin
+    status: Mapped[str] = mapped_column(String(16))
+
+    # 실행은 프로세스 안에서만 산다. 스케줄러도 잡 큐도 아니다(ADR-0011).
+    # 죽은 프로세스의 RUNNING 행을 골라내는 유일한 단서라 같이 남긴다.
+    pid: Mapped[int] = mapped_column(Integer)
+
+    started_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # 요청한 건수 제한. NULL 이면 전량이다.
+    item_limit: Mapped[int | None] = mapped_column(Integer)
+    # 출처가 말한 전량(기업마당 totCnt · K-Startup matchCount). 잘라 받아도 이 값은 안 변한다.
+    expected: Mapped[int | None] = mapped_column(Integer)
+
+    pages: Mapped[int] = mapped_column(Integer, default=0)
+    items: Mapped[int] = mapped_column(Integer, default=0)
+    inserted: Mapped[int] = mapped_column(Integer, default=0)
+    changed: Mapped[int] = mapped_column(Integer, default=0)
+    unchanged: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    attachments: Mapped[int] = mapped_column(Integer, default=0)
+    ratelimit_remaining: Mapped[int | None] = mapped_column(Integer)
+
+    # 처음 보는 필드 {이름: 건수}. 조용히 사라지지 않게 화면까지 들고 간다.
+    unknown_fields: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    report: Mapped[str | None] = mapped_column(Text)  # CLI 가 찍는 것과 같은 문자열
+    error: Mapped[str | None] = mapped_column(Text)  # 실패 이유. 비어 있으면 안 된다
+
+    @property
+    def elapsed(self) -> str:
+        """걸린 시간. 아직 도는 중이면 지금까지."""
+        if self.started_at is None:
+            return ""
+        end = self.finished_at or dt.datetime.now(dt.UTC)
+        secs = int((end - self.started_at).total_seconds())
+        return f"{secs}초" if secs < 60 else f"{secs // 60}분 {secs % 60}초"
+
+    @property
+    def truncated(self) -> bool:
+        """전량을 다 받지 않은 실행.
+
+        **이걸 표시하지 않으면 맛보기 수집이 전량 수집으로 오인된다.** 건수만 보고
+        '29,789건이어야 하는데 500건이네'를 실패로 읽거나, 반대로 맛보기 결과를
+        모집단으로 믿게 된다. 둘 다 계획이 경고한 사고다.
+        """
+        if self.status != str(RunStatus.OK):
+            return False
+        if self.item_limit is not None and self.expected is not None:
+            return self.item_limit < self.expected
+        return self.item_limit is not None

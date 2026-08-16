@@ -7,11 +7,23 @@
 <p class="muted">{{ table }} 테이블에서 직접 읽는다. 뷰를 거치지 않는다.</p>
 
 <h2>API 컬럼 {{ api_fields | length }}개 — 출처가 준 그대로</h2>
+<p class="muted">
+  설명은 {{ described }}/{{ described_total }}개가 공식 문서에 있다.
+  출처 {% if doc.url %}<a href="{{ doc.url }}" rel="noreferrer">{{ doc.label }}</a>{% else %}{{ doc.label }}{% endif %}.
+  {%- if described < described_total %}
+  나머지는 <b>문서에 없다.</b> 이름으로 뜻을 추측해 채우지 않았다.
+  {%- endif %}
+</p>
 <table>
+  <thead><tr><th>필드</th><th>항목명 (공식 문서)</th><th>값</th></tr></thead>
   <tbody>
-  {% for name, value in api_fields %}
+  {% for name, value, desc in api_fields %}
     <tr>
       <td class="key">{{ name }}</td>
+      <td class="desc">
+        {%- if desc %}{{ desc }}
+        {%- else %}<span class="undoc">문서에 없음</span>{% endif %}
+      </td>
       <td class="val">{% if value is none %}<span class="null">null</span>{% else %}{{ value }}{% endif %}</td>
     </tr>
   {% endfor %}
@@ -57,11 +69,13 @@
 
 <h2>우리가 붙인 컬럼 {{ ours | length }}개 — API 가 준 값이 아니다</h2>
 <table>
+  <thead><tr><th>필드</th><th>무엇인가</th><th>값</th></tr></thead>
   <tbody>
-  {% for name, value in ours %}
+  {% for name, value, desc in ours %}
     {% if name != 'extra' %}
     <tr>
       <td class="key">{{ name }}</td>
+      <td class="desc">{{ desc or '' }}</td>
       <td class="val">{% if value is none %}<span class="null">null</span>{% else %}{{ value }}{% endif %}</td>
     </tr>
     {% endif %}

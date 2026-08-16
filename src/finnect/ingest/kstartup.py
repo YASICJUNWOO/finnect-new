@@ -35,26 +35,40 @@ ENDPOINT = (
 PER_PAGE = 200
 MAX_PAGES = 400  # 29,789/200 = 149. 폭주 방지용 상한이지 기대값이 아니다
 
+#: perPage 상한. 2026-08-16 실측으로 2,000 은 오고 3,000 부터 봉투 없는
+#: {"code":0,"msg":"정상"} 이 온다. **여기도 실패가 HTTP 200 이다.**
+MAX_PER_PAGE = 2000
+
 
 class KstartupAdapter:
     source = str(Source.KSTARTUP)
     model = KstartupNotice
 
     def __init__(
-        self, client: httpx.Client, api_key: str | None = None, only_open: bool = False
+        self,
+        client: httpx.Client,
+        api_key: str | None = None,
+        only_open: bool = False,
+        limit: int | None = None,
     ) -> None:
         self.client = client
         self.api_key = api_key if api_key is not None else settings.data_go_kr_api_key
         self.only_open = only_open
+        self.limit = limit
         if not self.api_key:
             raise RuntimeError("DATA_GO_KR_API_KEY 가 없다")
 
     def pages(self) -> Iterator[FetchedPage]:
+        # 건수 제한 파라미터가 따로 없다. perPage 로 한 장에 담고 일찍 끊는 수밖에 없다.
+        # limit 이 MAX_PER_PAGE 이하면 요청 1회로 정확히 그만큼 온다.
+        per_page = min(MAX_PER_PAGE, self.limit) if self.limit else PER_PAGE
+        seen = 0
+
         for page in range(1, MAX_PAGES + 1):
             params: dict[str, Any] = {
                 "serviceKey": self.api_key,
                 "page": page,
-                "perPage": PER_PAGE,
+                "perPage": per_page,
                 "returnType": "json",
             }
             if self.only_open:
@@ -73,11 +87,17 @@ class KstartupAdapter:
                 items=items,
                 byte_size=len(resp.content),
                 ratelimit_remaining=ratelimit_remaining(resp),
+                # totalCount 가 아니라 matchCount 다. 진행률에도 같은 함정이 있다.
+                total_count=match_count,
             )
+
+            seen += len(items)
 
             # matchCount 가 필터 결과다. totalCount 는 필터와 무관하게 29,789 로 고정이라
             # 종료 조건으로 쓰면 필터를 걸고도 149 페이지를 돈다.
-            if not items or page * PER_PAGE >= match_count:
+            if not items or page * per_page >= match_count:
+                return
+            if self.limit is not None and seen >= self.limit:
                 return
             time.sleep(settings.request_delay_sec)
 

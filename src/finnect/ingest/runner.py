@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,12 +30,16 @@ class IngestReport:
     attachments: int = 0
     ratelimit_remaining: int | None = None
     unknown_fields: Counter = field(default_factory=Counter)
+    expected: int | None = None  # 출처가 말한 총 건수. 진행률 표시용이다
 
     def render(self) -> str:
         lines = [
             f"[{self.source}] 응답 {self.pages}건 · 공고 {self.items:,}건",
             f"  신규 {self.inserted:,} · 변경 {self.changed:,} · 그대로 {self.unchanged:,}",
         ]
+        if self.expected is not None and self.items < self.expected:
+            # 맛보기 수집이든 사고든 여기서 드러난다. 건수만 보고 성공으로 읽지 않게.
+            lines.append(f"  ⚠ 전량 {self.expected:,}건 중 {self.items:,}건만 받았다")
         if self.skipped:
             lines.append(f"  건너뜀 {self.skipped:,} (외부 ID 없음)")
         if self.attachments:
@@ -48,7 +53,16 @@ class IngestReport:
         return "\n".join(lines)
 
 
-def run(adapter: Adapter, session: Session) -> IngestReport:
+def run(
+    adapter: Adapter,
+    session: Session,
+    on_page: Callable[[IngestReport], None] | None = None,
+) -> IngestReport:
+    """on_page 는 응답 한 건을 처리할 때마다 불린다.
+
+    K-Startup 전량이 149회다. 화면에서 이걸 누르면 몇 분간 아무 표시가 없게 되므로
+    중간 상태를 밖으로 낸다. **여기서 커밋하지 않는다.** 적재는 한 트랜잭션이다.
+    """
     model = adapter.model  # type: ignore[attr-defined]
     pk = inspect(model).primary_key[0]
     report = IngestReport(source=adapter.source)
@@ -77,6 +91,8 @@ def run(adapter: Adapter, session: Session) -> IngestReport:
         report.items += len(page.items)
         if page.ratelimit_remaining is not None:
             report.ratelimit_remaining = page.ratelimit_remaining
+        if page.total_count is not None:
+            report.expected = page.total_count
 
         for item in page.items:
             row = adapter.normalize(item)
@@ -100,6 +116,9 @@ def run(adapter: Adapter, session: Session) -> IngestReport:
             if len(to_write) >= BATCH:
                 report.attachments += _flush(session, model, pk, to_write)
                 to_write.clear()
+
+        if on_page is not None:
+            on_page(report)
 
     if to_write:
         report.attachments += _flush(session, model, pk, to_write)

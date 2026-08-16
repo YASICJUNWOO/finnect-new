@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}finnect 관리{% endblock %}</title>
+{% block head %}{% endblock %}
 <style>
 /* 임시 스타일이다. design/ 의 토큰을 따르지 않는다. 제품 화면이 아니다. */
 :root { color-scheme: light dark; }
@@ -28,9 +29,44 @@ td.val { white-space: pre-wrap; word-break: break-word; }
 .tag { font-size: 11px; padding: 1px 6px; border: 1px solid #999; border-radius: 3px; white-space: nowrap; }
 .null { color: #999; font-style: italic; }
 .pager { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+
+nav { display: flex; gap: 16px; margin: 0 0 20px; padding-bottom: 10px; border-bottom: 1px solid #ccc; }
+nav a { text-decoration: none; }
+nav a.on { font-weight: 600; color: inherit; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.card { border: 1px solid #ccc; border-radius: 5px; padding: 14px 16px; }
+.card h3 { margin: 0 0 2px; font-size: 15px; }
+.card .stored { font-size: 22px; font-variant-numeric: tabular-nums; margin: 8px 0 2px; }
+.card .actions { display: flex; gap: 8px; margin-top: 12px; }
+.card form { margin: 0; }
+
+.banner { padding: 9px 12px; border-radius: 4px; margin: 0 0 16px; border: 1px solid; }
+.banner.ok { border-color: #1a7f37; }
+.banner.no { border-color: #cf222e; }
+
+.pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
+.pill.running { border-color: #0969da; }
+.pill.ok { border-color: #1a7f37; }
+.pill.failed { border-color: #cf222e; }
+.pill.interrupted { border-color: #9a6700; }
+
+.meter { height: 6px; border: 1px solid #999; border-radius: 3px; overflow: hidden; margin: 8px 0 4px; }
+.meter > i { display: block; height: 100%; background: #0969da; }
+.warn { color: #9a6700; }
+/* 설명은 호버가 아니라 컬럼이다. 마우스를 올려야 보이는 정보는 안 보이는 정보에 가깝다. */
+td.desc { width: 240px; color: #444; }
+/* 문서에 설명이 없는 필드. 빈칸으로 두면 '설명이 있는데 안 보이는 것'과 구별이 안 된다. */
+.undoc { color: #cf222e; font-style: italic; }
+.bad { color: #cf222e; }
+pre { margin: 0; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
 </style>
 </head>
 <body>
+<nav>
+  <a href="/notices" class="{% if nav == 'notices' %}on{% endif %}">공고 목록</a>
+  <a href="/ingest" class="{% if nav == 'ingest' %}on{% endif %}">수집</a>
+</nav>
 {% block body %}{% endblock %}
 </body>
 </html>

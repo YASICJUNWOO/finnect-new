@@ -8,20 +8,51 @@ design/ 의 토큰·컴포넌트를 따르지 않는다. 제품 화면이 아니
 from __future__ import annotations
 
 import math
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 
+from finnect import fields
 from finnect.db import SessionFactory
-from finnect.models import Attachment, BizinfoNotice, KstartupNotice, Source
+from finnect.ingest import jobs, runs, service
+from finnect.models import Attachment, BizinfoNotice, KstartupNotice, RunStatus, Source
 from finnect.views import Notice
 
-app = FastAPI(title="finnect 관리", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """기동 시 죽은 프로세스가 남긴 '수집 중' 자국을 정리한다.
+
+    --reload 로 띄우면 파일을 고칠 때마다 프로세스가 갈린다. 돌던 수집은 거기서 끊기는데
+    행은 RUNNING 인 채로 남아 화면에서 영원히 도는 것처럼 보인다.
+    """
+    try:
+        reaped = runs.reap()
+    except OperationalError as e:
+        raise RuntimeError("DB 에 못 붙었다. `docker compose up -d db` 를 먼저 돌린다.") from e
+    if reaped:
+        print(f"[admin] 중단된 수집 {reaped}건을 정리했다")
+    yield
+
+
+app = FastAPI(title="finnect 관리", docs_url=None, redoc_url=None, lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _ts(value: Any) -> str:
+    """timestamptz 는 UTC 로 온다. 읽는 사람 시간대로 돌려 놓는다."""
+    return value.astimezone().strftime("%m-%d %H:%M") if value else ""
+
+
+templates.env.filters["ts"] = _ts
 
 PAGE_SIZE = 50
 
@@ -88,6 +119,7 @@ def notice_list(
         request,
         "list.html",
         {
+            "nav": "notices",
             "rows": rows,
             "counts": counts,
             "total": total,
@@ -122,15 +154,20 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
         )
 
         # API 가 준 컬럼과 우리가 붙인 컬럼을 갈라서 보여준다.
+        # 설명은 출처의 공식 문서에서 온다. 없으면 None 이고, 화면이 '문서에 없음'으로 적는다.
         api_fields, ours = [], []
         for col in model.__table__.columns:
             value = getattr(row, col.name, None)
-            (api_fields if col.name in model.API_FIELDS else ours).append((col.name, value))
+            entry = (col.name, value, fields.describe(source, col.name))
+            (api_fields if col.name in model.API_FIELDS else ours).append(entry)
+
+    known, total = fields.coverage(source, [n for n, _, _ in api_fields])
 
     return templates.TemplateResponse(
         request,
         "detail.html",
         {
+            "nav": "notices",
             "source": source,
             "external_id": external_id,
             "api_fields": api_fields,
@@ -138,5 +175,67 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
             "extra": row.extra or {},
             "attachments": attachments,
             "table": model.__tablename__,
+            "doc": fields.DOCS[source],
+            "described": known,
+            "described_total": total,
         },
     )
+
+
+@app.get("/ingest", response_class=HTMLResponse)
+def ingest_page(request: Request, ok: int = -1, reason: str = "") -> HTMLResponse:
+    with SessionFactory() as s:
+        stored = dict(s.execute(select(Notice.source, func.count()).group_by(Notice.source)).all())
+
+    last = runs.last_by_source()
+    cards = [_card(info, stored.get(info.name, 0), last.get(info.name)) for info in service.SOURCES]
+
+    return templates.TemplateResponse(
+        request,
+        "ingest.html",
+        {
+            "nav": "ingest",
+            "cards": cards,
+            "runs": runs.recent(),
+            "busy": any(c["running"] for c in cards),
+            "ok": ok,
+            "reason": reason,
+            "statuses": {str(v): v for v in RunStatus},
+        },
+    )
+
+
+@app.post("/ingest/run/{source}")
+async def ingest_start(request: Request, source: str, only_open: bool = False) -> RedirectResponse:
+    """수집을 시작하고 목록으로 돌려보낸다. 응답을 붙잡고 기다리지 않는다.
+
+    K-Startup 전량이 149회다. 요청 안에서 끝내려 하면 브라우저가 먼저 끊는다.
+    """
+    form = await request.form()
+    try:
+        limit = service.parse_limit(str(form.get("limit", "")))
+    except ValueError as e:
+        return RedirectResponse(f"/ingest?ok=0&reason={quote(str(e))}", status_code=303)
+
+    result = service.launch(source, only_open=only_open, limit=limit, trigger="admin")
+    scope = f"{limit:,}건" if limit else "전량"
+    reason = result.reason or f"{source} {scope} 수집을 시작했다"
+    # POST 뒤 303. 새로 고침으로 같은 수집이 다시 나가지 않게 한다.
+    return RedirectResponse(
+        f"/ingest?ok={int(result.started)}&reason={quote(reason)}", status_code=303
+    )
+
+
+def _card(info: service.SourceInfo, stored: int, last: Any) -> dict[str, Any]:
+    """화면 카드 한 장. 다른 프로세스(CLI)에서 도는 것도 '수집 중'으로 친다."""
+    elsewhere = runs.live(info.name)
+    return {
+        "info": info,
+        "stored": stored,
+        "last": last,
+        "missing_key": service.missing_key(info.name),
+        "running": jobs.running(info.name) or elsewhere is not None,
+        # 진행률은 이 프로세스가 돌릴 때만 안다. CLI 실행은 건수를 실시간으로 못 본다.
+        "progress": jobs.progress_of(info.name),
+        "elsewhere": elsewhere if not jobs.running(info.name) else None,
+    }

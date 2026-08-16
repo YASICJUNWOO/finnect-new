@@ -21,6 +21,9 @@ class FetchedPage:
     items: list[dict[str, Any]]
     byte_size: int
     ratelimit_remaining: int | None = None
+    # 이 출처가 이번 실행에서 줄 총 건수. 진행률 표시에만 쓴다.
+    # K-Startup 은 matchCount, 기업마당은 한 번에 전량이라 받은 수 자체다.
+    total_count: int | None = None
 
 
 @dataclass(slots=True)

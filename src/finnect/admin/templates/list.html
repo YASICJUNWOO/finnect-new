@@ -50,7 +50,7 @@
         {%- if r.attachment_status == 'unknown' %}<span class="null">미확인</span>
         {%- else %}{{ counts.get((r.source, r.external_id), 0) }}{% endif %}
       </td>
-      <td class="num muted">{{ r.last_seen_at.strftime('%m-%d %H:%M') if r.last_seen_at else '' }}</td>
+      <td class="num muted">{{ r.last_seen_at | ts }}</td>
     </tr>
   {% else %}
     <tr><td colspan="7" class="muted">해당하는 공고가 없다.</td></tr>

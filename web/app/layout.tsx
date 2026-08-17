@@ -18,6 +18,14 @@ export const metadata: Metadata = {
  *
  * 활성 표시가 '지원사업'에 박혀 있다. 지금 라우트가 목록과 상세 둘뿐이고
  * 시연도 그 둘에서 같은 항목을 켠다. **나머지 축이 생기면 `usePathname` 이 필요해진다.** */
+
+/** 운영 도구(`src/finnect/admin/`)로 나가는 문. **개발에서만 낸다.**
+ *
+ * admin 은 Vercel 에 올라가지 않는다(ADR-0026) — 배포본에 두면 죽은 링크가 된다.
+ * 3축 내비에 넣지 않는 이유도 같다. 제품 화면이 아니라 SPEC §6 밖의 도구다. */
+const ADMIN =
+  process.env.NODE_ENV === "development" ? process.env.FINNECT_ADMIN : undefined;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
@@ -42,6 +50,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="srOnly"> — 아직 없어요</span>
               </span>
             </nav>
+
+            {ADMIN ? (
+              <a
+                href={ADMIN}
+                className={styles.admin}
+                target="_blank"
+                rel="noreferrer"
+              >
+                운영 도구
+              </a>
+            ) : null}
           </div>
         </header>
 

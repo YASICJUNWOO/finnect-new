@@ -120,6 +120,8 @@ vercel deploy
 
 `FINNECT_API` 는 `next.config.ts` 가 읽는다. 없으면 `http://127.0.0.1:8100` 으로 떨어져서 **배포본이 로컬을 부르다 실패한다.** 이 값이 이 배포에서 가장 자주 틀리는 자리다.
 
+`FINNECT_ADMIN` 은 **Vercel 에 넣지 않는다.** 상단 '운영 도구' 링크는 `process.env.NODE_ENV === "development"` 일 때만 렌더되므로 배포본에는 그 요소 자체가 없다. admin 은 로컬에 남는다([ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md)). 로컬 포트를 바꿨을 때만 이 값을 준다.
+
 ---
 
 ## 5-1. Git 연동 (2026-08-17 붙였다)

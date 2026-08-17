@@ -85,6 +85,30 @@
   cursor: not-allowed;
 }
 
+/* 운영 도구로 나가는 문. 3축 내비와 같은 줄에 있지만 **같은 층이 아니다** —
+ * 그래서 .menu 밖에 있고 오른쪽 끝으로 밀린다.
+ *
+ * 테두리를 둘러 조작 요소로 읽히게 하고 반경은 --r-sm(§4.3 조작 요소)을 쓴다.
+ * 색은 --ink-3 과 --line-2 뿐이다 — UI 크롬에 색을 쓰지 않는다(§3-6).
+ * 13px 은 제품 내비(16px)보다 작다. 사용자 것이 아니라는 뜻이다. */
+.admin {
+  margin-left: auto;
+  flex: none;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin:hover {
+  color: var(--ink-2);
+  border-color: var(--ink-4);
+}
+
 .main {
   max-width: 900px;
   margin: 0 auto;

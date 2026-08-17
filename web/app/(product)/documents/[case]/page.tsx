@@ -32,8 +32,9 @@ export default async function DocumentsPreviewPage({
   const data = FIXTURES[key];
   if (!data) notFound();
 
+  // `(product)/layout.tsx` 가 이미 <main> 을 갖는다. 겹치지 않게 article 을 쓴다.
   return (
-    <main className={styles.page}>
+    <article className={styles.page}>
       <p className={styles.kicker}>표본으로 보는 중이에요</p>
       <h1 className={styles.title}>{data.notice.title}</h1>
 
@@ -57,6 +58,6 @@ export default async function DocumentsPreviewPage({
       <p className={styles.note}>
         실제 공고에서 뽑은 값이에요. 아직 이 세 건만 있고, 나머지 공고에는 안 붙어 있어요.
       </p>
-    </main>
+    </article>
   );
 }

@@ -7,7 +7,8 @@ Postgres 는 대소문자 섞인 식별자에 따옴표가 필요하지만 SQLAl
   bizinfo_notice     기업마당 22컬럼 전부
   kstartup_notice    K-Startup 30컬럼 전부
   notice (뷰)        둘을 공통 8필드로 매핑해 UNION ALL  → views.py
-  attachment         첨부 메타
+  attachment         첨부 메타. API 가 준 것
+  attachment_file    첨부를 받아서 읽어 본 결과. 우리가 한 것 → plan/07 · ADR-0022
   ingest_run         수집 실행 기록. 코퍼스가 아니라 운영 기록이다
 
 전부 TEXT 로 받는다. API 가 날짜도 "20260827" 문자열로 준다.
@@ -63,6 +64,37 @@ class AttachmentStatus(enum.StrEnum):
 class AttachmentKind(enum.StrEnum):
     NOTICE_DOC = "공고문"  # printFileNm / printFlpthNm
     OTHER = "기타"  # fileNm / flpthNm
+
+
+class FetchStatus(enum.StrEnum):
+    """첨부 파일 하나를 받아 왔는가.
+
+    NOT_HTML 이 따로 있는 이유는 기업마당이 **오류를 HTTP 200 + HTML 로** 주기 때문이다.
+    목록 API 가 실패를 200 으로 주는 것과 같은 함정이고, 안 거르면 3KB 짜리 오류 페이지가
+    hwp 파일로 저장돼 파서 실패로 둔갑한다.
+    """
+
+    OK = "ok"
+    NOT_FOUND = "not_found"  # 4xx / 5xx
+    NOT_HTML = "not_html"  # 200 인데 내용이 HTML 오류 페이지다
+    TOO_LARGE = "too_large"
+    FAILED = "failed"  # 네트워크·타임아웃
+
+
+class ParseStatus(enum.StrEnum):
+    """첨부에서 텍스트가 나왔는가.
+
+    **셋을 섞지 않는 것이 이 표의 존재 이유다**(T-0004).
+      UNSUPPORTED  안 해봤다   — 지원 목록에 없는 포맷
+      FAILED       해봤는데 안 됐다
+      EMPTY        해봤는데 0바이트다 — 이미지 PDF 가 여기 걸린다. T-0007 의 입력
+    """
+
+    OK = "ok"
+    EMPTY = "empty"
+    UNSUPPORTED = "unsupported"
+    FAILED = "failed"
+    CONTAINER = "container"  # ZIP. 안의 목록만 읽었다(ADR-0022 4번)
 
 
 class RunStatus(enum.StrEnum):
@@ -240,6 +272,58 @@ class Attachment(Base):
     filename: Mapped[str] = mapped_column(Text)
     ext: Mapped[str | None] = mapped_column(String(16))
     url: Mapped[str | None] = mapped_column(Text)
+
+
+class AttachmentFile(Base):
+    """첨부 하나를 받아서 읽어 본 결과. **URL 이 키다**(ADR-0022).
+
+    `attachment` 에 컬럼을 붙이지 않은 이유가 있다. 공고가 갱신되면 그 공고의 `attachment`
+    행이 **통째로 지워지고 다시 깔린다**(ingest/runner.py `_flush`). 상태를 거기 얹으면
+    재수집 한 번에 3,354건의 해독 결과가 날아간다.
+
+    `attachment` 는 API 가 준 메타이고 여기는 우리가 한 일이다. 둘을 섞지 않는다.
+    여기 값은 API 가 준 것이 아니라 우리가 잰 것이라 derived_ 접두사 규칙의 대상이 아니다.
+    """
+
+    __tablename__ = "attachment_file"
+    __table_args__ = (
+        Index("ix_attachment_file_status", "fetch_status", "parse_status"),
+        Index("ix_attachment_file_sha256", "sha256"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    #: 내려받기 단위. 실측 3,354/3,354 유일.
+    url: Mapped[str] = mapped_column(Text, unique=True)
+    source: Mapped[str] = mapped_column(String(16))
+
+    # --- 받아 오기 ---
+    fetch_status: Mapped[str] = mapped_column(String(16))
+    fetched_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    byte_size: Mapped[int | None] = mapped_column(Integer)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    #: attachment_dir 기준 상대 경로. 저장소를 옮길 때 바뀌는 유일한 경계다.
+    stored_path: Mapped[str | None] = mapped_column(Text)
+    content_type: Mapped[str | None] = mapped_column(Text)
+    #: Content-Disposition 이 준 이름. URL 에는 파일명이 없다.
+    server_filename: Mapped[str | None] = mapped_column(Text)
+    fetch_error: Mapped[str | None] = mapped_column(Text)
+
+    # --- 읽어 보기 ---
+    #: 아직 안 해본 것은 NULL 이다. '안 해봤다'와 '해봤는데 안 됐다'를 구분한다.
+    parse_status: Mapped[str | None] = mapped_column(String(16))
+    parsed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    #: 어느 파서를 썼나. 파서를 바꿔 다시 돌릴 때 무엇이 바뀌었는지 보는 단서다.
+    parser: Mapped[str | None] = mapped_column(String(32))
+    #: 파일 내용에서 판정한 확장자. API 파일명이 준 것과 다를 수 있다.
+    detected_ext: Mapped[str | None] = mapped_column(String(16))
+    text_chars: Mapped[int | None] = mapped_column(Integer)
+    text_path: Mapped[str | None] = mapped_column(Text)
+    parse_error: Mapped[str | None] = mapped_column(Text)
+    #: ZIP 안의 파일 목록. 풀지는 않는다. 166건 안에 무엇이 있는지 보려고 남긴다.
+    contents: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
 class IngestRun(Base):

@@ -41,19 +41,49 @@
 </table>
 {% endif %}
 
-<h2>첨부 {{ attachments | length }}건 — 메타데이터만. 내려받지 않았다</h2>
+<h2>첨부 {{ attachments | length }}개 중 {{ decoded }}개 해독</h2>
 {% if attachments %}
 <table>
-  <thead><tr><th>#</th><th>구분</th><th>파일명</th><th>확장자</th><th>URL</th></tr></thead>
+  <thead><tr>
+    <th>#</th><th>구분</th><th>파일명</th><th>확장자</th>
+    <th>해독</th><th>파서</th><th class="num">글자</th><th>URL</th>
+  </tr></thead>
   <tbody>
   {% for a in attachments %}
+    {% set f = files.get(a.url) %}
     <tr>
       <td class="num">{{ a.position }}</td>
       <td><span class="tag">{{ a.kind }}</span></td>
       <td class="val">{{ a.filename }}</td>
-      <td>{{ a.ext or '' }}</td>
+      <td>
+        {{ a.ext or '' }}
+        {# 파일명이 준 확장자와 내용이 다르면 둘 다 보여 준다. 파일명은 거짓말을 한다. #}
+        {% if f and f.detected_ext and f.detected_ext != a.ext %}
+          <span class="warn">→ {{ f.detected_ext }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if f is none %}
+          <span class="pill none">안 받음</span>
+        {% elif f.fetch_status != 'ok' %}
+          <span class="pill failed">{{ f.fetch_status }}</span>
+        {% else %}
+          <span class="pill {{ f.parse_status }}">{{ f.parse_status }}</span>
+        {% endif %}
+      </td>
+      <td class="muted">{{ (f.parser if f else '') or '' }}</td>
+      <td class="num">{% if f and f.text_chars is not none %}{{ '{:,}'.format(f.text_chars) }}{% endif %}</td>
       <td>{% if a.url %}<a href="{{ a.url }}" rel="noreferrer">열기</a>{% else %}<span class="null">URL 없음</span>{% endif %}</td>
     </tr>
+    {% if f and (f.parse_error or f.fetch_error) %}
+      <tr><td></td><td colspan="7" class="bad">{{ f.parse_error or f.fetch_error }}</td></tr>
+    {% endif %}
+    {% if f and f.contents.get('files') %}
+      <tr><td></td><td colspan="7" class="muted">
+        ZIP 안 {{ f.contents['files'] | length }}개 — 풀지 않았다:
+        {{ f.contents['files'] | map(attribute='name') | join(' · ') }}
+      </td></tr>
+    {% endif %}
   {% endfor %}
   </tbody>
 </table>

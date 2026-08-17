@@ -6,11 +6,11 @@
 
 **2026-08-16 v2로 피봇했다**([ADR-0012](docs/adr/0012-v2-피봇-사업-위키.md)). 폼 입력 → 판정 → 3단계 집필이던 v1 명세는 대체됐다. **`SPEC.md`를 다시 읽어라. 기억하고 있는 F0~F9와 S1~S8은 없다.**
 
-코드는 아직 v1 시절 것이고 **공고 수집(F2-1)까지만 있다.** 제품의 뿌리인 사업 위키(F1)는 한 줄도 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
+코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 한 줄도 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)이 닫혔다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789) 검증 항목이 전부 찼다. **지금 열려 있는 계획이 없다** — 다음에 할 것은 plan/README에 셋으로 적어 뒀다.
+**2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)과 [plan/07](docs/plan/07-첨부-내려받기와-해독.md)이 닫혔다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)). **지금 열려 있는 계획이 없다** — 다음에 할 것은 plan/README에 넷으로 적어 뒀다.
 
-- 첨부는 **메타데이터만** 담는다. 내려받지도 파싱하지도 않는다
+- 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다**
 - 제품 화면(S1~S7)과 API 계약은 없다. `src/finnect/admin/`은 **운영 도구**이고 `SPEC.md` §6 범위 밖이다. `DESIGN.md` 토큰을 따르지 않는다
 - **`DESIGN.md`에 토큰 실값이 없다.** §4가 색·타입·반경을 전부 "5.1에서 확정"으로 두고 있다. 방향만 있다
@@ -33,9 +33,12 @@ uv run alembic upgrade head                      # 스키마
 uv run python -m finnect.ingest --source bizinfo    # 1,538건 · 요청 1회
 uv run python -m finnect.ingest --source kstartup   # 29,789건 · 요청 149회
 uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘림이 기록에 남는다
-uv run uvicorn finnect.admin.app:app --reload    # http://127.0.0.1:8000 (/notices · /ingest)
+uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
+uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
+uv run python -m finnect.attach --report         # 해독 집계만
+uv run uvicorn finnect.admin.app:app --reload    # :8000 (/notices · /ingest · /attachments)
 uv run pytest
-uv run ruff check .
+uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이션 때문에 안 통과한다
 ```
 
 ## 저장 모델
@@ -48,8 +51,11 @@ uv run ruff check .
 | `bizinfo_notice` | 기업마당 22컬럼 |
 | `kstartup_notice` | K-Startup 30컬럼 |
 | `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py` |
-| `attachment` | 첨부 메타 |
+| `attachment` | 첨부 메타. **API가 준 것** |
+| `attachment_file` | 첨부를 받아서 읽어 본 결과. **우리가 한 것** ([ADR-0022](docs/adr/0022-첨부-원본을-콘텐츠-주소로-로컬에-둔다.md)) |
 | `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |
+
+**`attachment`에 해독 상태를 붙이지 않는다.** 공고가 갱신되면 그 행이 통째로 지워지고 다시 깔린다(`ingest/runner.py` `_flush`). 상태는 URL을 키로 하는 `attachment_file`에 산다. 원본 파일은 `data/attachments/<sha256[:2]>/<sha256>`.
 
 두 출처는 **필드 이름을 하나도 공유하지 않는다**(22 · 30 · 교집합 0). 전부 수동 매핑이다.
 전부 TEXT로 받는다. 파생 값은 `derived_` 접두사로 API 값과 구분한다.
@@ -115,8 +121,14 @@ uv run ruff check .
 - `postgres:18`은 볼륨을 `/var/lib/postgresql`에 마운트한다. 17 이하 방식(`/data`)으로 걸면 컨테이너가 `Exited(1)`로 죽는다
 - **평가 정보는 공고 본문에 0%다**(기업마당 0/200, K-Startup 0/200). 첨부를 열지 않으면 아무것도 없다
 - 창업진흥원은 사업계획서 양식을 HWP와 DOCX **두 벌**로 붙인다. 포맷 하나를 빠뜨리면 그 공고 판단이 통째로 틀릴 수 있다
-- **첨부 파싱은 이미 되는 것이 확인됐다**(추출률 95% · HWP·HWPX·DOCX 100% · PDF 91%). 기획 문서가 이걸 아직 조사 과제로 두고 있다 — [06_해야할일](docs/adr/evidence/2026-08-16-v2-기획문서/06_해야할일.md) §3. 다시 조사하지 말고 실측을 넘겨준다
-- **사업자등록증은 거의 사진이라 OCR이 필요하다.** 위키의 자격 판별 입력 다섯 중 넷이 여기서 나온다
+- **첨부 파싱은 이미 된다. 전량으로 확인했다** — 3,354건 중 2,827건 해독(지원 4포맷 모수 94.6%) · HWP·HWPX·DOCX 100%. 기획 문서가 이걸 아직 조사 과제로 두고 있다 — [06_해야할일](docs/adr/evidence/2026-08-16-v2-기획문서/06_해야할일.md) §3. 다시 조사하지 말고 [실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)을 넘겨준다
+- **PDF 추출률은 91%가 아니라 86.1%다.** 91%는 표본 22개였고 1,167개로 다시 재니 낮아졌다. 차이 5%p가 전부 스캔본이다
+- **"스캔 PDF는 매뉴얼뿐이라 OCR 실익이 없다"는 스파이크 결론은 틀렸다.** 표본 3건에서 나온 말이고, 158건에서는 **34건이 그 공고의 유일한 근거**다
+- **사업자등록증은 거의 사진이라 OCR이 필요하다.** 위키의 자격 판별 입력 다섯 중 넷이 여기서 나온다. **OCR로 가기로 정했고**(2026-08-17) 엔진과 범위는 T-0007이 정한다
+- **첨부 URL은 `HEAD`가 403이고 `GET`만 200이다.** 브라우저 UA와 Referer가 필요하고, 기업마당은 **오류도 HTTP 200 + HTML로** 준다. 안 거르면 오류 페이지가 hwp로 저장돼 '파서 실패'로 둔갑한다
+- **확장자를 파일명으로 판정하지 않는다.** 3,354건 중 7건이 파일명과 내용이 다르다(`.hwpx`인데 HWP 5건 등). 판정은 `attach/formats.py`가 내용으로 한다
+- **ZIP 166개 안에 읽을 수 있는 문서가 799개 있다.** 지금은 목록만 읽고 안 푼다. 풀지 말지는 이 숫자를 보고 정한다
+- **기업마당은 재수집마다 1,538건 전부가 '변경'으로 잡힌다.** 콘텐츠 해시 재료에 조회수(`inqireCo`)가 들어 있다. 그래서 `attachment` 행이 매번 통째로 갈리고, 해독 상태가 `attachment_file`에 따로 사는 이유가 이것이다
 - **재무제표는 표 구조와 셀 좌표를 보존해야 한다.** 뭉개면 연도-항목-값 대응이 깨진다
 - v2 문서군끼리 안 맞는 곳이 있다. 가장 큰 것은 **질문을 언제 하는가**다. `SPEC.md` §9에 전부 올려 뒀다
 

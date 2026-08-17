@@ -50,6 +50,12 @@ nav a.on { font-weight: 600; color: inherit; }
 .pill.ok { border-color: #1a7f37; }
 .pill.failed { border-color: #cf222e; }
 .pill.interrupted { border-color: #9a6700; }
+/* 해독 상태. '안 해봤다'와 '해봤는데 안 됐다'와 '해봤는데 비었다'를 눈으로 갈라야 한다. */
+.pill.ok { border-color: #1a7f37; }
+.pill.empty { border-color: #9a6700; }
+.pill.unsupported { border-color: #6e7781; }
+.pill.container { border-color: #8250df; }
+.pill.none { border-color: #d0d7de; color: #999; }
 
 .meter { height: 6px; border: 1px solid #999; border-radius: 3px; overflow: hidden; margin: 8px 0 4px; }
 .meter > i { display: block; height: 100%; background: #0969da; }
@@ -70,6 +76,7 @@ details.raw > pre { margin-top: 10px; max-height: 460px; overflow: auto; }
 <nav>
   <a href="/notices" class="{% if nav == 'notices' %}on{% endif %}">공고 목록</a>
   <a href="/ingest" class="{% if nav == 'ingest' %}on{% endif %}">수집</a>
+  <a href="/attachments" class="{% if nav == 'attachments' %}on{% endif %}">첨부 해독</a>
 </nav>
 {% block body %}{% endblock %}
 </body>

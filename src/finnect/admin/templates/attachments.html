@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}첨부 해독 — finnect 관리{% endblock %}
+{% block body %}
+
+<h1>첨부 해독</h1>
+<p class="muted">
+  첨부를 내려받아 텍스트를 뽑은 결과다. 뽑은 텍스트로 무엇을 판단하지는 않는다
+  (<a href="https://github.com/joonoo3/finnect-new/blob/master/docs/plan/07-첨부-내려받기와-해독.md">plan/07</a>).
+</p>
+
+<h2>조용한 누락</h2>
+{% if c.unaccounted == 0 %}
+  <p>
+    첨부 {{ '{:,}'.format(c.listed) }}건 · URL {{ '{:,}'.format(c.urls) }}개 ·
+    상태 행 {{ '{:,}'.format(c.files) }}개.
+    <b>상태가 없는 첨부는 0건이다.</b>
+  </p>
+{% else %}
+  <p class="bad">
+    ⚠ 첨부 URL {{ '{:,}'.format(c.urls) }}개 중 <b>{{ '{:,}'.format(c.unaccounted) }}개에 상태가 없다.</b>
+    아래 숫자는 모집단이 아니다.
+  </p>
+{% endif %}
+<p class="muted">
+  이 화면에서 가장 먼저 봐야 하는 값이다. 여기가 0이 아니면 해독률은 믿을 게 못 된다.
+</p>
+
+<h2>내려받기</h2>
+<table>
+  <thead><tr><th>상태</th><th class="num">건수</th><th>뜻</th></tr></thead>
+  <tbody>
+  {% for status, n in c.fetch %}
+    <tr>
+      <td><span class="pill {{ 'ok' if status == 'ok' else 'failed' }}">{{ status }}</span></td>
+      <td class="num">{{ '{:,}'.format(n) }}</td>
+      <td class="muted">{{ fetch_why.get(status, '') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>해독</h2>
+<table>
+  <thead><tr><th>상태</th><th class="num">건수</th><th>뜻</th></tr></thead>
+  <tbody>
+  {% for status, n in c.parse %}
+    <tr>
+      <td><span class="pill {{ status or 'none' }}">{{ status or '미시도' }}</span></td>
+      <td class="num">{{ '{:,}'.format(n) }}</td>
+      <td class="muted">{{ parse_why.get(status, '내려받기가 실패해 해독을 시도하지 않았다') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>포맷별</h2>
+<p class="muted">
+  포맷은 파일명이 아니라 <b>내용</b>으로 판정한 것이다. 확장자가 <code>.hwp</code>인데
+  실제로는 HWPX인 파일이 실재한다.
+</p>
+<table>
+  <thead><tr>
+    <th>포맷</th><th>상태</th><th class="num">건수</th><th class="num">평균 글자</th>
+  </tr></thead>
+  <tbody>
+  {% for r in c.by_ext %}
+    <tr>
+      <td><code>{{ r.ext or '?' }}</code></td>
+      <td><span class="pill {{ r.status }}">{{ r.status }}</span></td>
+      <td class="num">{{ '{:,}'.format(r.count) }}</td>
+      <td class="num">{% if r.avg_chars %}{{ '{:,}'.format(r.avg_chars) }}{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>지원 포맷 목록</h2>
+<p>
+  <code>ATTACHMENT_FORMATS</code> = {% for f in formats | sort %}<span class="tag">{{ f }}</span> {% endfor %}
+</p>
+<p class="muted">
+  설정이라 코드를 고치지 않고 바꾼다. <b>목록을 줄이면 그만큼 미해독이 늘 뿐, 사라지지 않는다.</b>
+  여기 없는 포맷은 <code>unsupported</code>로 기록된다.
+</p>
+
+<h2>OCR 없이는 못 읽는 것</h2>
+<p class="muted">
+  <a href="https://github.com/joonoo3/finnect-new/blob/master/docs/plan/02-수집과-추출.md#t-0007-스캔-pdf-처리-판단">T-0007</a>이
+  이 숫자를 근거로 OCR 도입을 정한다. 지금은 정하지 않는다.
+</p>
+<table>
+  <thead><tr><th>무엇</th><th class="num">건수</th></tr></thead>
+  <tbody>
+    <tr><td>텍스트가 0바이트인 PDF <span class="muted">— 스캔본</span></td>
+        <td class="num">{{ '{:,}'.format(ocr.pdf_empty) }}</td></tr>
+    <tr><td>이미지 첨부 <span class="muted">— png · jpg</span></td>
+        <td class="num">{{ '{:,}'.format(ocr.images) }}</td></tr>
+    <tr><td>그중 <b>공고문</b> 자리에 붙은 이미지</td>
+        <td class="num">{{ '{:,}'.format(ocr.image_notices) }}</td></tr>
+  </tbody>
+</table>
+
+{% endblock %}

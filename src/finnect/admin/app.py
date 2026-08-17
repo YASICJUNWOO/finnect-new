@@ -22,6 +22,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
 from finnect import fields
+from finnect.attach import service as attach_service
+from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs, runs, service
 from finnect.models import Attachment, BizinfoNotice, KstartupNotice, RawFetch, RunStatus, Source
@@ -182,6 +184,11 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
                 .order_by(Attachment.position)
             )
         )
+        # 해독 결과는 URL 로 맞춘다. attachment 는 재수집 때 지워지고 다시 깔린다(ADR-0022).
+        files = attach_service.per_notice(s, source, external_id)
+        decoded = sum(
+            1 for a in attachments if (f := files.get(a.url)) and f.parse_status == "ok"
+        )
 
         # API 가 준 컬럼과 우리가 붙인 컬럼을 갈라서 보여준다.
         # 설명은 출처의 공식 문서에서 온다. 없으면 None 이고, 화면이 '문서에 없음'으로 적는다.
@@ -211,6 +218,8 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
             "ours": ours,
             "extra": row.extra or {},
             "attachments": attachments,
+            "files": files,
+            "decoded": decoded,
             "table": model.__tablename__,
             "doc": fields.DOCS[source],
             "described": known,
@@ -219,6 +228,44 @@ def notice_detail(request: Request, source: str, external_id: str) -> HTMLRespon
             "raw_envelope": envelope,
             "raw_item": item,
             "raw_siblings": siblings,
+        },
+    )
+
+
+# 상태값이 무슨 뜻인지 화면이 직접 적는다. 셋을 갈라 놓고 뜻을 안 적으면 갈라 놓은 의미가 없다.
+FETCH_WHY = {
+    "ok": "받았다",
+    "not_found": "4xx / 5xx",
+    "not_html": "HTTP 200 인데 파일이 아니라 HTML 오류 페이지였다. 저장하지 않았다",
+    "too_large": "크기 한도 초과. 받지 않았다",
+    "failed": "네트워크·타임아웃",
+}
+PARSE_WHY = {
+    "ok": "텍스트가 나왔다",
+    "empty": "파서는 돌았는데 0바이트다 — 스캔본",
+    "unsupported": "지원 목록에 없는 포맷. 시도하지 않았다",
+    "failed": "시도했고 실패했다",
+    "container": "ZIP. 안의 목록만 읽었다",
+}
+
+
+@app.get("/attachments", response_class=HTMLResponse)
+def attachments_page(request: Request) -> HTMLResponse:
+    """첨부 해독 현황. **조용한 누락이 0인지가 첫 줄이다**(plan/07 검증)."""
+    with SessionFactory() as s:
+        coverage = attach_service.coverage(s)
+        ocr = attach_service.ocr_candidates(s)
+
+    return templates.TemplateResponse(
+        request,
+        "attachments.html",
+        {
+            "nav": "attachments",
+            "c": coverage,
+            "ocr": ocr,
+            "formats": settings.formats,
+            "fetch_why": FETCH_WHY,
+            "parse_why": PARSE_WHY,
         },
     )
 

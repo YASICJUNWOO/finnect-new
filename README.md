@@ -2,7 +2,7 @@
 
 가진 파일을 통째로 던지면 **내 사업 위키**가 만들어지고, 그 위키로 **맞는 공고를 골라 주고**, 들어가면 **문서가 이미 써져 있다.**
 
-지금 저장소에 있는 것은 공고 쪽 앞단뿐이다. **두 공공 API에서 공고 목록을 받아 DB에 넣고 화면에서 보는 것**까지다. 첨부는 메타데이터만 담고 내려받지 않는다. LLM은 아직 부르지 않는다. **사업 위키는 아직 한 줄도 없다.**
+지금 저장소에 있는 것은 공고 쪽 앞단뿐이다. **두 공공 API에서 공고 목록을 받아 DB에 넣고, 첨부를 내려받아 텍스트를 뽑는 것**까지다. 뽑은 텍스트로 아직 아무것도 판단하지 않는다. LLM은 부르지 않는다. **사업 위키는 아직 한 줄도 없다.**
 
 무엇을 만드는지는 [`docs/SPEC.md`](docs/SPEC.md), 어디까지 왔는지는 [`docs/plan/README.md`](docs/plan/README.md)에 있다.
 
@@ -37,12 +37,13 @@ uv run alembic upgrade head              # 스키마
 uv run uvicorn finnect.admin.app:app --reload
 ```
 
-http://127.0.0.1:8000 이 열린다. 화면은 둘이다.
+http://127.0.0.1:8000 이 열린다. 화면은 셋이다.
 
 | 경로 | 하는 일 |
 |------|--------|
 | `/notices` | 공고 목록과 상세. 상세는 출처가 준 컬럼을 하나도 빠짐없이 편다 |
 | `/ingest` | 수집 실행. 출처별 저장 건수, 진행률, 실행 기록 |
+| `/attachments` | 첨부 해독 현황. 포맷별 해독률과 **못 읽은 건수** |
 
 처음에는 DB가 비어 있다. `/ingest`에서 버튼을 누르면 채워진다.
 건수 칸을 비우면 전량, 숫자를 넣으면 그만큼만 받는다(맛보기).
@@ -59,6 +60,24 @@ uv run python -m finnect.ingest --source bizinfo --limit 40     # 맛보기 40�
 ```
 
 건수는 2026-08-16 실측이다. `--limit`으로 잘라 받으면 **잘렸다는 사실이 실행 기록에 남는다.**
+
+### 첨부 내려받기와 해독
+
+목록을 받은 뒤에 돈다. 화면 버튼은 없고 CLI뿐이다.
+
+```bash
+uv run python -m finnect.attach --limit 40   # 맛보기
+uv run python -m finnect.attach              # 전량 3,354건 · 약 2GB · 30분 남짓
+uv run python -m finnect.attach --redo       # 파서를 고쳤을 때. 파일은 다시 안 받는다
+uv run python -m finnect.attach --report     # 집계만. 아무것도 안 받는다
+```
+
+원본은 `data/attachments/`에 **내용 해시로** 쌓인다([ADR-0022](docs/adr/0022-첨부-원본을-콘텐츠-주소로-로컬에-둔다.md)).
+그래서 `--redo`가 파일을 다시 안 받고 해독만 다시 한다.
+
+**해독은 4포맷만 한다**(hwp · hwpx · docx · pdf). ZIP은 안의 목록만 읽고 풀지 않는다.
+나머지는 **`unsupported`로 기록된다.** 조용히 건너뛰지 않는 것이 이 명령의 존재 이유다.
+목록은 `ATTACHMENT_FORMATS` 환경변수로 바꾼다.
 
 ### 검사
 
@@ -82,8 +101,11 @@ uv run ruff check src tests
 | `bizinfo_notice` | 기업마당 22컬럼 |
 | `kstartup_notice` | K-Startup 30컬럼 |
 | `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py` |
-| `attachment` | 첨부 메타데이터 |
+| `attachment` | 첨부 메타데이터. API가 준 것 |
+| `attachment_file` | 첨부를 받아서 읽어 본 결과. **우리가 한 것** |
 | `ingest_run` | 수집 실행 기록. 코퍼스가 아니라 운영 기록이다 |
+
+**`attachment`와 `attachment_file`이 갈려 있는 이유가 있다.** 공고가 갱신되면 그 공고의 `attachment` 행이 통째로 지워지고 다시 깔린다. 해독 상태를 거기 얹으면 재수집 한 번에 전부 날아간다. 그래서 URL을 키로 하는 표를 따로 뒀다.
 
 두 출처는 **필드 이름을 하나도 공유하지 않는다**(22 · 30 · 교집합 0). 통합은 전부 수동 매핑이다.
 전부 TEXT로 받는다. API가 날짜도 `"20260827"` 문자열로 준다.
@@ -96,6 +118,8 @@ uv run ruff check src tests
 **두 API 모두 실패를 HTTP 200으로 준다.** 기업마당은 `reqErr`, K-Startup은 봉투 없는 `{"code":0,"msg":"정상"}`이다. 후자를 `data.get("data") or []`로 받으면 **0건 성공으로 읽고 조용히 넘어간다.** 그래서 봉투 검증(`ingest/envelope.py`)이 방어 코드가 아니라 파싱의 첫 단계다.
 
 **인증키가 틀리면 실패로 끝난다.** 0건 성공이 아니다. 실행 기록에 `failed`로 남는다.
+
+**첨부는 `HEAD`가 403이고 `GET`만 200이다.** 브라우저 UA와 Referer가 필요하다. 그리고 기업마당은 **오류도 HTTP 200 + HTML로** 준다. 안 거르면 3KB짜리 오류 페이지가 hwp로 저장돼 '파서 실패'로 둔갑한다.
 
 **`postgres:18`은 볼륨을 `/var/lib/postgresql`에 마운트한다.** 17 이하 방식(`/var/lib/postgresql/data`)으로 걸면 컨테이너가 `Exited(1)`로 죽는다.
 

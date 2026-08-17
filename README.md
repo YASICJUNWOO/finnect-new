@@ -2,7 +2,9 @@
 
 가진 파일을 통째로 던지면 **내 사업 위키**가 만들어지고, 그 위키로 **맞는 공고를 골라 주고**, 들어가면 **문서가 이미 써져 있다.**
 
-지금 저장소에 있는 것은 공고 쪽 앞단뿐이다. **두 공공 API에서 공고 목록을 받아 DB에 넣고, 첨부를 내려받아 텍스트를 뽑는 것**까지다. 뽑은 텍스트로 아직 아무것도 판단하지 않는다. LLM은 부르지 않는다. **사업 위키는 아직 한 줄도 없다.**
+지금 저장소에 있는 것은 공고 쪽 앞단뿐이다. **두 공공 API에서 공고 목록을 받아 DB에 넣고, 첨부를 내려받아 텍스트를 뽑고, 그걸 화면에 보여주는 것**까지다. 뽑은 텍스트로 아직 아무것도 판단하지 않는다. LLM은 부르지 않는다. **사업 위키는 아직 한 줄도 없다.**
+
+앱이 셋이다. **사용자 화면(`web/`)과 제품 API(`src/finnect/api/`)와 운영 도구(`src/finnect/admin/`)** — 앞의 둘이 제품이고 마지막은 우리가 코퍼스를 들여다보는 곳이다([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)).
 
 무엇을 만드는지는 [`docs/SPEC.md`](docs/SPEC.md), 어디까지 왔는지는 [`docs/plan/README.md`](docs/plan/README.md)에 있다.
 
@@ -15,6 +17,7 @@
 | Python 3.13 | `>=3.13,<3.14`. 3.14는 의존성 휠이 비어 있을 수 있다 |
 | [uv](https://docs.astral.sh/uv/) | 의존성과 파이썬 버전 관리 |
 | Docker | PostgreSQL 18을 컨테이너로 띄운다 |
+| Node 22+ | 사용자 화면(`web/`)에만 필요하다. 수집·해독은 Node 없이 돈다 |
 | 인증키 2개 | 아래 참고. 둘 다 무료다 |
 
 ### 인증키
@@ -37,7 +40,7 @@ uv run alembic upgrade head              # 스키마
 uv run uvicorn finnect.admin.app:app --reload
 ```
 
-http://127.0.0.1:8000 이 열린다. 화면은 셋이다.
+http://127.0.0.1:8000 이 열린다. **운영 도구**이고 화면은 셋이다.
 
 | 경로 | 하는 일 |
 |------|--------|
@@ -47,6 +50,26 @@ http://127.0.0.1:8000 이 열린다. 화면은 셋이다.
 
 처음에는 DB가 비어 있다. `/ingest`에서 버튼을 누르면 채워진다.
 건수 칸을 비우면 전량, 숫자를 넣으면 그만큼만 받는다(맛보기).
+
+### 사용자 화면
+
+**프로세스 둘이 같이 떠야 한다.** API가 JSON을 내고 Next.js가 그걸 그린다([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)).
+
+```bash
+uv run uvicorn finnect.api.app:app --reload --port 8100   # 터미널 1 — API
+cd web && npm install && npm run dev                       # 터미널 2 — 화면
+```
+
+http://localhost:3000 이 사용자 화면, http://127.0.0.1:8100/docs 가 API 문서다.
+
+| 화면 | 하는 일 |
+|------|--------|
+| `/` | 공고 목록(S4). **마감된 공고는 빼고** 마감 임박순으로 보여 준다 |
+| `/notices/{출처}/{id}` | 공고 상세(S5). 개요·접수 기간·낼 서류와 **해독 여부** |
+
+**화면 대부분이 "아직 없어요"로 비어 있다.** 추천·자격·심사 항목은 사업 위키(F1)와 추출(F2-3)이 있어야 채워진다. 예시 데이터를 넣지 않기로 했다 — 가짜 값으로 완성돼 보이는 것보다 낫다.
+
+계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다.**
 
 ### 명령으로 수집하기
 
@@ -84,6 +107,7 @@ uv run python -m finnect.attach --report     # 집계만. 아무것도 안 받�
 ```bash
 uv run pytest
 uv run ruff check src tests
+cd web && npm run lint && npm run typecheck && npm run build
 ```
 
 `ruff check .`은 `spike/`와 자동 생성 마이그레이션 때문에 아직 통과하지 않는다.

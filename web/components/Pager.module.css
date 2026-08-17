@@ -1,0 +1,30 @@
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  margin-top: var(--s6);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+a.step:hover {
+  border-color: var(--ink-4);
+}
+
+.at {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}

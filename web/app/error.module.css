@@ -1,0 +1,59 @@
+.box {
+  margin-top: var(--s6);
+  padding: var(--s6) var(--s5);
+  background: var(--surface);
+  /* 오류는 사용자가 손대야 하는 자리다 — DESIGN.md §3-5 */
+  border: 1px solid var(--urgent-line);
+  border-radius: var(--r);
+}
+
+.title {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+  color: var(--urgent);
+}
+
+.what {
+  margin-top: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.how {
+  margin-top: var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.cmd {
+  display: block;
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--quiet);
+  border-radius: var(--r-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-small);
+  color: var(--ink);
+  overflow-x: auto;
+}
+
+.retry {
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  margin-top: var(--s5);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  color: var(--surface);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.retry:hover {
+  opacity: 0.88;
+}

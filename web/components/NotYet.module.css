@@ -1,0 +1,22 @@
+/* 점선으로 둘러 "여기 뭔가 올 자리"임을 말한다. 채워진 카드로 만들면
+ * 값이 있는 섹션과 구분이 안 된다. */
+.box {
+  padding: var(--s4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+  background: transparent;
+}
+
+.title {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-medium);
+  color: var(--ink-2);
+  margin-bottom: var(--s1);
+}
+
+.why {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}

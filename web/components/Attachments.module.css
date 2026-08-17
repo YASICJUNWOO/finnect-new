@@ -1,0 +1,113 @@
+.section {
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.title {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+
+.summary {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+
+.none {
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.name {
+  min-width: 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.kind {
+  margin-left: var(--s2);
+  padding: 1px var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font-size: var(--t-caption);
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+  white-space: nowrap;
+}
+
+.badge {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+}
+
+.ok {
+  color: var(--ink-2);
+}
+
+/* 못 읽은 것. 사용자가 알아야 하는 자리라 상태색을 쓴다 */
+.warn {
+  color: var(--blank);
+}
+
+.idle {
+  color: var(--ink-3);
+}
+
+.mismatch {
+  font-size: var(--t-caption);
+  color: var(--ink-3);
+}
+
+@media (max-width: 640px) {
+  .item {
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .state {
+    align-items: flex-start;
+  }
+}

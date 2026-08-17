@@ -1,0 +1,12 @@
+# Vercel Python Function 전용. **의존성 정본은 pyproject.toml 이다.**
+#
+# 여기 목록이 더 짧은 이유가 있다. 읽기만 하는 API 는 수집기(httpx)도 파서(pdfplumber ·
+# olefile)도 안 쓴다. 서버리스 함수에 안 쓰는 것을 실으면 콜드 스타트만 길어진다.
+# 실제로 `import finnect.api.app` 이 로드하는 서드파티는 아래 넷뿐이다.
+#
+# pyproject 의 상한과 어긋나면 pyproject 를 따른다.
+
+fastapi>=0.115
+sqlalchemy>=2.0.36
+psycopg[binary]>=3.2
+pydantic-settings>=2.7

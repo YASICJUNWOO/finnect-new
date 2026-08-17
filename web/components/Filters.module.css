@@ -1,0 +1,54 @@
+.form {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.input,
+.select {
+  font: inherit;
+  font-size: var(--t-body);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  /* 터치 타깃 44px — DESIGN.md §8.2 */
+  min-height: 44px;
+  padding: 0 var(--s3);
+}
+
+.input {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+}
+
+.input:hover,
+.select:hover {
+  border-color: var(--ink-4);
+}
+
+.select {
+  flex: 0 0 auto;
+}
+
+/* 주 동작은 근검정이다 — DESIGN.md §3-4. 새 색을 만들지 않는다 */
+.submit {
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  color: var(--surface);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  cursor: pointer;
+}
+
+.submit:hover {
+  opacity: 0.88;
+}

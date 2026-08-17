@@ -1,0 +1,90 @@
+@import "./tokens.css";
+
+/* 바탕. DESIGN.md §3-3 — 표를 다루는 시스템은 캔버스가 순백이 아니다. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family:
+    Pretendard,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    system-ui,
+    sans-serif;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-normal);
+}
+
+/* 금액·마감일·건수가 세로로 정렬돼야 한다 (§4.2) */
+time,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* --- 상태 (§7) --- */
+
+/* 1. 포커스. **표가 길어 위치를 잃는 것이 §3-9 의 이유다.**
+ *    마우스 클릭에는 안 뜨고 키보드에만 뜬다. */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--s1);
+}
+
+/* 3. 비활성. 마감된 공고의 동작이 여기 해당한다 */
+[aria-disabled="true"],
+:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 모션을 끄고 싶다는 사람에게는 끈다 (§7) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 화면에는 없고 스크린 리더에만 있는 것 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

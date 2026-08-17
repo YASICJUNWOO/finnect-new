@@ -1,0 +1,82 @@
+.all {
+  margin-top: var(--s6);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.title {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.count {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+
+/* 제목이 말한 것을 되풀이하지 않는다 — DESIGN.md §8.1-3.
+ * 여기가 말하는 것은 '무엇을 안 보여주고 있는가'다 */
+.sub {
+  margin-top: var(--s1);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.filters {
+  margin: var(--s4) 0 var(--s5);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.empty {
+  padding: var(--s7) var(--s5);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.emptyLead {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-medium);
+}
+
+.emptyWhy {
+  margin-top: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.emptyAction {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--s4);
+  padding: 0 var(--s4);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+}
+
+.emptyAction:hover {
+  opacity: 0.88;
+}

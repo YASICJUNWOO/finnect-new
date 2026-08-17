@@ -1,0 +1,26 @@
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s5) var(--s5) var(--s4);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.brand {
+  font-size: var(--t-lead);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+  text-decoration: none;
+}
+
+.tagline {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 var(--s5) var(--s8);
+}

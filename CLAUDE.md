@@ -6,19 +6,24 @@
 
 **2026-08-16 v2로 피봇했다**([ADR-0012](docs/adr/0012-v2-피봇-사업-위키.md)). 폼 입력 → 판정 → 3단계 집필이던 v1 명세는 대체됐다. **`SPEC.md`를 다시 읽어라. 기억하고 있는 F0~F9와 S1~S8은 없다.**
 
-코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 한 줄도 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
+코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 한 줄도 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)과 [plan/07](docs/plan/07-첨부-내려받기와-해독.md)이 닫혔다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)). **지금 열려 있는 계획이 없다** — 다음에 할 것은 plan/README에 넷으로 적어 뒀다.
+**2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)이 닫혔고 [plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+
+**앱이 셋이다.** `web/` 사용자 화면(Next.js) · `src/finnect/api/` 제품 API · `src/finnect/admin/` 운영 도구. 앞의 둘이 제품이다([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)).
 
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다**
-- 제품 화면(S1~S7)과 API 계약은 없다. `src/finnect/admin/`은 **운영 도구**이고 `SPEC.md` §6 범위 밖이다. `DESIGN.md` 토큰을 따르지 않는다
-- **`DESIGN.md`에 토큰 실값이 없다.** §4가 색·타입·반경을 전부 "5.1에서 확정"으로 두고 있다. 방향만 있다
+- 제품 화면은 **S4·S5 둘뿐이다.** 나머지 다섯(S1·S2·S3·S6·S7)은 없다. 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
+- API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
+- `src/finnect/admin/`은 **운영 도구**이고 `SPEC.md` §6 범위 밖이다. Jinja2로 남는다. **토큰은 아직 안 입었다** — plan/08 T-0023이 할 일이다
+- **`DESIGN.md` §4 토큰 실값이 찼다**([ADR-0025](docs/adr/0025-토큰-실값-확정.md)). 값의 유일한 자리는 `web/app/tokens.css`이고 정본은 DESIGN.md §4다
 - `spike/`는 실측용 **버리는 코드**다. 기능을 얹거나 리팩터하지 않는다. 다시 돌리려면 `uv sync --group spike`
 
 ## 스택
 
 Python 3.13 · uv · FastAPI · Jinja2 · PostgreSQL 18 · SQLAlchemy 2.0 · Alembic ([ADR-0020](docs/adr/0020-스택-확정.md)).
+제품 프론트는 **Next.js 16 · TypeScript · CSS Modules** ([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)). ADR-0020이 비워 둔 자리를 채운 것이라 뒤집는 게 아니다.
 
 **v2가 여기 없는 것을 요구한다.** 오브젝트 스토리지(원본 파일), 큐와 워커(파일별 비동기 상태머신), 벡터 저장(근거 청크 검색), HWP 파서, OCR.
 
@@ -36,9 +41,12 @@ uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘�
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
-uv run uvicorn finnect.admin.app:app --reload    # :8000 (/notices · /ingest · /attachments)
+uv run uvicorn finnect.admin.app:app --reload    # 운영 :8000 (/notices · /ingest · /attachments)
+uv run uvicorn finnect.api.app:app --port 8100   # 제품 API :8100 (/docs 에 OpenAPI)
+cd web && npm run dev                            # 사용자 화면 :3000. API 가 먼저 떠 있어야 한다
 uv run pytest
 uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이션 때문에 안 통과한다
+cd web && npm run lint && npm run typecheck && npm run build
 ```
 
 ## 저장 모델
@@ -69,6 +77,8 @@ uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이
 
 - [`docs/SPEC.md`](docs/SPEC.md) — **정본.** 무엇을 만드는가. 현재 진실이고, 충돌 시 이 문서가 이긴다. 구현 중 검수 기준으로 참조하되 임의로 고치지 않는다
 - [`DESIGN.md`](DESIGN.md) — **시각 방향의 정본**(레포 루트). 여기에 한해서는 SPEC보다 이 문서가 이긴다([ADR-0018](docs/adr/0018-디자인-방향-이관.md))
+- [`docs/api-contract.md`](docs/api-contract.md) — 제품 API 계약. `web/`과 `src/finnect/api/` 사이의 유일한 경계다. **정본은 코드**(`api/schemas.py`)이고 이 문서가 뜻을 적는다
+- [`docs/deploy.md`](docs/deploy.md) — 배포 절차. **올라가는 것은 읽기 경로뿐이다**([ADR-0026](docs/adr/0026-읽기-경로만-vercel에-올린다.md)). 수집·해독·admin은 로컬에 남는다
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다
 - [`docs/adr/`](docs/adr/README.md) — 결정 로그. **append-only. 기존 파일 본문을 수정하지 않는다**
 - [`docs/adr/evidence/2026-08-16-v2-기획문서/`](docs/adr/evidence/2026-08-16-v2-기획문서/) — **기획이 넘긴 v2 원본 일곱.** SPEC이 이걸 흡수했다. 문서끼리 안 맞는 곳이 있으니 SPEC §9를 먼저 본다

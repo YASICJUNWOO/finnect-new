@@ -1,0 +1,39 @@
+.badge {
+  display: inline-block;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* 급한 것 하나에만 액센트가 간다 */
+.urgent {
+  color: var(--urgent);
+  background: var(--urgent-bg);
+  border-color: var(--urgent-line);
+}
+
+/* 날짜는 있지만 급하지 않다 */
+.dated {
+  color: var(--ink-2);
+  background: var(--quiet);
+}
+
+/* "예산 소진시까지" 등 876건. 원문 그대로다 */
+.raw {
+  color: var(--ink-2);
+  background: var(--quiet);
+  /* 원문이 길 수 있다. 배지가 줄을 밀어내지 않게 둔다 */
+  white-space: normal;
+}
+
+/* 출처가 기간을 안 줬다. 흐리게 두되 숨기지 않는다 */
+.unknown {
+  color: var(--ink-3);
+  background: transparent;
+  border-color: var(--line-2);
+  border-style: dashed;
+}

@@ -1,0 +1,87 @@
+/* 흐름 안에 있는 것이라 그림자를 안 쓴다. 경계선으로 가른다 — DESIGN.md §4.4 */
+.row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  gap: var(--s4);
+  align-items: start;
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* 2. 호버. 행이 아니라 카드가 반응한다. 실제로 누르는 것은 제목 링크다 */
+.row:hover {
+  border-color: var(--line-2);
+}
+
+.when {
+  padding-top: 2px;
+}
+
+.body {
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-medium);
+  margin-bottom: var(--s1);
+}
+
+.link {
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.meta {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.dot {
+  margin: 0 var(--s1);
+  color: var(--ink-4);
+}
+
+.source {
+  color: var(--ink-3);
+}
+
+.docs {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.count {
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.none {
+  color: var(--ink-3);
+}
+
+@media (max-width: 640px) {
+  /* 마감이 맨 위로 올라오고 서류 수가 그 옆에 붙는다 */
+  .row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .body {
+    grid-column: 1 / -1;
+    order: 2;
+  }
+
+  .docs {
+    text-align: right;
+  }
+}

@@ -1,10 +1,44 @@
 import type { NextConfig } from "next";
 
+const API = process.env.FINNECT_API ?? "http://127.0.0.1:8100";
+
+/** **불변 배포 URL 을 잡아낸다.**
+ *
+ * `finnect-<해시>-<팀>.vercel.app` 은 그 배포에 못 박힌 주소다. `FINNECT_API` 에 넣으면
+ * 그날은 돌고, **API 에 새 경로가 생겨도 웹은 영원히 못 본다.**
+ *
+ * 2026-08-17 이걸로 넘어졌다. 운영 화면을 올렸는데 `/admin/*` 이 500 이었고 원인이
+ * "웹이 부르는 옛 배포에는 그 경로가 없다"였다. **`/` 는 정상이라 늦게 잡혔다** —
+ * `/api/notices` 는 옛 배포에도 있었기 때문이다.
+ *
+ * 그래서 **빌드 로그에 남긴다.** 런타임 404 보다 여기가 원인에 가깝다.
+ *
+ * **막지 않고 경고만 한다.** 여기서 빌드를 죽이면 값을 고치기 전까지 아무것도 안 올라가고,
+ * 그 상태가 지금 문제보다 나쁘다. 프리뷰에서 일부러 한 배포를 가리키는 경우도 있다. */
+const PINNED = /^https?:\/\/[a-z0-9-]+-[a-z0-9]{9}-[a-z0-9-]+\.vercel\.app/i;
+
+if (PINNED.test(API)) {
+  console.warn(
+    [
+      "",
+      "  ⚠ FINNECT_API 가 불변 배포 URL 을 가리킨다.",
+      `      ${API}`,
+      "",
+      "  이 주소는 그 배포에 못 박혀 있어서 API 에 새 경로가 생겨도 안 보인다.",
+      "  프로젝트 프로덕션 도메인을 쓴다 — https://finnect-api.vercel.app",
+      "  자세한 것은 docs/deploy.md 5단계.",
+      "",
+    ].join("\n"),
+  );
+}
+
 const nextConfig: NextConfig = {
   // 서버 컴포넌트가 FastAPI 를 부른다. 브라우저는 API 주소를 모른다.
-  // 원격 배포를 정할 때 이 값이 바뀐다 — ADR-0023 "안 정한 것".
+  //
+  // **`env` 는 빌드 시점에 문자열로 박아 넣는다.** 그래서 이 값을 고치면
+  // 웹을 다시 빌드해야 하고, 환경변수만 갈면 옛 값이 그대로 산다.
   env: {
-    FINNECT_API: process.env.FINNECT_API ?? "http://127.0.0.1:8100",
+    FINNECT_API: API,
   },
   // `FINNECT_ADMIN` 이 여기 있었다. 운영 화면이 같은 앱으로 들어와서(ADR-0027)
   // 링크가 상대 경로가 됐고 주소를 줄 자리가 없어졌다.

@@ -23,6 +23,14 @@ from collections.abc import Iterator
 from pathlib import Path
 
 HWPTAG_PARA_TEXT = 67  # HWPTAG_BEGIN(16) + 51
+HWPTAG_CTRL_HEADER = 71
+HWPTAG_LIST_HEADER = 72  # 표에서는 셀 하나다
+HWPTAG_TABLE = 77
+
+#: CTRL_HEADER 페이로드 앞 4바이트가 컨트롤 ID 다. **뒤집혀 들어온다** —
+#: 사람이 읽는 이름은 `tbl ` 이고 바이트로는 `" lbt"` 다. 뒤집는 것을 잊으면
+#: 표를 하나도 못 찾고, 단위 테스트가 같은 상수를 쓰면 그 사실이 안 잡힌다.
+CTRL_ID_TABLE = b" lbt"
 
 # PARA_TEXT 안의 제어문자. 확장형은 자기 자신 포함 8개 UInt16(=16바이트)을 차지한다.
 CTRL_EXTENDED = frozenset({1, 2, 3, 11, 12, 14, 15, 16, 17, 18, 21, 22, 23})
@@ -39,16 +47,21 @@ def _unescape(s: str) -> str:
     return s
 
 
-def _iter_records(buf: bytes) -> Iterator[tuple[int, bytes]]:
+def _iter_records(buf: bytes) -> Iterator[tuple[int, int, bytes]]:
     """레코드 헤더 4바이트: tag 10bit · level 10bit · size 12bit.
 
     size == 0xFFF 면 다음 4바이트가 실제 크기다.
+
+    **level 을 같이 준다.** 레코드는 level 로 트리를 이룬다 — 표 컨트롤이 level L 이면
+    그 표의 셀은 L+1 이고, level 이 L 이하로 내려오는 순간이 표가 끝난 자리다.
+    표 구조를 살리려면(T-0033) 이 값이 있어야 한다.
     """
     pos, n = 0, len(buf)
     while pos + 4 <= n:
         (header,) = struct.unpack_from("<I", buf, pos)
         pos += 4
         tag = header & 0x3FF
+        level = (header >> 10) & 0x3FF
         size = (header >> 20) & 0xFFF
         if size == 0xFFF:
             if pos + 4 > n:
@@ -57,7 +70,7 @@ def _iter_records(buf: bytes) -> Iterator[tuple[int, bytes]]:
             pos += 4
         if pos + size > n:
             break
-        yield tag, buf[pos : pos + size]
+        yield tag, level, buf[pos : pos + size]
         pos += size
 
 
@@ -93,6 +106,92 @@ def _para_text(payload: bytes) -> str:
     return struct.pack(f"<{len(kept)}H", *kept).decode("utf-16-le", errors="replace")
 
 
+class _Table:
+    """열려 있는 표 하나. 셀을 (행, 열)로 받아 두었다가 끝날 때 행 단위로 편다."""
+
+    __slots__ = ("level", "rows", "cur")
+
+    def __init__(self, level: int) -> None:
+        self.level = level
+        self.rows: dict[int, dict[int, list[str]]] = {}
+        self.cur: tuple[int, int] | None = None
+
+    def open_cell(self, row: int, col: int) -> None:
+        self.rows.setdefault(row, {}).setdefault(col, [])
+        self.cur = (row, col)
+
+    def parts(self) -> list[str] | None:
+        if self.cur is None:
+            return None
+        row, col = self.cur
+        return self.rows[row][col]
+
+    def render(self) -> str:
+        """행은 줄, 셀은 탭. **빈 셀도 탭 자리를 지킨다** — 양식에서 그게 채울 칸이다."""
+        lines = []
+        for r in sorted(self.rows):
+            cells = ["".join(v).split() for _, v in sorted(self.rows[r].items())]
+            lines.append("\t".join(" ".join(c) for c in cells))
+        return "\n".join(lines)
+
+
+def _assemble(records: Iterator[tuple[int, int, bytes]]) -> str:
+    """레코드 흐름을 텍스트로 편다. **표는 행과 셀을 살린다**(T-0033).
+
+    OLE 를 열지 않으므로 레코드만 있으면 그대로 시험할 수 있다.
+
+    표 하나는 이렇게 생겼다.
+
+        level L    CTRL_HEADER  ctrl='tbl '
+        level L+1  TABLE        rows · cols
+        level L+1  LIST_HEADER  col · row · span   ← 셀 하나
+        level L+2  PARA_TEXT    셀 안 글
+        …
+        level ≤ L                                  ← 여기서 표가 끝난다
+
+    `LIST_HEADER` 는 표 밖에서도 쓰인다(글상자 등). **표 컨트롤 안에 있을 때만** 셀로 읽는다.
+    """
+    out: list[str] = []
+    stack: list[_Table] = []
+
+    def sink() -> list[str]:
+        """지금 글이 들어갈 자리. 표 안이면 그 셀, 아니면 본문이다."""
+        if stack:
+            parts = stack[-1].parts()
+            if parts is not None:
+                return parts
+        return out
+
+    def close_to(level: int) -> None:
+        # level 이 표 컨트롤 이하로 내려오면 그 표는 끝났다. 중첩이면 부모 셀로 들어간다.
+        while stack and level <= stack[-1].level:
+            done = stack.pop()
+            sink().append("\n" + done.render() + "\n")
+
+    for tag, level, payload in records:
+        close_to(level)
+
+        if tag == HWPTAG_CTRL_HEADER:
+            if payload[:4] == CTRL_ID_TABLE:
+                stack.append(_Table(level))
+        elif tag == HWPTAG_LIST_HEADER:
+            # nParas(4) + listAttr(4) 다음이 셀 주소다. 실측으로 확인했다.
+            if stack and level == stack[-1].level + 1 and len(payload) >= 16:
+                col, row = struct.unpack_from("<HH", payload, 8)
+                stack[-1].open_cell(row, col)
+        elif tag == HWPTAG_PARA_TEXT:
+            sink().append(_para_text(payload))
+            if not stack:
+                out.append("\n")
+
+    close_to(0)
+    while stack:  # level 0 짜리 표가 열린 채 끝났을 때
+        out.append("\n" + stack.pop().render() + "\n")
+
+    # 셀 안 줄바꿈은 render 가 이미 없앴다. 줄 끝 여백만 턴다.
+    return re.sub(r"[ \t]+\n", "\n", "".join(out))
+
+
 def from_hwp(path: Path) -> str:
     import olefile
 
@@ -120,9 +219,7 @@ def from_hwp(path: Path) -> str:
         for s in sections:
             raw = ole.openstream(s).read()
             data = zlib.decompress(raw, -15) if compressed else raw
-            for tag, payload in _iter_records(data):
-                if tag == HWPTAG_PARA_TEXT:
-                    chunks.append(_para_text(payload))
+            chunks.append(_assemble(_iter_records(data)))
         return "\n".join(chunks)
     finally:
         ole.close()

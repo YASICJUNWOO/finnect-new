@@ -77,6 +77,95 @@ def test_hwpx가_표를_행과_셀로_남긴다(tmp_path: Path) -> None:
     assert "대표자\t홍길동" in lines
 
 
+def _rec(tag: int, level: int, payload: bytes) -> tuple[int, int, bytes]:
+    return tag, level, payload
+
+
+def _para(text: str) -> bytes:
+    return text.encode("utf-16-le")
+
+
+def _cell(col: int, row: int) -> bytes:
+    """LIST_HEADER — nParas(4) + listAttr(4) 다음이 셀 주소다."""
+    import struct
+
+    return b"\x00" * 8 + struct.pack("<HHHH", col, row, 1, 1)
+
+
+def test_표_컨트롤_id는_뒤집혀_들어온다() -> None:
+    """실물에서 확인한 바이트다. 상수를 뒤집어 쓰면 표를 하나도 못 찾는다.
+
+    이 검사를 따로 두는 이유는, 조립 테스트가 같은 상수를 쓰면 방향이 틀려도 통과하기
+    때문이다. 실제로 한 번 그렇게 놓쳤다.
+    """
+    from finnect.attach import hwp
+
+    assert hwp.CTRL_ID_TABLE[::-1] == b"tbl "
+
+
+def test_hwp가_표를_행과_셀로_편다() -> None:
+    """양식 항목은 표 셀 라벨로 산다. 뭉개면 어느 것이 라벨인지 사라진다."""
+    from finnect.attach import hwp
+
+    recs = [
+        _rec(67, 1, _para("신청서\r")),
+        _rec(71, 1, hwp.CTRL_ID_TABLE),  # 표 시작
+        _rec(77, 2, b"\x00" * 8),
+        _rec(72, 2, _cell(0, 0)),
+        _rec(67, 3, _para("기업명\r")),
+        _rec(72, 2, _cell(1, 0)),
+        _rec(67, 3, _para("(주)가나다\r")),
+        _rec(72, 2, _cell(0, 1)),
+        _rec(67, 3, _para("대표자\r")),
+        _rec(72, 2, _cell(1, 1)),
+        _rec(67, 3, _para("홍길동\r")),
+        _rec(66, 0, b""),  # level 이 내려오면 표가 끝난다
+        _rec(67, 1, _para("끝\r")),
+    ]
+
+    got = hwp._assemble(iter(recs))
+
+    lines = [ln for ln in got.splitlines() if ln.strip()]
+    assert "기업명\t(주)가나다" in lines
+    assert "대표자\t홍길동" in lines
+    assert lines[0] == "신청서"
+    assert lines[-1] == "끝"
+
+
+def test_hwp의_빈_셀이_탭_자리를_지킨다() -> None:
+    """빈 셀이 양식에서는 채울 칸이다. 지우면 라벨만 남아 짝이 깨진다."""
+    from finnect.attach import hwp
+
+    recs = [
+        _rec(71, 0, hwp.CTRL_ID_TABLE),
+        _rec(77, 1, b"\x00" * 8),
+        _rec(72, 1, _cell(0, 0)),
+        _rec(67, 2, _para("기업명\r")),
+        _rec(72, 1, _cell(1, 0)),  # 빈 칸 — 신청자가 채운다
+        _rec(72, 1, _cell(2, 0)),
+        _rec(67, 2, _para("담당자\r")),
+    ]
+
+    got = hwp._assemble(iter(recs))
+
+    assert "기업명\t\t담당자" in got
+
+
+def test_표_밖의_list_header는_셀이_아니다() -> None:
+    """LIST_HEADER 는 글상자에도 쓰인다. 표 안일 때만 셀로 읽는다."""
+    from finnect.attach import hwp
+
+    recs = [
+        _rec(72, 0, _cell(3, 7)),  # 표 컨트롤이 없다
+        _rec(67, 1, _para("글상자 안 글\r")),
+    ]
+
+    got = hwp._assemble(iter(recs))
+
+    assert "글상자 안 글" in got
+    assert "\t" not in got
+
+
 def test_이미지는_실패가_아니라_미지원이다(tmp_path: Path) -> None:
     """'안 해봤다'와 '해봤는데 안 됐다'는 다른 사실이다."""
     f = tmp_path / "공고문.png"

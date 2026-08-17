@@ -1,0 +1,68 @@
+/* plan/11 T-0039 미리보기. 색 리터럴 없음 — 값은 tokens.css 하나다. */
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s4) var(--s8);
+}
+
+.kicker {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.title {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s5);
+}
+
+.case {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-height: 44px;
+  justify-content: center;
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.case[aria-current="page"] {
+  border-color: var(--ink);
+}
+
+.caseLabel {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.caseWhy {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.note {
+  margin: var(--s6) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

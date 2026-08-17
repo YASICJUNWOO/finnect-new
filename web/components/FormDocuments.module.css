@@ -1,0 +1,289 @@
+/* 내야 할 서류. plan/11 T-0039.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0025).
+ * 흐름 안의 카드라 그림자 대신 경계선을 쓴다(DESIGN.md §4.4). */
+
+.section {
+  margin-top: var(--s6);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+/* 숫자는 사실까지만. 준비도·완성도 같은 척도를 만들지 않는다(DESIGN.md §6) */
+.count {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.doc {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s4) var(--s5);
+}
+
+.docHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px; /* 터치 타깃 (DESIGN.md §8.2) */
+  padding: var(--s2) 0;
+}
+
+.docHead::-webkit-details-marker {
+  display: none;
+}
+
+.docTitle {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.docMeta {
+  flex: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.source {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  word-break: break-all;
+}
+
+.link {
+  color: var(--ink-2);
+}
+
+/* --- 항목 트리 --- */
+
+.items,
+.children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.children {
+  margin-top: var(--s3);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line);
+}
+
+.item + .item {
+  margin-top: var(--s4);
+}
+
+.itemHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.number {
+  flex: none;
+  min-width: 2.5em;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+.itemTitle {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.limit {
+  flex: none;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-2);
+  background: var(--quiet);
+  border-radius: var(--r-pill);
+  padding: 0 var(--s2);
+}
+
+/* 지시문은 양식이 쓴 그대로다. 우리 카피와 섞이지 않게 한 단 낮춘다 */
+.instr {
+  margin: var(--s1) 0 0;
+  padding-left: calc(2.5em + var(--s2));
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  max-width: 62ch; /* DESIGN.md §8.2 */
+}
+
+.instrBox {
+  margin: var(--s1) 0 0;
+}
+
+.instrSummary {
+  list-style: none;
+  cursor: pointer;
+  padding-left: calc(2.5em + var(--s2));
+}
+
+.instrSummary::-webkit-details-marker {
+  display: none;
+}
+
+/* 2,031자짜리가 있다. 접힌 동안은 두 줄까지만 */
+.instrClamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* 펼친 뒤에도 summary 는 남긴다 — 없애면 다시 접을 수단이 사라진다.
+ * 클램프 글자만 '접기' 로 바꾼다. */
+.fold {
+  display: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.instrBox[open] .instrClamp {
+  display: none;
+}
+
+.instrBox[open] .fold {
+  display: inline;
+}
+
+.instrBox[open] .instrSummary {
+  order: 2;
+  margin-top: var(--s1);
+}
+
+/* --- 칸 채우기 --- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chip {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  background: var(--quiet);
+  border-radius: var(--r-sm);
+  padding: var(--s1) var(--s3);
+}
+
+.more {
+  margin-top: var(--s3);
+}
+
+.moreSummary {
+  cursor: pointer;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  padding: var(--s2) 0;
+}
+
+.more[open] .moreSummary {
+  margin-bottom: var(--s3);
+}
+
+/* --- 빈 화면. 셋 중 하나가 여기다 --- */
+
+.empty {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s5);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.emptyBody {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.quotes {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* 공고문 원문이다. 우리 말과 구분되게 둔다 */
+.quote {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  background: var(--quiet);
+  border-left: 2px solid var(--line-2);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: var(--s2) var(--s3);
+  max-width: 62ch;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: var(--s4);
+  min-height: 44px;
+  line-height: 44px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+}

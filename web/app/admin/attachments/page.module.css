@@ -1,0 +1,16 @@
+/* 조용한 누락 한 줄. **이 화면에서 가장 먼저 읽혀야 하는 문장이라** 본문 크기로 둔다.
+ * 나머지 설명은 13px 이다. 크기 차이가 우선순위를 말한다. */
+.first {
+  margin-top: var(--s3);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.formats {
+  margin-top: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  font-size: var(--t-small);
+}

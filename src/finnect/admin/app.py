@@ -1,32 +1,36 @@
-"""관리 화면 — 수집한 공고를 눈으로 보는 곳.
+"""수집 실행 화면 — **로컬 전용이고 이제 이 하나만 남았다.**
 
-운영 도구는 SPEC.md §6 범위 밖이다. 이 화면의 목적은 운영이 아니라
-**L1 스키마 설계를 위한 코퍼스 관찰**이다. 그래서 상세는 출처가 준 컬럼을 전부 편다.
-design/ 의 토큰·컴포넌트를 따르지 않는다. 제품 화면이 아니다.
+2026-08-17 읽기 화면 넷은 Next.js(`web/app/admin/`)로 옮겼다([ADR-0027](
+../../../docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 배포본에서도 열려야 했고,
+그 값들은 `GET /api/admin/*` 이 낸다.
+
+**여기 남은 것은 옮길 수 없는 것 하나다.** 수집은 응답보다 오래 사는 데몬 스레드로 돈다 —
+K-Startup 전량이 요청 149회다. 서버리스 함수가 할 일이 아니고, `jobs.py` 의 진행률은
+수집을 돌리는 프로세스 안에서만 산다. 그래서 버튼과 진행률이 로컬에 남았다.
+
+    uv run uvicorn finnect.admin.app:app --reload    # :8000
+
+**읽기 화면을 여기 다시 만들지 않는다.** 같은 화면이 두 벌이 되면 갈리고, 갈린 것을
+아무도 모른다. 공고 목록·상세·첨부 해독은 `web/app/admin/` 이 정본이다.
 """
 
 from __future__ import annotations
 
-import json
-import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
-from finnect import fields
-from finnect.attach import service as attach_service
-from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs, runs, service
-from finnect.models import Attachment, BizinfoNotice, KstartupNotice, RawFetch, RunStatus, Source
+from finnect.models import RunStatus
 from finnect.views import Notice
 
 
@@ -36,6 +40,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     --reload 로 띄우면 파일을 고칠 때마다 프로세스가 갈린다. 돌던 수집은 거기서 끊기는데
     행은 RUNNING 인 채로 남아 화면에서 영원히 도는 것처럼 보인다.
+
+    **이 정리가 배포본에 없는 이유이기도 하다.** 쓰기 동작이고, 읽기 경로가 할 일이 아니다.
     """
     try:
         reaped = runs.reap()
@@ -46,7 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="finnect 관리", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="finnect 수집", docs_url=None, redoc_url=None, lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
@@ -57,217 +63,10 @@ def _ts(value: Any) -> str:
 
 templates.env.filters["ts"] = _ts
 
-PAGE_SIZE = 50
-
-MODELS: dict[str, Any] = {
-    str(Source.BIZINFO): BizinfoNotice,
-    str(Source.KSTARTUP): KstartupNotice,
-}
-
-SORTS = {
-    "deadline": (Notice.apply_end.asc().nullslast(), "마감 임박순"),
-    "recent": (Notice.first_seen_at.desc(), "최근 수집순"),
-    "title": (Notice.title.asc(), "이름순"),
-}
-
-# raw_fetch.payload 안에서 공고 배열이 어디 있고, 그 안의 자연키가 무엇인지.
-# 봉투 형태는 ingest/envelope.py 가 정본이다.
-RAW_ITEMS_KEY = {str(Source.BIZINFO): "jsonArray", str(Source.KSTARTUP): "data"}
-RAW_PK = {str(Source.BIZINFO): "pblancId", str(Source.KSTARTUP): "pbanc_sn"}
-
-
-def _dump(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-
-
-def _split_payload(payload: Any, source: str, external_id: str) -> tuple[str, str | None, int]:
-    """응답 통째에서 봉투와 이 공고의 원문 item 을 갈라 낸다.
-
-    payload 는 응답 한 건 전체다. 기업마당은 한 번에 1,538건이 들어와 3.67MB 라
-    그대로 펴면 화면이 못 쓴다. 공고 배열은 봉투에서 빼고 이 공고 것만 꺼낸다.
-    """
-    if not isinstance(payload, dict):
-        return _dump(payload), None, 0
-
-    items_key = RAW_ITEMS_KEY.get(source)
-    items = payload.get(items_key)
-    items = items if isinstance(items, list) else []
-
-    envelope = {k: v for k, v in payload.items() if k != items_key}
-    pk = RAW_PK.get(source)
-    mine = next((i for i in items if isinstance(i, dict) and str(i.get(pk)) == external_id), None)
-
-    return _dump(envelope), (_dump(mine) if mine is not None else None), len(items)
-
 
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    return RedirectResponse("/notices")
-
-
-@app.get("/notices", response_class=HTMLResponse)
-def notice_list(
-    request: Request,
-    source: str = "",
-    q: str = "",
-    sort: str = "deadline",
-    page: int = Query(1, ge=1),
-) -> HTMLResponse:
-    order, _ = SORTS.get(sort, SORTS["deadline"])
-
-    where = []
-    if source in MODELS:
-        where.append(Notice.source == source)
-    if q.strip():
-        where.append(Notice.title.ilike(f"%{q.strip()}%"))
-
-    with SessionFactory() as s:
-        total = s.scalar(select(func.count()).select_from(Notice).where(*where)) or 0
-        rows = list(
-            s.scalars(
-                select(Notice)
-                .where(*where)
-                .order_by(order)
-                .limit(PAGE_SIZE)
-                .offset((page - 1) * PAGE_SIZE)
-            )
-        )
-        # 첨부 수는 이 페이지 것만 따로 센다. 뷰에 상관 서브쿼리를 넣지 않는다.
-        counts: dict[tuple[str, str], int] = {}
-        if rows:
-            keys = [(r.source, r.external_id) for r in rows]
-            got = s.execute(
-                select(Attachment.source, Attachment.external_id, func.count())
-                .where(Attachment.external_id.in_([k[1] for k in keys]))
-                .group_by(Attachment.source, Attachment.external_id)
-            ).all()
-            counts = {(a, b): c for a, b, c in got}
-
-        by_source = dict(
-            s.execute(select(Notice.source, func.count()).group_by(Notice.source)).all()
-        )
-
-    return templates.TemplateResponse(
-        request,
-        "list.html",
-        {
-            "nav": "notices",
-            "rows": rows,
-            "counts": counts,
-            "total": total,
-            "page": page,
-            "pages": max(1, math.ceil(total / PAGE_SIZE)),
-            "source": source,
-            "q": q,
-            "sort": sort,
-            "sorts": {k: v[1] for k, v in SORTS.items()},
-            "by_source": by_source,
-        },
-    )
-
-
-@app.get("/notice/{source}/{external_id}", response_class=HTMLResponse)
-def notice_detail(request: Request, source: str, external_id: str) -> HTMLResponse:
-    model = MODELS.get(source)
-    if model is None:
-        return HTMLResponse(f"모르는 출처: {source}", status_code=404)
-
-    with SessionFactory() as s:
-        row = s.get(model, external_id)
-        if row is None:
-            return HTMLResponse(f"없는 공고: {source}/{external_id}", status_code=404)
-
-        attachments = list(
-            s.scalars(
-                select(Attachment)
-                .where(Attachment.source == source, Attachment.external_id == external_id)
-                .order_by(Attachment.position)
-            )
-        )
-        # 해독 결과는 URL 로 맞춘다. attachment 는 재수집 때 지워지고 다시 깔린다(ADR-0022).
-        files = attach_service.per_notice(s, source, external_id)
-        decoded = sum(
-            1 for a in attachments if (f := files.get(a.url)) and f.parse_status == "ok"
-        )
-
-        # API 가 준 컬럼과 우리가 붙인 컬럼을 갈라서 보여준다.
-        # 설명은 출처의 공식 문서에서 온다. 없으면 None 이고, 화면이 '문서에 없음'으로 적는다.
-        api_fields, ours = [], []
-        for col in model.__table__.columns:
-            value = getattr(row, col.name, None)
-            entry = (col.name, value, fields.describe(source, col.name))
-            (api_fields if col.name in model.API_FIELDS else ours).append(entry)
-
-        # 원문. 파싱한 컬럼과 나란히 놓고 무엇이 빠졌는지 눈으로 본다.
-        raw = s.get(RawFetch, row.raw_fetch_id) if row.raw_fetch_id else None
-        envelope = item = None
-        siblings = 0
-        if raw is not None:
-            envelope, item, siblings = _split_payload(raw.payload, source, external_id)
-
-    known, total = fields.coverage(source, [n for n, _, _ in api_fields])
-
-    return templates.TemplateResponse(
-        request,
-        "detail.html",
-        {
-            "nav": "notices",
-            "source": source,
-            "external_id": external_id,
-            "api_fields": api_fields,
-            "ours": ours,
-            "extra": row.extra or {},
-            "attachments": attachments,
-            "files": files,
-            "decoded": decoded,
-            "table": model.__tablename__,
-            "doc": fields.DOCS[source],
-            "described": known,
-            "described_total": total,
-            "raw": raw,
-            "raw_envelope": envelope,
-            "raw_item": item,
-            "raw_siblings": siblings,
-        },
-    )
-
-
-# 상태값이 무슨 뜻인지 화면이 직접 적는다. 셋을 갈라 놓고 뜻을 안 적으면 갈라 놓은 의미가 없다.
-FETCH_WHY = {
-    "ok": "받았다",
-    "not_found": "4xx / 5xx",
-    "not_html": "HTTP 200 인데 파일이 아니라 HTML 오류 페이지였다. 저장하지 않았다",
-    "too_large": "크기 한도 초과. 받지 않았다",
-    "failed": "네트워크·타임아웃",
-}
-PARSE_WHY = {
-    "ok": "텍스트가 나왔다",
-    "empty": "파서는 돌았는데 0바이트다 — 스캔본",
-    "unsupported": "지원 목록에 없는 포맷. 시도하지 않았다",
-    "failed": "시도했고 실패했다",
-    "container": "ZIP. 안의 목록만 읽었다",
-}
-
-
-@app.get("/attachments", response_class=HTMLResponse)
-def attachments_page(request: Request) -> HTMLResponse:
-    """첨부 해독 현황. **조용한 누락이 0인지가 첫 줄이다**(plan/07 검증)."""
-    with SessionFactory() as s:
-        coverage = attach_service.coverage(s)
-        ocr = attach_service.ocr_candidates(s)
-
-    return templates.TemplateResponse(
-        request,
-        "attachments.html",
-        {
-            "nav": "attachments",
-            "c": coverage,
-            "ocr": ocr,
-            "formats": settings.formats,
-            "fetch_why": FETCH_WHY,
-            "parse_why": PARSE_WHY,
-        },
-    )
+    return RedirectResponse("/ingest")
 
 
 @app.get("/ingest", response_class=HTMLResponse)

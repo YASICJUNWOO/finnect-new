@@ -1,14 +1,17 @@
 # deploy — 읽기 경로를 Vercel에 올린다
 
-> 기준 2026-08-17. 결정은 [ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md).
-> **올라가는 것은 화면 둘과 그걸 먹이는 API 뿐이다.** 수집·해독·운영 도구는 로컬에 남는다.
+> 기준 2026-08-17. 결정은 [ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md)과 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).
+> **올라가는 것은 읽기 경로 전부다** — 제품 화면 둘, 운영 조회 화면 넷, 그리고 그걸 먹이는 API.
+> 수집·해독과 **수집 실행 버튼**은 로컬에 남는다.
 
 ```
 브라우저 ──▶ finnect-web (Vercel · Next.js)
+                  ├── (product)/   제품 화면 둘
+                  └── admin/       운영 조회 화면 넷 (ADR-0027)
                   │  서버 컴포넌트가 부른다. 브라우저는 API 주소를 모른다
                   ▼
              finnect-api (Vercel · Python Function)
-                  │
+                  │  GET /api/notices · GET /api/admin/*
                   ▼
              Neon PostgreSQL  ◀── 로컬에서 부은 스냅숏
 ```
@@ -120,9 +123,9 @@ vercel deploy
 
 `FINNECT_API` 는 `next.config.ts` 가 읽는다. 없으면 `http://127.0.0.1:8100` 으로 떨어져서 **배포본이 로컬을 부르다 실패한다.** 이 값이 이 배포에서 가장 자주 틀리는 자리다.
 
-`FINNECT_ADMIN` 은 상단 '운영 도구' 링크가 가리키는 곳이고 **배포본에도 렌더된다.** 값을 안 주면 `http://127.0.0.1:8000` 이다.
+**`FINNECT_ADMIN` 은 없어졌다**([ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md)). 운영 화면이 같은 앱으로 들어와서 상단 '운영 도구' 링크가 `/admin/notices` 상대 경로가 됐다. 넣어 뒀으면 지운다 — 아무것도 안 읽는다.
 
-**그 주소는 서버가 아니라 보는 사람의 자기 기기다.** admin 은 Vercel 에 올라가지 않으므로([ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md)) 로컬에 admin 을 띄워 둔 사람에게만 열린다. 다른 사람이 눌러도 우리 것이 새지는 않지만 **아무것도 안 열린다.** 배포된 admin 이 생기면 `vercel env add FINNECT_ADMIN production` 으로 그 주소를 주면 된다.
+그 값이 있던 동안 배포본의 버튼은 `http://127.0.0.1:8000`, 곧 **누른 사람의 자기 기기**를 가리켰다. 로컬에 admin 을 띄워 둔 사람에게만 열렸고 나머지에게는 죽은 버튼이었다. 그 대가를 없애려고 옮긴 것이다.
 
 ---
 
@@ -176,9 +179,17 @@ API 쪽에 제외 목록(`':!web'` 같은 것)을 쓰지 않는다. 손으로 �
 
 ## 6. 잠근다
 
-화면 대부분이 "아직 없어요"로 비어 있어 공개 제품이 아니다. 두 프로젝트 다 켠다.
+화면 대부분이 "아직 없어요"로 비어 있어 공개 제품이 아니다.
 
-Vercel 대시보드 > 프로젝트 > Settings > Deployment Protection > **Vercel Authentication** 을 켠다.
+Vercel 대시보드 > 프로젝트 > Settings > Deployment Protection > **Vercel Authentication**.
+
+**프로젝트별 설정이다.** 계정 단위 스위치가 아니라서 프로젝트마다 켜야 하고, 새 프로젝트는 켜진 상태로 시작한다.
+
+**2026-08-17 `finnect-web` 쪽은 껐다.** 시연 URL 을 로그인 없이 열어야 했다. `finnect-api` 는 `all_except_custom_domains` 로 켜져 있고, 그래서 `finnect-api.vercel.app` 은 열리고 `finnect-api-<team>.vercel.app` 은 막힌다.
+
+**끈 상태에서는 운영 화면 넷도 같이 공개된다**([ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md)). 시크릿은 안 나간다 — 인증키는 저장 전에 마스킹되고, 공고와 첨부는 정부 공개 데이터다. 다만 `ingest_run` 실행 기록과 `raw_fetch` 원문이 보인다. 잠그려면 이걸 다시 켠다.
+
+`/admin` 에 `robots: noindex` 가 붙어 있지만 **그것은 접근 제어가 아니다.**
 
 ---
 
@@ -188,7 +199,7 @@ Vercel 대시보드 > 프로젝트 > Settings > Deployment Protection > **Vercel
 |---|---|
 | `uv run python -m finnect.ingest` | K-Startup 전량이 149회이고 데몬 스레드로 돈다. 응답보다 오래 산다 |
 | `uv run python -m finnect.attach` | 30분짜리다. 받은 파일 1.7GB 가 로컬 디스크에 쌓인다 |
-| `src/finnect/admin/` | 운영 도구. `SPEC.md` §6 범위 밖이고 인증이 없다 |
+| `POST /ingest/run/{source}` 수집 버튼 | 데몬 스레드로 돈다. 진행률은 그 프로세스 안에서만 산다. **조회 화면 넷은 올라간다**(ADR-0027) |
 | `data/attachments/` 원본 1.7GB | 화면은 **메타와 해독 상태만** 쓴다. 파일 링크는 출처 원본을 가리킨다 |
 
 **인증키(`BIZINFO_API_KEY` · `DATA_GO_KR_API_KEY`)를 Vercel 에 넣지 않는다.** 배포본은 수집을 안 한다. 기업마당 키는 신청한 IP 에 묶일 수 있어서 넣어도 안 도는 게 정상이다.

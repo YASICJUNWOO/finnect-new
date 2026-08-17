@@ -4,13 +4,16 @@
 그대로 화면에 펴면 못 읽으므로 봉투와 해당 item 을 가른다. 이 가르는 규칙이
 출처마다 다르고(`jsonArray` vs `data`, `pblancId` vs `pbanc_sn`) 조용히 틀리면
 **원문이 비어 보이는데 화면은 200 을 준다.** 그래서 테스트를 둔다.
+
+2026-08-17 `admin/app.py` 에서 `api/admin_service.py` 로 옮겼다(ADR-0027).
+화면이 Next.js 로 갔고 이 함수는 그 화면을 먹이는 API 쪽에 산다. 규칙은 안 바뀌었다.
 """
 
 from __future__ import annotations
 
 import json
 
-from finnect.admin.app import _split_payload
+from finnect.api.admin_service import _split_payload
 
 BIZINFO = {
     "jsonArray": [

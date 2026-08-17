@@ -10,7 +10,13 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from finnect.api import service
+from finnect.api import admin_service, service
+from finnect.api.admin_schemas import (
+    AdminAttachmentsOut,
+    AdminIngestOut,
+    AdminNoticeDetailOut,
+    AdminNoticeListOut,
+)
 from finnect.api.schemas import NoticeDetailOut, NoticeListOut
 from finnect.db import SessionFactory
 
@@ -51,3 +57,54 @@ def notice(source: str, external_id: str) -> NoticeDetailOut:
     if found is None:
         raise HTTPException(404, f"없는 공고: {source}/{external_id}")
     return found
+
+
+# --- 운영 화면 (ADR-0027) ---------------------------------------------------
+#
+# **전부 GET 이다.** 수집 실행은 여기 없다 — 응답보다 오래 사는 데몬 스레드라
+# 서버리스 함수의 일이 아니고, 그 버튼은 로컬 CLI 에 남는다.
+#
+# 제품 경로와 접두사를 갈라 둔다(`/api/admin/`). 목적이 반대인 응답이라
+# 한 이름 아래 섞이면 어느 쪽 계약인지 알 수 없다.
+
+
+@app.get("/api/admin/notices", response_model=AdminNoticeListOut, tags=["admin"])
+def admin_notices(
+    source: str = "",
+    q: str = "",
+    sort: str = "deadline",
+    page: int = Query(1, ge=1),
+) -> AdminNoticeListOut:
+    """운영 목록. **마감된 공고를 빼지 않는다** — 코퍼스 전량이 모집단이다."""
+    with SessionFactory() as s:
+        return admin_service.list_notices(s, source=source, q=q, sort=sort, page=page)
+
+
+@app.get(
+    "/api/admin/notices/{source}/{external_id}",
+    response_model=AdminNoticeDetailOut,
+    tags=["admin"],
+)
+def admin_notice(source: str, external_id: str) -> AdminNoticeDetailOut:
+    """운영 상세. 출처가 준 컬럼을 **하나도 고르지 않고** 전부 낸다."""
+    if source not in admin_service.MODELS:
+        raise HTTPException(404, f"모르는 출처: {source}")
+    with SessionFactory() as s:
+        found = admin_service.get_notice(s, source, external_id)
+    if found is None:
+        raise HTTPException(404, f"없는 공고: {source}/{external_id}")
+    return found
+
+
+@app.get("/api/admin/attachments", response_model=AdminAttachmentsOut, tags=["admin"])
+def admin_attachments() -> AdminAttachmentsOut:
+    """해독 현황. **`unaccounted` 가 0인지가 첫 줄이다**(plan/07 검증)."""
+    with SessionFactory() as s:
+        return admin_service.attachments(s)
+
+
+@app.get("/api/admin/ingest", response_model=AdminIngestOut, tags=["admin"])
+def admin_ingest() -> AdminIngestOut:
+    """수집 실행 기록. 읽기만 한다."""
+    with SessionFactory() as s:
+        return admin_service.ingest(s)

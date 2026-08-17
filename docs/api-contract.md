@@ -9,7 +9,9 @@
 uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 ```
 
-`src/finnect/admin/` 은 이 계약과 무관하다. 운영 도구이고 `SPEC.md` §6 범위 밖이다.
+**2026-08-17 운영 화면도 이 경계를 쓴다**([ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md)). 접두사가 `/api/admin/` 이고 §운영 경로에 있다. 정본은 `src/finnect/api/admin_schemas.py` 다.
+
+`src/finnect/admin/` 에는 **수집 실행만 남았다.** 그것은 이 계약과 무관하고 `SPEC.md` §6 범위 밖이다.
 
 ---
 
@@ -122,6 +124,48 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 | `null` | 아직 안 해봤다 |
 
 `unsupported` 와 `failed` 와 `null` 을 화면에서 한 덩어리로 뭉개지 않는다. 셋을 가른 것이 [T-0004](plan/07-첨부-내려받기와-해독.md#t-0004-지원-포맷-목록-정의)의 존재 이유다.
+
+---
+
+## 운영 경로 — `/api/admin/*`
+
+> 정본은 `src/finnect/api/admin_schemas.py`. 결정은 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).
+
+`web/app/admin/` 이 부른다. **제품 경로와 목적이 반대다.**
+
+| | 제품 (`/api/notices`) | 운영 (`/api/admin/notices`) |
+|---|---|---|
+| 무엇을 내는가 | 사용자가 볼 값만 **고른다** | 출처가 준 컬럼을 **하나도 안 고른다** |
+| 마감된 공고 | 기본으로 뺀다(`open_only`) | **안 뺀다.** 31,327건이 모집단 |
+| 한 페이지 | 20건 | 50건 |
+| 정렬 | 마감순 하나(ADR-0024) | 셋 — 마감 임박 · 최근 수집 · 이름 |
+| 어디서 읽는가 | `notice` 뷰 | **출처별 표에서 직접.** 뷰를 안 거친다 |
+
+접두사를 가른 것은 그래서다. 한 이름 아래 섞이면 어느 쪽 계약인지 알 수 없다.
+
+| 경로 | 무엇 |
+|---|---|
+| `GET /api/admin/notices` | 목록. `source` · `q` · `sort` · `page` |
+| `GET /api/admin/notices/{source}/{external_id}` | 상세. 컬럼 전부 + 설명 + 첨부 + 원문 응답 |
+| `GET /api/admin/attachments` | 해독 현황 집계와 OCR 후보 |
+| `GET /api/admin/ingest` | 수집 실행 기록과 출처별 저장 건수 |
+
+### 운영 상세가 더 주는 것
+
+- **`api_fields` 와 `ours` 를 가른다.** 출처가 준 컬럼(기업마당 22 · K-Startup 30)과 우리가 붙인 컬럼이다
+- **`description` 은 공식 문서에서만 온다.** `null` 이면 문서에 없다는 뜻이고 화면이 "문서에 없음"으로 적는다. 이름으로 추측해 채우지 않는다
+- **`extra` 가 비어 있지 않으면 API 가 늘어났다는 뜻이다.** 조용히 버리지 않는다
+- **`raw`** — 응답 원문. `envelope`(공고 배열 뺀 나머지)과 `item`(이 공고)을 갈라 준다. 기업마당 응답 하나가 1,538건 · 3.67MB 라 통째로는 못 쓴다. **인증키는 저장 전에 마스킹된다**(`ingest/base.py` `mask()`)
+
+### 여기 없는 것 — 수집 실행
+
+`POST` 가 없다. 수집은 응답보다 오래 사는 데몬 스레드이고 진행률은 그 프로세스 안에서만 산다. 로컬 `:8000` 에 남았다.
+
+```bash
+uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 진행률
+```
+
+**`/api/admin/ingest` 는 기록만 읽는다.** `running`·`progress` 필드가 없는 것이 그 뜻이다. 없는 것을 있는 척하지 않는다.
 
 ---
 

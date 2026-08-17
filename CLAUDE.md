@@ -10,13 +10,14 @@
 
 **2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)이 닫혔고 [plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
-**앱이 셋이다.** `web/` 사용자 화면(Next.js) · `src/finnect/api/` 제품 API · `src/finnect/admin/` 운영 도구. 앞의 둘이 제품이다([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)).
+**앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다**
 - 제품 화면은 **S4·S5 둘뿐이다.** 나머지 다섯(S1·S2·S3·S6·S7)은 없다. 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
-- `src/finnect/admin/`은 **운영 도구**이고 `SPEC.md` §6 범위 밖이다. Jinja2로 남는다. **토큰은 아직 안 입었다** — plan/08 T-0023이 할 일이다
+- **운영 조회 화면 넷은 `web/app/admin/`에 있고 배포본에서도 열린다**([ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 토큰을 입었고 T-0023이 그 커밋에서 닫혔다. `src/finnect/admin/`에는 **수집 실행 버튼만** 남았다 — 데몬 스레드라 안 올라간다. **읽기 화면을 거기 다시 만들지 않는다**
+- **`api/admin_service.py`에서 `attach.service`·`ingest.service`를 임포트하지 않는다.** 저 둘이 httpx와 파서를 끌고 오는데 `requirements.txt`가 그것들을 뺐다. 임포트하면 **로컬은 통과하고 배포본만 죽는다.** `tests/test_admin_api.py`가 막아 둔다
 - **`DESIGN.md` §4 토큰 실값이 찼다**([ADR-0025](docs/adr/0025-토큰-실값-확정.md)). 값의 유일한 자리는 `web/app/tokens.css`이고 정본은 DESIGN.md §4다
 - `spike/`는 실측용 **버리는 코드**다. 기능을 얹거나 리팩터하지 않는다. 다시 돌리려면 `uv sync --group spike`
 
@@ -41,9 +42,11 @@ uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘�
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
-uv run uvicorn finnect.admin.app:app --reload    # 운영 :8000 (/notices · /ingest · /attachments)
-uv run uvicorn finnect.api.app:app --port 8100   # 제품 API :8100 (/docs 에 OpenAPI)
-cd web && npm run dev                            # 사용자 화면 :3000. API 가 먼저 떠 있어야 한다
+uv run uvicorn finnect.admin.app:app --reload    # 수집 실행 :8000 (/ingest 하나뿐이다)
+uv run uvicorn finnect.api.app:app --port 8100   # API :8100 — 제품 + 운영. /docs 에 OpenAPI
+cd web && npm run dev                            # 화면 :3000. API 가 먼저 떠 있어야 한다
+                                                 #   /         제품 목록·상세
+                                                 #   /admin     운영 조회 화면 넷
 uv run pytest
 uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이션 때문에 안 통과한다
 cd web && npm run lint && npm run typecheck && npm run build
@@ -58,7 +61,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 | `raw_fetch` | 응답 통째 (봉투·쿼터 포함) |
 | `bizinfo_notice` | 기업마당 22컬럼 |
 | `kstartup_notice` | K-Startup 30컬럼 |
-| `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py` |
+| `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py`. **제품 목록만 이 뷰를 쓴다** — 운영 상세는 출처별 표에서 직접 읽는다 |
 | `attachment` | 첨부 메타. **API가 준 것** |
 | `attachment_file` | 첨부를 받아서 읽어 본 결과. **우리가 한 것** ([ADR-0022](docs/adr/0022-첨부-원본을-콘텐츠-주소로-로컬에-둔다.md)) |
 | `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |

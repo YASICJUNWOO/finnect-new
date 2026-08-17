@@ -70,7 +70,9 @@ export class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string): Promise<T> {
+/** 유일한 fetch. **`lib/admin.ts` 도 이걸 쓴다** — 운영 화면이 별도 fetch 를 갖게 되면
+ *  타임아웃·리다이렉트·SSO 우회 규칙이 두 벌이 되고, 한쪽만 고쳐지는 날이 온다. */
+export async function get<T>(path: string): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {

@@ -1,0 +1,15 @@
+.crumb {
+  margin-bottom: var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+}
+
+/* 마스킹된 요청 URL. 길어서 표 폭을 밀지 않게 접는다 */
+.url {
+  display: inline-block;
+  margin-top: var(--s1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-caption);
+  color: var(--ink-2);
+  word-break: break-all;
+}

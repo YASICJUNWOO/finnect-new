@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import httpx
 
@@ -19,41 +18,14 @@ from finnect.ingest.kstartup import KstartupAdapter
 from finnect.ingest.runner import IngestReport, run
 from finnect.models import Source
 
+# 출처 설명은 `finnect/sources.py` 에 산다. **여기서 다시 import 해 주는 이유가 있다** —
+# 읽기만 하는 API 가 `SOURCES` 를 쓰는데 이 모듈은 httpx 를 끌고 온다(ADR-0027).
+# 부르는 쪽을 안 고치려고 이름을 그대로 내보낸다.
+from finnect.sources import BY_NAME, SOURCES, SourceInfo
+
 UA = "finnect-ingest/0.1 (+https://github.com/joonoo3/finnect-new)"
 
-
-@dataclass(frozen=True)
-class SourceInfo:
-    """화면 카드가 읽는 출처 설명. 건수와 요청 수는 2026-08-16 실측이다."""
-
-    name: str
-    label: str
-    key_env: str
-    expected: int
-    requests: str
-    note: str
-
-
-SOURCES: tuple[SourceInfo, ...] = (
-    SourceInfo(
-        name=str(Source.BIZINFO),
-        label="기업마당",
-        key_env="BIZINFO_API_KEY",
-        expected=1538,
-        requests="요청 1회",
-        note="목록 API 가 첨부를 알려준다. 첨부 0개가 431건(28%)이고 그건 확인된 0개다.",
-    ),
-    SourceInfo(
-        name=str(Source.KSTARTUP),
-        label="K-Startup",
-        key_env="DATA_GO_KR_API_KEY",
-        expected=29789,
-        requests="요청 149회 · 일 한도 10,000",
-        note="첨부 필드가 없어 전량이 미확인이다. 수정일시도 없어 변경 감지는 해시뿐이다.",
-    ),
-)
-
-BY_NAME = {s.name: s for s in SOURCES}
+__all__ = ["BY_NAME", "SOURCES", "SourceInfo", "launch", "missing_key", "parse_limit"]
 
 
 def missing_key(source: str) -> str:

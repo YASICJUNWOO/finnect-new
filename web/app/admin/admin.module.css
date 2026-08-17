@@ -1,0 +1,290 @@
+/* 운영 화면 공용. 옛 Jinja2 `base.html` 의 `<style>` 을 옮긴 것이고 **구성은 그대로다**.
+ *
+ * 바뀐 것은 값뿐이다 — T-0023 이 "색·타입·간격·반경 토큰"만 하고
+ * "표를 카드로 바꾸기"는 안 하는 것으로 정했다.
+ *
+ * | 옛 값 | 지금 |
+ * |---|---|
+ * | `14px/1.5` 본문 | `--t-small`(13) · `--t-body`(16). §8.2 가 14px 을 뺐다 |
+ * | `#0645ad` 링크 | `--ink` 밑줄. **UI 크롬에 색을 쓰지 않는다**(§3-6) |
+ * | `#ccc` · `#ddd` 선 | `--line` · `--line-2` |
+ * | `#767676` 흐린 글자 | `--ink-2` · `--ink-3` |
+ * | 반경 3·4·5px 뒤섞임 | `--r-sm`(조작) · `--r`(카드) · `--r-pill`(알약) |
+ *
+ * **색 리터럴을 쓰지 않는다.** plan/09 검증이 그걸 grep 으로 본다. */
+
+/* --- 페이지 머리 --- */
+
+.h1 {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.lead {
+  margin-top: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  /* 줄길이 62ch 이하 (§8.2). 설명 문단이 표 폭(1280px)까지 늘어나면 못 읽는다 */
+  max-width: 62ch;
+}
+
+.h2 {
+  margin-top: var(--s6);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-2);
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+
+.note {
+  margin-top: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* --- 표. 흐름 안에 있으니 그림자 대신 경계선이다 (§4.4) --- */
+
+.wrap {
+  margin-top: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  /* 실행 기록이 11열이다. 좁은 화면에서 표만 가로로 흐르게 한다 */
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th {
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--quiet);
+}
+
+/* 행 전체가 눌리는 것이 아니라 링크만 눌린다. 배경만 옅게 바꿔 위치를 알린다 (§7-2) */
+.table tbody tr:hover {
+  background: var(--quiet);
+}
+
+/* 숫자는 세로로 정렬돼야 한다 (§4.2).
+ *
+ * **`.num` 단독으로는 안 먹는다.** 위 `.table th, .table td`(0,2,0)가 `text-align: left`
+ * 를 주고 있어서 `.num`(0,1,0)이 진다. 캡처를 떠 보고 알았다 — 코드만 읽으면 맞아 보인다.
+ * 그래서 `.table` 을 앞에 붙여 (0,2,0)+element 로 올린다. */
+.table th.num,
+.table td.num {
+  text-align: right;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.key {
+  width: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-caption);
+  white-space: nowrap;
+}
+
+.val {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 설명은 호버가 아니라 컬럼이다. 마우스를 올려야 보이는 정보는 안 보이는 정보에 가깝다 */
+.desc {
+  width: 260px;
+  color: var(--ink-2);
+}
+
+.muted {
+  color: var(--ink-2);
+}
+
+.link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 값이 없는 것. **빈칸으로 두면 '값이 있는데 안 보이는 것'과 구별이 안 된다** */
+.null {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* 문서에 설명이 없는 필드. 이름으로 뜻을 추측해 채우지 않았다는 표시다 */
+.undoc {
+  color: var(--urgent);
+  font-style: italic;
+}
+
+.bad {
+  color: var(--urgent);
+}
+
+.warn {
+  color: var(--blank);
+}
+
+/* --- 태그와 알약 --- */
+
+.tag {
+  display: inline-block;
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: var(--t-caption);
+  line-height: 1.7;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+/* 해독 상태. **'안 해봤다'와 '해봤는데 안 됐다'와 '해봤는데 비었다'를 눈으로 갈라야 한다.**
+ *
+ * 색을 넷만 쓴다. 상태가 아홉인데 색을 아홉 개 만들면 아무 뜻도 안 남는다.
+ * 뜻은 옆 컬럼이 글자로 적는다 — 색은 '좋다 / 나쁘다 / 애매하다 / 안 했다'만 말한다. */
+.pill {
+  display: inline-block;
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-caption);
+  line-height: 1.7;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.pillOk {
+  border-color: var(--ink-4);
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+.pillBad {
+  border-color: var(--urgent-line);
+  background: var(--urgent-bg);
+  color: var(--urgent);
+}
+
+.pillWarn {
+  border-color: var(--blank-line);
+  background: var(--blank-bg);
+  color: var(--blank);
+}
+
+/* 아직 안 해 본 것. 흐리게 두는 것이 뜻이다 */
+.pillNone {
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+
+/* --- 카드 (수집 화면) --- */
+
+.cards {
+  margin-top: var(--s4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--s4);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s4) var(--s5);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-bold);
+}
+
+.stored {
+  margin-top: var(--s3);
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.storedUnit {
+  margin-left: var(--s1);
+  font-size: var(--t-small);
+  font-weight: var(--w-normal);
+  color: var(--ink-2);
+  letter-spacing: normal;
+}
+
+/* --- 접히는 원문 --- */
+
+.raw {
+  margin-top: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s3) var(--s4);
+}
+
+.raw > summary {
+  cursor: pointer;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-medium);
+}
+
+.pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-caption);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.raw > .pre {
+  margin-top: var(--s3);
+  max-height: 460px;
+  overflow: auto;
+}
+
+/* --- 빈 상태 --- */
+
+.empty {
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}

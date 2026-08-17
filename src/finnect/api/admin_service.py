@@ -1,0 +1,417 @@
+"""운영 화면 조회 — 읽기만 한다.
+
+**`attach.service` 와 `ingest.service` 를 임포트하지 않는다.** 저 둘이 `httpx` 와
+파서를 끌고 오는데 `requirements.txt` 가 서버리스 함수에서 그것들을 뺐다(ADR-0027).
+집계 질의를 여기 다시 쓴 이유가 그것이고, **`attach/service.py` 의 것과 결과가 같아야 한다** —
+어긋나면 로컬 `--report` 와 화면 숫자가 갈린다. `tests/test_admin_api.py` 가 그걸 잠근다.
+
+`ingest.runs` 도 안 쓴다. 거기 `reap()` 은 죽은 프로세스를 정리하는 **쓰기** 동작이고
+읽기 경로가 그걸 할 이유가 없다. 실행 기록은 그냥 `ingest_run` 을 읽는다.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+from typing import Any
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from finnect import fields
+from finnect.api.admin_schemas import (
+    AdminAttachmentOut,
+    AdminAttachmentsOut,
+    AdminIngestOut,
+    AdminNoticeDetailOut,
+    AdminNoticeListOut,
+    AdminNoticeOut,
+    ByExtOut,
+    CoverageOut,
+    FieldOut,
+    OcrOut,
+    RawFetchOut,
+    RunOut,
+    SourceCardOut,
+    StatusCountOut,
+)
+from finnect.config import settings
+from finnect.models import (
+    Attachment,
+    AttachmentFile,
+    BizinfoNotice,
+    IngestRun,
+    KstartupNotice,
+    ParseStatus,
+    RawFetch,
+    Source,
+)
+from finnect.sources import SOURCES
+from finnect.views import Notice
+
+#: admin 은 제품(20)보다 크다. 코퍼스를 훑는 화면이라 한 번에 많이 본다.
+PAGE_SIZE = 50
+
+#: 최근 실행 기록 몇 건까지. `ingest/runs.py` `RECENT_LIMIT` 과 같은 값이다.
+RECENT_RUNS = 30
+
+MODELS: dict[str, Any] = {
+    str(Source.BIZINFO): BizinfoNotice,
+    str(Source.KSTARTUP): KstartupNotice,
+}
+
+#: 제품 목록과 **정렬이 다르다.** 저기는 마감순 하나이고(ADR-0024) 여기는 셋을 고른다.
+SORTS: dict[str, tuple[Any, str]] = {
+    "deadline": (Notice.apply_end.asc().nullslast(), "마감 임박순"),
+    "recent": (Notice.first_seen_at.desc(), "최근 수집순"),
+    "title": (Notice.title.asc(), "이름순"),
+}
+
+# raw_fetch.payload 안에서 공고 배열이 어디 있고, 그 안의 자연키가 무엇인지.
+# 봉투 형태는 ingest/envelope.py 가 정본이다.
+RAW_ITEMS_KEY = {str(Source.BIZINFO): "jsonArray", str(Source.KSTARTUP): "data"}
+RAW_PK = {str(Source.BIZINFO): "pblancId", str(Source.KSTARTUP): "pbanc_sn"}
+
+
+def _dump(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+
+
+def _text(value: Any) -> str | None:
+    """화면에 낼 문자열. **None 과 빈 문자열을 구분한다** — 앞의 것은 null 로 뜬다."""
+    return None if value is None else str(value)
+
+
+def list_notices(
+    s: Session, *, source: str = "", q: str = "", sort: str = "deadline", page: int = 1
+) -> AdminNoticeListOut:
+    """운영 목록.
+
+    **마감된 공고를 빼지 않는다.** 제품 목록은 기본이 `open_only=True` 인데 여기는
+    코퍼스를 보는 화면이라 31,327건 전부가 모집단이다.
+    """
+    key = sort if sort in SORTS else "deadline"
+    order, _ = SORTS[key]
+
+    where = []
+    if source in MODELS:
+        where.append(Notice.source == source)
+    if q.strip():
+        where.append(Notice.title.ilike(f"%{q.strip()}%"))
+
+    total = s.scalar(select(func.count()).select_from(Notice).where(*where)) or 0
+    rows = list(
+        s.scalars(
+            select(Notice)
+            .where(*where)
+            .order_by(order)
+            .limit(PAGE_SIZE)
+            .offset((page - 1) * PAGE_SIZE)
+        )
+    )
+
+    # 첨부 수는 이 페이지 것만 따로 센다. 뷰에 상관 서브쿼리를 넣지 않는다.
+    counts: dict[tuple[str, str], int] = {}
+    if rows:
+        got = s.execute(
+            select(Attachment.source, Attachment.external_id, func.count())
+            .where(Attachment.external_id.in_([r.external_id for r in rows]))
+            .group_by(Attachment.source, Attachment.external_id)
+        ).all()
+        counts = {(a, b): c for a, b, c in got}
+
+    by_source = dict(s.execute(select(Notice.source, func.count()).group_by(Notice.source)).all())
+
+    return AdminNoticeListOut(
+        items=[
+            AdminNoticeOut(
+                source=r.source,
+                external_id=r.external_id,
+                title=r.title,
+                organization=r.organization,
+                apply_end=r.apply_end,
+                apply_period_raw=r.apply_period_raw,
+                attachment_count=counts.get((r.source, r.external_id), 0),
+                attachment_status=r.attachment_status,
+                last_seen_at=r.last_seen_at,
+            )
+            for r in rows
+        ],
+        total=total,
+        page=page,
+        pages=max(1, math.ceil(total / PAGE_SIZE)),
+        page_size=PAGE_SIZE,
+        sort=key,
+        sorts={k: v[1] for k, v in SORTS.items()},
+        by_source=by_source,
+    )
+
+
+def _files(s: Session, source: str, external_id: str) -> dict[str, AttachmentFile]:
+    """공고 하나의 첨부별 해독 결과. **URL 로 맞춘다**(ADR-0022)."""
+    urls = list(
+        s.scalars(
+            select(Attachment.url).where(
+                Attachment.source == source,
+                Attachment.external_id == external_id,
+                Attachment.url.is_not(None),
+            )
+        )
+    )
+    if not urls:
+        return {}
+    return {r.url: r for r in s.scalars(select(AttachmentFile).where(AttachmentFile.url.in_(urls)))}
+
+
+def _split_payload(payload: Any, source: str, external_id: str) -> tuple[str, str | None, int]:
+    """응답 통째에서 봉투와 이 공고의 원문 item 을 갈라 낸다.
+
+    기업마당은 한 번에 1,538건이 들어와 3.67MB 다. 그대로 내면 화면이 못 쓴다.
+    """
+    if not isinstance(payload, dict):
+        return _dump(payload), None, 0
+
+    items_key = RAW_ITEMS_KEY.get(source)
+    items = payload.get(items_key)
+    items = items if isinstance(items, list) else []
+
+    envelope = {k: v for k, v in payload.items() if k != items_key}
+    pk = RAW_PK.get(source)
+    mine = next((i for i in items if isinstance(i, dict) and str(i.get(pk)) == external_id), None)
+
+    return _dump(envelope), (_dump(mine) if mine is not None else None), len(items)
+
+
+def get_notice(s: Session, source: str, external_id: str) -> AdminNoticeDetailOut | None:
+    """운영 상세. **뷰를 거치지 않고 출처별 표에서 직접 읽는다.**"""
+    model = MODELS.get(source)
+    if model is None:
+        return None
+    row = s.get(model, external_id)
+    if row is None:
+        return None
+
+    api_fields: list[FieldOut] = []
+    ours: list[FieldOut] = []
+    for col in model.__table__.columns:
+        entry = FieldOut(
+            name=col.name,
+            value=_text(getattr(row, col.name, None)),
+            description=fields.describe(source, col.name),
+        )
+        if col.name in model.API_FIELDS:
+            api_fields.append(entry)
+        elif col.name != "extra":
+            # extra 는 아래에서 따로 낸다. 두 번 내면 화면이 같은 값을 두 번 그린다.
+            ours.append(entry)
+
+    attachments = list(
+        s.scalars(
+            select(Attachment)
+            .where(Attachment.source == source, Attachment.external_id == external_id)
+            .order_by(Attachment.position)
+        )
+    )
+    files = _files(s, source, external_id)
+
+    out: list[AdminAttachmentOut] = []
+    for a in attachments:
+        f = files.get(a.url) if a.url else None
+        contents = (f.contents or {}).get("files") if f else None
+        out.append(
+            AdminAttachmentOut(
+                position=a.position,
+                kind=a.kind,
+                filename=a.filename,
+                ext=a.ext,
+                url=a.url,
+                fetch_status=f.fetch_status if f else None,
+                parse_status=f.parse_status if f else None,
+                parser=f.parser if f else None,
+                text_chars=f.text_chars if f else None,
+                detected_ext=f.detected_ext if f else None,
+                fetch_error=f.fetch_error if f else None,
+                parse_error=f.parse_error if f else None,
+                contents=[
+                    str(c.get("name", "")) for c in contents if isinstance(c, dict)
+                ]
+                if isinstance(contents, list)
+                else [],
+            )
+        )
+
+    raw_out = None
+    if row.raw_fetch_id:
+        raw = s.get(RawFetch, row.raw_fetch_id)
+        if raw is not None:
+            envelope, item, siblings = _split_payload(raw.payload, source, external_id)
+            raw_out = RawFetchOut(
+                id=raw.id,
+                request_url=raw.request_url,
+                fetched_at=raw.fetched_at,
+                page=raw.page,
+                item_count=raw.item_count,
+                byte_size=raw.byte_size,
+                ratelimit_remaining=raw.ratelimit_remaining,
+                envelope=envelope,
+                item=item,
+                siblings=siblings,
+            )
+
+    described, described_total = fields.coverage(source, [f.name for f in api_fields])
+    doc = fields.DOCS[source]
+
+    return AdminNoticeDetailOut(
+        source=source,
+        external_id=external_id,
+        table=model.__tablename__,
+        api_fields=api_fields,
+        ours=ours,
+        extra={k: str(v) for k, v in (row.extra or {}).items()},
+        described=described,
+        described_total=described_total,
+        doc_label=doc.label,
+        doc_url=doc.url,
+        attachments=out,
+        decoded_count=sum(1 for a in out if a.parse_status == "ok"),
+        raw=raw_out,
+    )
+
+
+def attachments(s: Session) -> AdminAttachmentsOut:
+    """해독 현황. **`attach/service.py` `coverage()` · `ocr_candidates()` 와 같은 질의다.**"""
+    urls = (
+        s.scalar(select(func.count(func.distinct(Attachment.url))).where(Attachment.url.is_not(None)))
+        or 0
+    )
+    files = s.scalar(select(func.count()).select_from(AttachmentFile)) or 0
+
+    fetch = s.execute(
+        select(AttachmentFile.fetch_status, func.count())
+        .group_by(AttachmentFile.fetch_status)
+        .order_by(func.count().desc())
+    ).all()
+    parse = s.execute(
+        select(AttachmentFile.parse_status, func.count())
+        .group_by(AttachmentFile.parse_status)
+        .order_by(func.count().desc())
+    ).all()
+    by_ext = s.execute(
+        select(
+            AttachmentFile.detected_ext,
+            AttachmentFile.parse_status,
+            func.count(),
+            func.avg(AttachmentFile.text_chars),
+        )
+        .where(AttachmentFile.parse_status.is_not(None))
+        .group_by(AttachmentFile.detected_ext, AttachmentFile.parse_status)
+        .order_by(AttachmentFile.detected_ext, func.count().desc())
+    ).all()
+
+    coverage = CoverageOut(
+        listed=s.scalar(select(func.count()).select_from(Attachment)) or 0,
+        urls=urls,
+        files=files,
+        unaccounted=urls - files,
+        fetch=[StatusCountOut(status=st, count=c) for st, c in fetch],
+        parse=[StatusCountOut(status=st, count=c) for st, c in parse],
+        by_ext=[
+            ByExtOut(ext=e, status=st, count=c, avg_chars=int(a) if a else 0)
+            for e, st, c, a in by_ext
+        ],
+    )
+
+    images = ("png", "jpg", "gif")
+    ocr = OcrOut(
+        pdf_empty=s.scalar(
+            select(func.count())
+            .select_from(AttachmentFile)
+            .where(
+                AttachmentFile.detected_ext == "pdf",
+                AttachmentFile.parse_status == str(ParseStatus.EMPTY),
+            )
+        )
+        or 0,
+        images=s.scalar(
+            select(func.count())
+            .select_from(AttachmentFile)
+            .where(AttachmentFile.detected_ext.in_(images))
+        )
+        or 0,
+        # 공고문 자리에 이미지가 붙은 것. 본문에 평가 정보가 0%라 통째로 안 보이는 공고다.
+        image_notices=s.scalar(
+            select(func.count())
+            .select_from(Attachment)
+            .join(AttachmentFile, AttachmentFile.url == Attachment.url)
+            .where(Attachment.kind == "공고문", AttachmentFile.detected_ext.in_(images))
+        )
+        or 0,
+    )
+
+    return AdminAttachmentsOut(
+        coverage=coverage, ocr=ocr, formats=sorted(settings.formats)
+    )
+
+
+def _run_out(r: IngestRun) -> RunOut:
+    return RunOut(
+        id=r.id,
+        source=r.source,
+        only_open=r.only_open,
+        trigger=r.trigger,
+        status=r.status,
+        started_at=r.started_at,
+        elapsed=r.elapsed,
+        item_limit=r.item_limit,
+        expected=r.expected,
+        truncated=r.truncated,
+        pages=r.pages,
+        items=r.items,
+        inserted=r.inserted,
+        changed=r.changed,
+        unchanged=r.unchanged,
+        report=r.report,
+        error=r.error,
+        unknown_fields={k: int(v) for k, v in (r.unknown_fields or {}).items()},
+    )
+
+
+def ingest(s: Session) -> AdminIngestOut:
+    """수집 기록.
+
+    **버튼이 없다.** 수집은 응답보다 오래 사는 데몬 스레드로 도는 것이라
+    서버리스 함수의 일이 아니다(ADR-0027). 이 화면은 기록만 읽는다.
+    """
+    stored = dict(s.execute(select(Notice.source, func.count()).group_by(Notice.source)).all())
+
+    recent = list(
+        s.scalars(select(IngestRun).order_by(IngestRun.started_at.desc()).limit(RECENT_RUNS))
+    )
+    # 출처별 마지막 실행. **최근 목록에서 고르지 않는다** — 한 출처를 30번 연달아 돌리면
+    # 다른 출처의 마지막 기록이 목록에서 밀려나 카드가 "안 돌렸다"로 거짓말을 한다.
+    last: dict[str, IngestRun] = {}
+    for info in SOURCES:
+        found = s.scalars(
+            select(IngestRun)
+            .where(IngestRun.source == info.name)
+            .order_by(IngestRun.started_at.desc())
+            .limit(1)
+        ).first()
+        if found is not None:
+            last[info.name] = found
+
+    return AdminIngestOut(
+        cards=[
+            SourceCardOut(
+                name=info.name,
+                label=info.label,
+                expected=info.expected,
+                requests=info.requests,
+                note=info.note,
+                stored=stored.get(info.name, 0),
+                last=_run_out(last[info.name]) if info.name in last else None,
+            )
+            for info in SOURCES
+        ],
+        runs=[_run_out(r) for r in recent],
+    )

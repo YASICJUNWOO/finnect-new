@@ -73,11 +73,16 @@ details.raw > pre { margin-top: 10px; max-height: 460px; overflow: auto; }
 </style>
 </head>
 <body>
+{# 읽기 화면 넷은 Next.js 로 갔다(ADR-0027). 여기 남은 것은 수집 실행뿐이다.
+   나머지로 가는 링크는 절대 주소로 낸다 — 다른 앱이라 상대 경로가 안 통한다. #}
 <nav>
-  <a href="/notices" class="{% if nav == 'notices' %}on{% endif %}">공고 목록</a>
-  <a href="/ingest" class="{% if nav == 'ingest' %}on{% endif %}">수집</a>
-  <a href="/attachments" class="{% if nav == 'attachments' %}on{% endif %}">첨부 해독</a>
+  <a href="/ingest" class="on">수집</a>
+  <a href="http://localhost:3000/admin/notices">공고 목록 ↗</a>
+  <a href="http://localhost:3000/admin/attachments">첨부 해독 ↗</a>
 </nav>
+<p class="muted" style="margin:-8px 0 20px">
+  이 앱에는 <b>수집 실행만</b> 남았다. 조회 화면은 사용자 앱(:3000)에 있고 배포본에서도 열린다.
+</p>
 {% block body %}{% endblock %}
 </body>
 </html>

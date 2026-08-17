@@ -1,0 +1,89 @@
+/* 운영 껍데기. 제품 헤더(`(product)/layout.module.css`)와 **같은 토큰, 다른 폭**이다.
+ *
+ * 옛 Jinja2 `base.html` 은 `#0645ad` 링크색과 14px 본문으로 돌았다. 값은 전부
+ * 토큰으로 갈았고 구성은 그대로다 — T-0023. */
+
+.bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  height: 56px;
+  padding: 0 var(--s5);
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+/* 제품 로고와 다르게 보여야 한다. 여기는 사각형 마크를 안 쓰고 글자만 쓴다 —
+ * 같은 로고를 달면 운영 화면이 제품처럼 읽힌다. */
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-bold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.kicker {
+  font-size: var(--t-small);
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+}
+
+.menu {
+  display: flex;
+  gap: var(--s5);
+  min-width: 0;
+}
+
+.menu > a {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-normal);
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.menu > a:hover {
+  color: var(--ink);
+}
+
+/* 활성. `.on` 만 쓰면 위의 `.menu > a`(0,2,0)에 져서 회색으로 남는다 */
+.menu > a.on,
+.menu > a.on:hover {
+  color: var(--ink);
+  font-weight: var(--w-bold);
+}
+
+/* 제품으로 돌아가는 문. `(product)` 쪽 `.admin` 과 같은 모양이다 */
+.back {
+  margin-left: auto;
+  flex: none;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.back:hover {
+  color: var(--ink-2);
+  border-color: var(--ink-4);
+}
+
+.main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5) var(--s8);
+}

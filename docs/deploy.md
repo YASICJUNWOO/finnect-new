@@ -117,9 +117,32 @@ curl -s '<배포 URL>/api/notices?page=1' | head -c 200
 ```bash
 cd web
 vercel link          # 프로젝트 이름 finnect-web
-vercel env add FINNECT_API preview      # 4단계에서 나온 API 배포 URL
+vercel env add FINNECT_API production   # 아래를 읽고 값을 고른다
 vercel deploy
 ```
+
+### `FINNECT_API` 에 **배포 URL을 넣지 않는다**
+
+`vercel deploy` 가 찍어 주는 `finnect-<해시>-<팀>.vercel.app` 은 **그 배포에 못 박힌 불변 주소다.** 넣으면 그날은 돌고, **API 에 새 경로가 생겨도 웹은 영원히 못 본다.**
+
+2026-08-17 이걸로 한 번 넘어졌다. 운영 화면을 올린 뒤([ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md)) `/admin/notices` 가 500 이었고 원인이 이랬다.
+
+```
+finnect-api.vercel.app/api/admin/notices      200   ← 새 배포에는 있다
+웹이 부르던 옛 배포 URL/api/admin/notices      404   ← 거기엔 없다
+```
+
+**`/` 는 정상이었다.** `/api/notices` 는 옛 배포에도 있어서다. 그래서 "웹이 멀쩡한데 새 화면만 깨진" 모양이 됐고, 이 조합이 가장 늦게 발견된다.
+
+**프로젝트 프로덕션 도메인을 쓴다.**
+
+```
+FINNECT_API = https://finnect-api.vercel.app
+```
+
+이 주소는 **항상 최신 프로덕션 배포를 가리킨다.** `finnect-api` 의 Vercel Authentication 이 `all_except_custom_domains` 라서 이 도메인은 보호에서 빠지고, `finnect-api-<팀>.vercel.app` 쪽은 막힌다 — 그래서 이 값이어야 `FINNECT_API_BYPASS` 없이도 돈다.
+
+**값을 바꾼 뒤에는 웹을 다시 배포해야 한다.** `next.config.ts` 의 `env` 는 **빌드 시점에 문자열로 박아 넣는다.** 환경변수만 고치고 재배포하지 않으면 옛 값이 그대로 산다.
 
 `FINNECT_API` 는 `next.config.ts` 가 읽는다. 없으면 `http://127.0.0.1:8100` 으로 떨어져서 **배포본이 로컬을 부르다 실패한다.** 이 값이 이 배포에서 가장 자주 틀리는 자리다.
 

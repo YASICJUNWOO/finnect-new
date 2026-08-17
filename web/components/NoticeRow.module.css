@@ -1,45 +1,51 @@
-/* 흐름 안에 있는 것이라 그림자를 안 쓴다. 경계선으로 가른다 — DESIGN.md §4.4 */
-.row {
+/* 시연 `.item` — 카드가 아니라 **카드 안의 한 줄**이다.
+ * 배경도 테두리도 반경도 없다. 그건 감싸는 `.list` 가 갖는다(page.module.css). */
+
+.item {
   display: grid;
-  grid-template-columns: 8.5rem 1fr auto;
-  gap: var(--s4);
-  align-items: start;
-  padding: var(--s4);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
 }
 
-/* 2. 호버. 행이 아니라 카드가 반응한다. 실제로 누르는 것은 제목 링크다 */
-.row:hover {
-  border-color: var(--line-2);
+.item:last-child {
+  border-bottom: 0;
 }
 
-.when {
-  padding-top: 2px;
+/* 2. 호버. 줄 전체가 밝아지고 **누르는 것은 제목 링크다**.
+ * 시연은 #fbfbfc 를 쓰는데 토큰이 아니라 --canvas 로 갔다. 흰 면 위의 한 단 아래다 */
+.item:hover {
+  background: var(--canvas);
 }
 
 .body {
   min-width: 0;
 }
 
+/* 시연은 17px / -.03em 이다. 스케일의 --t-lead(19) 로 올렸고
+ * **자간은 안 준다** — §4.2 가 24px 미만에 넣지 말라고 한다(한글 가독성) */
 .title {
+  margin-top: var(--s1);
   font-size: var(--t-lead);
   line-height: var(--lh-lead);
-  font-weight: var(--w-medium);
-  margin-bottom: var(--s1);
+  font-weight: var(--w-bold);
 }
 
 .link {
   text-decoration: none;
 }
 
-.link:hover {
+.item:hover .link {
   text-decoration: underline;
   text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
 }
 
-.meta {
+/* 시연 `.facts` 의 `.org` 는 15px / --ink-3 이다.
+ * 15 가 스케일에 없어서 --t-small(13), 색은 --ink-2 다 — --ink-3 은 2.6:1 이라 못 읽는다 */
+.facts {
+  margin-top: var(--s2);
   font-size: var(--t-small);
   line-height: var(--lh-small);
   color: var(--ink-2);
@@ -54,7 +60,10 @@
   color: var(--ink-3);
 }
 
+/* 시연이 `.star` 를 두는 자리. 값이 있는 것을 놓는다 */
 .docs {
+  align-self: start;
+  margin-top: var(--s1);
   font-size: var(--t-small);
   line-height: var(--lh-small);
   color: var(--ink-2);
@@ -62,7 +71,7 @@
 }
 
 .count {
-  font-weight: var(--w-medium);
+  font-weight: var(--w-bold);
   color: var(--ink);
 }
 
@@ -71,17 +80,7 @@
 }
 
 @media (max-width: 640px) {
-  /* 마감이 맨 위로 올라오고 서류 수가 그 옆에 붙는다 */
-  .row {
-    grid-template-columns: 1fr auto;
-  }
-
-  .body {
-    grid-column: 1 / -1;
-    order: 2;
-  }
-
-  .docs {
-    text-align: right;
+  .item {
+    padding: var(--s4);
   }
 }

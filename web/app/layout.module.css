@@ -1,26 +1,92 @@
-.header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  padding: var(--s5) var(--s5) var(--s4);
-  max-width: 960px;
-  margin: 0 auto;
+/* 상단 내비. 시연의 `.nav` 를 옮긴 것이고 어긴 곳은 아래 주석에 적었다.
+ *
+ * 막대는 화면 끝까지 가고 안쪽만 900px 로 묶는다. 흰 면과 아래 선 하나뿐이고
+ * 그림자를 주지 않는다 — 흐르는 요소라 §4.4 가 경계선을 쓰라고 한다. */
+
+.bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
 }
 
+.inner {
+  max-width: 900px;
+  margin: 0 auto;
+  height: 64px;
+  padding: 0 var(--s5);
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+/* 시연은 17px / -.03em 이다. 스케일에 17 이 없어서 --t-lead(19px) 로 올렸다.
+ * 자간은 로고타입이라 24px 미만에도 준다 — §4.2 의 본문 규칙과 다른 물건이다 */
 .brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   font-size: var(--t-lead);
+  line-height: var(--lh-lead);
   font-weight: var(--w-bold);
   letter-spacing: var(--tracking-title);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.tagline {
-  font-size: var(--t-small);
+/* 로고 자리. UI 크롬에 색을 쓰지 않으므로(§3-6) 근검정 사각형이다.
+ *
+ * 반경 6px 은 스케일 밖이다. §4.3 의 세 역할(조작 요소·카드·알약)에 로고타입이 없고,
+ * --r-sm(10px)을 걸면 정확히 반지름이 되어 **검은 원이 나온다** — 아바타로 읽힌다.
+ * 시연 값(18/6)을 그대로 쓴다. */
+.mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--ink);
+}
+
+.menu {
+  display: flex;
+  gap: var(--s5);
+  min-width: 0;
+}
+
+/* 시연은 15px / 500 이다. 둘 다 스케일에 없어서 16px / 400 이 됐다 —
+ * §10.2 가 '옮기지 않는다'고 적은 위반 둘이 바로 그것이다 */
+.menu > a,
+.menu > span {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.menu > a:hover {
   color: var(--ink-2);
 }
 
+/* 활성. `.on` 만 쓰면 위의 `.menu > a`(0,2,0)에 져서 회색으로 남는다 */
+.menu > a.on,
+.menu > a.on:hover {
+  color: var(--ink);
+  font-weight: var(--w-bold);
+}
+
+/* 화면이 아직 없는 축. 누를 수 없다는 것이 보여야 한다 (§7-3).
+ *
+ * globals.css 의 [aria-disabled] 흐리기를 끄고 --ink-4 로 직접 간다.
+ * --ink-3 에 opacity .45 를 겹치면 안 보이는 회색이 되고,
+ * 흐리기 없이 --ink-3 로 두면 **누를 수 있는 항목과 구분이 안 된다.** */
+.menu > .soon {
+  color: var(--ink-4);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .main {
-  max-width: 960px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 0 var(--s5) var(--s8);
+  padding: var(--s7) var(--s5) var(--s8);
 }

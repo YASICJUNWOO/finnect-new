@@ -1,14 +1,29 @@
-.all {
-  margin-top: var(--s6);
+/* 시연 `#list` 의 `.sec` · `.sh` · `.list` 를 옮긴 것이다.
+ * 시연이 DESIGN.md 와 어긋나는 자리는 주석에 적었고 **문서를 따랐다**(§10.2). */
+
+.sec {
+  margin-bottom: var(--s7);
 }
 
-.head {
+.sec:last-child {
+  margin-bottom: 0;
+}
+
+/* 섹션 머리. 제목과 건수가 한 줄에 있고 부제가 그 밑에 붙는다 */
+.sh {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
+  gap: var(--s2);
+  margin-bottom: var(--s4);
 }
 
+.stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 시연은 22px / -.032em 이다. 스케일의 --t-title(24) 로 올리고 자간은 규칙대로 -.02em */
 .title {
   font-size: var(--t-title);
   line-height: var(--lh-title);
@@ -16,13 +31,18 @@
   letter-spacing: var(--tracking-title);
 }
 
-.count {
-  font-size: var(--t-small);
+/* 건수. 제목 오른쪽에 붙는다 — 시연은 이걸 따로 세우지 않는다.
+ * 색은 시연의 --ink-3 이 아니라 --ink-2 다. 16px 에 --ink-3 은 2.6:1 이라 읽히지 않는다 */
+.n {
+  margin-left: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-normal);
+  letter-spacing: normal;
   color: var(--ink-2);
 }
 
-/* 제목이 말한 것을 되풀이하지 않는다 — DESIGN.md §8.1-3.
- * 여기가 말하는 것은 '무엇을 안 보여주고 있는가'다 */
+/* 시연 `.sh p` 는 15px 이다. 스케일에 15 가 없어서 --t-small(13) 로 내렸다 */
 .sub {
   margin-top: var(--s1);
   font-size: var(--t-small);
@@ -30,16 +50,33 @@
   color: var(--ink-2);
 }
 
-.filters {
-  margin: var(--s4) 0 var(--s5);
+/* 추천 카드 셋이 올 자리. 점선으로 "여기 뭔가 온다"를 말한다 —
+ * 채워진 카드로 만들면 값이 있는 섹션과 구분이 안 된다.
+ * 카드 셋의 높이를 흉내내지 않는다. 빈 자리를 크게 잡으면 그게 더 거짓말이다 */
+.hole {
+  padding: var(--s4) var(--s5);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
 }
 
+.filters {
+  margin-bottom: var(--s3);
+}
+
+/* 시연 `.list` — **카드 하나 안에서 줄을 가른다.**
+ * 줄마다 카드를 세우면 9건이 9장으로 보여 목록이 무거워진다.
+ * 줄 배경(NoticeRow 의 호버)이 둥근 모서리를 넘지 않게 잘라 둔다 */
 .list {
   list-style: none;
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
 }
 
 .empty {

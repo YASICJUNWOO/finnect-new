@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>라스트마일</title>
+<style>
+
+/* 라스트마일 디자인 시스템 — B2C 방향
+   근거 v2/internal/04_리서치_B2C.md · 규칙 v2/DESIGN.md
+   스킬 toss-style-ux (해요체·잡초 제거·1 thing 1 page·Von Restorff)
+        ux-designer   (4px 스케일·본문 16px·터치 타깃 44px·60-30-10)
+
+   쓰지 않는 것 (DESIGN.md 5.4)
+     내비 사이드바 / 표 머리글 / 체크박스 / 툴바 / 항목마다 반복되는 채워진 버튼 */
+
+/* ─────────── 토큰 ─────────── */
+:root{
+  /* 간격. 4px 스케일 */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+
+  /* 색. 60-30-10. 액센트는 마감 하나뿐이다 */
+  --canvas:#f7f7f8; --surface:#fff; --quiet:#f4f5f6;
+  --ink:#16181b; --ink-2:#5f656d; --ink-3:#949aa2; --ink-4:#cbd0d6;
+  --line:#e9eaec; --line-2:#dfe2e6;
+  --urgent:#d92d20; --urgent-bg:#fff5f4; --urgent-line:#f7d4d0;
+  /* 문서 빈칸. DESIGN.md 3장 7번이 색을 몰아 쓰라고 한 두 자리 중 하나 */
+  --blank:#b45309; --blank-bg:#fffbeb; --blank-line:#fde68a;
+  /* 위키 노드 분류색. 상태색과 다른 팔레트에서 뽑는다 */
+  --n-identity:#5b5bd6; --n-content:#0f766e; --n-company:#9a3412;
+
+  --r:16px; --r-sm:10px; --r-pill:999px;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:16px;line-height:1.6;font-weight:400;letter-spacing:-.011em;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ─────────── 상단 내비. 3축이다 ─────────── */
+.nav{background:var(--surface);border-bottom:1px solid var(--line)}
+.nav .in{max-width:900px;margin:0 auto;height:64px;display:flex;align-items:center;
+  gap:var(--s6);padding:0 var(--s5)}
+.brand{display:flex;align-items:center;gap:var(--s2);font-size:17px;font-weight:700;letter-spacing:-.03em}
+.brand i{width:18px;height:18px;border-radius:6px;background:var(--ink)}
+.menu{display:flex;gap:var(--s5)}
+.menu a{font-size:15px;font-weight:500;color:var(--ink-3);padding:var(--s1) 0}
+.menu a:hover{color:var(--ink-2)}
+.menu a.on{color:var(--ink);font-weight:700}
+.nav .sp{flex:1}
+.av{width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;
+  font-size:13px;font-weight:700;display:grid;place-items:center;letter-spacing:0}
+
+.page{max-width:900px;margin:0 auto;padding:var(--s7) var(--s5) 96px}
+.page.wide{max-width:1060px}
+
+/* 되돌아가기 */
+.back{display:inline-flex;align-items:center;gap:var(--s2);font-size:15px;
+  font-weight:600;color:var(--ink-3);margin-bottom:var(--s4)}
+.back:hover{color:var(--ink)}
+.back::before{content:"";width:7px;height:7px;flex:none;
+  border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+
+/* ─────────── 섹션 ─────────── */
+.sec{margin-bottom:var(--s7)}
+.sec:last-child{margin-bottom:0}
+.sh{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s4)}
+.sh h2{font-size:22px;font-weight:700;letter-spacing:-.032em}
+.sh .n{font-size:16px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.sh .sp{flex:1}
+.sh p{font-size:15px;color:var(--ink-2);margin-top:var(--s1)}
+.sh .stack{display:flex;flex-direction:column}
+
+/* ─────────── 컨트롤 ─────────── */
+.sort{display:inline-flex;align-items:center;gap:var(--s2);height:36px;padding:0 var(--s3);
+  border-radius:var(--r-pill);border:1px solid var(--line);background:var(--surface);
+  font-size:14px;font-weight:600;color:var(--ink-2);flex:none;align-self:center}
+.sort:hover{border-color:var(--ink-3);color:var(--ink)}
+.sort::after{content:"";width:7px;height:7px;flex:none;
+  border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:rotate(45deg);margin-top:-4px;margin-left:var(--s1)}
+
+.seg{display:inline-flex;background:var(--quiet);border-radius:var(--r-pill);padding:3px;flex:none}
+.seg button{height:34px;padding:0 var(--s3);border-radius:var(--r-pill);
+  font-size:14px;font-weight:600;color:var(--ink-3)}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* 채워진 버튼은 화면에 하나나 둘만 둔다 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+  height:48px;padding:0 var(--s5);border-radius:var(--r-sm);
+  font-size:16px;font-weight:700;letter-spacing:-.02em}
+.btn.fill{background:var(--ink);color:#fff}
+.btn.fill:hover{background:#2a2d31}
+.btn.line{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2)}
+.btn.line:hover{border-color:var(--ink-3);color:var(--ink)}
+.btn.sm{height:40px;padding:0 var(--s4);font-size:15px}
+
+.more{display:block;width:100%;margin-top:var(--s3);height:52px;border-radius:var(--r);
+  background:var(--surface);border:1px solid var(--line);
+  font-size:15px;font-weight:600;color:var(--ink-2)}
+.more:hover{background:#fbfbfc;color:var(--ink)}
+
+/* ─────────── 마감 ─────────── */
+.dl{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.dday{font-size:14px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;letter-spacing:0}
+.dl.hot .dday{color:var(--urgent)}
+.count{font-size:13px;font-weight:700;color:var(--urgent);font-variant-numeric:tabular-nums;
+  background:var(--surface);border:1px solid var(--urgent-line);border-radius:var(--r-pill);
+  padding:1px var(--s2);letter-spacing:.02em}
+
+/* ─────────── 칩 ─────────── */
+.chip{display:inline-flex;align-items:center;font-size:13px;font-weight:600;color:var(--ink-2);
+  background:var(--quiet);border-radius:var(--r-pill);padding:2px var(--s2)}
+.chip.dark{background:var(--ink);color:#fff}
+.chip.blank{background:var(--blank-bg);color:var(--blank);border:1px solid var(--blank-line)}
+
+/* ─────────── 카드와 목록 ─────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:var(--s5)}
+.card.now{background:var(--urgent-bg);border-color:var(--urgent-line)}
+.card h3{font-size:17px;font-weight:700;letter-spacing:-.025em;margin-bottom:var(--s3)}
+
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.item{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:var(--s3);
+  padding:var(--s4) var(--s5);border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item:hover{background:#fbfbfc}
+.item .tt{display:block;font-size:17px;line-height:1.45;font-weight:700;letter-spacing:-.03em;
+  margin-top:var(--s1)}
+.item:hover .tt{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1.5px}
+.facts{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin-top:var(--s2)}
+.won{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.org{font-size:15px;color:var(--ink-3)}
+
+/* 저장. 터치 타깃 44px */
+.star{width:44px;height:44px;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:var(--ink-4);font-size:20px;align-self:start;line-height:1}
+.star:hover{background:var(--quiet);color:var(--ink-2)}
+.star.on{color:var(--ink)}
+
+/* ─────────── 진행률 ─────────── */
+.bar{height:6px;border-radius:var(--r-pill);background:var(--quiet);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink);border-radius:var(--r-pill)}
+.bar.warn i{background:var(--blank)}
+
+/* 화면 전환 */
+.scr{display:none}
+.scr.on{display:block}
+</style>
+<style>
+/* ── 라스트마일 ── */
+/* 랜딩. 앱과 같은 토큰을 쓴다. 마케팅 페이지처럼 따로 놀지 않게 한다 */
+#s-home .nav .in{max-width:1000px}
+#s-home .wrap{max-width:1000px;margin:0 auto;padding:0 var(--s5)}
+/* 히어로 */
+#s-home .hero{padding:var(--s8) 0 var(--s7)}
+#s-home .hero h1{font-size:44px;line-height:1.28;font-weight:700;letter-spacing:-.04em;max-width:16ch}
+#s-home .hero h1 em{font-style:normal}
+#s-home .hero p{font-size:18px;line-height:1.7;color:var(--ink-2);margin-top:var(--s5);max-width:44ch}
+#s-home .hero .act{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s6);flex-wrap:wrap}
+#s-home .hero .sub{font-size:14px;color:var(--ink-3)}
+/* 세 단계 */
+#s-home .how{padding:var(--s7) 0;border-top:1px solid var(--line)}
+#s-home .how h2{font-size:14px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s5)}
+#s-home .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+@media(max-width:760px){#s-home .steps{grid-template-columns:1fr}}
+#s-home .st{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:var(--s5)}
+#s-home .st .n{font-size:13px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-home .st h3{font-size:19px;font-weight:700;letter-spacing:-.03em;margin-top:var(--s2)}
+#s-home .st p{font-size:15px;line-height:1.65;color:var(--ink-2);margin-top:var(--s2)}
+/* 왜 다른가 */
+#s-home .why{padding:var(--s7) 0;border-top:1px solid var(--line)}
+#s-home .why h2{font-size:26px;font-weight:700;letter-spacing:-.035em;max-width:32ch}
+#s-home .why .body{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);margin-top:var(--s5)}
+@media(max-width:760px){#s-home .why .body{grid-template-columns:1fr}}
+#s-home .why p{font-size:16px;line-height:1.8;color:var(--ink-2)}
+#s-home .why p+p{margin-top:var(--s3)}
+#s-home .why b{color:var(--ink);font-weight:700}
+#s-home .pts{display:flex;flex-direction:column;gap:var(--s4)}
+#s-home .pt{display:flex;gap:var(--s3);align-items:flex-start}
+#s-home .pt .m{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
+  font-size:11px;display:grid;place-items:center;flex:none;margin-top:3px;line-height:1}
+#s-home .pt .t{font-size:16px;font-weight:700;letter-spacing:-.02em}
+#s-home .pt .d{font-size:15px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+/* 하지 않는 것. 관점을 드러내는 자리다 */
+#s-home .nope{padding:var(--s7) 0;border-top:1px solid var(--line)}
+#s-home .nope h2{font-size:14px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s4)}
+#s-home .nope .list{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+@media(max-width:760px){#s-home .nope .list{grid-template-columns:1fr}}
+#s-home .nope .n{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s4)}
+#s-home .nope .n h3{font-size:16px;font-weight:700;letter-spacing:-.025em}
+#s-home .nope .n p{font-size:15px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+/* 마지막 */
+#s-home .end{padding:var(--s7) 0 var(--s8);border-top:1px solid var(--line);text-align:center}
+#s-home .end h2{font-size:26px;font-weight:700;letter-spacing:-.035em}
+#s-home .end p{font-size:16px;color:var(--ink-2);margin-top:var(--s2)}
+#s-home .end .act{margin-top:var(--s5)}
+#s-home .foot{border-top:1px solid var(--line);padding:var(--s5) 0 var(--s7);font-size:14px;color:var(--ink-3)}
+/* ── 파일 올리기 ── */
+#s-onboard .page{max-width:760px}
+#s-onboard .step{display:none}
+#s-onboard .step.on{display:block}
+/* 단계 표시 */
+#s-onboard .dots{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s6)}
+#s-onboard .dots span{display:flex;align-items:center;gap:var(--s2);font-size:14px;font-weight:600;color:var(--ink-4)}
+#s-onboard .dots span.on{color:var(--ink)}
+#s-onboard .dots span.done{color:var(--ink-3)}
+#s-onboard .dots i{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+#s-onboard .dots .sep{width:20px;height:1px;background:var(--line-2);flex:none}
+#s-onboard h1{font-size:30px;line-height:1.35;font-weight:700;letter-spacing:-.035em}
+#s-onboard .sub{font-size:16px;line-height:1.7;color:var(--ink-2);margin-top:var(--s2);max-width:48ch}
+/* 1단계. 파일 올리기 */
+#s-onboard .drop{position:relative;margin-top:var(--s6);background:var(--surface);
+  border:2px dashed var(--line-2);border-radius:var(--r);padding:var(--s7) var(--s5);
+  display:flex;flex-direction:column;align-items:center;text-align:center;cursor:pointer}
+#s-onboard .drop:hover, #s-onboard .drop.over{border-color:var(--ink-3);background:#fbfbfc}
+#s-onboard .drop.over{border-style:solid}
+#s-onboard .drop .ic{width:52px;height:52px;border-radius:16px;background:var(--quiet);
+  display:grid;place-items:center;font-size:22px;color:var(--ink-3);margin-bottom:var(--s4)}
+#s-onboard .drop .t{display:block;font-size:19px;font-weight:700;letter-spacing:-.03em}
+#s-onboard .drop .d{display:block;font-size:15px;color:var(--ink-3);margin-top:var(--s2)}
+#s-onboard .drop .btn{margin-top:var(--s5)}
+/* 투명한 input이 영역을 덮는다. 눌러서 고르기와 끌어다 놓기가 둘 다 된다 */
+#s-onboard .drop input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+#s-onboard .picked{margin-top:var(--s3);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:var(--s4) var(--s5);display:none}
+#s-onboard .picked.on{display:block}
+#s-onboard .picked h3{font-size:14px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s2)}
+#s-onboard .picked ul{display:flex;flex-direction:column;gap:var(--s1)}
+#s-onboard .picked li{font-size:15px;color:var(--ink-2);word-break:break-all}
+#s-onboard .go{margin-top:var(--s4);display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+#s-onboard .hint{font-size:14px;color:var(--ink-3)}
+#s-onboard .sample{font-size:15px;font-weight:600;color:var(--ink-2);margin-top:var(--s5);display:block;text-align:center}
+#s-onboard .sample:hover{color:var(--ink);text-decoration:underline}
+/* 2·3단계. 읽기 */
+#s-onboard .prog{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s5)}
+#s-onboard .prog .pct{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink-2);min-width:92px}
+#s-onboard .prog .bar{flex:1}
+#s-onboard .files{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-top:var(--s5)}
+#s-onboard .f{display:grid;grid-template-columns:22px minmax(0,1fr);gap:var(--s3);
+  padding:var(--s4) var(--s5);border-bottom:1px solid var(--line)}
+#s-onboard .f:last-child{border-bottom:0}
+#s-onboard .f .m{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;
+  line-height:1;background:var(--quiet);color:var(--ink-3);margin-top:2px}
+#s-onboard .f.done .m{background:var(--ink);color:#fff}
+#s-onboard .f.now .m{background:var(--surface);border:2px solid var(--ink);color:var(--ink)}
+#s-onboard .f .nm{font-size:16px;font-weight:600;word-break:break-all}
+#s-onboard .f .pg{font-size:14px;color:var(--ink-3);margin-left:var(--s2);font-weight:400;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+#s-onboard .f .made{display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s2)}
+#s-onboard .f .made .chip{opacity:0;transform:translateY(3px)}
+#s-onboard .f .made .chip.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:no-preference){#s-onboard .f .made .chip{transition:opacity .28s ease, transform .28s ease}}
+#s-onboard .f .none{font-size:14px;color:var(--ink-3);margin-top:var(--s2)}
+#s-onboard .clash{display:flex;align-items:flex-start;gap:var(--s2);margin-top:var(--s2);
+  font-size:14px;line-height:1.55;color:var(--blank)}
+#s-onboard .clash b{font-weight:700}
+/* 3단계 끝 */
+#s-onboard .done-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s6) var(--s5);margin-top:var(--s5);text-align:center}
+#s-onboard .done-box h2{font-size:22px;font-weight:700;letter-spacing:-.03em}
+#s-onboard .done-box p{font-size:16px;color:var(--ink-2);margin-top:var(--s2)}
+#s-onboard .done-box .num{display:flex;justify-content:center;gap:var(--s6);margin:var(--s5) 0}
+#s-onboard .done-box .num div{display:flex;flex-direction:column}
+#s-onboard .done-box .num .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+#s-onboard .done-box .num .k{font-size:13px;color:var(--ink-3)}
+#s-onboard .done-box .acts{display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap}
+/* ── 지원사업 ── */
+/* 추천 카드 셋 */
+#s-list .rec{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+@media(max-width:760px){#s-list .rec{grid-template-columns:1fr}}
+#s-list .rc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s4);display:flex;flex-direction:column;gap:var(--s3);position:relative}
+#s-list .rc:hover{border-color:#d4d8dd}
+#s-list .rc.now{background:var(--urgent-bg);border-color:var(--urgent-line)}
+#s-list .rc .top{min-height:28px}
+#s-list .rc .tt{display:-webkit-box;font-size:18px;line-height:1.44;font-weight:700;letter-spacing:-.032em;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#s-list .rc:hover .tt{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1.5px}
+#s-list .rc .foot{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+#s-list .rc .won{font-size:19px;letter-spacing:-.03em}
+#s-list .rc .org{font-size:14px}
+#s-list .rc .chip{align-self:flex-start}
+#s-list .rc.now .chip{background:var(--surface)}
+#s-list .rc .star{position:absolute;top:var(--s2);right:var(--s2);width:36px;height:36px;font-size:18px}
+#s-list .rc.now .star:hover{background:var(--surface)}
+/* 지원 형태. 금액 앞에 붙인다. 무엇을 주는지 모르는 "최대 1억원"을 안 쓴다 */
+#s-list .kind{font-size:14px;font-weight:600;color:var(--ink-3);margin-right:5px}
+/* ── 공고 상세 ── */
+#s-detail .hero{margin-bottom:var(--s6)}
+#s-detail .hero h1{font-size:30px;line-height:1.35;font-weight:700;letter-spacing:-.035em;margin-top:var(--s2)}
+#s-detail .hero .facts{margin-top:var(--s4);gap:var(--s4)}
+#s-detail .hero .won{font-size:24px;letter-spacing:-.035em}
+#s-detail .hero .kind{font-size:17px;font-weight:600;color:var(--ink-3);margin-right:6px}
+#s-detail .hero .org{font-size:16px}
+#s-detail .act{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s5);flex-wrap:wrap}
+#s-detail .act .btn.fill{flex:1;max-width:280px}
+/* 왜 맞는지. 공고가 원하는 것 ↔ 위키에 적힌 것 */
+#s-detail .why{display:grid;grid-template-columns:1fr 1fr}
+@media(max-width:720px){#s-detail .why{grid-template-columns:1fr}}
+#s-detail .col{padding:var(--s5)}
+#s-detail .col h3{font-size:14px;font-weight:700;color:var(--ink-3);letter-spacing:0;margin-bottom:var(--s3)}
+#s-detail .col.mine{border-left:1px solid var(--line);background:#fcfcfd}
+@media(max-width:720px){#s-detail .col.mine{border-left:0;border-top:1px solid var(--line)}}
+#s-detail .pair{padding:var(--s3) 0;border-bottom:1px solid var(--line)}
+#s-detail .pair:last-child{border-bottom:0;padding-bottom:0}
+#s-detail .pair p{font-size:16px;line-height:1.6}
+#s-detail .pair .src{font-size:13px;color:var(--ink-3);margin-top:var(--s1)}
+#s-detail .node{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;
+  background:var(--quiet);border-radius:var(--r-pill);padding:3px var(--s2);margin:2px 4px 2px 0}
+#s-detail .node i{width:7px;height:7px;border-radius:50%;flex:none}
+#s-detail .node.content i{background:var(--n-content)}
+#s-detail .node.company i{background:var(--n-company)}
+#s-detail .node.identity i{background:var(--n-identity)}
+/* 자격 */
+#s-detail .checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2) var(--s5)}
+@media(max-width:640px){#s-detail .checks{grid-template-columns:1fr}}
+#s-detail .chk{display:flex;align-items:flex-start;gap:var(--s2);font-size:16px;padding:var(--s2) 0}
+#s-detail .chk .m{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;
+  font-size:11px;display:grid;place-items:center;flex:none;margin-top:3px;line-height:1}
+#s-detail .chk .v{color:var(--ink-3);font-size:14px;display:block;margin-top:1px}
+/* 개요 */
+#s-detail .spec dt{font-size:14px;font-weight:700;color:var(--ink-3);margin-top:var(--s4)}
+#s-detail .spec dt:first-child{margin-top:0}
+#s-detail .spec dd{font-size:16px;line-height:1.65;margin-top:var(--s1);max-width:62ch}
+/* 배점 */
+#s-detail .score{display:flex;flex-direction:column;gap:var(--s3)}
+#s-detail .sc{display:grid;grid-template-columns:130px 1fr 34px;gap:var(--s3);align-items:center}
+#s-detail .sc .k{font-size:15px;font-weight:600;color:var(--ink-2)}
+#s-detail .sc .v{font-size:15px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+#s-detail .sc .bar i{background:var(--ink-4)}
+#s-detail .sc.top .k, #s-detail .sc.top .v{color:var(--ink)}
+#s-detail .sc.top .bar i{background:var(--ink)}
+/* 낼 서류 */
+#s-detail .docs{display:flex;flex-direction:column;gap:var(--s2)}
+#s-detail .docs li{display:flex;align-items:flex-start;gap:var(--s2);font-size:16px;line-height:1.55}
+#s-detail .docs .b{width:5px;height:5px;border-radius:50%;background:var(--ink-4);flex:none;margin-top:9px}
+#s-detail .docs .v{display:block;font-size:14px;color:var(--ink-3)}
+/* 놓치기 쉬운 것 */
+#s-detail .notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+@media(max-width:640px){#s-detail .notes{grid-template-columns:1fr}}
+#s-detail .nt{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s3) var(--s4)}
+#s-detail .nt.hot{background:var(--urgent-bg);border-color:var(--urgent-line)}
+#s-detail .nt h4{font-size:15px;font-weight:700;letter-spacing:-.02em}
+#s-detail .nt p{font-size:14px;line-height:1.55;color:var(--ink-2);margin-top:2px}
+#s-detail .src-link{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:600;color:var(--ink-3)}
+#s-detail .src-link:hover{color:var(--ink);text-decoration:underline}
+/* ── 사업계획서 ── */
+#s-doc .layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--s5);align-items:start}
+@media(max-width:960px){#s-doc .layout{grid-template-columns:1fr}}
+/* 머리 */
+#s-doc .dh{margin-bottom:var(--s5)}
+#s-doc .dh h1{font-size:26px;line-height:1.4;font-weight:700;letter-spacing:-.035em}
+#s-doc .dh .sub{font-size:15px;color:var(--ink-3);margin-top:var(--s1)}
+#s-doc .prog{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s4)}
+#s-doc .prog .pct{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+#s-doc .prog .bar{flex:1;max-width:280px}
+#s-doc .prog .left{font-size:14px;color:var(--blank);font-weight:600}
+/* 작성 지침. 상시 노출 */
+#s-doc .guide{background:var(--quiet);border-radius:var(--r-sm);padding:var(--s3) var(--s4);
+  font-size:15px;line-height:1.6;color:var(--ink-2);margin-bottom:var(--s5)}
+#s-doc .guide b{color:var(--ink);font-weight:700}
+/* 항목 */
+#s-doc .part{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s5);margin-bottom:var(--s3)}
+#s-doc .part header{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s4)}
+#s-doc .part h2{font-size:19px;font-weight:700;letter-spacing:-.03em}
+#s-doc .part .pt{font-size:14px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-doc .part .sp{flex:1}
+#s-doc .part .st{font-size:13px;font-weight:600;color:var(--ink-3)}
+#s-doc .part .st.todo{color:var(--blank)}
+#s-doc .body p{font-size:16px;line-height:1.85;margin-bottom:var(--s3)}
+#s-doc .body p:last-child{margin-bottom:0}
+#s-doc .body b{font-weight:700}
+/* 빈칸. 색을 몰아 쓰는 두 자리 중 하나 */
+#s-doc .blank{display:inline;background:var(--blank-bg);border-bottom:2px dashed var(--blank-line);
+  color:var(--blank);font-weight:600;padding:1px 4px;border-radius:3px;cursor:pointer}
+#s-doc .blank:hover{background:#fef3c7}
+#s-doc .blank::after{content:" ?";font-weight:700}
+/* 우측 패널 */
+#s-doc .side{position:sticky;top:var(--s5);display:flex;flex-direction:column;gap:var(--s3)}
+#s-doc .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:var(--s4)}
+#s-doc .panel.ask{border-color:var(--blank-line);background:var(--blank-bg)}
+#s-doc .panel h3{font-size:15px;font-weight:700;margin-bottom:var(--s2);letter-spacing:-.02em}
+#s-doc .panel .q{font-size:16px;line-height:1.6;margin-bottom:var(--s3)}
+#s-doc .field{width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-sm);
+  padding:var(--s3);font:inherit;font-size:15px;color:var(--ink-3);min-height:76px}
+#s-doc .panel .note{font-size:13px;line-height:1.55;color:var(--ink-2);margin-top:var(--s2)}
+#s-doc .toc{display:flex;flex-direction:column;gap:2px}
+#s-doc .toc a{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s2);
+  border-radius:var(--r-sm);font-size:15px;color:var(--ink-2)}
+#s-doc .toc a:hover{background:var(--quiet)}
+#s-doc .toc a.on{background:var(--quiet);color:var(--ink);font-weight:700}
+#s-doc .toc a .d{width:6px;height:6px;border-radius:50%;background:var(--ink-4);flex:none}
+#s-doc .toc a.todo .d{background:var(--blank)}
+#s-doc .toc a .sp{flex:1}
+#s-doc .toc a .p{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-doc .foot-act{display:flex;gap:var(--s2);margin-top:var(--s5)}
+/* ── 내는 방법 ── */
+/* F7-1. 대행하지 않는다는 고지를 맨 위에 둔다 */
+#s-submit .notice{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s4) var(--s5);margin-bottom:var(--s6);font-size:16px;line-height:1.65;color:var(--ink-2)}
+#s-submit .notice b{color:var(--ink);font-weight:700}
+/* F7-2 */
+#s-submit .when{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s6)}
+#s-submit .when .lb{font-size:14px;font-weight:700;color:var(--ink-3)}
+#s-submit .when .v{font-size:19px;font-weight:700;letter-spacing:-.03em;color:var(--urgent)}
+#s-submit .when .u{font-size:15px;color:var(--ink-3)}
+/* F7-3 */
+#s-submit .steps{counter-reset:st}
+#s-submit .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s5);margin-bottom:var(--s2);display:grid;grid-template-columns:32px minmax(0,1fr);gap:var(--s4)}
+#s-submit .step::before{counter-increment:st;content:counter(st);
+  width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;
+  font-size:15px;font-weight:700;display:grid;place-items:center;line-height:1}
+#s-submit .step h3{font-size:18px;font-weight:700;letter-spacing:-.028em}
+#s-submit .step p{font-size:16px;line-height:1.7;color:var(--ink-2);margin-top:var(--s2);max-width:62ch}
+#s-submit .step .warn{display:inline-flex;align-items:center;gap:6px;margin-top:var(--s3);
+  font-size:15px;font-weight:600;color:var(--urgent);
+  background:var(--urgent-bg);border:1px solid var(--urgent-line);
+  border-radius:var(--r-sm);padding:var(--s2) var(--s3)}
+/* F7-4 */
+#s-submit .docs{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+#s-submit .doc{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s4) var(--s5);
+  border-bottom:1px solid var(--line);cursor:pointer}
+#s-submit .doc:last-child{border-bottom:0}
+#s-submit .doc:hover{background:#fbfbfc}
+#s-submit .doc .box{width:22px;height:22px;border-radius:6px;border:2px solid var(--ink-4);
+  flex:none;display:grid;place-items:center;font-size:12px;color:transparent;margin-top:2px}
+#s-submit .doc.on .box{background:var(--ink);border-color:var(--ink);color:#fff}
+#s-submit .doc .t{font-size:16px;font-weight:600}
+#s-submit .doc.on .t{color:var(--ink-3);text-decoration:line-through}
+#s-submit .doc .v{display:block;font-size:14px;color:var(--ink-3);margin-top:2px;font-weight:400;text-decoration:none}
+/* F7-5 */
+#s-submit .traps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+@media(max-width:640px){#s-submit .traps{grid-template-columns:1fr}}
+#s-submit .trap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:var(--s4)}
+#s-submit .trap.hot{background:var(--urgent-bg);border-color:var(--urgent-line)}
+#s-submit .trap h4{font-size:16px;font-weight:700;letter-spacing:-.025em}
+#s-submit .trap p{font-size:15px;line-height:1.6;color:var(--ink-2);margin-top:var(--s1)}
+#s-submit .out{display:flex;gap:var(--s2);margin-top:var(--s6)}
+/* ── 내 사업 ── */
+#s-wiki .page{max-width:1060px}
+#s-wiki .wh{display:flex;align-items:flex-end;gap:var(--s5);margin-bottom:var(--s5);flex-wrap:wrap}
+#s-wiki .wh h1{font-size:26px;font-weight:700;letter-spacing:-.035em}
+#s-wiki .wh .sub{font-size:15px;color:var(--ink-3);margin-top:var(--s1)}
+#s-wiki .wh .sp{flex:1}
+#s-wiki .stat{display:flex;gap:var(--s5)}
+#s-wiki .stat div{display:flex;flex-direction:column}
+#s-wiki .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+#s-wiki .stat .k{font-size:13px;color:var(--ink-3)}
+#s-wiki .tabs{display:flex;gap:var(--s5);border-bottom:1px solid var(--line);margin-bottom:var(--s5)}
+#s-wiki .tabs button{font-size:16px;font-weight:600;color:var(--ink-3);padding:0 0 var(--s3);
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+#s-wiki .tabs button:hover{color:var(--ink-2)}
+#s-wiki .tabs button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
+#s-wiki .pane{display:none}
+#s-wiki .pane.on{display:block}
+/* ── 위키: 그래프 + 노드 한 장 ── */
+#s-wiki .split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--s3);align-items:start}
+@media(max-width:900px){#s-wiki .split{grid-template-columns:1fr}}
+#s-wiki .gwrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+#s-wiki .gbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+#s-wiki .lg{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+#s-wiki .lg span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+#s-wiki .lg i{width:9px;height:9px;border-radius:50%;flex:none}
+#s-wiki .lg i.identity{background:var(--n-identity)}
+#s-wiki .lg i.content{background:var(--n-content)}
+#s-wiki .lg i.company{background:var(--n-company)}
+#s-wiki .lg i.flag{background:var(--blank)}
+#s-wiki .gbar .sp{flex:1}
+#s-wiki .gbar .hint{font-size:13px;color:var(--ink-3)}
+#s-wiki .tg{height:30px;padding:0 var(--s3);border-radius:var(--r-pill);border:1px solid var(--line-2);
+  background:var(--surface);font-size:13px;font-weight:600;color:var(--ink-3)}
+#s-wiki .tg:hover{border-color:var(--ink-3);color:var(--ink)}
+#s-wiki .tg.on{background:var(--ink);border-color:var(--ink);color:#fff}
+#s-wiki #graph{padding:var(--s3) var(--s4) var(--s4)}
+#s-wiki #graph svg{display:block}
+#s-wiki .ring{fill:none;stroke:var(--line);stroke-width:1}
+#s-wiki .arc{fill:none;stroke-width:2.5;stroke-linecap:round;opacity:.5}
+#s-wiki .arc.t-content{stroke:var(--n-content)}
+#s-wiki .arc.t-entity{stroke:var(--n-company)}
+#s-wiki .arc-label, #s-wiki .nd .lb{paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round}
+#s-wiki .arc-label{font-size:11px;font-weight:700;letter-spacing:-.01em}
+#s-wiki .arc-label.t-content{fill:var(--n-content)}
+#s-wiki .arc-label.t-entity{fill:var(--n-company)}
+#s-wiki .lk{stroke:var(--ink-4);fill:none}
+#s-wiki .lk.sub{stroke-width:1.4;opacity:.55}
+#s-wiki .lk.rel{stroke-width:1;stroke-dasharray:3 4;opacity:.45}
+#s-wiki .nd{cursor:pointer}
+/* 색은 종류만 말한다. 상태는 색을 쓰지 않는다.
+   비어 있어도 제 종류 색을 잃지 않고 속만 비운다 */
+#s-wiki .nd .dot{stroke:var(--surface);stroke-width:2.5}
+#s-wiki .nd.t-core .dot{fill:var(--n-identity)}
+#s-wiki .nd.t-content .dot{fill:var(--n-content)}
+#s-wiki .nd.t-entity .dot{fill:var(--n-company)}
+#s-wiki .nd.empty .dot{fill:var(--surface);stroke-width:2;stroke-dasharray:3 3}
+#s-wiki .nd.t-core.empty .dot{stroke:var(--n-identity)}
+#s-wiki .nd.t-content.empty .dot{stroke:var(--n-content)}
+#s-wiki .nd.t-entity.empty .dot{stroke:var(--n-company)}
+#s-wiki .nd .flag{fill:var(--blank);stroke:var(--surface);stroke-width:2}
+#s-wiki .nd .lb{font-size:12px;font-weight:600;fill:var(--ink-2);letter-spacing:-.02em}
+#s-wiki .nd.t-core .lb{font-size:14px;font-weight:700;fill:var(--ink)}
+#s-wiki .nd:hover .lb, #s-wiki .nd:focus .lb{fill:var(--ink)}
+#s-wiki .nd:focus{outline:none}
+#s-wiki .nd:focus .dot, #s-wiki .nd.picked .dot{stroke:var(--ink);stroke-width:3}
+#s-wiki .focused .nd{opacity:.16}
+#s-wiki .focused .nd.lit{opacity:1}
+#s-wiki .focused .lk{opacity:.05}
+#s-wiki .focused .lk.lit{opacity:.9;stroke:var(--ink-2)}
+#s-wiki .focused .arc, #s-wiki .focused .arc-label{opacity:.15}
+@media (prefers-reduced-motion:no-preference){#s-wiki .nd, #s-wiki .lk, #s-wiki .arc, #s-wiki .arc-label{transition:opacity .16s ease}}
+/* 노드 한 장. F1-3 */
+#s-wiki #panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s4);position:sticky;top:var(--s4)}
+#s-wiki .ph{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3)}
+#s-wiki .ph h3{font-size:18px;font-weight:700;letter-spacing:-.03em;flex:1}
+#s-wiki .ph .c{font-size:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-wiki .ph .x{width:28px;height:28px;border-radius:var(--r-sm);color:var(--ink-3);flex:none;
+  display:grid;place-items:center;font-size:13px}
+#s-wiki .ph .x:hover{background:var(--quiet);color:var(--ink)}
+#s-wiki .phint{font-size:14px;color:var(--ink-3);margin-bottom:var(--s3)}
+#s-wiki .flagbox{background:var(--blank-bg);border:1px solid var(--blank-line);border-radius:var(--r-sm);
+  padding:var(--s3);font-size:14px;line-height:1.6;color:var(--ink-2);margin-bottom:var(--s3)}
+#s-wiki .flagbox b{display:block;color:var(--blank);font-weight:700;margin-bottom:2px}
+#s-wiki dl.meta{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--s2) var(--s3);
+  padding-bottom:var(--s3);border-bottom:1px solid var(--line);margin-bottom:var(--s3)}
+#s-wiki dl.meta dt{font-size:13px;font-weight:700;color:var(--ink-3)}
+#s-wiki dl.meta dd{font-size:14px;line-height:1.5}
+#s-wiki .st{display:inline-flex;align-items:center;font-size:12px;font-weight:700;border-radius:var(--r-pill);
+  padding:1px var(--s2);background:var(--quiet);color:var(--ink-2)}
+#s-wiki .st.st-충돌, #s-wiki .st.st-낡음, #s-wiki .st.st-empty{background:var(--blank-bg);color:var(--blank)}
+#s-wiki .tg2, #s-wiki .tg-x{display:none}
+#s-wiki dl.meta .tg{display:inline-flex;align-items:center;height:auto;font-size:12px;font-weight:600;
+  background:var(--quiet);color:var(--ink-2);border:0;border-radius:var(--r-pill);
+  padding:1px var(--s2);margin:0 4px 3px 0}
+#s-wiki #panel .body p{font-size:15px;line-height:1.75;color:var(--ink-2)}
+#s-wiki #panel .body p+p{margin-top:var(--s2)}
+#s-wiki #panel .body .empty{color:var(--blank)}
+/* 근거 청크. 노드가 원본 문서 조각을 갖는다 */
+#s-wiki .ev{margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--line)}
+#s-wiki .ev h4, #s-wiki .rel h4{font-size:13px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s2)}
+#s-wiki .evi{border:1px solid var(--line);border-radius:var(--r-sm);margin-bottom:var(--s2);overflow:hidden}
+#s-wiki .evi:last-child{margin-bottom:0}
+#s-wiki .evi.clash{border-color:var(--blank-line);background:var(--blank-bg)}
+#s-wiki .evh{display:flex;align-items:baseline;gap:var(--s2);width:100%;padding:var(--s2) var(--s3);
+  text-align:left;flex-wrap:wrap}
+#s-wiki .evh:hover{background:var(--quiet)}
+#s-wiki .evi.clash .evh:hover{background:#fdf4e0}
+#s-wiki .evh .fn{font-size:13px;font-weight:600;word-break:break-all}
+#s-wiki .evh .loc{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-wiki .evh .cl{font-size:11px;font-weight:700;color:var(--blank);margin-left:auto;white-space:nowrap}
+#s-wiki .evt{display:none;font-size:14px;line-height:1.7;color:var(--ink-2);
+  padding:0 var(--s3) var(--s3);border-top:1px dashed var(--line)}
+#s-wiki .evi.clash .evt{border-top-color:var(--blank-line)}
+#s-wiki .evi.open .evt{display:block;padding-top:var(--s2)}
+#s-wiki .noev{font-size:14px;color:var(--ink-3)}
+#s-wiki .rel{margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--line)}
+#s-wiki .rl{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--ink-2);
+  background:var(--quiet);border-radius:var(--r-pill);padding:3px var(--s3);margin:0 4px 5px 0}
+#s-wiki .rl:hover{background:var(--line);color:var(--ink)}
+#s-wiki .rl i{width:7px;height:7px;border-radius:50%;flex:none}
+#s-wiki .rl.t-core i{background:var(--n-identity)}
+#s-wiki .rl.t-content i{background:var(--n-content)}
+#s-wiki .rl.t-entity i{background:var(--n-company)}
+#s-wiki ul.todo{display:flex;flex-direction:column;gap:var(--s2);list-style:none}
+#s-wiki ul.todo li{padding:var(--s3);border:1px solid var(--blank-line);background:var(--blank-bg);
+  border-radius:var(--r-sm);cursor:pointer}
+#s-wiki ul.todo li:hover{border-color:var(--blank)}
+#s-wiki ul.todo .fl{font-size:12px;font-weight:700;color:var(--blank)}
+#s-wiki ul.todo .tt{display:block;font-size:15px;font-weight:700;margin-top:1px}
+#s-wiki ul.todo .nt{display:block;font-size:13px;line-height:1.5;color:var(--ink-2);margin-top:2px}
+/* ── 파일 관리 ── */
+#s-wiki .fbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+#s-wiki .frow{padding:var(--s4) var(--s5);border-bottom:1px solid var(--line)}
+#s-wiki .frow:last-child{border-bottom:0}
+#s-wiki .frow .fn{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap}
+#s-wiki .frow .fn .t{font-size:16px;font-weight:600;word-break:break-all}
+#s-wiki .frow .fn .p{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-wiki .frow .fn .sp{flex:1}
+#s-wiki .frow .fn .w{font-size:13px;color:var(--ink-3);white-space:nowrap}
+#s-wiki .frow .made{display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s2)}
+#s-wiki .frow .none{font-size:14px;color:var(--ink-3);margin-top:var(--s2)}
+#s-wiki .lg2{margin-top:var(--s6)}
+#s-wiki .log{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+#s-wiki .lrow{display:grid;grid-template-columns:104px 56px minmax(0,1fr);gap:var(--s3);
+  align-items:baseline;padding:var(--s3) var(--s5);border-bottom:1px solid var(--line)}
+#s-wiki .lrow:last-child{border-bottom:0}
+#s-wiki .lrow .when{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+#s-wiki .lrow .kd{font-size:12px;font-weight:700;border-radius:var(--r-pill);padding:1px var(--s2);
+  text-align:center;background:var(--quiet);color:var(--ink-2)}
+#s-wiki .lrow .kd.clash{background:var(--blank-bg);color:var(--blank)}
+#s-wiki .lrow .kd.save{background:var(--ink);color:#fff}
+#s-wiki .lrow .what{font-size:15px;line-height:1.5}
+#s-wiki .lrow .what b{font-weight:700}
+#s-wiki .lrow .from{display:block;font-size:13px;color:var(--ink-3);margin-top:1px}
+@media(max-width:640px){#s-wiki .lrow{grid-template-columns:1fr;gap:var(--s1)}}
+/* ── 신청 현황 ── */
+#s-apps .page{max-width:1180px}
+#s-apps .hd{display:flex;align-items:flex-end;gap:var(--s5);margin-bottom:var(--s5);flex-wrap:wrap}
+#s-apps .hd h1{font-size:26px;font-weight:700;letter-spacing:-.035em}
+#s-apps .hd .sub{font-size:15px;color:var(--ink-3);margin-top:var(--s1)}
+#s-apps .hd .sp{flex:1}
+#s-apps .hd .go{font-size:15px;font-weight:600;color:var(--ink-2)}
+#s-apps .hd .go:hover{color:var(--ink);text-decoration:underline}
+/* F8-1 상태별 보드. F8-5 드래그로 상태 전환 */
+#s-apps .board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s3);align-items:start}
+@media(max-width:1000px){#s-apps .board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){#s-apps .board{grid-template-columns:1fr}}
+#s-apps .col{background:#f0f1f3;border:1px solid transparent;border-radius:var(--r);
+  padding:var(--s3);min-height:180px}
+#s-apps .col.over{background:#eef0f2;border-color:var(--ink-4);border-style:dashed}
+#s-apps .col > header{display:flex;align-items:baseline;gap:var(--s2);padding:0 var(--s2) var(--s3)}
+#s-apps .col h2{font-size:14px;font-weight:700;letter-spacing:-.02em}
+#s-apps .col .n{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+#s-apps .col.hot h2{color:var(--urgent)}
+#s-apps .col .empty{font-size:14px;color:var(--ink-3);text-align:center;padding:var(--s5) var(--s2)}
+#s-apps .k{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s4);margin-bottom:var(--s2);cursor:grab;display:block}
+#s-apps .k:last-child{margin-bottom:0}
+#s-apps .k:hover{border-color:#d4d8dd}
+#s-apps .k.drag{opacity:.45;cursor:grabbing}
+#s-apps .k.now{background:var(--urgent-bg);border-color:var(--urgent-line)}
+#s-apps .k .tt{display:block;font-size:16px;line-height:1.4;font-weight:700;letter-spacing:-.03em;
+  margin-top:var(--s2)}
+#s-apps .k .won{display:block;font-size:14px;margin-top:var(--s2);font-weight:700;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+#s-apps .k .kind{font-size:13px;font-weight:600;color:var(--ink-3);margin-right:4px}
+#s-apps .k .org{display:block;font-size:13px;color:var(--ink-3);margin-top:1px}
+#s-apps .k .pr{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s3)}
+#s-apps .k .pr .pct{font-size:12px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none}
+#s-apps .k .pr .bar{flex:1;height:5px}
+#s-apps .k .next{display:block;font-size:13px;line-height:1.5;color:var(--ink-2);
+  margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line)}
+#s-apps .k.now .next{border-top-color:var(--urgent-line)}
+</style>
+</head>
+<body>
+<section class="scr" id="s-home" data-title="라스트마일">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#home"><i></i>라스트마일</a>
+    <span class="sp"></span>
+    <a class="btn line sm" href="#onboard">시작하기</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <h1>가진 파일만 올리면<br><em>사업계획서까지</em> 써져 있어요</h1>
+    <p>사업계획서든 IR이든 메모든 그냥 올리세요.
+      읽어서 내 사업 정보로 정리하고, 그 정보로 맞는 공고를 골라 드려요.
+      공고에 들어가면 문서가 이미 써져 있어요.</p>
+    <div class="act">
+      <a class="btn fill" href="#onboard">파일 올리고 시작하기</a>
+      <span class="sub">가입 없이 해 볼 수 있어요</span>
+    </div>
+  </section>
+
+  <section class="how">
+    <h2>세 단계로 끝나요</h2>
+    <div class="steps">
+      <div class="st">
+        <span class="n">01</span>
+        <h3>파일을 올려요</h3>
+        <p>분류하지 않아도 돼요. 형식도 안 가려요. 한글, PDF, 워드, 메모 전부 읽어요.</p>
+      </div>
+      <div class="st">
+        <span class="n">02</span>
+        <h3>내 사업 정보가 만들어져요</h3>
+        <p>파일을 항목으로 나누고 서로 이어요. 파일마다 값이 다르면 어느 쪽이 맞는지 물어봐요.</p>
+      </div>
+      <div class="st">
+        <span class="n">03</span>
+        <h3>맞는 공고와 문서를 받아요</h3>
+        <p>자격이 되는 공고만 골라 맞는 순서로 보여 줘요. 들어가면 초안이 이미 있어요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="why">
+    <h2>왜 챗봇에 직접 물어보는 것보다 나은가요</h2>
+    <div class="body">
+      <div>
+        <p>챗봇에 공고를 붙여넣으면 <b>그 공고 하나에 대해서만</b> 답해요.
+          다음 공고를 물어보려면 내 사업을 처음부터 다시 설명해야 해요.</p>
+        <p>저희는 올리신 파일에서 <b>구조화된 사업 정보</b>를 만들어 두고 있어요.
+          그래서 두 가지를 할 수 있어요.</p>
+      </div>
+      <div class="pts">
+        <div class="pt"><span class="m">1</span><div>
+          <div class="t">수백 건을 한 번에 맞춰 봐요</div>
+          <div class="d">공고를 하나씩 열어 보지 않아도 돼요.</div></div></div>
+        <div class="pt"><span class="m">2</span><div>
+          <div class="t">설명하지 않아도 문서가 써져요</div>
+          <div class="d">이미 알고 있으니까요.</div></div></div>
+        <div class="pt"><span class="m">3</span><div>
+          <div class="t">쓸수록 좋아져요</div>
+          <div class="d">문서를 쓰다가 답한 내용이 사업 정보로 쌓여요. 다음 공고에서는 그만큼 덜 물어봐요.</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="nope">
+    <h2>안 하는 것도 밝혀 둘게요</h2>
+    <div class="list">
+      <div class="n">
+        <h3>대신 접수해 드리지 않아요</h3>
+        <p>문서를 끝까지 쓰는 데까지가 저희 몫이에요. 어디에 어떻게 내는지는 알려 드려요.</p>
+      </div>
+      <div class="n">
+        <h3>합격 확률은 말하지 않아요</h3>
+        <p>선정 결과가 공개되지 않아서 근거가 없어요. 대신 왜 맞는지를 보여 드려요.</p>
+      </div>
+      <div class="n">
+        <h3>모르는 사이에 고치지 않아요</h3>
+        <p>사업 정보를 손볼 곳은 찾아서 알려 드리기만 해요. 고치는 건 직접 하세요.</p>
+      </div>
+      <div class="n">
+        <h3>가둬 두지 않아요</h3>
+        <p>정리한 사업 정보는 언제든 마크다운으로 내려받을 수 있어요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="end">
+    <h2>파일부터 올려 보세요</h2>
+    <p>6개쯤 올리면 충분해요. 없으면 예시 파일로 해 보셔도 돼요.</p>
+    <div class="act"><a class="btn fill" href="#onboard">파일 올리고 시작하기</a></div>
+  </section>
+
+  <p class="foot">라스트마일 · 창업 3년 이내 사업자를 위한 지원사업 도우미</p>
+
+</div>
+</section>
+<section class="scr" id="s-onboard" data-title="파일 올리기">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#home"><i></i>라스트마일</a>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="dots">
+    <span id="d1" class="on"><i></i>파일 올리기</span><span class="sep"></span>
+    <span id="d2"><i></i>읽는 중</span><span class="sep"></span>
+    <span id="d3"><i></i>다 됐어요</span>
+  </div>
+
+  <!-- 1단계 -->
+  <section class="step on" id="s1">
+    <h1>가진 파일을 올려 주세요</h1>
+    <p class="sub">분류하지 않아도 돼요. 사업계획서, IR 자료, 회사소개서, 사업자등록증, 메모까지
+      있는 대로 한 번에 올리시면 돼요.</p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file" multiple>
+      <span class="ic">↑</span>
+      <span class="t">여기에 끌어다 놓거나 눌러서 고르세요</span>
+      <span class="d">한글 · PDF · 워드 · 텍스트 · 이미지</span>
+      <span class="btn line sm" style="pointer-events:none">파일 고르기</span>
+    </label>
+
+    <div class="picked" id="picked">
+      <h3>고른 파일</h3>
+      <ul id="pickedList"></ul>
+      <div class="go">
+        <button class="btn fill" id="start" type="button">이 파일로 시작하기</button>
+        <span class="hint">올린 파일은 그대로 보관하고, 뽑아낸 내용과 따로 둬요</span>
+      </div>
+    </div>
+
+    <button class="sample" id="sample" type="button">가진 파일이 없어요. 예시로 해 볼게요</button>
+  </section>
+
+  <!-- 2단계 -->
+  <section class="step" id="s2">
+    <h1>파일을 읽고 있어요</h1>
+    <p class="sub">파일에서 사업 정보를 항목으로 나누고 서로 잇는 중이에요. 잠깐만요.</p>
+    <div class="prog">
+      <span class="pct" id="pct">6개 중 0개</span>
+      <span class="bar"><i id="pbar" style="width:0"></i></span>
+    </div>
+    <div class="files" id="files">
+      <div class="f" data-i="0">
+        <span class="m"></span>
+        <div>
+          <span class="nm">2025_초기창업패키지_사업계획서.hwp<span class="pg">24쪽</span></span>
+          <div class="made">
+            <span class="chip">재고관리 자동화 소프트웨어</span><span class="chip">문제 인식</span>
+            <span class="chip">매출과 성과</span><span class="chip">수령 이력</span>
+          </div>
+        </div>
+      </div>
+      <div class="f" data-i="1">
+        <span class="m"></span>
+        <div>
+          <span class="nm">IR_2026Q2.pdf<span class="pg">18쪽</span></span>
+          <div class="made">
+            <span class="chip">솔루션과 기술</span><span class="chip">시장과 경쟁</span><span class="chip">로드맵</span>
+          </div>
+        </div>
+      </div>
+      <div class="f" data-i="2">
+        <span class="m"></span>
+        <div>
+          <span class="nm">회사소개서_v3.docx<span class="pg">9쪽</span></span>
+          <div class="made">
+            <span class="chip">목표 고객</span><span class="chip">지역 연계</span><span class="chip">팀 구성</span>
+          </div>
+        </div>
+      </div>
+      <div class="f" data-i="3">
+        <span class="m"></span>
+        <div>
+          <span class="nm">사업자등록증.pdf<span class="pg">1쪽</span></span>
+          <div class="made">
+            <span class="chip">사업자 정보</span><span class="chip">소재지</span>
+            <span class="chip">업종</span><span class="chip">대표자</span>
+          </div>
+        </div>
+      </div>
+      <div class="f" data-i="4">
+        <span class="m"></span>
+        <div>
+          <span class="nm">협약서.pdf<span class="pg">6쪽</span></span>
+          <p class="none">새로 만든 항목은 없어요. 수령 이력에 내용을 보탰어요.</p>
+        </div>
+      </div>
+      <div class="f" data-i="5">
+        <span class="m"></span>
+        <div>
+          <span class="nm">팀_이력_메모.txt<span class="pg">1쪽</span></span>
+          <div class="made"><span class="chip">팀 구성</span></div>
+          <p class="clash">⚠<span>팀 인원이 <b>회사소개서에는 3인, IR 자료에는 5인</b>으로 적혀 있어요.
+            어느 쪽이 맞는지 나중에 물어볼게요.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3단계 -->
+  <section class="step" id="s3">
+    <h1>다 읽었어요</h1>
+    <p class="sub">올리신 파일에서 사업 정보를 만들었어요. 이제 이걸로 맞는 공고를 골라 드려요.</p>
+    <div class="done-box">
+      <h2>내 사업 정보가 준비됐어요</h2>
+      <p>공고와 맞춰 볼 준비가 끝났어요.</p>
+      <div class="num">
+        <div><span class="v">15</span><span class="k">적어 둔 것</span></div>
+        <div><span class="v">21</span><span class="k">이어진 곳</span></div>
+        <div><span class="v">4</span><span class="k">정리할 곳</span></div>
+      </div>
+      <div class="acts">
+        <a class="btn fill" href="#list">맞는 공고 보기</a>
+        <a class="btn line" href="#wiki">내 사업 먼저 보기</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+</section>
+<section class="scr" id="s-list" data-title="지원사업">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list" class="on">지원사업</a>
+      <a href="#wiki">내 사업</a>
+      <a href="#apps">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- 1. 추천. 적합성 순 -->
+  <section class="sec">
+    <div class="sh">
+      <div class="stack">
+        <h2>추천 공고</h2>
+        <p>공고 취지와 사업 내용이 맞는 순서예요</p>
+      </div>
+    </div>
+
+    <div class="rec">
+      <article class="rc now">
+        <div class="top"><span class="dl hot"><span class="dday">D-5</span>
+          <span class="count" data-left="401874">4일 15:37:54</span></span></div>
+        <a class="tt" href="#detail">2026년 경기도 지역상생 창업지원</a>
+        <span class="chip">초안 있어요</span>
+        <div class="foot"><span class="won"><span class="kind">현금</span>5,000만원</span>
+          <span class="org">경기도경제과학진흥원</span></div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="rc">
+        <div class="top"><span class="dl"><span class="dday">D-29</span></span></div>
+        <a class="tt" href="#detail">2026년 초기창업패키지</a>
+        <div class="foot"><span class="won"><span class="kind">현금</span>1억원</span>
+          <span class="org">창업진흥원</span></div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="rc">
+        <div class="top"><span class="dl"><span class="dday">D-57</span></span></div>
+        <a class="tt" href="#detail">창업기업 지식재산 바우처</a>
+        <div class="foot"><span class="won"><span class="kind">바우처</span>2,000만원</span>
+          <span class="org">특허청</span></div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+    </div>
+  </section>
+
+  <!-- 2. 전체 공고 -->
+  <section class="sec">
+    <div class="sh">
+      <h2>전체 공고</h2><span class="n">9건</span>
+      <span class="sp"></span>
+      <button class="sort" type="button">마감 임박순</button>
+    </div>
+
+    <div class="list">
+      <article class="item">
+        <div>
+          <span class="dl hot"><span class="dday">D-5</span>
+            <span class="count" data-left="401874">4일 15:37:54</span></span>
+          <a class="tt" href="#detail">2026년 경기도 지역상생 창업지원</a>
+          <div class="facts"><span class="won"><span class="kind">현금</span>5,000만원</span>
+            <span class="org">경기도경제과학진흥원</span></div>
+        </div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl hot"><span class="dday">D-6</span></span>
+          <a class="tt" href="#detail">2026년 성남시 청년창업 성장지원</a>
+          <div class="facts"><span class="won"><span class="kind">현금</span>3,000만원</span>
+            <span class="org">성남산업진흥원</span></div>
+        </div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-14</span></span>
+          <a class="tt" href="#detail">2026년 소상공인 디지털 전환 지원</a>
+          <div class="facts"><span class="won"><span class="kind">바우처</span>2,000만원</span>
+            <span class="org">소상공인시장진흥공단</span></div>
+        </div>
+        <button class="star" type="button" aria-label="저장">☆</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-22</span></span>
+          <a class="tt" href="#detail">경기도 스타트업 판로개척 지원</a>
+          <div class="facts"><span class="won"><span class="kind">현금</span>1,200만원</span>
+            <span class="org">경기도경제과학진흥원</span></div>
+        </div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-29</span></span>
+          <a class="tt" href="#detail">2026년 초기창업패키지</a>
+          <div class="facts"><span class="won"><span class="kind">현금</span>1억원</span>
+            <span class="org">창업진흥원</span></div>
+        </div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-33</span></span>
+          <a class="tt" href="#detail">중소기업 기술개발 지원사업</a>
+          <div class="facts"><span class="won"><span class="kind">현금</span>8,000만원</span>
+            <span class="org">중소벤처기업부</span></div>
+        </div>
+        <button class="star" type="button" aria-label="저장">☆</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-40</span></span>
+          <a class="tt" href="#detail">경기도 창업기업 입주공간 지원</a>
+          <div class="facts"><span class="won"><span class="kind">공간</span>12개월</span>
+            <span class="org">경기도경제과학진흥원</span></div>
+        </div>
+        <button class="star" type="button" aria-label="저장">☆</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-57</span></span>
+          <a class="tt" href="#detail">창업기업 지식재산 바우처</a>
+          <div class="facts"><span class="won"><span class="kind">바우처</span>2,000만원</span>
+            <span class="org">특허청</span></div>
+        </div>
+        <button class="star on" type="button" aria-label="저장 해제">★</button>
+      </article>
+
+      <article class="item">
+        <div>
+          <span class="dl"><span class="dday">D-61</span></span>
+          <a class="tt" href="#detail">중소기업 수출바우처</a>
+          <div class="facts"><span class="won"><span class="kind">바우처</span>3,000만원</span>
+            <span class="org">중소벤처기업진흥공단</span></div>
+        </div>
+        <button class="star" type="button" aria-label="저장">☆</button>
+      </article>
+    </div>
+  </section>
+
+</main>
+</section>
+<section class="scr" id="s-detail" data-title="공고 상세">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list" class="on">지원사업</a>
+      <a href="#wiki">내 사업</a>
+      <a href="#apps">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+  <a class="back" href="#list">지원사업</a>
+
+  <div class="hero">
+    <span class="dl hot"><span class="dday">D-5</span>
+      <span class="count" data-left="401874">4일 15:37:54</span>
+      <span class="chip">초안 있어요</span></span>
+    <h1>2026년 경기도 지역상생 창업지원</h1>
+    <div class="facts">
+      <span class="won"><span class="kind">현금</span>5,000만원</span>
+      <span class="org">경기도경제과학진흥원 · 08월 21일 18시 마감</span>
+    </div>
+    <div class="act">
+      <a class="btn fill" href="#doc">사업계획서 이어 쓰기</a>
+      <button class="btn line sm" type="button">★ 저장했어요</button>
+    </div>
+  </div>
+
+  <!-- F5-1 적합도 근거. 이 화면의 중심 -->
+  <section class="sec">
+    <div class="sh"><div class="stack">
+      <h2>왜 맞는지</h2>
+      <p>공고가 원하는 것과 위키에 적힌 사업 내용을 맞춰 봤어요</p>
+    </div></div>
+
+    <div class="card" style="padding:0">
+      <div class="why">
+        <div class="col">
+          <h3>공고가 원하는 것</h3>
+          <div class="pair">
+            <p>경기도 안에서 <b>지역 기업과 협력</b>하는 창업기업</p>
+            <p class="src">공고문 2쪽 · 사업 목적</p>
+          </div>
+          <div class="pair">
+            <p>도내 사업장을 두고 <b>창업 후 7년 이내</b></p>
+            <p class="src">공고문 4쪽 · 신청 자격</p>
+          </div>
+          <div class="pair">
+            <p><b>실증 실적</b>이 있으면 가점</p>
+            <p class="src">공고문 9쪽 · 평가 항목</p>
+          </div>
+        </div>
+
+        <div class="col mine">
+          <h3>내 위키에 적힌 것</h3>
+          <div class="pair">
+            <p>파일럿 3곳이 모두 <b>경기 남부 산업단지 입주 기업</b>이에요</p>
+            <span class="node content"><i></i>지역 연계</span>
+            <span class="node content"><i></i>목표 고객</span>
+          </div>
+          <div class="pair">
+            <p>성남에 사업장이 있고 2025년 4월 2일에 열었어요</p>
+            <span class="node company"><i></i>사업자 정보</span>
+            <span class="node company"><i></i>소재지</span>
+          </div>
+          <div class="pair">
+            <p>1단계 모듈 프로토타입을 마치고 3곳에서 돌리고 있어요</p>
+            <span class="node content"><i></i>솔루션과 기술</span>
+            <span class="node identity"><i></i>재고관리 자동화 소프트웨어</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F5-3 신청 자격 -->
+  <section class="sec">
+    <div class="sh"><h2>자격은 넘었어요</h2></div>
+    <div class="card">
+      <div class="checks">
+        <div class="chk"><span class="m">✓</span><span>창업 후 7년 이내<span class="v">2025년 4월 2일 개업 · 1년 4개월</span></span></div>
+        <div class="chk"><span class="m">✓</span><span>경기도 내 사업장<span class="v">경기 성남시</span></span></div>
+        <div class="chk"><span class="m">✓</span><span>도내 기업과 협력 계획 또는 실적<span class="v">파일럿 3곳이 경기 남부 산업단지 입주 기업</span></span></div>
+        <div class="chk"><span class="m">✓</span><span>국세·지방세 체납 없음<span class="v">완납증명서로 확인했어요</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F5-5 심사 방식과 배점 -->
+  <section class="sec">
+    <div class="sh"><div class="stack">
+      <h2>어떻게 심사해요</h2>
+      <p>지역 연계 계획에 30점이 걸려 있어요. 네 항목 중 가장 커요</p>
+    </div></div>
+    <div class="card">
+      <div class="score">
+        <div class="sc"><span class="k">문제 인식</span><span class="bar"><i style="width:25%"></i></span><span class="v">25</span></div>
+        <div class="sc"><span class="k">해결 방안</span><span class="bar"><i style="width:25%"></i></span><span class="v">25</span></div>
+        <div class="sc top"><span class="k">지역 연계 계획</span><span class="bar"><i style="width:30%"></i></span><span class="v">30</span></div>
+        <div class="sc"><span class="k">추진 역량</span><span class="bar"><i style="width:20%"></i></span><span class="v">20</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F5-2 개요 -->
+  <section class="sec">
+    <div class="sh"><h2>개요</h2></div>
+    <div class="card">
+      <dl class="spec">
+        <dt>지원 내용</dt>
+        <dd>사업화 자금 <b>현금 최대 5,000만원</b>. 자부담 20%가 있어요.</dd>
+        <dt>접수 기간</dt>
+        <dd>07월 24일부터 <b>08월 21일 18시</b>까지. 경기도 창업지원 포털에서 온라인으로 받아요.</dd>
+        <dt>선정 규모</dt>
+        <dd>일반 트랙으로 40개 사를 뽑아요.</dd>
+        <dt>심사</dt>
+        <dd>1차 서류평가로 2배수를 추리고, 2차는 발표 15분에 질의 10분이에요.</dd>
+        <dt>주관</dt>
+        <dd>경기도경제과학진흥원 · 지자체 사업</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- F5-4 제출 서류 -->
+  <section class="sec">
+    <div class="sh"><h2>낼 서류</h2><span class="n">4개</span></div>
+    <div class="card">
+      <ul class="docs">
+        <li><span class="b"></span><span>사업계획서<span class="v">지정 양식이에요. 직접 만든 문서는 반려돼요</span></span></li>
+        <li><span class="b"></span><span>사업자등록증 사본<span class="v">발급 3개월 이내</span></span></li>
+        <li><span class="b"></span><span>국세 완납증명서<span class="v">정부24에서 바로 받아요</span></span></li>
+        <li><span class="b"></span><span>지역 연계 증빙<span class="v">협약서 또는 확인서</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- F5-6 유의사항. F2-10이 보존한 제약사항 -->
+  <section class="sec">
+    <div class="sh"><div class="stack">
+      <h2>놓치기 쉬운 것</h2>
+      <p>공고문에 적혀 있는데 잘 안 보이는 조건이에요</p>
+    </div></div>
+    <div class="notes">
+      <div class="nt hot"><h4>마감이 18시예요</h4><p>자정이 아니에요. 18시 정각에 닫혀요.</p></div>
+      <div class="nt"><h4>자부담 20%</h4><p>5,000만원을 받으면 1,000만원을 직접 써야 해요.</p></div>
+      <div class="nt"><h4>지정 양식만 받아요</h4><p>플랫폼에서 받은 한글 파일로만 접수돼요.</p></div>
+      <div class="nt"><h4>낸 뒤에는 못 고쳐요</h4><p>수정 접수가 없어요.</p></div>
+    </div>
+  </section>
+
+  <!-- F5-7 원문 링크 -->
+  <p><a class="src-link" href="#">공고 원문 보기 ↗</a></p>
+
+</main>
+</section>
+<section class="scr" id="s-doc" data-title="사업계획서">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list" class="on">지원사업</a>
+      <a href="#wiki">내 사업</a>
+      <a href="#apps">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page wide">
+  <a class="back" href="#detail">2026년 경기도 지역상생 창업지원</a>
+
+  <div class="dh">
+    <h1>사업계획서</h1>
+    <p class="sub">위키에 있는 내용으로 먼저 써 뒀어요. 빈칸만 채우면 돼요.</p>
+    <div class="prog">
+      <span class="pct">78%</span>
+      <span class="bar warn"><i style="width:78%"></i></span>
+      <span class="left">빈칸 4개 남았어요</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <p class="guide">이 공고는 <b>지역 연계 계획에 30점</b>을 줘요. 네 항목 중 배점이 가장 커요.
+        파일럿 3곳이 경기 남부 산업단지에 있다는 점을 여기에 쓰면 좋아요.</p>
+
+      <section class="part">
+        <header>
+          <h2>문제 인식</h2><span class="pt">25점</span>
+          <span class="sp"></span><span class="st">다 썼어요</span>
+        </header>
+        <div class="body">
+          <p>중소 제조업체는 재고를 아직 종이와 엑셀로 관리해요. 파일럿에 참여한 경기 남부 산업단지
+            3곳도 입고와 출고를 사람이 옮겨 적고 있었어요. 옮겨 적는 과정에서 수치가 어긋나고,
+            어긋난 걸 나중에 맞추느라 다시 시간을 써요.</p>
+          <p>재고 관리 소프트웨어가 없는 게 아니에요. 있는데 <b>월 구독료가 부담이고 설정이 어려워서</b>
+            안 쓰는 거예요. 파일럿 3곳 모두 도입을 검토했다가 접은 적이 있어요.</p>
+        </div>
+      </section>
+
+      <section class="part">
+        <header>
+          <h2>해결 방안</h2><span class="pt">25점</span>
+          <span class="sp"></span><span class="st todo">빈칸 1개</span>
+        </header>
+        <div class="body">
+          <p>바코드 하나로 입출고를 기록하고 재고를 자동으로 맞추는 소프트웨어를 만들었어요.
+            설정 없이 쓰도록 품목을 처음 찍을 때 자동으로 등록해요.</p>
+          <p>파일럿 3곳에서 6개월 돌린 결과 재고 확인에 쓰던 시간이
+            <span class="blank">주당 몇 시간에서 몇 시간으로</span> 줄었어요.</p>
+        </div>
+      </section>
+
+      <section class="part">
+        <header>
+          <h2>지역 연계 계획</h2><span class="pt">30점</span>
+          <span class="sp"></span><span class="st todo">빈칸 2개</span>
+        </header>
+        <div class="body">
+          <p>파일럿 3곳이 모두 경기 남부 산업단지 입주 기업이에요. 같은 단지 안에서
+            <span class="blank">몇 곳까지 넓힐 계획인지</span> 정해서 쓰면 돼요.</p>
+          <p>단지 입주 기업끼리 자재를 주고받는 일이 잦아요. 재고를 서로 볼 수 있게 하면
+            단지 안에서 자재를 돌려 쓸 수 있어요. 이 기능은
+            <span class="blank">언제까지 만들지</span> 아직 안 정했어요.</p>
+        </div>
+      </section>
+
+      <section class="part">
+        <header>
+          <h2>추진 역량</h2><span class="pt">20점</span>
+          <span class="sp"></span><span class="st todo">빈칸 1개</span>
+        </header>
+        <div class="body">
+          <p>대표 1인과 개발 2인이에요. 2025년 초기창업패키지로 개발을 시작했고 지금 제품이 돌아가요.</p>
+          <p>이번 자금은 <span class="blank">어디에 얼마를 쓸지</span> 항목별로 적어야 해요.
+            위키에 자금 현황이 비어 있어서 여기서 채우면 위키에도 같이 들어가요.</p>
+        </div>
+      </section>
+
+      <div class="foot-act">
+        <a class="btn fill" href="#submit">다 썼어요, 내는 방법 보기</a>
+        <button class="btn line" type="button">파일로 받기</button>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="panel ask">
+        <h3>빈칸 채우기</h3>
+        <p class="q">파일럿 3곳에서 재고 확인 시간이 얼마나 줄었어요?</p>
+        <div class="field">예: 주당 6시간에서 1시간으로</div>
+        <p class="note">답하면 본문에 바로 들어가고, 위키의 <b>실증 이력</b> 노드에도 같이 적혀요.</p>
+      </div>
+
+      <div class="panel">
+        <h3>항목</h3>
+        <nav class="toc">
+          <a href="#" class="on"><span class="d"></span>문제 인식<span class="sp"></span><span class="p">25</span></a>
+          <a href="#" class="todo"><span class="d"></span>해결 방안<span class="sp"></span><span class="p">25</span></a>
+          <a href="#" class="todo"><span class="d"></span>지역 연계 계획<span class="sp"></span><span class="p">30</span></a>
+          <a href="#" class="todo"><span class="d"></span>추진 역량<span class="sp"></span><span class="p">20</span></a>
+        </nav>
+      </div>
+    </aside>
+  </div>
+
+</main>
+</section>
+<section class="scr" id="s-submit" data-title="내는 방법">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list" class="on">지원사업</a>
+      <a href="#wiki">내 사업</a>
+      <a href="#apps">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+  <a class="back" href="#doc">사업계획서</a>
+
+  <div class="sh" style="margin-bottom:var(--s4)">
+    <div class="stack">
+      <h2 style="font-size:26px">내는 방법</h2>
+      <p>2026년 경기도 지역상생 창업지원</p>
+    </div>
+  </div>
+
+  <p class="notice"><b>대신 내 드리지는 않아요.</b>
+    문서를 끝까지 쓰는 데까지가 저희 몫이에요. 접수는 직접 하셔야 해요.
+    어디에 어떻게 내는지 아래에 정리해 뒀어요.</p>
+
+  <div class="when">
+    <span class="lb">마감</span>
+    <span class="v">08월 21일 18시</span>
+    <span class="u">경기도 창업지원 포털 온라인 접수 · 5일 남았어요</span>
+  </div>
+
+  <section class="sec">
+    <div class="sh"><h2>세 단계로 끝나요</h2></div>
+    <div class="steps">
+
+      <div class="step">
+        <div>
+          <h3>경기도 창업지원 포털에 가입하고 기업 인증을 받아요</h3>
+          <p>사업자등록번호로 기업회원 전환을 해요. 하루 정도 걸릴 수 있어요.</p>
+          <span class="warn">마감 전날 시작하면 늦어요. 인증부터 먼저 해 두세요</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <h3>지정 양식에 옮겨 붙여요</h3>
+          <p>포털에서 받은 한글 파일에만 접수돼요. 여기서 쓴 내용을 항목별로 옮기면 돼요.
+            문제 인식, 해결 방안, 지역 연계 계획, 추진 역량 순서가 같아서 그대로 붙이면 맞아요.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <h3>서류를 같이 올리고 접수해요</h3>
+          <p>아래 네 가지를 같이 올려요. 접수하면 고칠 수 없으니 올리기 전에 한 번 더 보세요.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>같이 낼 서류</h2><span class="n">4개</span></div>
+    <div class="docs">
+      <label class="doc on"><span class="box">✓</span>
+        <span class="t">사업계획서<span class="v">지정 양식. 여기서 쓴 걸 옮기면 돼요</span></span></label>
+      <label class="doc"><span class="box">✓</span>
+        <span class="t">사업자등록증 사본<span class="v">발급 3개월 이내</span></span></label>
+      <label class="doc"><span class="box">✓</span>
+        <span class="t">국세 완납증명서<span class="v">발급 1개월 이내</span></span></label>
+      <label class="doc"><span class="box">✓</span>
+        <span class="t">지역 연계 증빙<span class="v">협약서 또는 확인서</span></span></label>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>놓치기 쉬운 것</h2></div>
+    <div class="traps">
+      <div class="trap hot">
+        <h4>마감이 18시예요</h4>
+        <p>자정이 아니에요. 18시 정각에 닫혀요.</p>
+      </div>
+      <div class="trap">
+        <h4>지정 양식만 받아요</h4>
+        <p>직접 만든 문서나 PDF는 반려돼요.</p>
+      </div>
+      <div class="trap">
+        <h4>낸 뒤에는 못 고쳐요</h4>
+        <p>수정 접수가 없어요. 올리기 전에 한 번 더 보세요.</p>
+      </div>
+      <div class="trap">
+        <h4>자부담 20%가 있어요</h4>
+        <p>사업비의 20% 이상을 자부담해야 해요. 인건비는 자부담에 못 넣어요.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="out">
+    <button class="btn fill" type="button">한글 파일로 받기</button>
+    <a class="btn line" href="#apps">신청 현황에서 관리하기</a>
+  </div>
+
+</main>
+</section>
+<section class="scr" id="s-wiki" data-title="내 사업">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list">지원사업</a>
+      <a href="#wiki" class="on">내 사업</a>
+      <a href="#apps">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="wh">
+    <div>
+      <h1>내 사업</h1>
+      <p class="sub">올린 파일에서 만들어졌어요. 공고에 맞는지 볼 때 여기를 봐요.</p>
+    </div>
+    <span class="sp"></span>
+    <div class="stat">
+      <div><span class="v">15</span><span class="k">적어 둔 것</span></div>
+      <div><span class="v">21</span><span class="k">이어진 곳</span></div>
+      <div><span class="v">4</span><span class="k">정리할 곳</span></div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="on" data-p="w" type="button">위키</button>
+    <button data-p="f" type="button">파일 관리</button>
+  </nav>
+
+  <!-- 위키 -->
+  <section class="pane on" id="p-w">
+    <div class="split">
+      <div class="gwrap">
+        <div class="gbar">
+          <span class="lg">
+            <span><i class="identity"></i>우리가 하는 일</span>
+            <span><i class="content"></i>사업 내용</span>
+            <span><i class="company"></i>사업체 정보</span>
+            <span><i class="flag"></i>정리 필요</span>
+          </span>
+          <span class="sp"></span>
+          <span class="hint">노드를 누르면 근거 원문이 열려요</span>
+        </div>
+        <div id="graph"></div>
+      </div>
+      <aside id="panel"></aside>
+    </div>
+
+  </section>
+
+  <!-- 파일 관리 -->
+  <section class="pane" id="p-f">
+    <div class="fbox">
+      <div class="frow">
+        <div class="fn"><span class="t">2025_초기창업패키지_사업계획서.hwp</span><span class="p">24쪽</span>
+          <span class="sp"></span><span class="w">08월 15일 읽음</span></div>
+        <div class="made">
+          <span class="chip">재고관리 자동화 소프트웨어</span><span class="chip">문제 인식</span>
+          <span class="chip">매출과 성과</span><span class="chip">수령 이력</span></div>
+      </div>
+      <div class="frow">
+        <div class="fn"><span class="t">IR_2026Q2.pdf</span><span class="p">18쪽</span>
+          <span class="sp"></span><span class="w">08월 15일 읽음</span></div>
+        <div class="made">
+          <span class="chip">솔루션과 기술</span><span class="chip">시장과 경쟁</span><span class="chip">로드맵</span></div>
+      </div>
+      <div class="frow">
+        <div class="fn"><span class="t">회사소개서_v3.docx</span><span class="p">9쪽</span>
+          <span class="sp"></span><span class="w">08월 15일 읽음</span></div>
+        <div class="made">
+          <span class="chip">목표 고객</span><span class="chip">지역 연계</span><span class="chip">팀 구성</span></div>
+      </div>
+      <div class="frow">
+        <div class="fn"><span class="t">사업자등록증.pdf</span><span class="p">1쪽</span>
+          <span class="sp"></span><span class="w">08월 01일 읽음</span></div>
+        <div class="made">
+          <span class="chip">사업자 정보</span><span class="chip">소재지</span>
+          <span class="chip">업종</span><span class="chip">대표자</span></div>
+      </div>
+      <div class="frow">
+        <div class="fn"><span class="t">협약서.pdf</span><span class="p">6쪽</span>
+          <span class="sp"></span><span class="w">08월 15일 읽음</span></div>
+        <p class="none">새로 만든 항목은 없어요. 수령 이력에 내용을 보탰어요.</p>
+      </div>
+      <div class="frow">
+        <div class="fn"><span class="t">팀_이력_메모.txt</span><span class="p">1쪽</span>
+          <span class="sp"></span><span class="w">06월 02일 읽음</span></div>
+        <div class="made"><span class="chip">팀 구성</span></div>
+      </div>
+    </div>
+    <button class="more" type="button">파일 더 올리기</button>
+
+    <div class="lg2">
+      <div class="sh"><h2 style="font-size:18px">바뀐 이력</h2><span class="n">16건</span></div>
+      <div class="log">
+        <div class="lrow"><span class="when">08월 15일 14:22</span><span class="kd save">적립</span>
+          <span class="what"><b>자금 현황</b>에 내용이 들어왔어요
+            <span class="from">경기도 지역상생 사업계획서를 쓰다가 답한 내용이에요</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:12</span><span class="kd clash">충돌</span>
+          <span class="what"><b>팀 구성</b>의 인원 수가 파일마다 달라요
+            <span class="from">팀_이력_메모.txt와 회사소개서_v3.docx</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:11</span><span class="kd">생성</span>
+          <span class="what"><b>팀 구성</b><span class="from">팀_이력_메모.txt</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:10</span><span class="kd">보강</span>
+          <span class="what"><b>수령 이력</b><span class="from">협약서.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:08</span><span class="kd">생성</span>
+          <span class="what"><b>대표자</b><span class="from">사업자등록증.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:08</span><span class="kd">생성</span>
+          <span class="what"><b>업종</b><span class="from">사업자등록증.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:07</span><span class="kd">생성</span>
+          <span class="what"><b>소재지</b><span class="from">사업자등록증.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:07</span><span class="kd">생성</span>
+          <span class="what"><b>사업자 정보</b><span class="from">사업자등록증.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:05</span><span class="kd">생성</span>
+          <span class="what"><b>지역 연계</b><span class="from">회사소개서_v3.docx</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:04</span><span class="kd">생성</span>
+          <span class="what"><b>목표 고객</b><span class="from">회사소개서_v3.docx</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:02</span><span class="kd">생성</span>
+          <span class="what"><b>로드맵</b><span class="from">IR_2026Q2.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:01</span><span class="kd">생성</span>
+          <span class="what"><b>시장과 경쟁</b><span class="from">IR_2026Q2.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 09:00</span><span class="kd">생성</span>
+          <span class="what"><b>솔루션과 기술</b><span class="from">IR_2026Q2.pdf</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 08:58</span><span class="kd">생성</span>
+          <span class="what"><b>매출과 성과</b><span class="from">2025_초기창업패키지_사업계획서.hwp</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 08:57</span><span class="kd">생성</span>
+          <span class="what"><b>문제 인식</b><span class="from">2025_초기창업패키지_사업계획서.hwp</span></span></div>
+        <div class="lrow"><span class="when">08월 15일 08:56</span><span class="kd">생성</span>
+          <span class="what"><b>재고관리 자동화 소프트웨어</b><span class="from">2025_초기창업패키지_사업계획서.hwp</span></span></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</section>
+<section class="scr" id="s-apps" data-title="신청 현황">
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#list"><i></i>라스트마일</a>
+    <nav class="menu">
+      <a href="#list">지원사업</a>
+      <a href="#wiki">내 사업</a>
+      <a href="#apps" class="on">신청 현황</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="av">정</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="hd">
+    <div>
+      <h1>신청 현황</h1>
+      <p class="sub">★로 저장한 공고 6건이에요. 카드를 끌어서 상태를 바꿀 수 있어요.</p>
+    </div>
+    <span class="sp"></span>
+    <a class="go" href="#list">공고 더 찾기 →</a>
+  </div>
+
+  <div class="board" id="board">
+
+    <section class="col" data-col="살펴보는 중">
+      <header><h2>살펴보는 중</h2><span class="n">2</span></header>
+
+      <article class="k" draggable="true">
+        <span class="dl"><span class="dday">D-22</span></span>
+        <a class="tt" href="#detail">경기도 스타트업 판로개척 지원</a>
+        <span class="won"><span class="kind">현금</span>1,200만원</span>
+        <span class="org">경기도경제과학진흥원</span>
+        <span class="next">가맹점 확보가 실적으로 인정돼요</span>
+      </article>
+
+      <article class="k" draggable="true">
+        <span class="dl"><span class="dday">D-57</span></span>
+        <a class="tt" href="#detail">창업기업 지식재산 바우처</a>
+        <span class="won"><span class="kind">바우처</span>2,000만원</span>
+        <span class="org">특허청</span>
+        <span class="next">초안은 이미 있어요</span>
+      </article>
+    </section>
+
+    <section class="col hot" data-col="쓰는 중">
+      <header><h2>쓰는 중</h2><span class="n">2</span></header>
+
+      <article class="k now" draggable="true">
+        <span class="dl hot"><span class="dday">D-5</span>
+          <span class="count" data-left="401874">4일 15:37:54</span></span>
+        <a class="tt" href="#doc">2026년 경기도 지역상생 창업지원</a>
+        <span class="won"><span class="kind">현금</span>5,000만원</span>
+        <span class="org">경기도경제과학진흥원</span>
+        <span class="pr"><span class="pct">78%</span><span class="bar warn"><i style="width:78%"></i></span></span>
+        <span class="next">지역 연계 계획에 빈칸 2개가 남았어요</span>
+      </article>
+
+      <article class="k now" draggable="true">
+        <span class="dl hot"><span class="dday">D-6</span></span>
+        <a class="tt" href="#doc">2026년 성남시 청년창업 성장지원</a>
+        <span class="won"><span class="kind">현금</span>3,000만원</span>
+        <span class="org">성남산업진흥원</span>
+        <span class="pr"><span class="pct">92%</span><span class="bar"><i style="width:92%"></i></span></span>
+        <span class="next">빈칸 1개만 채우면 끝나요</span>
+      </article>
+    </section>
+
+    <section class="col" data-col="낼 준비">
+      <header><h2>낼 준비</h2><span class="n">1</span></header>
+
+      <article class="k" draggable="true">
+        <span class="dl"><span class="dday">D-29</span></span>
+        <a class="tt" href="#submit">2026년 초기창업패키지</a>
+        <span class="won"><span class="kind">현금</span>1억원</span>
+        <span class="org">창업진흥원</span>
+        <span class="pr"><span class="pct">100%</span><span class="bar"><i style="width:100%"></i></span></span>
+        <span class="next">지역 연계 증빙을 준비해 두세요</span>
+      </article>
+    </section>
+
+    <section class="col" data-col="냈어요">
+      <header><h2>냈어요</h2><span class="n">1</span></header>
+
+      <article class="k" draggable="true">
+        <span class="dl"><span class="dday">08월 04일에 냈어요</span></span>
+        <a class="tt" href="#detail">2026년 중소기업 제조혁신 바우처</a>
+        <span class="won"><span class="kind">바우처</span>800만원</span>
+        <span class="org">중소벤처기업진흥공단</span>
+        <span class="next">09월 초에 결과가 나와요</span>
+      </article>
+    </section>
+
+  </div>
+
+</main>
+</section>
+<script>
+/* ingest.js */
+/* 온보딩 3단계. 파일 올리기 → 읽는 중 → 다 됐어요
+   F1-1-1 파일 통째로 받기 · F1-1-7 구축 진행 표시. handoff/02_기능명세.md 4장.
+
+   시안이라 파일 내용은 읽지 않는다. 고른 파일 이름은 그대로 보여 주고
+   결과는 demo.html의 고정 데이터를 쓴다. 04_구현현황.md 7장 5번과 같은 한계다. */
+(function () {
+  const $ = id => document.getElementById(id);
+  const steps = { 1: $('s1'), 2: $('s2'), 3: $('s3') };
+  const dots = { 1: $('d1'), 2: $('d2'), 3: $('d3') };
+  if (!steps[1]) return;
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let timers = [];
+  const clear = () => { timers.forEach(clearTimeout); timers = []; };
+  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+  function show(n) {
+    for (const k in steps) steps[k].classList.toggle('on', +k === n);
+    for (const k in dots) {
+      dots[k].classList.toggle('on', +k === n);
+      dots[k].classList.toggle('done', +k < n);
+    }
+    scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  }
+
+  /* ── 1단계. 파일 고르기 ── */
+  const drop = $('drop'), input = $('file'), picked = $('picked'), list = $('pickedList');
+
+  function pick(names) {
+    if (!names.length) return;
+    list.innerHTML = '';
+    names.forEach(n => { const li = document.createElement('li'); li.textContent = n; list.appendChild(li); });
+    picked.classList.add('on');
+    picked.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
+  }
+
+  /* 투명한 input이 영역을 덮고 있어서 누르기와 끌어다 놓기를 둘 다 받는다.
+     drop에서 preventDefault를 걸면 input의 기본 동작이 막히므로 걸지 않는다. */
+  input.addEventListener('change', () => pick([...input.files].map(f => f.name)));
+  ['dragenter', 'dragover'].forEach(e =>
+    drop.addEventListener(e, () => drop.classList.add('over')));
+  ['dragleave', 'drop'].forEach(e =>
+    drop.addEventListener(e, () => drop.classList.remove('over')));
+
+  $('start').addEventListener('click', () => run());
+  $('sample').addEventListener('click', () => run());
+
+  /* ── 2단계. 읽는 과정 ── */
+  const files = [...document.querySelectorAll('#files .f')];
+  const pct = $('pct'), bar = $('pbar');
+
+  const setDone = n => {
+    pct.textContent = `6개 중 ${n}개`;
+    bar.style.width = (n / files.length * 100) + '%';
+  };
+
+  function reset() {
+    files.forEach(f => {
+      f.className = 'f';
+      f.querySelector('.m').textContent = '';
+      f.querySelectorAll('.chip').forEach(c => c.classList.remove('in'));
+    });
+    setDone(0);
+  }
+
+  function finish() {
+    files.forEach(f => {
+      f.className = 'f done';
+      f.querySelector('.m').textContent = '✓';
+      f.querySelectorAll('.chip').forEach(c => c.classList.add('in'));
+    });
+    setDone(files.length);
+  }
+
+  function run() {
+    clear();
+    reset();
+    show(2);
+
+    if (reduced) { finish(); at(400, () => show(3)); return; }
+
+    let t = 400;
+    files.forEach((f, i) => {
+      at(t, () => { f.className = 'f now'; f.querySelector('.m').textContent = '·'; });
+      const chips = [...f.querySelectorAll('.chip')];
+      chips.forEach((c, j) => at(t + 300 + j * 150, () => c.classList.add('in')));
+      const span = 560 + chips.length * 150;
+      at(t + span, () => {
+        f.className = 'f done';
+        f.querySelector('.m').textContent = '✓';
+        setDone(i + 1);
+      });
+      t += span + 110;
+    });
+    at(t + 500, () => show(3));
+  }
+
+  /* 검토용. ?s=2 나 ?s=3 으로 그 단계를 바로 연다 */
+  const want = +new URLSearchParams(location.search).get('s');
+  if (want === 2) { reset(); show(2); }
+  else if (want === 3) { finish(); show(3); }
+})();
+/* tick.js */
+// 마감이 사흘 안인 것에만 카운트다운을 돌린다.
+// 시안이라 실제 마감 시각 대신 남은 초를 data-left로 준다.
+(function () {
+  var els = document.querySelectorAll('.count');
+  if (!els.length) return;
+  var start = Date.now();
+  function p(n) { return String(n).padStart(2, '0'); }
+  function tick() {
+    var gone = Math.floor((Date.now() - start) / 1000);
+    els.forEach(function (el) {
+      var s = Math.max(0, parseInt(el.dataset.left, 10) - gone);
+      var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
+          m = Math.floor(s % 3600 / 60), sec = s % 60;
+      el.textContent = (d > 0 ? d + '일 ' : '') + p(h) + ':' + p(m) + ':' + p(sec);
+    });
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+/* graph.js */
+/* 내 사업 위키. 연결 구조 + 노드 상세.
+   구조는 handoff/05_그래프설계근거.md 4장, 노드 한 장은 02_기능명세.md F1-3.
+
+   2026-08-16. GraphRAG 구조로 바꿨다. handoff/03_데이터모델.md 11장.
+     원본 파일이 노드가 아니다. Document → Chunk 계층으로 따로 두고
+     각 노드가 자기 근거가 되는 청크(ev)를 매단다.
+     노드 21 → 15, 연결 37 → 21. 선이 43% 줄었다.
+     선 종류도 셋에서 둘로. 하위와 관련만 남았다. */
+
+const N = [
+  { id:'core', t:'core', title:'재고관리 자동화 소프트웨어',
+    kind:'정체성', st:'확정', up:'2026-08-15', tags:['한 줄 정의'],
+    body:['중소 제조업체의 재고관리 공정을 자동화하는 소프트웨어를 개발한다. 목표 고객은 직원 50인 이하 제조업체이며, 기존 ERP를 도입하기 어려운 규모의 사업장을 대상으로 한다.'],
+    ev:[{f:'2025_초기창업패키지_사업계획서.hwp', l:'2쪽 · 사업 개요',
+         t:'중소 제조업체의 재고관리 공정을 자동화하는 소프트웨어를 개발하고자 한다. 목표 고객은 직원 50인 이하 제조업체다.'}] },
+
+  { id:'problem', t:'content', title:'문제 인식',
+    kind:'사업 내용', st:'확정', up:'2026-08-15', tags:['문제와 해결'],
+    body:['중소 제조업체는 재고를 수기로 관리한다. 접촉한 경기 지역 제조업체 12곳 중 9곳이 엑셀과 장부를 병행했고, 실물 재고와 장부 수치가 어긋나는 일이 월 단위로 반복됐다.',
+          '담당자는 이 문제를 바로잡는 데 주당 4시간에서 8시간을 쓴다고 답했다.'],
+    ev:[{f:'2025_초기창업패키지_사업계획서.hwp', l:'4쪽 · 문제 인식',
+         t:'접촉한 경기 지역 제조업체 12곳 중 9곳이 엑셀과 장부를 병행하고 있었으며, 실물 재고와 장부 수치가 어긋나는 일이 월 단위로 반복된다고 답했다.'},
+        {f:'2025_초기창업패키지_사업계획서.hwp', l:'5쪽 · 표 2',
+         t:'담당자 응답: 재고 불일치 보정에 주당 4~8시간 소요.'}] },
+
+  { id:'solution', t:'content', title:'솔루션과 기술',
+    kind:'사업 내용', st:'확정', up:'2026-08-15', tags:['문제와 해결','기술'],
+    body:['기술 구현은 세 단계로 나눈다. 1단계는 입출고 데이터 수집 모듈로 바코드와 QR을 인식해 수기 입력 구간을 제거한다. 현재 프로토타입 개발을 마쳤다.',
+          '2단계는 재고 정합성 검증, 3단계는 발주 시점 예측이다.'],
+    ev:[{f:'IR_2026Q2.pdf', l:'8쪽 · 기술 로드맵',
+         t:'1단계 입출고 데이터 수집 모듈(바코드·QR 인식) 프로토타입 완료. 2단계 재고 정합성 검증, 3단계 발주 시점 예측.'}] },
+
+  { id:'customer', t:'content', title:'목표 고객',
+    kind:'사업 내용', st:'확정', up:'2026-07-30', tags:['시장과 고객'],
+    body:['직원 50인 이하 제조업체. 1차 진입 지역은 경기 남부 산업단지다.'],
+    ev:[{f:'회사소개서_v3.docx', l:'3쪽 · 타깃',
+         t:'직원 50인 이하 제조업체를 1차 대상으로 하며, 진입 지역은 경기 남부 산업단지다.'}] },
+
+  { id:'market', t:'content', title:'시장과 경쟁',
+    kind:'사업 내용', st:'초안', up:'2026-07-30', tags:['시장과 고객'],
+    body:['기존 ERP는 도입 비용과 교육 부담이 50인 이하 사업장 규모에 맞지 않는다. 현장에서 실제로 쓰이는 입출고 기록 단계를 자동화하지 않는다는 점이 빈틈이다.'],
+    ev:[{f:'IR_2026Q2.pdf', l:'12쪽 · 경쟁 분석',
+         t:'기존 ERP는 도입 비용과 교육 부담이 50인 이하 사업장 규모에 맞지 않으며, 입출고 기록 단계를 자동화하지 않는다.'}] },
+
+  { id:'local', t:'content', title:'지역 연계',
+    kind:'사업 내용', st:'확정', up:'2026-08-15', tags:['시장과 고객','지역'],
+    body:['1차 파일럿 3곳이 모두 경기 남부 산업단지 입주 기업이다. 지역 제조업체의 운전자금 부담을 줄이는 것이 사업의 직접 효과다.'],
+    ev:[{f:'회사소개서_v3.docx', l:'5쪽 · 파일럿 현황',
+         t:'1차 파일럿 3개사는 모두 경기 남부 산업단지 입주 기업이며, 재고 정확도 개선으로 운전자금 부담이 줄었다.'}] },
+
+  { id:'traction', t:'content', title:'매출과 성과',
+    kind:'사업 내용', st:'낡음', up:'2025-12-11', tags:['성과와 자금'], flag:'오래됨',
+    note:'갱신한 지 8개월이 지났어요. 매출은 자주 바뀌는 항목이에요.',
+    body:['파일럿 대상 3곳과 협의를 마쳤다. 유료 전환은 아직 없다.'],
+    ev:[{f:'2025_초기창업패키지_사업계획서.hwp', l:'9쪽 · 실적',
+         t:'파일럿 대상 3개사와 협의를 완료했다. 유료 전환 사례는 아직 없다.'}] },
+
+  { id:'finance', t:'content', title:'자금 현황',
+    kind:'사업 내용', st:'비어 있음', up:'—', tags:['성과와 자금'], flag:'빈 곳',
+    note:'자금조달방안 표를 채우려면 필요해요. 공고 4건이 이 항목을 물어봐요.',
+    body:[], ev:[] },
+
+  { id:'team', t:'content', title:'팀 구성',
+    kind:'사업 내용', st:'충돌', up:'2026-06-02', tags:['팀과 계획'], flag:'모순',
+    note:'회사소개서에는 3인, IR 자료에는 5인으로 적혀 있어요. 어느 쪽을 쓸까요.',
+    body:['대표자는 소프트웨어 개발 경력 5년을 보유하고 있으며 제조 공정 데이터 수집 시스템 개발을 담당했다.'],
+    ev:[{f:'회사소개서_v3.docx', l:'7쪽 · 조직', clash:true,
+         t:'현재 구성원은 대표 포함 3인이다.'},
+        {f:'IR_2026Q2.pdf', l:'16쪽 · 팀', clash:true,
+         t:'핵심 인력 5인으로 구성된 팀이 개발을 담당하고 있다.'},
+        {f:'팀_이력_메모.txt', l:'1쪽',
+         t:'대표 소프트웨어 개발 경력 5년. 제조 공정 데이터 수집 시스템 개발 담당.'}] },
+
+  { id:'roadmap', t:'content', title:'로드맵',
+    kind:'사업 내용', st:'초안', up:'2026-06-02', tags:['팀과 계획'], flag:'끊김',
+    note:'어느 항목과도 이어져 있지 않아요. 성장 전략과 잇는 것이 자연스러워요.',
+    body:['8개월 안에 2단계까지 상용화하고 3단계는 파일럿 검증을 마친다.'],
+    ev:[{f:'IR_2026Q2.pdf', l:'15쪽 · 일정',
+         t:'8개월 내 2단계 상용화, 3단계는 파일럿 검증 완료를 목표로 한다.'}] },
+
+  { id:'biz', t:'entity', title:'사업자 정보',
+    kind:'사업체', st:'확정', up:'2026-08-01', tags:['등록 정보'],
+    body:['개인사업자 · 2025-04-02 개업 · 업력 1년 4개월'],
+    ev:[{f:'사업자등록증.pdf', l:'1쪽', t:'개인사업자 / 개업연월일 2025년 04월 02일'}] },
+  { id:'region', t:'entity', title:'소재지',
+    kind:'사업체', st:'확정', up:'2026-08-01', tags:['등록 정보'],
+    body:['경기도 성남시'],
+    ev:[{f:'사업자등록증.pdf', l:'1쪽', t:'사업장 소재지: 경기도 성남시'}] },
+  { id:'sector', t:'entity', title:'업종',
+    kind:'사업체', st:'확정', up:'2026-08-01', tags:['등록 정보'],
+    body:['소프트웨어 개발 및 공급업 (58221)'],
+    ev:[{f:'사업자등록증.pdf', l:'1쪽', t:'업태 정보통신업 / 종목 소프트웨어 개발 및 공급업 (58221)'}] },
+  { id:'owner', t:'entity', title:'대표자',
+    kind:'사업체', st:'확정', up:'2026-08-01', tags:['대표와 이력'],
+    body:['만 28세'],
+    ev:[{f:'사업자등록증.pdf', l:'1쪽', t:'대표자 생년월일 기재분에서 만 나이를 계산했다.'}] },
+  { id:'grants', t:'entity', title:'수령 이력',
+    kind:'사업체', st:'확정', up:'2026-08-15', tags:['대표와 이력'],
+    body:['초기창업패키지 2025년 수령'],
+    ev:[{f:'2025_초기창업패키지_사업계획서.hwp', l:'1쪽 · 표지', t:'2025년도 초기창업패키지 선정 과제.'},
+        {f:'협약서.pdf', l:'2쪽 · 협약 개요', t:'협약 기간 2025.06.01 ~ 2026.02.28. 지원금 총 5,000만원.'}] }
+];
+
+/* 출처 선이 없어졌다. 하위 9 + 관련 12 = 21 */
+const L = [
+  ['core','problem'],['core','solution'],['core','customer'],['core','market'],['core','team'],
+  ['core','traction'],['core','biz'],['core','finance'],['core','local'],
+  ['problem','customer'],['problem','market'],['solution','market'],['solution','traction'],
+  ['customer','market'],['traction','customer'],['local','customer'],['local','region'],
+  ['biz','region'],['biz','sector'],['biz','owner'],['biz','grants']
+];
+
+const GROUPS = {
+  entity: [
+    { k:'등록 정보',   ids:['biz','region','sector'] },
+    { k:'대표와 이력', ids:['owner','grants'] }
+  ],
+  content: [
+    { k:'문제와 해결', ids:['problem','solution'] },
+    { k:'시장과 고객', ids:['customer','market','local'] },
+    { k:'성과와 자금', ids:['traction','finance'] },
+    { k:'팀과 계획',   ids:['team','roadmap'] }
+  ]
+};
+
+const RING = {
+  core:    { r:0,    dot:23 },
+  entity:  { r:0.24, dot:11 },
+  content: { r:0.42, dot:14 }
+};
+
+const byId = {}; N.forEach(n => byId[n.id] = n);
+const adj = {}; N.forEach(n => adj[n.id] = new Set());
+L.forEach(([a, b]) => { adj[a].add(b); adj[b].add(a); });
+
+const GAP = 0.34;
+Object.entries(GROUPS).forEach(([t, gs]) => {
+  const span = Math.PI * 2 / gs.length;
+  gs.forEach((g, gi) => {
+    const s = gi * span + GAP / 2, usable = span - GAP;
+    g.a0 = s; g.a1 = s + usable; g.mid = s + usable / 2; g.t = t;
+    g.ids.forEach((id, i) => {
+      byId[id].a = g.ids.length === 1 ? g.mid : s + usable * (i / (g.ids.length - 1));
+      byId[id].grp = g.k;
+    });
+  });
+});
+byId.core.a = 0; byId.core.grp = '중심';
+
+/* 선 종류 둘. 정체성에서 뻗으면 하위, 나머지는 관련 */
+const linkKind = (a, b) => (a === 'core' || b === 'core') ? 'sub' : 'rel';
+
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, at) => { const e = document.createElementNS(NS, n);
+  for (const k in at) e.setAttribute(k, at[k]); return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let picked = null, openEv = new Set();
+
+/* ── 노드 한 장. 머리말 + 본문 + 근거 청크 + 이어진 항목 ── */
+function renderPanel() {
+  const box = document.getElementById('panel');
+  if (!box) return;
+
+  if (!picked) {
+    const todo = N.filter(n => n.flag);
+    box.innerHTML =
+      `<div class="ph"><h3>정리하면 좋을 곳</h3><span class="c">${todo.length}</span></div>
+       <p class="phint">항목을 누르면 여기에 자세히 나와요.</p>
+       <ul class="todo">` +
+      todo.map(n => `<li data-go="${n.id}"><span class="fl">${esc(n.flag)}</span>
+        <span class="tt">${esc(n.title)}</span><span class="nt">${esc(n.note)}</span></li>`).join('') +
+      `</ul>`;
+    box.querySelectorAll('[data-go]').forEach(li =>
+      li.addEventListener('click', () => select(li.dataset.go)));
+    return;
+  }
+
+  const n = byId[picked];
+  const rel = [...adj[n.id]].map(id => byId[id]);
+  const ev = n.ev || [];
+
+  box.innerHTML =
+    `<div class="ph"><h3>${esc(n.title)}</h3>
+       <button class="x" type="button" aria-label="닫기">✕</button></div>
+     ${n.flag ? `<p class="flagbox"><b>${esc(n.flag)}</b>${esc(n.note)}</p>` : ''}
+     <dl class="meta">
+       <dt>종류</dt><dd>${esc(n.kind)}</dd>
+       <dt>상태</dt><dd><span class="st st-${n.st === '비어 있음' ? 'empty' : n.st}">${esc(n.st)}</span></dd>
+       ${n.tags ? `<dt>태그</dt><dd>${n.tags.map(t => `<span class="tg">${esc(t)}</span>`).join('')}</dd>` : ''}
+       <dt>갱신</dt><dd>${esc(n.up || '—')}</dd>
+     </dl>
+     <div class="body">${
+       n.body && n.body.length
+         ? n.body.map(p => `<p>${esc(p)}</p>`).join('')
+         : `<p class="empty">아직 비어 있어요. 사업계획서를 쓰다가 채우면 여기에도 들어와요.</p>`}</div>
+
+     <div class="ev"><h4>근거 ${ev.length}</h4>${
+       ev.length
+         ? ev.map((e, i) => `<div class="evi${e.clash ? ' clash' : ''}${openEv.has(i) ? ' open' : ''}" data-ev="${i}">
+             <button class="evh" type="button">
+               <span class="fn">${esc(e.f)}</span><span class="loc">${esc(e.l)}</span>
+               ${e.clash ? '<span class="cl">어긋남</span>' : ''}
+             </button>
+             <p class="evt">${esc(e.t)}</p>
+           </div>`).join('')
+         : `<p class="noev">올린 파일에 근거가 없어요. 직접 채워야 해요.</p>`}</div>
+
+     <div class="rel"><h4>이어진 항목 ${rel.length}</h4>
+       ${rel.length
+         ? rel.map(x => `<button class="rl t-${x.t}" data-go="${x.id}" type="button">
+             <i></i>${esc(x.title)}</button>`).join('')
+         : `<p class="noev">아무 데도 안 이어져 있어요.</p>`}</div>`;
+
+  box.querySelector('.x').addEventListener('click', () => select(null));
+  box.querySelectorAll('[data-go]').forEach(b =>
+    b.addEventListener('click', () => select(b.dataset.go)));
+  box.querySelectorAll('.evh').forEach(b =>
+    b.addEventListener('click', () => {
+      const i = +b.closest('.evi').dataset.ev;
+      if (openEv.has(i)) openEv.delete(i); else openEv.add(i);
+      renderPanel();
+    }));
+}
+
+function select(id) {
+  // 어긋난 근거는 나란히 놓고 봐야 어느 쪽이 맞는지 고를 수 있다.
+  // 모순 노드면 어긋난 것을 전부 펼치고, 아니면 첫 근거만 펼친다.
+  if (id !== picked) {
+    const ev = (id && byId[id] && byId[id].ev) || [];
+    const clash = ev.map((e, i) => e.clash ? i : -1).filter(i => i >= 0);
+    openEv = new Set(clash.length ? clash : (ev.length ? [0] : []));
+  }
+  picked = id;
+  renderPanel();
+  document.querySelectorAll('.nd').forEach(g =>
+    g.classList.toggle('picked', g.dataset.id === id));
+  focusOn(id);
+}
+
+let focusOn = () => {};
+
+function draw() {
+  const root = document.getElementById('graph');
+  if (!root) return;
+  const W = 760, H = 560, cx = W / 2, cy = H / 2, MARGIN = 74;
+  const SZ = (Math.min(cx, cy) - MARGIN) / RING.content.r;
+
+  root.innerHTML = '';
+  const svg = el('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', role:'img',
+    'aria-label':'사업 위키 연결 구조' });
+  const pos = n => n.t === 'core' ? { x:cx, y:cy }
+    : { x: cx + Math.cos(n.a) * SZ * RING[n.t].r, y: cy + Math.sin(n.a) * SZ * RING[n.t].r };
+
+  const gRing = el('g', {}), gArc = el('g', {}), gLink = el('g', {}), gNode = el('g', {});
+  [gRing, gArc, gLink, gNode].forEach(g => svg.appendChild(g));
+
+  ['entity','content'].forEach(t => {
+    const R = SZ * RING[t].r;
+    gRing.appendChild(el('circle', { cx, cy, r:R, class:'ring' }));
+    GROUPS[t].forEach(g => {
+      const x0 = cx + Math.cos(g.a0) * R, y0 = cy + Math.sin(g.a0) * R;
+      const x1 = cx + Math.cos(g.a1) * R, y1 = cy + Math.sin(g.a1) * R;
+      gArc.appendChild(el('path', {
+        d:`M${x0} ${y0} A${R} ${R} 0 ${(g.a1 - g.a0) > Math.PI ? 1 : 0} 1 ${x1} ${y1}`,
+        class:`arc t-${t}` }));
+      const off = t === 'entity' ? 17 : 30;
+      const lb = el('text', { x: cx + Math.cos(g.mid) * (R - off),
+        y: cy + Math.sin(g.mid) * (R - off) + 4, class:`arc-label t-${t}`, 'text-anchor':'middle' });
+      lb.textContent = g.k;
+      gArc.appendChild(lb);
+    });
+  });
+
+  const P = {}; N.forEach(n => P[n.id] = pos(n));
+  L.forEach(([a, b]) => gLink.appendChild(el('line', {
+    x1:P[a].x, y1:P[a].y, x2:P[b].x, y2:P[b].y,
+    class:`lk ${linkKind(a,b)}`, 'data-a':a, 'data-b':b })));
+
+  N.forEach(n => {
+    const p = P[n.id], R = RING[n.t].dot;
+    const g = el('g', { class:`nd t-${n.t}${n.flag ? ' flagged' : ''}${n.st === '비어 있음' ? ' empty' : ''}${n.id === picked ? ' picked' : ''}`,
+      'data-id':n.id, tabindex:'0', role:'button',
+      'aria-label':`${n.title}${n.flag ? ', ' + n.flag : ''}` });
+    g.appendChild(el('circle', { cx:p.x, cy:p.y, r:R, class:'dot' }));
+    if (n.flag) g.appendChild(el('circle', { cx:p.x + R*.78, cy:p.y - R*.78, r:4.5, class:'flag' }));
+    let lx, ly, anchor;
+    if (n.t === 'core') { lx = p.x; ly = p.y + R + 17; anchor = 'middle'; }
+    else {
+      const c = Math.cos(n.a), s = Math.sin(n.a), d = R + 9;
+      lx = p.x + c * d; ly = p.y + s * d + (Math.abs(c) > .4 ? 4 : s > 0 ? 11 : -3);
+      anchor = c > .3 ? 'start' : c < -.3 ? 'end' : 'middle';
+    }
+    const lab = el('text', { x:lx, y:ly, class:'lb', 'text-anchor':anchor });
+    lab.textContent = n.title;
+    g.appendChild(lab);
+    g.addEventListener('click', () => select(n.id));
+    g.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(n.id); } });
+    gNode.appendChild(g);
+  });
+
+  root.appendChild(svg);
+
+  const nodes = [...root.querySelectorAll('.nd')];
+  const links = [...root.querySelectorAll('.lk')];
+  focusOn = id => {
+    if (!id) { svg.classList.remove('focused');
+      nodes.forEach(x => x.classList.remove('lit'));
+      links.forEach(x => x.classList.remove('lit')); return; }
+    svg.classList.add('focused');
+    const near = new Set([id, ...adj[id]]);
+    nodes.forEach(x => x.classList.toggle('lit', near.has(x.dataset.id)));
+    links.forEach(x => x.classList.toggle('lit',
+      near.has(x.dataset.a) && near.has(x.dataset.b) && (x.dataset.a === id || x.dataset.b === id)));
+  };
+  nodes.forEach(x => {
+    x.addEventListener('mouseenter', () => focusOn(x.dataset.id));
+    x.addEventListener('mouseleave', () => focusOn(picked));
+  });
+  focusOn(picked);
+}
+
+(function () {
+  if (!document.getElementById('graph')) return;
+  draw(); renderPanel();
+  const m = (location.hash + location.search).match(/[?&]n=([a-z0-9]+)/);
+  if (m && byId[m[1]]) select(m[1]);
+})();
+/* kanban.js */
+/* 신청 현황 칸반. F8-1 상태별 보드 · F8-5 드래그로 상태 전환.
+   상태는 사용자가 직접 바꾼다. 저희가 임의로 옮기지 않는다. */
+(function () {
+  const board = document.getElementById('board');
+  if (!board) return;
+
+  const cols = [...board.querySelectorAll('.col')];
+  const EMPTY = '<p class="empty">여기로 끌어다 놓으세요</p>';
+
+  function count() {
+    cols.forEach(c => {
+      const n = c.querySelectorAll('.k').length;
+      c.querySelector('.n').textContent = n;
+      const ph = c.querySelector('.empty');
+      if (!n && !ph) c.insertAdjacentHTML('beforeend', EMPTY);
+      if (n && ph) ph.remove();
+    });
+  }
+
+  let held = null;
+
+  board.addEventListener('dragstart', e => {
+    const k = e.target.closest('.k');
+    if (!k) return;
+    held = k;
+    k.classList.add('drag');
+    e.dataTransfer.effectAllowed = 'move';
+    // 파이어폭스는 데이터가 있어야 끌린다
+    e.dataTransfer.setData('text/plain', '');
+  });
+
+  board.addEventListener('dragend', () => {
+    if (held) held.classList.remove('drag');
+    held = null;
+    cols.forEach(c => c.classList.remove('over'));
+    count();
+  });
+
+  cols.forEach(col => {
+    col.addEventListener('dragover', e => {
+      if (!held) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('over');
+    });
+    col.addEventListener('dragleave', e => {
+      if (!col.contains(e.relatedTarget)) col.classList.remove('over');
+    });
+    col.addEventListener('drop', e => {
+      if (!held) return;
+      e.preventDefault();
+      col.classList.remove('over');
+      const ph = col.querySelector('.empty');
+      if (ph) ph.remove();
+      col.appendChild(held);
+
+      /* 급한 자리로 옮기면 색도 따라간다 */
+      held.classList.toggle('now', col.classList.contains('hot')
+        && held.querySelector('.dl.hot') !== null);
+      count();
+    });
+  });
+
+  count();
+})();
+
+/* 해시로 화면을 바꾼다. 화면은 전부 DOM에 있고 보이는 것만 바뀐다 */
+(function () {
+  var scrs = [].slice.call(document.querySelectorAll('.scr'));
+  function go() {
+    var h = (location.hash || '#home').slice(1).split('&')[0] || 'home';
+    var hit = document.getElementById('s-' + h) || document.getElementById('s-home');
+    scrs.forEach(function (s) { s.classList.toggle('on', s === hit); });
+    document.title = hit.dataset.title + ' · 라스트마일';
+    scrollTo(0, 0);
+  }
+  addEventListener('hashchange', go);
+  go();
+})();
+</script>
+</body>
+</html>

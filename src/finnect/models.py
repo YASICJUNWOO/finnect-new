@@ -34,6 +34,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -397,3 +398,95 @@ class IngestRun(Base):
         if self.item_limit is not None and self.expected is not None:
             return self.item_limit < self.expected
         return self.item_limit is not None
+
+
+class DocumentKind(enum.StrEnum):
+    """구간 하나가 무엇인가.
+
+    **UNKNOWN 이 기본이다.** 서술형 양식과 공고문의 절은 생김새가 같아서
+    규칙으로 못 가른다 — 네 번 실패했다. 그 판정은 LLM 이 하고(plan/11 T-0036),
+    붙기 전까지는 '모른다'로 남는다. **모르는 것을 아는 척하지 않는다.**
+    """
+
+    #: 채워 내는 서식. 규칙으로 갈린다 — 끝에 '신청합니다 / 귀하 / (인)' 이 온다
+    FIELDS = "fields"
+    #: 글로 쓰는 양식. **T-0036 이 붙어야 채워진다**
+    NARRATIVE = "narrative"
+    #: 채울 것이 없다. 공고문·안내문·지침
+    NONE = "none"
+    #: 아직 안 갈랐다
+    UNKNOWN = "unknown"
+
+
+class Document(Base):
+    """공고가 요구하는 문서 한 벌. **첨부 텍스트 안의 한 구간이다**(plan/11 T-0035).
+
+    **파일 하나가 문서 하나가 아니다.** 한 파일에 공고문 → 붙임1 신청서 →
+    붙임2 동의서가 이어 붙는다.
+
+    키가 `sha256` 인 이유는 `attachment_file` 과 같다(ADR-0022). 공고를 다시 수집하면
+    `attachment` 행이 통째로 갈리는데(기업마당은 조회수가 해시 재료라 **매번 1,538건
+    전부**), 공고에 매달면 재수집 한 번에 날아간다. 공고와의 연결은 표를 만들지 않고
+    `attachment → attachment_file → sha256` 조인으로 푼다.
+
+    덤으로 **같은 양식이 여러 공고에 붙어도 한 번만 저장되고 한 번만 판정된다.**
+    """
+
+    __tablename__ = "document"
+    __table_args__ = (
+        UniqueConstraint("sha256", "seq", name="uq_document_sha_seq"),
+        Index("ix_document_kind", "kind"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    #: 첨부 파일 내용의 주소. `attachment_file.sha256` 과 같다
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    #: 그 파일 안에서 몇 번째 구간인가
+    seq: Mapped[int] = mapped_column(Integer)
+
+    #: 구간 표지 원문. `[붙임2] 사업계획서`
+    title: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(16))
+
+    #: 원문 텍스트에서의 자리. **나중에 붙일 수 없다**(ADR-0014)
+    char_start: Mapped[int] = mapped_column(Integer)
+    char_end: Mapped[int] = mapped_column(Integer)
+
+    #: 무엇이 판정했나. `rule/v1` · `llm/<모델>`. 다시 판정할 때 무엇이 바뀌었는지 본다
+    decided_by: Mapped[str] = mapped_column(String(32))
+    extracted_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DocumentItem(Base):
+    """문서 안의 작성 항목 하나.
+
+    지금은 `fields`(칸 채우기)만 찬다. 서술형 항목은 T-0036 이 붙어야 생긴다.
+    """
+
+    __tablename__ = "document_item"
+    __table_args__ = (Index("ix_document_item_doc", "document_id", "ordinal"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+    #: 트리. 서술형에서 쓴다
+    parent_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("document_item.id", ondelete="CASCADE")
+    )
+    ordinal: Mapped[int] = mapped_column(Integer)
+
+    #: `2-1`. **절마다 1부터 다시 시작하므로 이것만으로는 트리가 안 선다**(plan/11 T-0039)
+    number: Mapped[str | None] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    #: 양식이 쓴 "무엇을 쓰라". **우리가 고쳐 쓰지 않는다**
+    instruction: Mapped[str | None] = mapped_column(Text)
+    #: `50페이지 내외` 처럼 양식이 준 분량 제한
+    limit_text: Mapped[str | None] = mapped_column(Text)
+    input_kind: Mapped[str] = mapped_column(String(16))
+
+    #: 근거 위치. 원문에서 잘라 보여 줄 수 있다
+    char_start: Mapped[int | None] = mapped_column(Integer)
+    char_end: Mapped[int | None] = mapped_column(Integer)

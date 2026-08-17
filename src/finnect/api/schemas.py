@@ -75,3 +75,44 @@ class NoticeDetailOut(NoticeOut):
     attachments: list[AttachmentOut]
     #: 첨부 중 텍스트가 나온 것의 수. `len(attachments)` 와 다르다
     decoded_count: int
+
+
+class DocumentItemOut(BaseModel):
+    """작성 항목 하나. **양식이 쓴 말을 그대로 넘긴다** — 우리가 고쳐 쓰지 않는다."""
+
+    number: str | None
+    title: str
+    instruction: str | None
+    limit_text: str | None
+    input_kind: str
+    children: list[DocumentItemOut] = []
+
+
+class DocumentOut(BaseModel):
+    """낼 서류 한 벌. 첨부 하나 안의 한 구간이다(plan/11 T-0035)."""
+
+    id: int
+    title: str
+    #: `fields` 칸 채우기 · `narrative` 글로 쓰는 것 · `none` · `unknown`
+    kind: str
+    #: 무엇이 판정했나. `rule/v1` · `llm/<모델>`
+    decided_by: str
+    filename: str
+    url: str | None
+    items: list[DocumentItemOut]
+
+
+class NoticeDocumentsOut(BaseModel):
+    """공고 하나가 요구하는 서류 전부.
+
+    **`unknown` 구간은 안 내보낸다.** 서술형 판정이 아직 없어서(plan/11 T-0036)
+    내보내면 공고문 절이 작성 항목으로 보인다. **모르는 것을 아는 척하지 않는다.**
+    """
+
+    source: str
+    external_id: str
+    documents: list[DocumentOut]
+    #: 양식이 없을 때 공고문이 서류에 대해 말한 줄. 원문 그대로다.
+    submit_hint: list[str]
+    #: 아직 안 갈라 낸 구간 수. 0 이 아니면 화면이 그렇게 말해야 한다.
+    undecided: int

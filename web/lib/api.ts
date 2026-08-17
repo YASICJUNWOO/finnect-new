@@ -119,3 +119,45 @@ export async function getNotice(source: string, id: string): Promise<NoticeDetai
     throw e;
   }
 }
+
+/** 공고가 요구하는 서류. 계약은 `docs/api-contract.md`, 정본은 `api/schemas.py` 다. */
+export type NoticeDocuments = {
+  source: string;
+  external_id: string;
+  documents: {
+    id: number;
+    title: string;
+    /** `fields` 칸 채우기 · `narrative` 글로 쓰는 것 */
+    kind: string;
+    /** 무엇이 판정했나. `rule/v1` · `llm/<모델>` */
+    decided_by: string;
+    filename: string;
+    url: string | null;
+    items: {
+      number: string | null;
+      title: string;
+      instruction: string | null;
+      limit_text: string | null;
+      input_kind: string;
+    }[];
+  }[];
+  /** 양식이 없을 때 공고문이 서류에 대해 말한 줄. 원문 그대로다. */
+  submit_hint: string[];
+  /** 아직 안 갈라 낸 구간 수. **0 이 아니면 화면이 그렇게 말해야 한다.** */
+  undecided: number;
+};
+
+/** 서류가 없어도 화면은 뜬다. **못 불러온 것과 없는 것을 섞지 않는다.** */
+export async function getNoticeDocuments(
+  source: string,
+  id: string,
+): Promise<NoticeDocuments | null> {
+  try {
+    return await get<NoticeDocuments>(
+      `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(id)}/documents`,
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}

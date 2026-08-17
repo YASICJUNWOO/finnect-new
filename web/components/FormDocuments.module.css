@@ -287,3 +287,12 @@
   font-weight: var(--w-medium);
   text-decoration: none;
 }
+
+/* 아직 안 갈라 낸 구간. **못 본 것을 안 본 척하지 않는다** */
+.undecided {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

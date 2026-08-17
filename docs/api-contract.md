@@ -127,6 +127,62 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 ---
 
+## `GET /api/notices/{source}/{external_id}/documents`
+
+이 공고에 **무슨 서류를 내야 하고, 그 안에 무엇을 써야 하는가**(plan/11).
+
+```json
+{
+  "source": "bizinfo",
+  "external_id": "PBLN_000000000125496",
+  "documents": [
+    {
+      "id": 1234,
+      "title": "붙임 1",
+      "kind": "fields",
+      "decided_by": "rule/v1",
+      "filename": "신청서_….hwp",
+      "url": "https://www.bizinfo.go.kr/…",
+      "items": [
+        {"number": null, "title": "업 체 명", "instruction": null,
+         "limit_text": null, "input_kind": "field"}
+      ]
+    }
+  ],
+  "submit_hint": [],
+  "undecided": 8
+}
+```
+
+### `kind` 가 넷인데 둘만 나간다
+
+| 값 | 뜻 | 응답에 나오나 |
+|---|---|---|
+| `fields` | 칸만 채우는 서식 | **나온다** |
+| `narrative` | 글로 쓰는 양식 | 나온다. **아직 하나도 없다** — T-0036 이 채운다 |
+| `none` | 채울 것이 없다 | 안 나온다 |
+| `unknown` | 아직 안 갈랐다 | **안 나온다.** `undecided` 로만 센다 |
+
+**`unknown` 을 내보내지 않는 이유가 이 계약의 요점이다.** 서술형 양식과 공고문의 절은
+생김새가 같아서 규칙이 네 번 실패했다. 내보내면 화면이 `1. 사업개요 / 2. 신청자격`
+(공고문)을 작성 항목으로 보여 준다. **모르는 것을 아는 척하지 않는다.**
+
+`undecided` 는 그 구간이 몇 개인지다. **0 이 아니면 화면이 그렇게 말해야 한다** —
+"아직 못 읽은 붙임이 N개 있어요".
+
+### `submit_hint` — 양식이 없을 때만 찬다
+
+`documents` 가 비면 공고문에서 "무슨 서류를 내나" 줄을 최대 넷 건져 준다. **원문 그대로다.**
+
+```
+"제출서류는 [신청] 버튼을 클릭하면 국가별 안내사항 확인 가능"
+```
+
+층이 둘이라 그렇다. **"무슨 서류를 내나"는 공고문에 있고**, "그 안에 뭘 쓰나"는
+양식 파일이 첨부에 있어야 나온다. 양식이 없다고 빈손으로 보내지 않는다(DESIGN.md §7-5).
+
+---
+
 ## 운영 경로 — `/api/admin/*`
 
 > 정본은 `src/finnect/api/admin_schemas.py`. 결정은 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).

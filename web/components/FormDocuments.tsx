@@ -174,6 +174,15 @@ export function FormDocuments({ data }: { data: NoticeDocuments }) {
           ))}
         </div>
       )}
+
+      {/* **아직 안 본 것을 안 본 척하지 않는다.** 글로 쓰는 양식은 공고문의 절과
+          생김새가 같아 규칙으로 못 가른다(plan/11 T-0036). 그 구간이 몇 개인지는 말한다. */}
+      {(data.undecided ?? 0) > 0 && (
+        <p className={styles.undecided}>
+          아직 못 읽은 붙임이 <span data-numeric>{data.undecided}</span>개 있어요. 지금은 칸을
+          채우는 서식만 읽어요.
+        </p>
+      )}
     </section>
   );
 }

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Attachments } from "@/components/Attachments";
+import { FormDocuments } from "@/components/FormDocuments";
 import { Deadline } from "@/components/Deadline";
 import { NotYet } from "@/components/NotYet";
-import { getNotice } from "@/lib/api";
+import { getNotice, getNoticeDocuments } from "@/lib/api";
+import { fromApi } from "@/lib/documents";
 import { periodOf } from "@/lib/deadline";
 import styles from "./page.module.css";
 
@@ -22,7 +24,12 @@ export default async function NoticeDetailPage({
   params: Promise<{ source: string; id: string }>;
 }) {
   const { source, id } = await params;
-  const notice = await getNotice(source, decodeURIComponent(id));
+  const external = decodeURIComponent(id);
+  // 서류는 없어도 화면이 떠야 한다. 공고와 같이 부르되 실패를 따로 받는다.
+  const [notice, docs] = await Promise.all([
+    getNotice(source, external),
+    getNoticeDocuments(source, external),
+  ]);
   if (!notice) notFound();
 
   const period = periodOf(notice);
@@ -75,6 +82,17 @@ export default async function NoticeDetailPage({
           <p className={styles.noBody}>출처가 개요를 안 줬어요. 원문을 열어 보세요.</p>
         )}
       </section>
+
+      {docs && (
+        <FormDocuments
+          data={fromApi(docs, {
+            id: external,
+            source,
+            title: notice.title ?? "",
+            url: notice.detail_url ?? null,
+          })}
+        />
+      )}
 
       <Attachments items={notice.attachments} decoded={notice.decoded_count} />
 

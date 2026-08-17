@@ -7,13 +7,30 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import re
 
 from sqlalchemy import func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
-from finnect.api.schemas import AttachmentOut, NoticeDetailOut, NoticeListOut, NoticeOut
+from finnect.api.schemas import (
+    AttachmentOut,
+    DocumentItemOut,
+    DocumentOut,
+    NoticeDetailOut,
+    NoticeDocumentsOut,
+    NoticeListOut,
+    NoticeOut,
+)
 from finnect.api.text import to_text
-from finnect.models import Attachment, AttachmentFile, Source
+from finnect.attach import store
+from finnect.models import (
+    Attachment,
+    AttachmentFile,
+    Document,
+    DocumentItem,
+    DocumentKind,
+    Source,
+)
 from finnect.views import Notice
 
 PAGE_SIZE = 20
@@ -185,3 +202,104 @@ def get_notice(
         attachments=out,
         decoded_count=sum(1 for a in out if a.parse_status == "ok"),
     )
+
+
+#: 공고문이 서류를 말하는 줄. 양식이 없을 때 이거라도 넘긴다.
+_SUBMIT_HINT = re.compile(r"제출\s*서류|구비\s*서류|신청\s*서류|신청\s*시\s*제출")
+
+
+def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumentsOut | None:
+    """공고가 요구하는 서류와 그 안의 작성 항목(plan/11 T-0039).
+
+    **공고와 문서를 잇는 표를 만들지 않았다.** `attachment → attachment_file → sha256`
+    조인으로 푼다. 재수집이 `attachment` 를 갈아엎어도 조인이 다시 붙는다(ADR-0022).
+    """
+    if source not in SOURCES:
+        return None
+
+    rows = s.execute(
+        select(Attachment, AttachmentFile, Document)
+        .join(AttachmentFile, AttachmentFile.url == Attachment.url)
+        .join(Document, Document.sha256 == AttachmentFile.sha256)
+        .where(Attachment.source == source, Attachment.external_id == external_id)
+        .order_by(Attachment.position, Document.seq)
+    ).all()
+
+    docs: list[DocumentOut] = []
+    undecided = 0
+    seen: set[int] = set()
+    for att, _file, doc in rows:
+        if doc.id in seen:
+            continue
+        seen.add(doc.id)
+        if doc.kind == str(DocumentKind.UNKNOWN):
+            undecided += 1
+            continue
+        if doc.kind == str(DocumentKind.NONE):
+            continue
+
+        items = s.scalars(
+            select(DocumentItem)
+            .where(DocumentItem.document_id == doc.id, DocumentItem.parent_id.is_(None))
+            .order_by(DocumentItem.ordinal)
+        ).all()
+        docs.append(
+            DocumentOut(
+                id=doc.id,
+                title=doc.title,
+                kind=doc.kind,
+                decided_by=doc.decided_by,
+                filename=att.filename,
+                url=att.url,
+                items=[
+                    DocumentItemOut(
+                        number=i.number,
+                        title=i.title,
+                        instruction=i.instruction,
+                        limit_text=i.limit_text,
+                        input_kind=i.input_kind,
+                        children=[],
+                    )
+                    for i in items
+                ],
+            )
+        )
+
+    return NoticeDocumentsOut(
+        source=source,
+        external_id=external_id,
+        documents=docs,
+        submit_hint=_hints(s, source, external_id) if not docs else [],
+        undecided=undecided,
+    )
+
+
+def _hints(s: Session, source: str, external_id: str) -> list[str]:
+    """양식이 없을 때 공고문에서 '무슨 서류를 내나' 만이라도 건진다.
+
+    **빈손으로 보내지 않는다**(DESIGN.md §7-5). 층 1 은 공고문에 있다.
+    """
+    paths = s.scalars(
+        select(AttachmentFile.text_path)
+        .join(Attachment, Attachment.url == AttachmentFile.url)
+        .where(
+            Attachment.source == source,
+            Attachment.external_id == external_id,
+            AttachmentFile.text_path.is_not(None),
+        )
+        .limit(4)
+    ).all()
+
+    out: list[str] = []
+    for p in paths:
+        try:
+            text = store.abs_path(p).read_text(errors="ignore")
+        except FileNotFoundError:
+            continue
+        for line in text.splitlines():
+            line = re.sub(r"\s{2,}", " ", line.replace("\t", " ")).strip()
+            if 6 <= len(line) <= 120 and _SUBMIT_HINT.search(line) and line not in out:
+                out.append(line)
+            if len(out) >= 4:
+                return out
+    return out

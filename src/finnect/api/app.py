@@ -17,7 +17,7 @@ from finnect.api.admin_schemas import (
     AdminNoticeDetailOut,
     AdminNoticeListOut,
 )
-from finnect.api.schemas import NoticeDetailOut, NoticeListOut
+from finnect.api.schemas import NoticeDetailOut, NoticeDocumentsOut, NoticeListOut
 from finnect.db import SessionFactory
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
@@ -56,6 +56,21 @@ def notice(source: str, external_id: str) -> NoticeDetailOut:
         found = service.get_notice(s, source, external_id)
     if found is None:
         raise HTTPException(404, f"없는 공고: {source}/{external_id}")
+    return found
+
+
+@app.get("/api/notices/{source}/{external_id}/documents", response_model=NoticeDocumentsOut)
+def notice_documents(source: str, external_id: str) -> NoticeDocumentsOut:
+    """이 공고에 무슨 서류를 내야 하고, 그 안에 무엇을 써야 하는가(plan/11).
+
+    **아직 칸 채우기 서식만 판정된다.** 서술형은 공고문의 절과 생김새가 같아 규칙이
+    네 번 실패했고, T-0036 이 LLM 으로 가른다. 그때까지 그 구간은 `undecided` 로만 센다 —
+    **모르는 것을 아는 척해서 공고문 목차를 작성 항목으로 내보내지 않는다.**
+    """
+    with SessionFactory() as s:
+        found = service.notice_documents(s, source, external_id)
+    if found is None:
+        raise HTTPException(404, f"모르는 출처: {source}")
     return found
 
 

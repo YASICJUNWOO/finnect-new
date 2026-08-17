@@ -68,6 +68,10 @@ def parse(path: Path, filename: str | None = None) -> Parsed:
     except UnicodeEncodeError as e:
         return Parsed(ParseStatus.FAILED, ext, parser, error=f"UTF-8 로 저장할 수 없다: {e}")
 
+    # NUL 이 섞여 온다. PostgreSQL 의 text 가 못 받는다.
+    # **지우지 않고 공백으로 바꾼다** — 길이가 달라지면 근거 오프셋이 어긋난다(ADR-0014).
+    text = text.replace("\x00", " ")
+
     return Parsed(ParseStatus.OK, ext, parser, text=text)
 
 

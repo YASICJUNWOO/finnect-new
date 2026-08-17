@@ -40,7 +40,55 @@ export type NoticeDocuments = {
   documents: FormDocument[];
   /** 양식이 첨부에 없을 때, 공고문이 서류에 대해 말한 줄. **원문 그대로다.** */
   submitHint: string[] | null;
+  /** 아직 안 갈라 낸 구간 수. 서술형 판정(T-0036)이 붙기 전까지 0 이 아니다. */
+  undecided?: number;
 };
+
+/** API 응답을 화면 모양으로. **매핑은 여기 한 곳에만 둔다.**
+ *
+ * 계약이 snake_case 고 화면은 camelCase 라 어디선가 한 번은 바뀐다. 그 자리를
+ * 컴포넌트 안에 흩어 두면 계약이 바뀔 때 고칠 곳을 못 찾는다. */
+export function fromApi(
+  api: {
+    documents: {
+      id: number;
+      title: string;
+      kind: string;
+      filename: string;
+      url: string | null;
+      items: {
+        number: string | null;
+        title: string;
+        instruction: string | null;
+        limit_text: string | null;
+        input_kind: string;
+      }[];
+    }[];
+    submit_hint: string[];
+    undecided: number;
+  },
+  notice: { id: string; source: string; title: string; url: string | null },
+): NoticeDocuments {
+  return {
+    notice,
+    documents: api.documents.map((d) => ({
+      id: String(d.id),
+      title: d.title,
+      kind: d.kind === "fields" ? "fields" : "narrative",
+      attachment: { filename: d.filename, url: d.url },
+      items: d.items.map((i) => ({
+        number: i.number,
+        title: i.title,
+        instruction: i.instruction,
+        limitText: i.limit_text,
+        inputKind: (i.input_kind as InputKind) ?? "field",
+        children: [],
+      })),
+    })),
+    submitHint: api.submit_hint.length > 0 ? api.submit_hint : null,
+    undecided: api.undecided,
+  };
+}
 
 /** 항목 수를 센다. 트리라서 자식까지 내려간다. */
 export function countItems(items: FormItem[]): number {

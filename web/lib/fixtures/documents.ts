@@ -505,7 +505,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         ]
       }
     ],
-    "submitHint": null
+    "submitHint": null,
+    "undecided": 0
   },
   "ai": {
     "notice": {
@@ -2400,7 +2401,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         ]
       }
     ],
-    "submitHint": null
+    "submitHint": null,
+    "undecided": 0
   },
   "empty": {
     "notice": {

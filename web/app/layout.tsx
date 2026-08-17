@@ -19,12 +19,15 @@ export const metadata: Metadata = {
  * 활성 표시가 '지원사업'에 박혀 있다. 지금 라우트가 목록과 상세 둘뿐이고
  * 시연도 그 둘에서 같은 항목을 켠다. **나머지 축이 생기면 `usePathname` 이 필요해진다.** */
 
-/** 운영 도구(`src/finnect/admin/`)로 나가는 문. **개발에서만 낸다.**
+/** 운영 도구(`src/finnect/admin/`)로 나가는 문. **배포본에도 낸다.**
  *
- * admin 은 Vercel 에 올라가지 않는다(ADR-0026) — 배포본에 두면 죽은 링크가 된다.
- * 3축 내비에 넣지 않는 이유도 같다. 제품 화면이 아니라 SPEC §6 밖의 도구다. */
-const ADMIN =
-  process.env.NODE_ENV === "development" ? process.env.FINNECT_ADMIN : undefined;
+ * 3축 내비에 넣지 않는다 — 제품 화면이 아니라 SPEC §6 밖의 도구다.
+ *
+ * **가리키는 곳은 보는 사람의 자기 기기다.** admin 은 Vercel 에 올라가지 않으므로
+ * (ADR-0026) 기본값이 `http://127.0.0.1:8000` 이다. 로컬에 admin 을 띄워 둔 사람에게는
+ * 열리고 그렇지 않은 사람에게는 아무것도 안 열린다. 배포된 admin 이 생기면
+ * `FINNECT_ADMIN` 을 그 주소로 주면 된다. */
+const ADMIN = process.env.FINNECT_ADMIN;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

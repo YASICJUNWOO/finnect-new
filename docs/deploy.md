@@ -122,6 +122,33 @@ vercel deploy
 
 ---
 
+## 5-1. Git 연동 (2026-08-17 붙였다)
+
+두 프로젝트 다 `YASICJUNWOO/finnect-new` 에 붙어 있다. **master 에 푸시하면 둘이 같이 프로덕션으로 배포된다.** 위 4·5단계의 `vercel deploy` 는 이제 손으로 올릴 때만 쓴다.
+
+| 프로젝트 | Root Directory | Production Branch |
+|---|---|---|
+| `finnect-api` | `.` (레포 루트) | `master` |
+| `finnect-web` | **`web`** | `master` |
+
+**기본 브랜치가 `main` 이 아니라 `master` 다.** Production Branch 를 `main` 으로 잡으면 푸시해도 프로덕션이 안 바뀐다.
+
+### 레포 루트 `vercel.json` 이 웹 빌드까지 먹는다
+
+프로젝트 둘이 레포 하나를 보는데 `vercel.json` 은 레포 루트에 한 벌뿐이다. **Root Directory 를 `web` 으로 잡아도 이 파일의 최상위 설정이 웹 빌드에 적용된다.**
+
+여기 `"framework": null` 이 들어 있어서 첫 Git 배포가 죽었다. 그 값은 "감지 안 함"이 아니라 **Other 프리셋을 고르는 값**이다. 빌드는 `web/` 에서 `next build` 까지 정상으로 갔는데, Vercel 이 산출물을 Next.js 가 아니라 정적 사이트로 보고 `public/` 을 찾다 실패했다.
+
+```
+Error: No Output Directory named "public" found after the Build completed.
+```
+
+**그래서 `framework` 키를 뺐다.** 두 프로젝트 다 프리셋을 Vercel 프로젝트 설정에서 받는다 — 웹은 `nextjs`, API 는 없음이다. `buildCommand`·`outputDirectory` 의 `null` 은 "자동"이라 남겨 뒀다.
+
+**루트 `vercel.json` 에 프런트 관련 최상위 키를 새로 넣지 않는다.** 넣으면 웹 빌드가 같이 끌려간다.
+
+---
+
 ## 6. 잠근다
 
 화면 대부분이 "아직 없어요"로 비어 있어 공개 제품이 아니다. 두 프로젝트 다 켠다.

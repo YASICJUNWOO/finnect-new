@@ -128,8 +128,31 @@ def from_hwp(path: Path) -> str:
         ole.close()
 
 
+#: HWPX 본문 토큰. **순서대로 훑어야** 문단·행·셀 경계가 제자리에 남는다.
+#: 태그 접두사(`hp:`)가 다를 수 있어 느슨하게 잡는다. `t` 패턴이 `tbl`·`tr`·`tc`·`tab`
+#: 을 삼키지 않는 것은 `t` 다음에 공백이나 `>` 를 요구하기 때문이다.
+_HWPX_TOKEN = re.compile(
+    r"<(?:\w+:)?t(?:\s[^>]*)?>(?P<text>.*?)</(?:\w+:)?t>"
+    r"|(?P<tab><(?:\w+:)?tab(?:\s[^>]*)?/?>)"
+    r"|(?P<para></(?:\w+:)?p>)"
+    r"|(?P<cell_open><(?:\w+:)?tc(?:\s[^>]*)?>)"
+    r"|(?P<cell_close></(?:\w+:)?tc>)"
+    r"|(?P<row_close></(?:\w+:)?tr>)",
+    re.S,
+)
+
+
 def from_hwpx(path: Path) -> str:
-    """HWPX 는 ZIP + XML 이다. 본문은 Contents/section*.xml 의 <hp:t>."""
+    """HWPX 는 ZIP + XML 이다. 본문은 Contents/section*.xml 의 <hp:t>.
+
+    **문단과 표 경계를 살린다**(plan/11 T-0032). 텍스트만 이어 붙이면 9,841자 문서가
+    1줄로 나와서 줄 단위 판정이 통째로 안 통한다 — 305건이 그 상태였다
+    ([실측](docs/adr/evidence/2026-08-17-양식-항목-추출-실측.md) §6.1).
+
+    규칙은 `from_docx` 와 같다. 문단은 줄바꿈, 셀은 탭, 행은 줄바꿈이다.
+    다만 **셀 안의 문단은 줄을 바꾸지 않는다.** 셀 내용이 `<hp:subList>` 안의 `<hp:p>`
+    라서 그대로 두면 `라벨` 과 `값` 이 다른 줄로 흩어져 행 구조가 도로 깨진다.
+    """
     texts: list[str] = []
     with zipfile.ZipFile(path) as z:
         names = sorted(n for n in z.namelist() if re.match(r"Contents/section\d+\.xml$", n))
@@ -137,11 +160,33 @@ def from_hwpx(path: Path) -> str:
             names = [n for n in z.namelist() if n.endswith(".xml") and "section" in n.lower()]
         for n in names:
             xml = z.read(n).decode("utf-8", errors="replace")
-            # 태그 접두사가 다를 수 있어 느슨하게 잡는다.
-            for m in re.finditer(r"<(?:\w+:)?t(?:\s[^>]*)?>(.*?)</(?:\w+:)?t>", xml, re.S):
-                texts.append(_unescape(re.sub(r"<[^>]+>", "", m.group(1))))
+            depth = 0  # 열려 있는 셀 수. 표가 중첩될 수 있어 불리언이 아니다.
+            for m in _HWPX_TOKEN.finditer(xml):
+                kind = m.lastgroup
+                if kind == "text":
+                    texts.append(_unescape(re.sub(r"<[^>]+>", "", m.group("text"))))
+                elif kind == "tab":
+                    texts.append("\t")
+                elif kind == "para":
+                    # 셀 안에서는 줄을 바꾸지 않는다. 행 하나가 한 줄로 남아야 한다.
+                    texts.append(" " if depth else "\n")
+                elif kind == "cell_open":
+                    if m.group("cell_open").endswith("/>"):
+                        texts.append("\t")  # 빈 셀. 열자마자 닫힌다
+                    else:
+                        depth += 1
+                elif kind == "cell_close":
+                    depth = max(0, depth - 1)
+                    texts.append("\t")
+                elif kind == "row_close":
+                    texts.append("\n")
             texts.append("\n")
-    return "".join(texts)
+    out = "".join(texts)
+    # 셀 안 문단이 남긴 공백이 탭 바로 앞에 붙는다. `기업명 \t값` 이 되면 짝이 안 보인다.
+    out = re.sub(r" +(?=[\t\n])", "", out)
+    # 셀을 닫을 때마다 탭이 붙어 행 끝에 하나가 남는다. **줄 끝만** 턴다 —
+    # 줄 가운데의 연속된 탭은 빈 셀이고, 양식에서 그게 채울 칸이다.
+    return re.sub(r"[ \t]+\n", "\n", out)
 
 
 def from_docx(path: Path) -> str:

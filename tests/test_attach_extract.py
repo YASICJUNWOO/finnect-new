@@ -36,6 +36,47 @@ def test_docx에서_텍스트가_나온다(tmp_path: Path) -> None:
     assert "사업계획서" in (got.text or "")
 
 
+#: 문단 둘과 2x2 표 하나. 셀 내용은 실물처럼 <hp:subList> 안의 <hp:p> 에 둔다.
+HWPX_BODY = """<?xml version="1.0"?><hs:sec xmlns:hp="x" xmlns:hs="y">
+<hp:p><hp:run><hp:t>2026년 지원사업 신청서</hp:t></hp:run></hp:p>
+<hp:p><hp:run><hp:t>기업 정보</hp:t></hp:run></hp:p>
+<hp:p><hp:run><hp:tbl rowCnt="2" colCnt="2">
+<hp:tr>
+ <hp:tc><hp:subList><hp:p><hp:run><hp:t>기업명</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+ <hp:tc><hp:subList><hp:p><hp:run><hp:t>(주)가나다</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+</hp:tr>
+<hp:tr>
+ <hp:tc><hp:subList><hp:p><hp:run><hp:t>대표자</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+ <hp:tc><hp:subList><hp:p><hp:run><hp:t>홍길동</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+</hp:tr>
+</hp:tbl></hp:run></hp:p>
+</hs:sec>""".encode()
+
+
+def test_hwpx가_문단을_줄로_남긴다(tmp_path: Path) -> None:
+    """텍스트만 이어 붙이면 9,841자 문서가 1줄로 나온다 — 305건이 그 상태였다."""
+    f = _zip(tmp_path / "신청서.hwpx", {"Contents/section0.xml": HWPX_BODY})
+
+    got = extract.parse(f, "신청서.hwpx")
+
+    assert got.status is ParseStatus.OK
+    assert got.parser == "hwpx/zip"
+    lines = [ln for ln in (got.text or "").splitlines() if ln.strip()]
+    assert lines[0] == "2026년 지원사업 신청서"
+    assert lines[1] == "기업 정보"
+
+
+def test_hwpx가_표를_행과_셀로_남긴다(tmp_path: Path) -> None:
+    """양식 항목은 셀 라벨로 산다. 라벨과 값이 같은 줄에 있어야 짝이 보인다."""
+    f = _zip(tmp_path / "신청서.hwpx", {"Contents/section0.xml": HWPX_BODY})
+
+    got = extract.parse(f, "신청서.hwpx")
+
+    lines = [ln for ln in (got.text or "").splitlines() if ln.strip()]
+    assert "기업명\t(주)가나다" in lines
+    assert "대표자\t홍길동" in lines
+
+
 def test_이미지는_실패가_아니라_미지원이다(tmp_path: Path) -> None:
     """'안 해봤다'와 '해봤는데 안 됐다'는 다른 사실이다."""
     f = tmp_path / "공고문.png"

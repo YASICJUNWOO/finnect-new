@@ -92,6 +92,24 @@ def _cell(col: int, row: int) -> bytes:
     return b"\x00" * 8 + struct.pack("<HHHH", col, row, 1, 1)
 
 
+def test_배포용_문서는_해독_성공이_아니다() -> None:
+    """본문이 ViewText 에 있고 BodyText 에는 '뷰어가 필요합니다' 안내문만 있다.
+
+    그냥 두면 107자짜리 '해독 성공'으로 남는다 — 조용한 누락과 같다.
+    """
+    import pytest
+
+    from finnect.attach import hwp
+
+    with pytest.raises(ValueError, match="배포용"):
+        hwp._reject_flags(0x5)  # 압축 + 배포용. 실측 5건이 전부 이 값이다
+
+    with pytest.raises(ValueError, match="암호"):
+        hwp._reject_flags(0x3)
+
+    hwp._reject_flags(0x4001)  # ViewText 는 있으나 배포용이 아니다. 멀쩡히 해독된다
+
+
 def test_표_컨트롤_id는_뒤집혀_들어온다() -> None:
     """실물에서 확인한 바이트다. 상수를 뒤집어 쓰면 표를 하나도 못 찾는다.
 

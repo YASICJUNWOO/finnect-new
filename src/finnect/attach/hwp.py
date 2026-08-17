@@ -106,6 +106,30 @@ def _para_text(payload: bytes) -> str:
     return struct.pack(f"<{len(kept)}H", *kept).decode("utf-16-le", errors="replace")
 
 
+#: FileHeader 속성 비트. 0 압축 · 1 암호 · 2 배포용 문서.
+HWP_FLAG_COMPRESSED = 0x1
+HWP_FLAG_ENCRYPTED = 0x2
+HWP_FLAG_DISTRIBUTION = 0x4
+
+
+def _reject_flags(flags: int) -> None:
+    """열어 봤자 본문이 안 나오는 문서를 **실패로 돌려세운다**(T-0034).
+
+    배포용 문서는 본문이 `BodyText` 가 아니라 `ViewText` 에 암호화돼 들어간다.
+    `BodyText` 에는 "최신 버전의 글 또는 글 전용 뷰어가 필요합니다" 안내문만 있어서,
+    그냥 두면 **107자짜리 '해독 성공'** 으로 남는다. 조용한 누락과 같은 것이라
+    plan/07 의 "조용한 누락 0건" 검증에 구멍이 됐다.
+
+    실측 5건이 전부 이 비트다. `ViewText` 스트림만 있고 이 비트가 없는 4건은
+    멀쩡히 해독되므로 **스트림 유무가 아니라 이 비트로 가른다.**
+    """
+    if flags & HWP_FLAG_ENCRYPTED:
+        # 암호가 걸린 문서. 풀 수 없는 것과 파서가 틀린 것을 구분해서 남긴다.
+        raise ValueError("암호가 걸린 문서다")
+    if flags & HWP_FLAG_DISTRIBUTION:
+        raise ValueError("배포용 문서다 — 본문이 ViewText 에 암호화돼 있다")
+
+
 class _Table:
     """열려 있는 표 하나. 셀을 (행, 열)로 받아 두었다가 끝날 때 행 단위로 편다."""
 
@@ -204,9 +228,7 @@ def from_hwp(path: Path) -> str:
             raise ValueError("HWP 시그니처 없음")
         (flags,) = struct.unpack_from("<I", header, 36)
         compressed = bool(flags & 1)
-        if flags & 2:
-            # 암호가 걸린 문서. 풀 수 없는 것과 파서가 틀린 것을 구분해서 남긴다.
-            raise ValueError("암호가 걸린 문서다")
+        _reject_flags(flags)
 
         sections = sorted(
             ("/".join(e) for e in ole.listdir() if e[0] == "BodyText"),

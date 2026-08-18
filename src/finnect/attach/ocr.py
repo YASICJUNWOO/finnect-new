@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +27,16 @@ IMAGE_EXTS = frozenset({"jpg", "png", "gif", "bmp", "tiff", "webp"})
 
 #: 렌더 해상도. 200 → 300 에서 실측 차이가 없었으나 300 이 안전한 쪽이다.
 DPI = 300
+
+#: 그림을 이 정도 긴 변까지 키운 뒤 넣는다. **PDF 경로와 실효 해상도를 맞추는 값이다** —
+#: A4 를 300dpi 로 렌더하면 2339px 이 나온다.
+#:
+#: 안 맞추면 조용히 실패한다. 1400x1050 사진에서 글자를 하나(`Ⅲ`)만 읽고 `ok` 로
+#: 기록됐는데, 2배로 키우니 `2025.07.14` 와 `자체QR부착구간` 이 나왔다.
+MIN_LONG_SIDE = 2300
+
+#: 확대 상한. 아이콘만 한 그림을 4배 넘게 늘려도 없던 글자가 생기지는 않는다.
+MAX_SCALE = 4.0
 
 _engine: Any = None
 
@@ -75,12 +88,23 @@ def _read(img: Any) -> str:
     return "\n".join(t for t in (res.txts or []) if t and t.strip())
 
 
+def upscale(im: PILImage) -> PILImage:
+    """작은 그림을 키운다. **PDF 경로가 300dpi 로 렌더하는 것과 같은 일이다.**"""
+    from PIL import Image
+
+    long_side = max(im.size)
+    if long_side >= MIN_LONG_SIDE:
+        return im
+    scale = min(MIN_LONG_SIDE / long_side, MAX_SCALE)
+    return im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
+
+
 def from_image(path: Path) -> str:
     import numpy as np
     from PIL import Image
 
     with Image.open(path) as im:
-        return _read(np.array(im.convert("RGB")))
+        return _read(np.array(upscale(im.convert("RGB"))))
 
 
 def pages_from_pdf(path: Path) -> list[str]:

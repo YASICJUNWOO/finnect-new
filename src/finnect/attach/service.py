@@ -285,3 +285,106 @@ def per_notice(s: Session, source: str, external_id: str) -> dict[str, Attachmen
         return {}
     rows = s.scalars(select(AttachmentFile).where(AttachmentFile.url.in_(urls)))
     return {r.url: r for r in rows}
+
+
+# --- OCR 되돌아보기 (ADR-0030) ----------------------------------------------
+
+
+@dataclass(slots=True)
+class OcrReport:
+    """스캔본에 OCR 을 돌린 결과."""
+
+    total: int = 0  # 대상
+    done: int = 0
+    ok: int = 0  # 글자가 나왔다
+    still_empty: int = 0  # OCR 을 돌렸는데도 0자
+    failed: int = 0
+    pages: int = 0
+    chars: int = 0
+    seconds: float = 0.0
+    problems: list[tuple[str, str]] = field(default_factory=list)
+
+    def render(self) -> str:
+        per = f"{self.seconds / self.pages:.1f}초/쪽" if self.pages else "-"
+        lines = [
+            f"[OCR] 대상 {self.total}건 · 처리 {self.done}건 · {self.pages}쪽 · "
+            f"{self.seconds / 60:.1f}분 ({per})",
+            f"  글자 나옴   {self.ok}건 · {self.chars:,}자",
+            f"  여전히 0자  {self.still_empty}건",
+            f"  실패        {self.failed}건",
+        ]
+        if self.problems:
+            lines.append("  [실패한 것]")
+            lines += [f"    {n[:56]}  —  {w}" for n, w in self.problems[:20]]
+        return "\n".join(lines)
+
+
+def ocr_pass(
+    *,
+    limit: int | None = None,
+    on_progress: Callable[[OcrReport], None] | None = None,
+) -> OcrReport:
+    """**텍스트 레이어가 0자인 것만** 다시 본다(ADR-0030).
+
+    새로 받지 않는다. 디스크에 있는 파일을 다시 읽을 뿐이라 `--redo` 와 같은 성격이다.
+    다만 비용이 다르다 — 텍스트 레이어는 밀리초, OCR 은 쪽당 십수 초다. 그래서
+    **`run()` 안에 넣지 않고 따로 부른다.**
+
+    대상을 `EMPTY` 로 좁힌 것이 요점이다. 읽히는 PDF 까지 OCR 로 돌리면 2,827건에
+    쪽당 십수 초를 쓴다.
+    """
+    report = OcrReport()
+
+    with SessionFactory() as s:
+        rows = list(
+            s.scalars(
+                select(AttachmentFile)
+                .where(AttachmentFile.parse_status == str(ParseStatus.EMPTY))
+                .order_by(AttachmentFile.byte_size)
+            )
+        )
+        report.total = len(rows)
+        if limit is not None:
+            rows = rows[:limit]
+
+        for i, row in enumerate(rows, 1):
+            if not store.exists(row.stored_path):
+                report.failed += 1
+                report.problems.append((row.server_filename or row.url, "원본이 없다"))
+                continue
+
+            path = store.abs_path(row.stored_path)  # type: ignore[arg-type]
+            started = time.monotonic()
+            parsed = extract.parse(path, row.server_filename, use_ocr=True)
+            report.seconds += time.monotonic() - started
+            report.pages += len(parsed.pages) or 1
+            report.done += 1
+
+            row.parse_status = str(parsed.status)
+            row.parser = parsed.parser
+            row.parse_error = parsed.error
+            row.parsed_at = func.now()
+
+            if parsed.status is ParseStatus.OK and parsed.text:
+                row.text_chars = len(parsed.text)
+                row.text_path = store.put_text(row.sha256, parsed.text)  # type: ignore[arg-type]
+                report.ok += 1
+                report.chars += row.text_chars
+            elif parsed.status is ParseStatus.EMPTY:
+                row.text_chars = 0
+                report.still_empty += 1
+            else:
+                report.failed += 1
+                report.problems.append(
+                    (row.server_filename or row.url, parsed.error or str(parsed.status))
+                )
+
+            if i % 5 == 0:
+                s.commit()
+                if on_progress is not None:
+                    on_progress(report)
+        s.commit()
+
+    if on_progress is not None:
+        on_progress(report)
+    return report

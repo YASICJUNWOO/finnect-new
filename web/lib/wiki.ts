@@ -144,6 +144,13 @@ export type FileProgress = {
   detail: string | null;
   chunk_count: number | null;
   page_count: number | null;
+  /** 해독 글자 수. **0 이면 스캔본이다** — OCR 이 붙어야 찬다 */
+  text_chars: number | null;
+  /** 무엇으로 읽었나. **`ocr/` 로 시작하면 사진에서 읽은 것이다** — 화면은 그것만 본다.
+   *  `pdf/plumber` 같은 구현 이름은 우리 사정이라 올리지 않는다(DESIGN.md §8.3-1) */
+  parser: string | null;
+  /** 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다** — 다 더해도 위키의 사실 수가 아니다 */
+  fact_count: number;
   /** 이 파일이 채운 궤도 자리들. **키다** — 이름은 `Progress.places` 가 준다 */
   nodes: string[];
 };

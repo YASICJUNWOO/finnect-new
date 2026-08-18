@@ -25,7 +25,7 @@ from finnect.api.wiki_schemas import (
     WikiNodeOut,
     WikiOut,
 )
-from finnect.models import WikiFact, WikiPlace
+from finnect.models import WikiEvidence, WikiFact, WikiPlace
 from finnect.wiki import build, markdown, merge, progress, topics
 
 
@@ -146,6 +146,17 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
     files = build.read_files(session, company_id)
     nodes = build.read_orbit(session, company_id)
 
+    # **칸마다 무엇이 나왔는지 같이 낸다**(plan/15 T-0062). 넷은 컬럼에서 오는데
+    # 사실 수만 근거에서 온다 — `wiki_evidence` 가 파일과 사실을 잇는 유일한 자리다.
+    # `distinct` 인 것은 한 사실이 같은 파일의 청크 여럿을 근거로 들 수 있기 때문이다.
+    facts = dict(
+        session.execute(
+            select(WikiEvidence.user_file_id, func.count(func.distinct(WikiEvidence.fact_id)))
+            .where(WikiEvidence.company_id == company_id)
+            .group_by(WikiEvidence.user_file_id)
+        ).all()
+    )
+
     rows: list[FileProgressOut] = []
     for uf, made in files:
         stage = progress.stage_of(uf.status, running=running)
@@ -164,6 +175,9 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
                 detail=uf.parse_error or None,
                 chunk_count=uf.chunk_count,
                 page_count=uf.page_count,
+                text_chars=uf.text_chars,
+                parser=uf.parser,
+                fact_count=facts.get(uf.id, 0),
                 nodes=made,
             )
         )

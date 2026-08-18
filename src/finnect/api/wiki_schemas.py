@@ -149,6 +149,15 @@ class FileProgressOut(BaseModel):
     detail: str | None
     chunk_count: int | None
     page_count: int | None
+    #: 해독 글자 수. **0 이면 스캔본이다** — OCR 이 붙어야 찬다(ADR-0030)
+    text_chars: int | None
+    #: 무엇으로 읽었나. `<종류>/<구현>` 이고 **`ocr/` 로 시작하면 사진에서 읽은 것이다**
+    #: (`attach/extract.py` `OCR_PARSER`). 화면은 그 하나만 보고 구현 이름은 안 보여 준다 —
+    #: `pdf/plumber` 는 우리 사정이고 사용자가 조작하는 대상이 아니다(DESIGN.md §8.3-1)
+    parser: str | None
+    #: 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다** — 병합된 사실은 근거가 여럿이라
+    #: 두 파일에서 각각 한 번 세어진다. **다 더해도 위키의 사실 수가 아니다**
+    fact_count: int
     #: 이 파일이 근거가 된 궤도 자리들. 비어 있으면 아직 아무것도 못 채웠다
     nodes: list[str]
 

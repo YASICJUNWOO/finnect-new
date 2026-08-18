@@ -124,6 +124,18 @@ def test_올리기가_파서를_최상단에서_안_끌고_온다():
     assert not (top & bad), f"최상단에서 끌고 온다: {top & bad}"
 
 
+def test_ocr_로_읽은_것을_화면이_알아볼_수_있다():
+    """화면은 파서 이름 중 **`ocr/` 접두사 하나만 본다**(`components/Upload.tsx` `yieldOf`).
+
+    구현 이름(`pdf/plumber`)은 우리 사정이라 화면에 안 올린다(DESIGN.md §8.3-1). 그런데
+    사진에서 읽은 글자는 굵은 제목이 깨져서(ADR-0030) 위키 값이 이상할 때 사용자가 이유를
+    알아야 한다. **접두사가 바뀌면 화면은 조용히 그 말을 안 한다** — 그래서 여기서 막는다.
+    """
+    from finnect.attach.extract import OCR_PARSER
+
+    assert OCR_PARSER.startswith("ocr/")
+
+
 # ─────────────────────────────────────────────────────────────────
 # 실제 응답 — DB 가 있어야 한다
 # ─────────────────────────────────────────────────────────────────
@@ -174,3 +186,33 @@ def test_셈이_파일_수와_맞는다(client) -> None:  # noqa: ANN001
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
     assert body.done + body.moving + body.needs_review + body.stuck == body.total
+
+
+def test_칸마다_낼_것이_같이_온다(client) -> None:  # noqa: ANN001
+    """**점만으로는 어디서 멈췄는지 안 보였다**(T-0062).
+
+    화면이 칸 다섯을 펼치면서 각 칸이 무엇을 냈는지 말한다 — 글자 수 · 조각 수 · 사실 수다.
+    이 값이 응답에 없으면 칸 이름만 늘어놓게 되고, 그건 점 다섯과 같은 정보량이다.
+    """
+    body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
+    done = [f for f in body.files if f.ok]
+    if not done:
+        pytest.skip("다 된 파일이 없다. 픽스처를 넣고 다시 돈다")
+
+    for f in done:
+        assert f.text_chars is not None, f.filename
+        assert f.chunk_count is not None, f.filename
+        assert f.fact_count > 0, f.filename
+        assert f.parser and "/" in f.parser, f.filename
+
+
+def test_자리를_채운_파일에는_사실이_있다(client) -> None:  # noqa: ANN001
+    """**둘 다 근거에서 온다.** `nodes` 는 사실이 앉은 궤도 자리이고 `fact_count` 는 그
+    사실 수라, 자리를 채웠는데 사실이 0이면 조인 하나가 틀린 것이다.
+
+    거꾸로는 성립하지 않는다 — 사실이 `uncategorized` 로 앉으면 궤도 자리가 없다.
+    """
+    body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
+    for f in body.files:
+        if f.nodes:
+            assert f.fact_count > 0, f"{f.filename}: 자리 {f.nodes} · 사실 {f.fact_count}"

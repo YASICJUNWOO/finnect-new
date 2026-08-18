@@ -147,7 +147,14 @@ export type NoticeDocuments = {
   undecided: number;
 };
 
-/** 서류가 없어도 화면은 뜬다. **못 불러온 것과 없는 것을 섞지 않는다.** */
+/** 서류를 못 불러와도 **공고 상세는 떠야 한다.**
+ *
+ * 처음에 404 만 삼키고 나머지를 던졌더니 배포본에서 상세가 통째로 500 이 됐다.
+ * 배포 DB 에 `document` 표가 아직 없었는데, **곁다리 섹션 하나가 본문을 죽인 것이다.**
+ *
+ * 그래서 어떤 실패든 null 로 돌려세운다. **null 은 "양식이 없다"가 아니라 "모른다"다** —
+ * 화면은 섹션을 아예 안 그린다. 빈 화면("양식이 첨부에 없어요")은 서버가 빈 목록을
+ * 줬을 때만 뜬다. 둘을 섞으면 우리가 못 읽은 것을 공고 탓으로 돌리게 된다. */
 export async function getNoticeDocuments(
   source: string,
   id: string,
@@ -157,7 +164,7 @@ export async function getNoticeDocuments(
       `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(id)}/documents`,
     );
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) return null;
-    throw e;
+    console.error("서류를 못 불러왔다 — 상세는 그대로 띄운다", e);
+    return null;
   }
 }

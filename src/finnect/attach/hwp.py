@@ -407,21 +407,28 @@ def sheets_from_xlsx(path: Path) -> list[str]:
     """
     from openpyxl import load_workbook
 
-    wb = load_workbook(str(path), data_only=True, read_only=True)
-    try:
-        out: list[str] = []
-        for ws in wb.worksheets:
-            lines = [f"## {ws.title}"]
-            for row in ws.iter_rows():
-                cells = [_cell(c.value, c.number_format or "") for c in row]
-                while cells and not cells[-1]:
-                    cells.pop()  # 오른쪽 빈 칸은 버린다. 탭만 남은 줄이 생긴다
-                if any(cells):
-                    lines.append("\t".join(cells))
-            out.append("\n".join(lines))
-        return out
-    finally:
-        wb.close()
+    # **경로가 아니라 열어서 넘긴다.** openpyxl 은 파일 이름의 확장자를 보고 거절하는데
+    # (`InvalidFileException: does not support  file format`), 우리 저장소는 콘텐츠
+    # 주소라 이름에 확장자가 없다(ADR-0022 · ADR-0029). 포맷 판정은 `formats.detect` 가
+    # 내용으로 이미 끝냈다 — 여기서 이름을 다시 볼 이유가 없다.
+    #
+    # `read_only=True` 는 시트를 게으르게 읽으므로 **핸들을 다 읽을 때까지 열어 둔다.**
+    with path.open("rb") as fp:
+        wb = load_workbook(fp, data_only=True, read_only=True)
+        try:
+            out: list[str] = []
+            for ws in wb.worksheets:
+                lines = [f"## {ws.title}"]
+                for row in ws.iter_rows():
+                    cells = [_cell(c.value, c.number_format or "") for c in row]
+                    while cells and not cells[-1]:
+                        cells.pop()  # 오른쪽 빈 칸은 버린다. 탭만 남은 줄이 생긴다
+                    if any(cells):
+                        lines.append("\t".join(cells))
+                out.append("\n".join(lines))
+            return out
+        finally:
+            wb.close()
 
 
 def from_xlsx(path: Path) -> str:

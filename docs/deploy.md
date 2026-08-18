@@ -1,24 +1,37 @@
-# deploy — 읽기 경로를 Vercel에 올린다
+# deploy — 화면은 Vercel, API 와 워커는 자체 서버
 
-> 기준 2026-08-17. 결정은 [ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md)과 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).
-> **올라가는 것은 읽기 경로 전부다** — 제품 화면 둘, 운영 조회 화면 넷, 그리고 그걸 먹이는 API.
-> 수집·해독과 **수집 실행 버튼**은 로컬에 남는다.
+> 기준 2026-08-18. 결정은 [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md).
+> **2026-08-17 구조에서 API 가 내려왔다** — 올리기가 서버리스 읽기 전용 파일시스템에서
+> 안 되기 때문이다([ADR-0026](adr/0026-읽기-경로만-vercel에-올린다.md)은 대체됐다).
 
 ```
-브라우저 ──▶ finnect-web (Vercel · Next.js)
-                  ├── (product)/   제품 화면 둘
-                  └── admin/       운영 조회 화면 넷 (ADR-0027)
-                  │  서버 컴포넌트가 부른다. 브라우저는 API 주소를 모른다
+브라우저 ──▶ finnect-web (Vercel · Next.js · HTTPS)
+                  │  서버 컴포넌트와 라우트 핸들러가 부른다.
+                  │  **브라우저는 API 주소를 모른다** — 그래서 HTTPS 화면이
+                  │  HTTP API 를 불러도 mixed content 가 아니다
+                  ▼  FINNECT_API + X-Finnect-Token
+             Caddy :80  (이 서버 · Docker · 호스트 네트워크)
                   ▼
-             finnect-api (Vercel · Python Function)
-                  │  GET /api/notices · GET /api/admin/*
+             uvicorn 127.0.0.1:8101  (systemd --user · 워커 1)
                   ▼
-             Neon PostgreSQL  ◀── 로컬에서 부은 스냅숏
+             Docker PostgreSQL :55433   +   data/user-files/  ·  data/attachments/
 ```
 
-**배포본은 스냅숏이다.** 공고가 갱신돼도 저절로 안 따라간다. 4단계를 다시 돌려야 한다.
+**스냅숏이 없어졌다.** 수집하는 자리와 서비스하는 자리가 같아져서 Neon 도
+`pg_dump` 왕복도 필요 없다. 공고를 새로 받으면 **그 즉시 화면에 보인다.**
+
+| 어디 | 무엇 | 포트 |
+|---|---|---|
+| Vercel `finnect-web` | 제품 화면 · 운영 조회 화면 넷 | 443 |
+| 이 서버 Caddy | 바깥 문. 토큰 검사는 API 가 한다 | **80** |
+| 이 서버 uvicorn | 제품 API + 운영 API + 올리기 | 8101 |
+| 이 서버 uvicorn (개발) | **배포와 별개다.** 손으로 띄운다 | 8100 |
+| 이 서버 PostgreSQL | 유일한 DB | 55433 (로컬만) |
+
+**포트 80 을 OpenStack 보안 그룹에서 열어야 한다.** 이 저장소 밖의 일이다.
 
 ---
+
 
 ## 0. 준비
 
@@ -33,7 +46,79 @@ vercel login
 
 ---
 
-## 1. Neon PostgreSQL 을 붙인다
+## A. 이 서버에 API 를 세운다
+
+**여기가 지금의 1~4장이다.** 아래 1~4장은 API 가 Vercel 에 있던 시절 절차이고
+[ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md)가 대체했다.
+지우지 않고 두는 이유는 거기 적힌 함정이 되돌릴 때 다시 필요해서다.
+
+### A-1. 토큰을 만든다
+
+**`.env` 에 넣지 않는다.** 거기 두면 개발 서버(`--port 8100`)도 읽어서 `npm run dev`
+가 401 을 받는다. 레포 밖에 두고 systemd 만 읽게 한다.
+
+```bash
+mkdir -p ~/.config/finnect
+python3 -c "import secrets; print('API_TOKEN=' + secrets.token_urlsafe(32))" \
+  > ~/.config/finnect/api.env
+chmod 600 ~/.config/finnect/api.env
+```
+
+환경변수가 `.env` 보다 우선이라 **이 파일이 있는 프로세스에서만 토큰 검사가 켜진다.**
+
+### A-2. API 를 서비스로 올린다
+
+```bash
+cp deploy/finnect-api.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now finnect-api
+systemctl --user status finnect-api
+```
+
+`linger` 가 켜져 있어야 로그아웃·재부팅 뒤에도 산다. 이미 켜져 있다.
+
+```bash
+loginctl show-user "$USER" -p Linger    # Linger=yes
+```
+
+**`--workers 1` 을 늘리지 않는다.** `ingest/jobs.py` 의 락이 `threading.Lock` 이라
+프로세스 안에서만 산다. 늘리면 같은 회사의 위키 구축이 두 번 동시에 돌고 청크가 두 벌 생긴다.
+
+**8101 이다. 8100 이 아니다** — 8100 은 개발용으로 비워 둔다. 배포 서비스가 떠 있어도
+`uv run uvicorn finnect.api.app:app --port 8100` 이 그대로 된다.
+
+### A-3. 문을 연다
+
+```bash
+docker compose up -d db proxy
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/healthz     # 200
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/api/notices  # 401
+```
+
+**401 이 나와야 정상이다.** 200 이 나오면 토큰이 안 켜진 것이고, 그 상태로 포트를 열면
+`POST /api/wiki/{company_id}/files` 가 인터넷에 열린 업로드 창구가 된다.
+
+```bash
+TOKEN=$(grep '^API_TOKEN=' ~/.config/finnect/api.env | cut -d= -f2-)
+curl -s -o /dev/null -w "%{http_code}\n" -H "x-finnect-token: $TOKEN" \
+  http://127.0.0.1/api/notices    # 200
+```
+
+**Caddy 가 호스트 네트워크로 돈다.** uvicorn 이 `127.0.0.1` 에만 붙어 있어서 다리
+네트워크의 `host.docker.internal`(172.17.0.1)로는 안 닿는다 — 502 가 난다.
+
+### A-4. 도메인이 생기면
+
+`deploy/Caddyfile` 의 `:80` 을 도메인 이름으로 바꾸는 것이 전부다. Caddy 가 인증서를
+받고 갱신한다. **그러기 전까지 Vercel 과 이 서버 사이가 평문이라 실제 개인정보를 올리지 않는다.**
+
+---
+
+## ~~1. Neon PostgreSQL 을 붙인다~~ (대체됨)
+
+> **[ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md)로 대체됐다.**
+> DB 가 이 서버의 Docker PostgreSQL 하나다. 아래는 되돌릴 때를 위해 남긴다.
+
 
 Vercel Marketplace 에서 만든다.
 
@@ -51,7 +136,9 @@ postgresql+psycopg://<user>:<pw>@<host>-pooler.<region>.aws.neon.tech/<db>?sslmo
 
 ---
 
-## 2. 스키마를 만든다
+## ~~2. 스키마를 만든다~~ (대체됨)
+
+> API 와 DB 가 이 서버로 내려와 이 단계가 없어졌다. A 장을 본다.
 
 로컬에서 원격 DB 를 향해 alembic 을 돌린다. **`notice` 뷰까지 이 단계가 만든다.**
 
@@ -82,7 +169,9 @@ DATABASE_URL='postgresql+psycopg://...-pooler.../neondb?sslmode=require' \
 
 ---
 
-## 3. 데이터를 붓는다
+## ~~3. 데이터를 붓는다~~ (대체됨)
+
+> API 와 DB 가 이 서버로 내려와 이 단계가 없어졌다. A 장을 본다.
 
 로컬 DB 에서 뜬 덤프를 그대로 넣는다. **여섯 표 전부**다 — 두 공고 표가 `raw_fetch` 에 FK 로 걸려 있어서 뺄 수 없다.
 
@@ -110,7 +199,9 @@ psql '<원본 URL>' -c 'select source, count(*) from notice group by source'
 
 ---
 
-## 4. API 를 올린다
+## ~~4. API 를 올린다~~ (대체됨)
+
+> API 와 DB 가 이 서버로 내려와 이 단계가 없어졌다. A 장을 본다.
 
 레포 루트가 프로젝트 루트다. `vercel.json` 과 `requirements.txt` 와 `api/index.py` 가 이미 있다.
 
@@ -137,11 +228,37 @@ curl -s '<배포 URL>/api/notices?page=1' | head -c 200
 ```bash
 cd web
 vercel link          # 프로젝트 이름 finnect-web
-vercel env add FINNECT_API production   # 아래를 읽고 값을 고른다
+vercel env add FINNECT_API production        # http://49.247.203.210
+vercel env add FINNECT_API_TOKEN production  # ~/.config/finnect/api.env 의 값
 vercel deploy
 ```
 
-### `FINNECT_API` 에 **배포 URL을 넣지 않는다**
+### 값 둘 (2026-08-18 · [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md))
+
+```
+FINNECT_API        = http://49.247.203.210
+FINNECT_API_TOKEN  = <~/.config/finnect/api.env 의 API_TOKEN 과 같은 값>
+```
+
+**둘의 성질이 다르다. 여기서 자주 틀린다.**
+
+| | 어디서 읽나 | 바꾸면 |
+|---|---|---|
+| `FINNECT_API` | `next.config.ts` 의 `env` — **빌드 시점에 박힌다** | **재배포해야 한다** |
+| `FINNECT_API_TOKEN` | `web/lib/api.ts` 가 런타임에 읽는다 | 재배포 없이 바로 먹는다 |
+
+토큰이 `env` 에 없는 것은 **의도다.** 시크릿을 번들에 박지 않고, 돌릴 때 빌드를 안 기다린다.
+
+**`FINNECT_API_BYPASS` 는 이제 아무것도 안 한다.** Vercel Authentication 이 지키던
+API 가 없어졌다. 지워도 되고 둬도 무해하다 — `authHeaders()` 가 값이 있으면 헤더를
+붙이지만 받는 쪽이 무시한다.
+
+**http 다.** 도메인이 없어 인증서를 못 받는다. 브라우저가 API 를 직접 안 부르므로
+mixed content 는 안 걸린다 — 부르는 것은 Vercel 의 서버 쪽이다.
+
+### `FINNECT_API` 에 **Vercel 배포 URL을 넣지 않는다** (옛 함정)
+
+> API 가 이 서버로 내려와 이 함정은 지나갔다. 되돌릴 때를 위해 남긴다.
 
 `vercel deploy` 가 찍어 주는 `finnect-<해시>-<팀>.vercel.app` 은 **그 배포에 못 박힌 불변 주소다.** 넣으면 그날은 돌고, **API 에 새 경로가 생겨도 웹은 영원히 못 본다.**
 

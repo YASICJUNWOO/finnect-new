@@ -7,9 +7,13 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Query
+import secrets
+from typing import Annotated
+
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from sqlalchemy import select
 
 from finnect.api import admin_service, service, wiki_service
 from finnect.api.admin_schemas import (
@@ -19,19 +23,66 @@ from finnect.api.admin_schemas import (
     AdminNoticeListOut,
 )
 from finnect.api.schemas import NoticeDetailOut, NoticeDocumentsOut, NoticeListOut
-from finnect.api.wiki_schemas import WikiOut
+from finnect.api.wiki_schemas import ProgressOut, UploadOut, WikiOut
+from finnect.config import settings
 from finnect.db import SessionFactory
+from finnect.ingest import jobs
+from finnect.models import UserFile, UserFileStatus
+from finnect.wiki import storage
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
+
+#: 토큰 없이 여는 경로. 살아 있는지만 답하고 아무것도 흘리지 않는다.
+_OPEN = frozenset({"/healthz"})
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    """토큰이 설정돼 있으면 요구한다(ADR-0035).
+
+    **비어 있으면 아무것도 안 한다.** 로컬은 지금까지처럼 그냥 돌고, 배포 서버에서만
+    켜진다 — 켜는 것을 잊는 쪽이 위험하지만, 로컬에서 토큰을 강제하면 테스트와
+    `--reload` 가 전부 토큰을 들고 다녀야 해서 그 대가가 더 크다.
+
+    **`compare_digest` 를 쓴다.** `==` 는 앞에서부터 비교하다 다른 글자에서 멈춰서
+    맞은 글자 수가 응답 시간에 새어 나온다.
+
+    **바이트로 바꿔 넣는다.** `compare_digest` 는 비ASCII 문자열을 받으면 `TypeError`
+    를 내는데, 그러면 토큰에 한글 한 글자만 섞여도 **401 이 아니라 500 이 난다.**
+    토큰은 환경변수라 그런 값이 실제로 들어올 수 있다. (다만 HTTP 헤더가 비ASCII 를
+    못 실으므로 그런 토큰은 아무도 통과 못 한다 — 500 대신 401 로 막힐 뿐이다.)
+
+    CORS 보다 **먼저 더한다.** Starlette 은 나중에 더한 미들웨어가 바깥이라, 이렇게
+    해야 CORS 가 바깥에 서서 preflight 를 토큰 검사 전에 처리한다.
+    """
+    if settings.api_token and request.url.path not in _OPEN:
+        sent = request.headers.get("x-finnect-token", "")
+        if not secrets.compare_digest(sent.encode(), settings.api_token.encode()):
+            # **무엇이 틀렸는지 나누지 않는다.** "헤더가 없다"와 "값이 다르다"를
+            # 구분해 주면 그것 자체가 단서다.
+            return JSONResponse({"detail": "토큰이 없거나 틀렸어요"}, status_code=401)
+    return await call_next(request)
+
 
 # 로컬 개발용. Next.js dev 서버가 :3000 에서 뜬다.
 # **원격 배포 때 다시 정한다** — ADR-0023 "안 정한 것".
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_methods=["GET"],
+    # **POST 가 붙었다**(plan/15). 올리기 하나뿐이고 나머지는 전부 GET 이다.
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    """살아 있나. **토큰 없이 열려 있다**(`_OPEN`).
+
+    systemd 와 리버스 프록시가 물어보는 자리다. DB 를 건드리지 않는다 — DB 가 잠깐
+    흔들릴 때 프로세스까지 재시작되면 복구가 더 느려진다.
+    """
+    return {"status": "ok"}
 
 
 @app.get("/api/notices", response_model=NoticeListOut)
@@ -115,6 +166,164 @@ def wiki_markdown(company_id: str) -> PlainTextResponse:
     if body is None:
         raise HTTPException(404, f"아직 위키가 없어요: {company_id}")
     return PlainTextResponse(body, media_type="text/markdown; charset=utf-8")
+
+
+# --- 올리기와 진행 표시 (S1 · plan/15) --------------------------------------
+#
+# **여기가 이 API 의 유일한 쓰기 경로다.** 나머지는 전부 GET 이다.
+#
+# **못 쓰는 곳에서는 503 이다**(ADR-0034). 조건을 환경 이름으로 적지 않고 **실제로
+# 써 볼 수 있는지**로 본다 — `data/user-files/` 는 로컬 디스크이고(ADR-0029) 읽기 전용
+# 번들에서는 `put()` 이 터진다. 미리 안 물으면 사용자가 파일을 다 올린 뒤에 500 을 본다.
+#
+# ADR-0035 가 API 를 자체 서버로 내리면서 **지금은 이 가드가 안 걸린다.** 코드를 두는
+# 것은 안전망이라서다 — 서버리스로 되돌아가거나 디스크가 차면 그때 이게 답한다.
+
+
+#: 한 회사에 구축 하나. `ingest/jobs.py` 의 락을 그대로 쓴다 — **수집기가 아니라
+#: 단일 실행 보장 프리미티브다**(그 모듈은 DB 도 네트워크도 모른다). 두 번 눌렀을 때
+#: 두 번 도는 것이 여기서도 막아야 하는 사고다.
+def _job_key(company_id: str) -> str:
+    return f"wiki:{company_id}"
+
+
+def _build(company_id: str, file_ids: list[int]) -> None:
+    """받아 둔 파일을 읽고 위키를 세운다. **응답을 보낸 뒤 스레드에서 돈다.**
+
+    파서를 여기서 임포트한다. 최상단에 두면 `import finnect.api.app` 이 pdfplumber 를
+    끌고 오고 **로컬은 통과하고 배포본만 죽는다**(CLAUDE.md 함정 · `tests/test_admin_api.py`).
+
+    **파일마다 세션을 따로 연다**(F1-1-8). 하나가 터져 롤백될 때 앞의 것이 같이 날아가지
+    않아야 한다. `wiki/service.ingest_files` 와 같은 이유이고 같은 모양이다.
+    """
+    from finnect.wiki import build
+    from finnect.wiki import service as files
+
+    for fid in file_ids:
+        try:
+            with SessionFactory() as s:
+                uf = s.get(UserFile, fid)
+                # 이미 누가 읽었으면 건드리지 않는다. 두 번 읽으면 청크가 두 벌이 된다.
+                if uf is None or uf.status != UserFileStatus.UPLOADED:
+                    continue
+                files.decode(s, uf)
+                s.commit()
+        except Exception as e:  # noqa: BLE001 — 이 파일만 실패시키고 다음으로 간다
+            with SessionFactory() as s:
+                uf = s.get(UserFile, fid)
+                if uf is not None:
+                    uf.status = UserFileStatus.FAILED
+                    uf.parse_error = f"{type(e).__name__}: {e}"
+                    s.commit()
+
+    # 사실 추출과 병합은 **전체를 봐야** 정해진다(`build.build_company`). 파일마다 돌리면
+    # 어느 시점이 가장 늦은지 알 수 없어 충돌 판정이 깨진다.
+    with SessionFactory() as s:
+        build.build_company(s, company_id)
+        s.commit()
+
+
+@app.post("/api/wiki/{company_id}/files", response_model=UploadOut, status_code=202)
+async def wiki_upload(
+    company_id: str,
+    files: Annotated[list[UploadFile], File(description="형식 구분 없이 여러 개")],
+) -> UploadOut:
+    """파일을 통째로 받는다(SPEC F1-1-1 · S1).
+
+    **분류해서 올리라고 요구하지 않는다.** 못 읽는 포맷도 받아서 상태로 남긴다 —
+    거절하면 사용자는 그 파일이 왜 안 쓰이는지 영영 모른다.
+
+    **202 다.** 저장까지만 하고 답한다. 해독은 응답을 보낸 뒤 스레드가 하고, 화면은
+    `GET /api/wiki/{company_id}/progress` 로 따라온다. 여기서 다 하고 답하면 OCR 이 걸린
+    파일 하나에 요청이 몇 분씩 묶인다.
+    """
+    if not storage.writable():
+        raise HTTPException(
+            503,
+            "이 서버는 파일을 못 받아요. 올리기는 로컬에서만 돼요 — docs/adr/0034 참고",
+        )
+
+    from finnect.wiki import service as user_files
+
+    limit = settings.user_file_max_mb * 1024 * 1024
+    received: list[int] = []
+    duplicate = 0
+    rejected: list[tuple[str, str]] = []
+
+    for upload in files:
+        name = (upload.filename or "").strip() or "이름없는파일"
+        data = await upload.read()
+        if not data:
+            rejected.append((name, "빈 파일이에요"))
+            continue
+        if len(data) > limit:
+            rejected.append((name, f"{settings.user_file_max_mb}MB 를 넘어요"))
+            continue
+        try:
+            with SessionFactory() as s:
+                uf, what = user_files.receive(s, company_id, data, name)
+                s.commit()
+                if what == "duplicate":
+                    duplicate += 1
+                else:
+                    received.append(uf.id)
+        except storage.IsolationError as e:
+            raise HTTPException(400, str(e)) from e
+        except Exception as e:  # noqa: BLE001 — 이 파일만 거절하고 나머지는 받는다
+            rejected.append((name, f"{type(e).__name__}: {e}"))
+
+    # **새로 받은 것이 없어도 돌린다.** 추출기를 바꾼 뒤 다시 올린 경우가 그렇고,
+    # 앞선 실행이 중간에 죽어 `uploaded` 로 남은 행도 여기서 이어받는다.
+    pending = received or _stranded(company_id)
+    launch = jobs.Launch(False, "읽을 파일이 없어요")
+    if pending:
+        launch = jobs.launch(_job_key(company_id), lambda: _build(company_id, pending))
+
+    with SessionFactory() as s:
+        progress = wiki_service.get_progress(
+            s, company_id, running=jobs.running(_job_key(company_id))
+        )
+
+    return UploadOut(
+        received=len(received),
+        duplicate=duplicate,
+        rejected=rejected,
+        started=launch.started,
+        reason=launch.reason,
+        progress=progress,
+    )
+
+
+def _stranded(company_id: str) -> list[int]:
+    """받아만 두고 못 읽은 파일. **프로세스가 죽으면 여기 남는다.**
+
+    `jobs` 는 스케줄러가 아니라 락이라(ADR-0011 과 같은 성질) 실행이 죽으면 자국만 남는다.
+    다시 올릴 때 이어받지 않으면 그 행은 영영 `uploaded` 에 갇힌다 — 같은 파일을 다시
+    올려도 `duplicate` 로 튕겨서(`service.receive`) 고칠 길이 없다.
+    """
+    with SessionFactory() as s:
+        return list(
+            s.scalars(
+                select(UserFile.id).where(
+                    UserFile.company_id == company_id,
+                    UserFile.status == UserFileStatus.UPLOADED,
+                )
+            )
+        )
+
+
+@app.get("/api/wiki/{company_id}/progress", response_model=ProgressOut)
+def wiki_progress(company_id: str) -> ProgressOut:
+    """구축 진행(SPEC F1-1-9 · S1). **파일별로 따로 말한다**(F1-1-8).
+
+    **아무것도 안 올렸어도 200 이고 단계 다섯이 온다.** 처음 온 사람도 무엇이 일어날지
+    먼저 볼 수 있어야 한다(DESIGN.md §7-5).
+
+    응답의 `running` 이 화면에 "계속 물어볼지"를 말한다. 이 값 없이는 `chunked` 가
+    "다음 차례"인지 "추출기가 몰라서 되돌아온 것"인지 구분되지 않는다 — `wiki/progress.py`.
+    """
+    with SessionFactory() as s:
+        return wiki_service.get_progress(s, company_id, running=jobs.running(_job_key(company_id)))
 
 
 # --- 운영 화면 (ADR-0027) ---------------------------------------------------

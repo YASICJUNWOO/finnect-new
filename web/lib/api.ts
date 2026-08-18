@@ -2,12 +2,27 @@
  *
  * **여기 말고 어디에서도 fetch 하지 않는다.** 프론트는 DB 를 모르고 SQL 도 모른다. */
 
-const BASE = process.env.FINNECT_API ?? "http://127.0.0.1:8100";
+export const BASE = process.env.FINNECT_API ?? "http://127.0.0.1:8100";
 
 /** 배포본에서만 쓴다. API 쪽 Vercel Authentication 을 서버 대 서버로 통과하는 유일한 수단이다
  *  (`x-vercel-protection-bypass`). 로컬은 값이 없어 헤더가 안 붙는다.
  *  **화면이 API 를 부르는 것과 사용자가 화면을 보는 것은 다른 문이다** — 이 값은 앞쪽 문만 연다. */
 const BYPASS = process.env.FINNECT_API_BYPASS;
+
+/** API 가 요구하는 토큰(ADR-0035). **Vercel Authentication 을 대신하는 것이다** —
+ *  API 가 이 서버로 내려오면서 그 문이 없어졌고, 없으면 올리기 경로가 인터넷에 열린다. */
+const TOKEN = process.env.FINNECT_API_TOKEN;
+
+/** API 로 나가는 모든 요청이 붙이는 헤더. **한 곳에 모은다** — `get()` 과 `uploadFiles()`
+ *  가 각자 헤더를 만들면 한쪽만 고쳐지는 날이 오고, 그날 올리기만 401 이 된다.
+ *
+ *  값이 없으면 그 헤더를 안 붙인다. 로컬은 둘 다 없어서 빈 객체가 나간다. */
+export function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (BYPASS) h["x-vercel-protection-bypass"] = BYPASS;
+  if (TOKEN) h["x-finnect-token"] = TOKEN;
+  return h;
+}
 
 /** 필드 이름이 `views.py` 의 `Notice` 와 같다. 새로 짓지 않는다. */
 export type Notice = {
@@ -77,7 +92,7 @@ export async function get<T>(path: string): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, {
       cache: "no-store",
-      headers: BYPASS ? { "x-vercel-protection-bypass": BYPASS } : undefined,
+      headers: authHeaders(),
       // 리다이렉트를 따라가면 SSO 로그인 HTML 을 200 으로 받아 JSON 파싱에서 죽는다.
       // 막혔으면 302 그대로 받아 ApiError 로 올린다.
       redirect: "manual",

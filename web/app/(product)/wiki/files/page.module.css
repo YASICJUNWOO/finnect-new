@@ -1,0 +1,18 @@
+/* S1 머리. `wiki/page.module.css` 와 같은 모양이다 — 같은 축의 화면이라 짝이 맞아야 한다 */
+
+.head {
+  margin-bottom: var(--s5);
+}
+
+.title {
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.sub {
+  margin-top: var(--s2);
+  color: var(--ink-2);
+  max-width: 62ch;
+}

@@ -16,14 +16,17 @@ from sqlalchemy.orm import Session
 
 from finnect.api.wiki_schemas import (
     EvidenceOut,
+    FileProgressOut,
+    ProgressOut,
     StatementOut,
+    StepOut,
     ValueOut,
     WikiFileOut,
     WikiNodeOut,
     WikiOut,
 )
 from finnect.models import WikiFact, WikiPlace
-from finnect.wiki import build, markdown, merge, topics
+from finnect.wiki import build, markdown, merge, progress, topics
 
 
 def get_wiki(session: Session, company_id: str) -> WikiOut:
@@ -128,3 +131,67 @@ def _node(n: markdown.NodeView) -> WikiNodeOut:
 
 def _evidence(e: markdown.Evidence) -> EvidenceOut:
     return EvidenceOut(filename=e.filename, page=e.page, quote=e.quote)
+
+
+def get_progress(session: Session, company_id: str, *, running: bool) -> ProgressOut:
+    """구축 진행 한 장(S1 · SPEC F1-1-9 · plan/15 T-0060).
+
+    **`running` 을 인자로 받는다.** 값은 `ingest.jobs` 의 락에서 오는데 그것은 쓰기 경로의
+    것이고 여기는 읽기 경로다. 이 모듈이 락을 직접 들여다보면 조회가 실행에 묶인다 —
+    부르는 쪽(`api/app.py`)이 알려 준다.
+
+    **아무것도 안 올렸어도 200 이고 단계 다섯이 온다.** 처음 온 사람도 무엇이 일어날지
+    먼저 볼 수 있어야 한다(DESIGN.md §7-5).
+    """
+    files = build.read_files(session, company_id)
+    nodes = build.read_orbit(session, company_id)
+
+    rows: list[FileProgressOut] = []
+    for uf, made in files:
+        stage = progress.stage_of(uf.status, running=running)
+        rows.append(
+            FileProgressOut(
+                filename=uf.filename,
+                ext=uf.ext,
+                byte_size=uf.byte_size,
+                status=uf.status,
+                reached=stage.reached,
+                label=stage.label,
+                moving=stage.moving,
+                ok=stage.ok,
+                # **파서가 남긴 것만 낸다.** 사실을 못 뽑은 이유는 DB 에 자리가 없어서
+                # 여기서 지어내지 않는다 — 그건 `label` 이 말한다.
+                detail=uf.parse_error or None,
+                chunk_count=uf.chunk_count,
+                page_count=uf.page_count,
+                nodes=made,
+            )
+        )
+
+    conflicts = session.scalar(
+        select(func.count())
+        .select_from(WikiFact)
+        .where(WikiFact.company_id == company_id, WikiFact.status == merge.Status.CONFLICT)
+    )
+    extractor = session.scalar(
+        select(WikiFact.extractor).where(WikiFact.company_id == company_id).limit(1)
+    )
+
+    return ProgressOut(
+        company_id=company_id,
+        steps=[StepOut(key=s.key, label=s.label) for s in progress.STEPS],
+        files=rows,
+        places={key: spot.label for key, spot in topics.ORBIT.items()},
+        total=len(rows),
+        done=sum(f.ok for f in rows),
+        moving=sum(f.moving for f in rows),
+        # **글자가 안 나온 것과 못 읽은 것을 갈라 센다.** 스캔본은 OCR 이 붙으면 읽히고
+        # 포맷이 없는 것은 안 읽힌다 — 사용자가 할 일이 다르다.
+        needs_review=sum(f.status == "needs_review" for f in rows),
+        stuck=sum(not f.ok and not f.moving and f.status != "needs_review" for f in rows),
+        running=running,
+        filled=sum(n.filled for n in nodes),
+        slots=len(nodes),
+        conflicts=conflicts or 0,
+        extractor=extractor,
+    )

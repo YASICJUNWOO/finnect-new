@@ -1,0 +1,44 @@
+# finnect API 앞의 리버스 프록시 (ADR-0035).
+#
+# **지금은 HTTP 다.** 도메인이 없어서 인증서를 못 받는다 — Let's Encrypt 는 IP 에
+# 발급하지 않는다. 도메인이 생기면 아래 `:80` 을 그 이름으로 바꾸는 것이 전부이고,
+# Caddy 가 인증서를 알아서 받고 갱신한다. **그때 이 파일 말고 고칠 곳이 없다.**
+#
+#     finnect.example.com {
+#         reverse_proxy 127.0.0.1:8101
+#     }
+
+:80 {
+	# **8101 이다.** 8100 은 개발용으로 비워 둔다 — 배포 서비스가 떠 있어도
+	# 개발 백엔드를 따로 띄울 수 있어야 한다.
+	# compose 가 `network_mode: host` 라 컨테이너가 호스트의 루프백을 그대로 본다.
+	reverse_proxy 127.0.0.1:8101 {
+		# 올리기가 50MB 까지 온다(`user_file_max_mb`). 기본 타임아웃으로는 느린 회선에서
+		# 끊긴다. **OCR 대기가 아니다** — 그쪽은 202 로 먼저 답하고 뒤에서 돈다.
+		transport http {
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+
+	# 사업자등록증이 오가는 경로다. **누가 무엇을 올렸는지는 안 남긴다** — 접근 기록에
+	# 파일명이 들어가면 그 로그 자체가 개인정보가 된다(ADR-0029).
+	#
+	# **토큰을 지운다.** 기본 형식이 요청 헤더를 통째로 찍어서 `X-Finnect-Token` 이
+	# 평문으로 남는다. 로그를 보는 사람이 곧 API 를 부를 수 있는 사람이 된다.
+	log {
+		output stderr
+		format filter {
+			wrap console
+			request>headers>X-Finnect-Token delete
+			request>headers>Cookie delete
+			request>headers>Authorization delete
+		}
+	}
+
+	request_body {
+		# `user_file_max_mb` 50 에 여유를 얹었다. 여러 개를 한 번에 올리므로
+		# 파일 하나 상한과 요청 하나 상한은 다른 값이다 — 막는 것은 API 가 파일별로 한다.
+		max_size 300MB
+	}
+}

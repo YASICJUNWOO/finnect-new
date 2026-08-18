@@ -49,6 +49,25 @@ def abs_path(company_id: str, sha: str) -> Path:
     return _company_dir(company_id) / rel_path(sha)
 
 
+def writable() -> bool:
+    """여기에 파일을 쓸 수 있나. **올리기를 받기 전에 물어본다**(plan/15 · ADR-0034).
+
+    배포본은 번들이 읽기 전용이고 함수 파일시스템이 휘발성이라 `put()` 이 `OSError` 로
+    터진다. 그대로 두면 **사용자가 파일을 다 올린 뒤에 500 을 본다** — 가장 늦고 가장
+    안 좋은 자리다. 미리 물어 503 으로 정직하게 답하는 편이 낫다.
+
+    실제로 써 보는 것 말고 판정할 방법이 없다. `os.access` 는 컨테이너에서 거짓말을 한다.
+    """
+    try:
+        settings.user_file_dir.mkdir(parents=True, exist_ok=True)
+        probe = settings.user_file_dir / ".writable"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        return False
+    return True
+
+
 def put(company_id: str, data: bytes) -> str:
     """원본을 저장하고 sha256 을 돌려준다. 같은 회사가 같은 파일을 다시 올리면 안 쓴다."""
     sha = digest(data)

@@ -1,0 +1,46 @@
+/* S1 스켈레톤. **들어올 모양을 그린다** — 파선 상자 하나와 파일 줄 둘이다.
+ * 값과 애니메이션은 `../loading.module.css` 와 같게 둔다(같은 축의 같은 종류다). */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* 제목과 부제가 차지할 높이. 도착했을 때 던지는 자리가 위로 안 뛴다 */
+.head {
+  height: 116px;
+  animation: pulse 1.4s ease-in-out infinite;
+  background:
+    linear-gradient(var(--quiet) 0 0) no-repeat 0 0 / 220px 40px,
+    linear-gradient(var(--quiet) 0 0) no-repeat 0 56px / 460px 22px;
+}
+
+/* 던지는 자리. **파선인 것까지 같아야** 도착 순간 테두리가 안 바뀐다 */
+.drop {
+  height: 196px;
+  border: 2px dashed var(--line-2);
+  border-radius: var(--r);
+  animation: pulse 1.4s ease-in-out infinite;
+  animation-delay: 0.15s;
+}
+
+.row {
+  height: 96px;
+  margin-top: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  animation: pulse 1.4s ease-in-out infinite;
+  animation-delay: 0.3s;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

@@ -50,20 +50,21 @@ class IngestReport:
 NUMBERED = {"pdf": True, "pptx": True, "xlsx": False}
 
 
-def ingest_file(
+def receive(
     session: Session,
     company_id: str,
-    path: Path,
-    *,
-    filename: str | None = None,
+    data: bytes,
+    filename: str,
 ) -> tuple[UserFile, str]:
-    """파일 하나. 돌려주는 두 번째 값은 무슨 일이 있었나다 — `done` · `duplicate` · …
+    """바이트를 받아 자리를 만든다. **읽지는 않는다.**
 
-    **예외를 밖으로 던지지 않는 것이 목표가 아니다.** 던지는 것은 호출부(`ingest_files`)가
-    받아 그 파일만 실패로 남긴다. 여기서 다 삼키면 원인이 사라진다.
+    `ingest_file` 에서 갈라낸 앞 절반이다(plan/15 T-0059). 나눈 이유 하나뿐이다 —
+    **진행 표시(F1-1-9)가 '받았다'와 '읽었다'를 다른 단계로 말해야 한다.** 붙어 있으면
+    다섯 개를 올렸을 때 해독이 끝난 것부터 한 줄씩 나타나고, 그동안 화면은 나머지가
+    올라오긴 한 건지 말할 수 없다.
+
+    돌려주는 둘째 값은 `received` 또는 `duplicate` 다.
     """
-    name = filename or path.name
-    data = path.read_bytes()
     sha = storage.digest(data)
 
     existing = session.scalar(
@@ -74,21 +75,35 @@ def ingest_file(
         return existing, "duplicate"
 
     storage.put(company_id, data)
-    ext = formats.detect(path, name)
+    # **저장한 파일로 판정한다.** 콘텐츠 주소라 원본과 바이트가 같고, 그래서 업로드처럼
+    # 원본 경로가 없는 경우에도 같은 답이 나온다. 이름은 물러날 자리로만 넘긴다.
+    ext = formats.detect(storage.abs_path(company_id, sha), filename)
 
     uf = UserFile(
         company_id=company_id,
         sha256=sha,
-        filename=name,
+        filename=filename,
         byte_size=len(data),
         ext=ext,
-        status=UserFileStatus.PARSING,
+        status=UserFileStatus.UPLOADED,
     )
     session.add(uf)
     session.flush()
+    return uf, "received"
 
+
+def decode(session: Session, uf: UserFile) -> str:
+    """받아 둔 파일을 읽어 청크까지. **원본은 저장소에서 꺼낸다.**
+
+    `ingest_file` 에서 갈라낸 뒤 절반이다. 상태를 `parsing` 으로 올리고 시작하는 것이
+    요점이다 — 이 함수가 도는 동안 다른 세션이 그 행을 보면 무엇을 하고 있는지 안다.
+    """
+    uf.status = UserFileStatus.PARSING
+    session.flush()
+
+    path = storage.abs_path(uf.company_id, uf.sha256)
     parsed = extract.parse(
-        path, name, allowed=settings.wiki_formats, use_ocr=settings.user_file_ocr
+        path, uf.filename, allowed=settings.wiki_formats, use_ocr=settings.user_file_ocr
     )
     uf.parse_status = parsed.status
     uf.parser = parsed.parser
@@ -104,19 +119,19 @@ def ingest_file(
             else UserFileStatus.FAILED
         )
         uf.chunk_count = 0
-        return uf, uf.status
+        return uf.status
 
     # **파서가 준 조각을 그대로 쓴다.** 다시 파싱하면 PDF 를 두 번 읽고, OCR 이면
     # 그 비용이 쪽당 십수 초씩 두 배가 된다.
     pages = parsed.pages or [parsed.text or ""]
     # **쪽 수가 아니라 포맷으로 정한다.** 1쪽짜리 PDF 도 그 1쪽이 어딘지 안다 —
     # `len(pages) > 1` 로 걸면 한 장짜리 사업자등록증의 쪽이 NULL 이 된다.
-    numbered = NUMBERED.get(ext or "")
+    numbered = NUMBERED.get(uf.ext or "")
 
     # **청커가 이은 것을 저장한다.** 파서의 `text` 를 저장하면 좌표계가 두 벌이 되고,
     # 이으는 문자가 한 글자만 달라도 모든 청크의 좌표가 어긋난다. 실제로 그랬다.
     text = chunker.join(pages)
-    storage.put_text(company_id, sha, text)
+    storage.put_text(uf.company_id, uf.sha256, text)
     uf.text_chars = len(text)
     uf.page_count = len(pages) if numbered else None
 
@@ -124,7 +139,7 @@ def ingest_file(
     session.add_all(
         Chunk(
             user_file_id=uf.id,
-            company_id=company_id,
+            company_id=uf.company_id,
             ordinal=p.ordinal,
             text=p.text,
             chars=p.chars,
@@ -137,7 +152,28 @@ def ingest_file(
     )
     uf.chunk_count = len(pieces)
     uf.status = UserFileStatus.CHUNKED
-    return uf, "done"
+    return "done"
+
+
+def ingest_file(
+    session: Session,
+    company_id: str,
+    path: Path,
+    *,
+    filename: str | None = None,
+) -> tuple[UserFile, str]:
+    """파일 하나를 받아 청크까지. `receive` 와 `decode` 를 이어 놓은 것이다.
+
+    CLI 가 부르는 자리다. 업로드(plan/15)는 둘을 **따로** 부른다 — 받는 것은 요청 안에서,
+    읽는 것은 응답을 보낸 뒤에 한다.
+
+    **예외를 밖으로 던지지 않는 것이 목표가 아니다.** 던지는 것은 호출부(`ingest_files`)가
+    받아 그 파일만 실패로 남긴다. 여기서 다 삼키면 원인이 사라진다.
+    """
+    uf, what = receive(session, company_id, path.read_bytes(), filename or path.name)
+    if what == "duplicate":
+        return uf, what
+    return uf, decode(session, uf)
 
 
 def ingest_files(

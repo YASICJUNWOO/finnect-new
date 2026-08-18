@@ -12,6 +12,14 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://finnect:finnect@127.0.0.1:55433/finnect"
 
+    #: API 를 부를 때 있어야 하는 토큰(ADR-0035). **비어 있으면 검사하지 않는다** —
+    #: 로컬은 지금까지처럼 그냥 돈다. 값을 넣는 순간 켜지고, 배포 서버가 그 자리다.
+    #:
+    #: Vercel 에 있을 때는 Vercel Authentication 이 문을 지켰다. 이 서버로 내려오면서
+    #: 그 문이 없어졌고, **`POST /api/wiki/{company_id}/files` 가 인터넷에 열린 업로드
+    #: 창구가 된다.** 대체물이 없으면 안 되는 이유가 그 한 경로다.
+    api_token: str = ""
+
     bizinfo_api_key: str = ""
     data_go_kr_api_key: str = ""
 
@@ -42,6 +50,10 @@ class Settings(BaseSettings):
     #: 첨부 목록에 xlsx·pptx 를 더하면 plan/07 이 측정한 2,827/3,354 가 근거를 잃는다.
     #: 사용자 파일에는 재무제표(xlsx)와 피치덱(pptx)이 반드시 오므로 여기는 넣는다.
     user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx,jpg,png"
+
+    #: 올리기 한 개 최대 크기(plan/15). **첨부(100MB)보다 작다** — 저쪽은 우리가 고른
+    #: 공고 첨부라 크기를 알고 받지만, 이쪽은 사용자가 던지는 것이라 상한이 방어다.
+    user_file_max_mb: int = 50
 
     #: 사용자 파일에 OCR 을 쓸지(ADR-0030). **첨부는 별도다** — 켜면 plan/07 이
     #: 측정한 값을 다시 재야 하고 총 비용을 아직 모른다.

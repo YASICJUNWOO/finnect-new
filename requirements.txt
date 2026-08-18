@@ -2,11 +2,15 @@
 #
 # 여기 목록이 더 짧은 이유가 있다. 읽기만 하는 API 는 수집기(httpx)도 파서(pdfplumber ·
 # olefile)도 안 쓴다. 서버리스 함수에 안 쓰는 것을 실으면 콜드 스타트만 길어진다.
-# 실제로 `import finnect.api.app` 이 로드하는 서드파티는 아래 넷뿐이다.
+# 실제로 `import finnect.api.app` 이 로드하는 서드파티는 아래 다섯뿐이다.
 #
 # pyproject 의 상한과 어긋나면 pyproject 를 따른다.
 
 fastapi>=0.115
+# 올리기(plan/15)가 multipart 다. **안 쓰는데 실은 것이 아니다** — `UploadFile` 을 선언한
+# 라우트는 이 패키지 없이 **임포트 시점에** 죽는다(FastAPI 가 데코레이터에서 검사한다).
+# 배포본에서 올리기 자체는 503 으로 막히지만(ADR-0034) 그건 라우트가 뜬 다음 이야기다.
+python-multipart>=0.0.20
 sqlalchemy>=2.0.36
 psycopg[binary]>=3.2
 pydantic-settings>=2.7

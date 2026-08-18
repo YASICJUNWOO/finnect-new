@@ -44,6 +44,7 @@ export function WikiBoard({
 
   const node = wiki.nodes.find((n) => n.key === picked) ?? null;
   const empty = wiki.filled === 0;
+  const upload = company ? `/wiki/files?company=${encodeURIComponent(company)}` : "/wiki/files";
 
   return (
     <>
@@ -91,7 +92,9 @@ export function WikiBoard({
             /* 5. 빈 화면(§7). **자리를 지우지 않는다** — 무엇이 없는지 보여야 한다 */
             <p className={styles.hole}>
               아직 위키가 없어요. 파일을 올리면 이 자리 {wiki.total}개가 채워져요.
-              <span className={styles.holeSub}>파일을 올리는 화면은 준비 중이에요.</span>
+              <span className={styles.holeSub}>
+                <Link href={upload}>파일 올리러 가기</Link>
+              </span>
             </p>
           )}
 
@@ -121,6 +124,7 @@ export function WikiBoard({
       ) : (
         <Files
           wiki={wiki}
+          upload={upload}
           onPick={(k) => {
             pick(k);
             setTab("orbit");
@@ -134,9 +138,24 @@ export function WikiBoard({
 /** 원본 파일(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** 보이는 자리다.
  *
  * 읽히지 않은 파일도 그대로 둔다 — 실패를 안 보여 주면 사용자는 올린 줄 안다. */
-function Files({ wiki, onPick }: { wiki: Wiki; onPick: (key: string) => void }) {
+function Files({
+  wiki,
+  upload,
+  onPick,
+}: {
+  wiki: Wiki;
+  upload: string;
+  onPick: (key: string) => void;
+}) {
   if (wiki.files.length === 0) {
-    return <p className={styles.hole}>아직 올린 파일이 없어요.</p>;
+    return (
+      <p className={styles.hole}>
+        아직 올린 파일이 없어요.
+        <span className={styles.holeSub}>
+          <Link href={upload}>파일 올리러 가기</Link>
+        </span>
+      </p>
+    );
   }
 
   const label = (key: string) => wiki.nodes.find((n) => n.key === key)?.label ?? key;

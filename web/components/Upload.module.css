@@ -1,0 +1,424 @@
+/* S1 파일 올리기와 구축 진행.
+ *
+ * **색을 두 자리에만 쓴다**(§3-7 · §4.1). 멈춘 파일(--urgent)과 확인이 필요한
+ * 파일(--blank)이다. 둘 다 "사용자가 손대야 하는 자리"라 §4.1 이 상태색을 허락한 그것이다.
+ * 진행 자체는 색으로 말하지 않는다 — 근검정과 흐린 회색뿐이다(§3-6).
+ *
+ * **자리 이름(.places)에 노드 분류색을 안 쓴다.** 궤도에서는 색이 종류를 말하지만
+ * (--n-identity 등) 여기 한 줄에 자리가 열넷까지 붙어서, 색을 얹으면 그 줄이 알록달록해지고
+ * 화면의 상태색 둘과 경쟁한다. 이 화면에서 색이 뜻하는 것은 "손대야 함" 하나로 둔다.
+ *
+ * **막대가 없다.** 칸 다섯을 점으로 그린다 — §6 참고. */
+
+/* --- 던지는 자리 -------------------------------------------------------- */
+
+/* 흐름 안의 면이라 그림자 대신 파선 테두리다(§4.4). 파선인 것은 "여기 뭔가 들어올 자리"의
+ * 뜻이고, 궤도의 빈 노드가 점선인 것과 같은 어법이다(§4.1). */
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s7) var(--s5);
+  background: var(--surface);
+  border: 2px dashed var(--line-2);
+  border-radius: var(--r);
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+/* 2. 끌고 온 것이 이 자리에 들어왔다(§7-2) */
+.drop[data-over] {
+  border-color: var(--ink);
+  background: var(--quiet);
+}
+
+/* 4. 로딩(§7-4). 보내는 동안은 받지 않는다 */
+.drop[data-sending] {
+  border-style: solid;
+  border-color: var(--line);
+}
+
+.dropLead {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-medium);
+}
+
+.dropSub {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+/* 주 동작. 근검정 배경에 흰 글자다(§3-4 · §4.1) — 새 색을 만들지 않는다.
+ * 44px 은 터치 타깃 최소값(§8.2). */
+.pick {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s5);
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: var(--r-sm);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  cursor: pointer;
+}
+
+.pick:hover {
+  opacity: 0.88;
+}
+
+/* 진짜 포커스는 srOnly 인 input 에 간다. 1px 요소에 그린 외곽선은 안 보이므로 라벨이
+ * 대신 받는다. globals.css 의 :focus-visible 과 같은 모양으로 맞춘다. */
+.pick:has(:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.pick:has(:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- 방금 무슨 일이 있었나 ----------------------------------------------- */
+
+.error,
+.note,
+.rejected {
+  margin-top: var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+}
+
+.error {
+  padding: var(--s3) var(--s4);
+  background: var(--urgent-bg);
+  border: 1px solid var(--urgent-line);
+  border-radius: var(--r-sm);
+  color: var(--urgent);
+}
+
+.note {
+  color: var(--ink-2);
+}
+
+.rejected {
+  margin-block: var(--s4) 0;
+  padding: var(--s3) var(--s4) var(--s3) var(--s5);
+  background: var(--blank-bg);
+  border: 1px solid var(--blank-line);
+  border-radius: var(--r-sm);
+  color: var(--blank);
+}
+
+.rejected b {
+  font-weight: var(--w-medium);
+}
+
+/* --- 아직 아무것도 없을 때 ------------------------------------------------ */
+
+/* 번호가 붙은 것은 **실제로 순서이기 때문이다.** 글자를 읽어야 조각이 나오고 조각이
+ * 있어야 사실이 나온다 — 앞 칸이 뒤 칸의 재료다. 파일이 생기면 이 자리는 사라진다. */
+.coming {
+  margin-top: var(--s6);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.comingTitle {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: var(--s4) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.stepN {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  border: 1px solid var(--line-2);
+  color: var(--ink-3);
+  font-size: var(--t-caption);
+  line-height: 1;
+  font-weight: var(--w-medium);
+}
+
+.comingEnd {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+}
+
+/* --- 올린 파일 ---------------------------------------------------------- */
+
+.board {
+  margin-top: var(--s6);
+}
+
+.boardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2) var(--s4);
+  margin-bottom: var(--s4);
+}
+
+.boardTitle {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.count {
+  margin-left: var(--s2);
+  font-size: var(--t-body);
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.counts b,
+.filled b {
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.review {
+  color: var(--blank);
+  font-weight: var(--w-medium);
+}
+
+.stuck {
+  color: var(--urgent);
+  font-weight: var(--w-medium);
+}
+
+.files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+
+/* 흐름 안의 카드다. 그림자 대신 경계선(§4.4), 반경은 --r(§4.3 내용 컨테이너).
+ *
+ * 멈춘 것과 확인이 필요한 것만 왼쪽에 띠를 얹는다. 나머지는 균일하다 —
+ * **깨는 자리가 하나여야 눈에 띈다.** */
+.file {
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.file[data-tone="stuck"] {
+  border-color: var(--urgent-line);
+  box-shadow: inset 3px 0 0 var(--urgent);
+}
+
+.file[data-tone="review"] {
+  border-color: var(--blank-line);
+  box-shadow: inset 3px 0 0 var(--blank);
+}
+
+.name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+}
+
+.filename {
+  font-weight: var(--w-medium);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s3);
+}
+
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  flex: none;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--ink-4);
+}
+
+.dot[data-state="done"] {
+  background: var(--ink);
+}
+
+/* 지금 여기. 속을 비우고 테두리만 둔다 — 궤도의 빈 노드와 같은 어법이다(§4.1).
+ * **이 화면의 유일한 모션이다.** 라벨만으로는 "지금 여기"와 "여기서 멈췄다"가
+ * 한눈에 안 갈린다. prefers-reduced-motion 은 globals.css 가 끈다. */
+.dot[data-state="now"] {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.dot[data-state="stopped"] {
+  background: var(--urgent);
+}
+
+.file[data-tone="review"] .dot[data-state="stopped"] {
+  background: var(--blank);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.say {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.file[data-tone="stuck"] .say {
+  color: var(--urgent);
+  font-weight: var(--w-medium);
+}
+
+.file[data-tone="review"] .say {
+  color: var(--blank);
+  font-weight: var(--w-medium);
+}
+
+/* **이 화면의 요점.** 이 파일이 위키의 어느 자리를 채웠나 — 개수가 아니라 이름이다.
+ * 알약형이라 반경은 --r-pill(§4.3). 색을 안 쓰는 이유는 이 파일 첫 문단에 있다. */
+.places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.places > li {
+  padding: 2px var(--s2);
+  background: var(--quiet);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* 파서가 남긴 말. **고쳐 쓰지 않아서 영문이 섞인다** — 그대로 두되 본문보다 작게 */
+.why {
+  margin-top: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* --- 다음으로 ------------------------------------------------------------ */
+
+.footer {
+  margin-top: var(--s5);
+}
+
+.filled {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+/* 다음으로 가는 문. 주 동작이 아니라 이어지는 자리라 테두리만 두른다 */
+.go {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+}
+
+.go:hover {
+  border-color: var(--ink-4);
+  background: var(--surface);
+}
+
+/* 우리 사정이라 각주다. `wiki/page.module.css` 의 `.note` 와 같은 물건이다 */
+.stub {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

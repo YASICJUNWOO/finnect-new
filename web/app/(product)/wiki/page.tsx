@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DEFAULT_COMPANY, getWiki } from "@/lib/wiki";
 import { WikiBoard } from "@/components/WikiBoard";
 import styles from "./page.module.css";
@@ -17,11 +18,21 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const company = sp.company?.trim() || DEFAULT_COMPANY;
   const wiki = await getWiki(company);
+  const upload = sp.company?.trim()
+    ? `/wiki/files?company=${encodeURIComponent(sp.company.trim())}`
+    : "/wiki/files";
 
   return (
     <>
       <header className={styles.head}>
-        <h1 className={styles.title}>내 사업</h1>
+        <div className={styles.top}>
+          <h1 className={styles.title}>내 사업</h1>
+          {/* S1 로 가는 문. **주 동작이 아니다** — 이 화면의 일은 보는 것이고 올리는 것은
+            * 그 앞 단계다. 그래서 테두리만 두르고 오른쪽 끝으로 민다 */}
+          <Link href={upload} className={styles.add}>
+            파일 올리기
+          </Link>
+        </div>
         <p className={styles.sub}>
           올린 파일에서 뽑은 것들이에요. 값마다 어느 파일 몇 쪽에서 왔는지 볼 수 있어요.
         </p>

@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     #: 한 파일 최대 크기. 넘으면 안 받고 too_large 로 남긴다.
     attachment_max_mb: int = 100
 
+    # --- 사용자 파일 (plan/12 · ADR-0029) ---
+
+    #: 사용자가 올린 원본. **개인정보다.** 첨부와 다른 뿌리에 두는 이유가 ADR-0029 다 —
+    #: 공고 첨부는 공개 파일이고 이쪽은 사업자등록증·재무제표다.
+    user_file_dir: Path = REPO_ROOT / "data" / "user-files"
+
+    #: 청크 한 조각의 목표 길이(자). 문단 경계를 넘지 않으려고 넘칠 수 있다.
+    chunk_target_chars: int = 900
+
+    #: 이 길이를 넘으면 문단 안에서라도 자른다. 넘어가는 문단이 실제로 있다.
+    chunk_max_chars: int = 1600
+
     @property
     def formats(self) -> frozenset[str]:
         return frozenset(f.strip().lower() for f in self.attachment_formats.split(",") if f.strip())

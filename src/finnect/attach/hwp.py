@@ -329,14 +329,20 @@ def from_docx(path: Path) -> str:
     return "".join(texts)
 
 
-def from_pdf(path: Path) -> str:
+def pages_from_pdf(path: Path) -> list[str]:
+    """쪽별 텍스트. **쪽 경계를 살려야 하는 곳이 쓴다**(plan/12 T-0043).
+
+    `from_pdf` 는 이걸 줄바꿈으로 이어 붙인 것이다. 근거 청크에 쪽 번호를 심으려면
+    이어 붙이기 **전**이 필요하다 — 붙인 뒤에는 몇 쪽이었는지 되찾을 수 없다(ADR-0014).
+    """
     import pdfplumber
 
-    out: list[str] = []
     with pdfplumber.open(str(path)) as pdf:
-        for page in pdf.pages:
-            out.append(page.extract_text() or "")
-    return "\n".join(out)
+        return [page.extract_text() or "" for page in pdf.pages]
+
+
+def from_pdf(path: Path) -> str:
+    return "\n".join(pages_from_pdf(path))
 
 
 def zip_listing(path: Path) -> list[dict[str, object]]:

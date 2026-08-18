@@ -10,6 +10,8 @@ Postgres 는 대소문자 섞인 식별자에 따옴표가 필요하지만 SQLAl
   attachment         첨부 메타. API 가 준 것
   attachment_file    첨부를 받아서 읽어 본 결과. 우리가 한 것 → plan/07 · ADR-0022
   ingest_run         수집 실행 기록. 코퍼스가 아니라 운영 기록이다
+  user_file          사용자가 올린 파일 하나        → plan/12 · ADR-0029
+  chunk              그 파일에서 나온 원문 조각      → plan/12 · ADR-0014
 
 전부 TEXT 로 받는다. API 가 날짜도 "20260827" 문자열로 준다.
 타입을 여기서 강제하면 이상한 값 하나에 적재가 통째로 깨진다.
@@ -490,3 +492,120 @@ class DocumentItem(Base):
     #: 근거 위치. 원문에서 잘라 보여 줄 수 있다
     char_start: Mapped[int | None] = mapped_column(Integer)
     char_end: Mapped[int | None] = mapped_column(Integer)
+
+
+# ─────────────────────────────────────────────────────────────────
+# 사업 위키 (plan/12 · F1)
+#
+# **이름을 `Document` 로 못 쓴다.** ADR-0014 의 그림은 올린 파일을 `Document` 라고
+# 불렀지만 그 이름은 이미 공고 첨부 안의 구간이 쓰고 있다(plan/11). 개념은 ADR-0014
+# 그대로이고 이름만 `UserFile` 이다 — 배포 DB 에 데이터가 있는 표를 개명하는 것보다
+# 이쪽이 싸다.
+# ─────────────────────────────────────────────────────────────────
+
+
+#: SQLite 는 BIGINT 기본키를 자동증가시키지 않는다. 이 별칭이 **Postgres DDL 은 그대로
+#: 두고** SQLite 에서만 INTEGER 로 낮춘다. 위키 테스트가 DB 없이 돌아야 해서다 —
+#: 나머지 128건이 전부 DB 를 안 쓰는데 여기서 그 성질을 깨지 않는다.
+_PK = BigInteger().with_variant(Integer, "sqlite")
+
+
+class UserFileStatus(enum.StrEnum):
+    """파일 하나의 상태. **파일별로 독립이다**(SPEC F1-1-8).
+
+    SPEC 이 적은 것은 `uploaded → parsing → extracting → linking → needs_review/done/failed`
+    다. 여기에 **CHUNKED 를 하나 더 뒀다** — plan/12 T-0043 이 청크까지만 만들고
+    추출(T-0045)이 아직 없어서, '해독은 됐고 사실은 안 뽑았다'를 말할 자리가 필요하다.
+    PARSING 에 얹으면 진행 표시(F1-1-9)가 거짓이 된다.
+    """
+
+    UPLOADED = "uploaded"
+    PARSING = "parsing"
+    #: 청크까지 됐다. 사실 추출은 아직이다
+    CHUNKED = "chunked"
+    EXTRACTING = "extracting"
+    LINKING = "linking"
+    NEEDS_REVIEW = "needs_review"
+    DONE = "done"
+    #: 읽을 수 없었다. **나머지 파일은 그대로 간다**
+    FAILED = "failed"
+
+
+class UserFile(Base):
+    """사용자가 올린 파일 하나. 원본은 `data/user-files/<company_id>/...` 에 있다.
+
+    **키가 (company_id, sha256) 이다.** 회사 사이 중복 제거를 하지 않기로 한 결과다
+    (ADR-0029 4번). 같은 회사가 같은 파일을 다시 올리면 이 제약이 막고, 다른 회사가
+    같은 파일을 올리면 각자 한 행씩 갖는다.
+    """
+
+    __tablename__ = "user_file"
+    __table_args__ = (
+        UniqueConstraint("company_id", "sha256", name="uq_user_file_company_sha"),
+        Index("ix_user_file_company_status", "company_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    #: 격리의 기준. 경로에도 들어간다(ADR-0029 3번)
+    company_id: Mapped[str] = mapped_column(String(64), index=True)
+    sha256: Mapped[str] = mapped_column(String(64))
+
+    #: 사용자가 준 이름. **판정에 쓰지 않는다** — 확장자와 내용이 다른 파일이 실재한다
+    filename: Mapped[str] = mapped_column(Text)
+    byte_size: Mapped[int] = mapped_column(Integer)
+    #: `attach/formats.py` 가 **내용으로** 판정한 것
+    ext: Mapped[str | None] = mapped_column(String(16))
+
+    status: Mapped[str] = mapped_column(String(16))
+    uploaded_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # --- 해독 ---
+    parse_status: Mapped[str | None] = mapped_column(String(16))
+    parser: Mapped[str | None] = mapped_column(String(32))
+    parse_error: Mapped[str | None] = mapped_column(Text)
+    parsed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    #: 해독 글자 수. 0 이면 스캔본이다 — OCR 이 붙어야 찬다(T-0042)
+    text_chars: Mapped[int | None] = mapped_column(Integer)
+    #: PDF 만 안다. 다른 포맷에는 쪽이라는 것이 없다
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    chunk_count: Mapped[int | None] = mapped_column(Integer)
+
+
+class Chunk(Base):
+    """원문 조각 하나. **노드가 나중에 이걸 가리킨다**(ADR-0014).
+
+    **위치정보는 여기서만 심을 수 있다.** 파싱이 끝난 뒤에는 "이 문장이 몇 쪽이었나"를
+    되찾을 방법이 없다. 그래서 이 표가 plan/12 의 축이고, 전체 구상도가 이 계층을
+    빠뜨린 것이 가장 큰 차이였다.
+
+    `company_id` 를 여기 한 번 더 두는 것은 의도다. 근거 청크를 꺼낼 때 `user_file`
+    조인 없이 격리를 걸 수 있어야 하고, **그 조인을 빠뜨리는 것이 정확히 막고 싶은
+    버그다.**
+    """
+
+    __tablename__ = "chunk"
+    __table_args__ = (
+        UniqueConstraint("user_file_id", "ordinal", name="uq_chunk_file_ordinal"),
+        Index("ix_chunk_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    user_file_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("user_file.id", ondelete="CASCADE"), index=True
+    )
+    #: 비정규화. 위 docstring 의 이유다
+    company_id: Mapped[str] = mapped_column(String(64))
+    ordinal: Mapped[int] = mapped_column(Integer)
+
+    text: Mapped[str] = mapped_column(Text)
+    chars: Mapped[int] = mapped_column(Integer)
+
+    #: 해독 텍스트 전체에서의 자리. **항상 있다**
+    char_start: Mapped[int] = mapped_column(Integer)
+    char_end: Mapped[int] = mapped_column(Integer)
+    #: 1-based. **PDF 만 찬다** — HWPX·DOCX 에는 쪽이 없다
+    page: Mapped[int | None] = mapped_column(Integer)
+    #: 이 조각 위에 있던 제목. 규칙으로 잡은 것이라 **최선 추정이다**
+    heading: Mapped[str | None] = mapped_column(Text)

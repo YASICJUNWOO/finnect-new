@@ -111,6 +111,27 @@ uv run python -m finnect.attach --report     # 집계만. 아무것도 안 받�
 나머지는 **`unsupported`로 기록된다.** 조용히 건너뛰지 않는 것이 이 명령의 존재 이유다.
 목록은 `ATTACHMENT_FORMATS` 환경변수로 바꾼다.
 
+### 사용자 파일로 위키 세우기
+
+공고와 별개다. 사용자가 가진 파일을 던지면 **원문 조각(청크)까지** 만든다.
+아직 사실을 뽑지 않는다 — 거기부터가 [plan/12](docs/plan/12-사업-위키-구축.md) T-0045다.
+
+```bash
+uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*
+uv run python -m finnect.wiki --company c_dasiro --report     # 집계만
+uv run python -m finnect.wiki --company c_dasiro --rechunk    # 청킹 규칙을 고쳤을 때
+uv run python -m finnect.wiki --company c_dasiro --purge      # 탈퇴. 원본까지 지운다
+```
+
+`tests/fixtures/wiki/`에 예시 파일 일곱이 있다. **일곱 중 넷은 일부러 안 읽힌다** —
+XLSX·PPTX·이미지는 파서가 없고 스캔 PDF는 OCR이 없다. 무엇을 심어 뒀는지는
+[픽스처 README](tests/fixtures/wiki/README.md)에 있다.
+
+원본은 `data/user-files/<company_id>/`에 쌓인다([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)).
+**개인정보라 git에 안 들어가고 배포본에도 안 올라간다.** 격리를 경로에서 걸었으므로
+탈퇴는 디렉터리 하나를 지우는 일이다. **회사 사이 중복 제거를 하지 않는다** —
+같은 정부 양식을 두 회사가 올리면 두 벌 저장되고, 그게 의도다.
+
 ### 검사
 
 ```bash

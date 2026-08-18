@@ -253,7 +253,12 @@ def test_지우고_다시_세우면_원래대로다(built):  # noqa: ANN001
 
 
 def test_모르는_파일은_그_파일만_건너뛴다(built):  # noqa: ANN001
-    """**파일별로 독립이다**(F1-1-8). 스텁이 모르는 파일 하나가 나머지를 죽이면 안 된다."""
+    """**파일별로 독립이다**(F1-1-8). 스텁이 모르는 파일 하나가 나머지를 죽이면 안 된다.
+
+    건너뛴 파일이 **`chunked` 로 남는지도 여기서 본다.** 2026-08-18 안 그랬다 — 추출 직전에
+    올린 `extracting` 이 그대로 남아 `build_company` 의 목록에서 빠졌고, 그 파일은 다음
+    `--build` 에 **아예 안 보였다.** 추출기가 LLM 으로 바뀌어도 영영 안 걸리는 상태다.
+    """
     factory, _ = built
     with factory() as s:
         s.add(
@@ -289,6 +294,18 @@ def test_모르는_파일은_그_파일만_건너뛴다(built):  # noqa: ANN001
     assert report.skipped == 1
     assert report.built == 5
     assert any(name == "남의_사업계획서.hwp" for name, _ in report.problems)
+
+    with factory() as s:
+        uf = s.scalars(select(UserFile).where(UserFile.sha256 == "f" * 64)).one()
+    assert uf.status == UserFileStatus.CHUNKED, "extracting 에 갇히면 다음 build 가 못 본다"
+
+    # **다시 돌렸을 때 여전히 보여야 한다.** 여기가 진짜 증상이었다 — 위의 상태만 보고
+    # 넘어가면, 목록 쿼리가 바뀌었을 때 같은 구멍이 조용히 다시 열린다.
+    with factory() as s:
+        again = build.build_company(s, COMPANY)
+        s.commit()
+    assert again.files == 6, "건너뛴 파일이 목록에서 사라졌다"
+    assert again.skipped == 1
 
 
 def test_탈퇴하면_사실도_같이_지워진다(built):  # noqa: ANN001

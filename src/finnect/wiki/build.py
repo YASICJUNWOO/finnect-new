@@ -101,11 +101,9 @@ def build_company(
         try:
             _build_file(session, ex, uf, report)
         except UnknownFile as e:
-            report.skipped += 1
-            report.problems.append((uf.filename, str(e)))
+            _shelve(uf, report, str(e))
         except Exception as e:  # noqa: BLE001 — 이 파일만 건너뛰고 다음으로 간다
-            report.skipped += 1
-            report.problems.append((uf.filename, f"{type(e).__name__}: {e}"))
+            _shelve(uf, report, f"{type(e).__name__}: {e}")
 
     report.conflicts = restate(session, company_id)
 
@@ -118,6 +116,24 @@ def build_company(
     for uf in files:
         report.status[uf.status] += 1
     return report
+
+
+def _shelve(uf: UserFile, report: BuildReport, why: str) -> None:
+    """추출이 실패한 파일을 **`chunked` 로 되돌린다.** 이 모듈 첫 문단이 약속한 상태다.
+
+    `_build_file` 이 추출을 부르기 전에 `extracting` 으로 올리는데, 터진 채 두면 그 파일이
+    `build_company` 의 `chunked`/`done` 목록에서 빠져 **다음 `--build` 에 아예 안 보인다.**
+    추출기가 LLM 으로 바뀌어도 영영 안 걸리고, 다시 올려도 `duplicate` 로 튕겨
+    (`service.ingest_file`) 상태를 고칠 길이 없다. 2026-08-18 실측 — 스텁이 모르는 파일
+    하나를 넣고 `--rebuild` 하니 `읽은 파일 0 / 0` 이었다.
+
+    되돌리는 값이 `done` 이 아니라 `chunked` 인 것이 요점이다. `--rebuild` 는 사실을 먼저
+    지우고 다시 세우니(`clear`), 실패한 뒤 `done` 으로 두면 **사실이 없는데 다 됐다고
+    말하는 행**이 남는다.
+    """
+    uf.status = UserFileStatus.CHUNKED
+    report.skipped += 1
+    report.problems.append((uf.filename, why))
 
 
 def _build_file(

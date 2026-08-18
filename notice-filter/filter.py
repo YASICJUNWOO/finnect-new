@@ -3,7 +3,7 @@
 의존성 없다. 표준 라이브러리만 쓴다.
 LLM 호출 0회 · 첨부 다운로드 0건 · 기업마당 오픈API 응답 필드만 본다.
 
-    python filter.py --test        픅스처 45건 + 단위 11건 (네트워크·DB 불필요)
+    python filter.py --test        픅스처 54건 + 단위 15건 (네트워크·DB 불필요)
 
 로직과 선택 근거는 로직과근거.md 에 있다.
 """
@@ -173,6 +173,57 @@ GROW = [
     ("창업", re.compile(r"창업")),
     ("IR", re.compile(r"(?<![A-Za-z])IR(?![A-Za-z])")),   # FAIR 오탐 방지
 ]
+
+# ══════════════════════════════════════════════════════════════════
+# 축2g — 정부가 주는 것이 '사업장 설비·시설' 이면 배제. 2026-08-18 추가.
+#
+#   T3 502건에서 30건을 무작위 표본(seed 20260818)으로 읽다가 나온 덩어리다.
+#   표본에 `시설/입지지원` 이 6건 들어왔는데 모집단 비율은 33/502(6.6%)라
+#   기댓값이 2건이다. 표본이 쏠린 것이라 **비율을 확대하지 않고 전수로 다시 쟀다.**
+#
+#   걸리는 것이 방지시설·IoT 측정기기 부착·스마트공장 구축·HACCP 작업장 개보수·
+#   고효율 설비 교체다. 전부 **사업장이 이미 있어야 신청이 성립한다.**
+#   예비창업자와 3년 미만 1~5인 팀은 대기배출시설도 공장도 없다.
+#
+#   세부분야 값(`시설/입지지원` 33건)으로 빼지 않은 이유가 있다. 그 안에
+#   `122893` 세종테크밸리 **사무실 임차료**(연 최대 2천만원)와 `118285` 실감콘텐츠
+#   스튜디오 현물지원이 같이 있다. 둘은 사업장이 없어도 신청하고, 오히려
+#   초기 팀에 유용하다. **주는 물건을 보고 빼야지 분류로 빼면 안 된다.**
+FACILITY = re.compile(
+    r"방지시설|측정기기 ?(부착|설치)|기업환경 ?개선|"
+    r"스마트공장 ?(구축|보급|수준확인|자부담)|HACCP ?시설|저장시설 ?보관|"
+    r"취급시설 ?안전|고효율 ?설비|공장 ?스마트화")
+
+# ══════════════════════════════════════════════════════════════════
+# 축2h — 특정 법인격 전용. 2026-08-18 추가.
+#
+#   사회적경제기업·마을기업·자활기업·장애인기업만 받는 공고다. 인증이나 지정을
+#   받아야 신청 자격이 생기므로 일반 창업팀은 서류조차 낼 수 없다.
+#   **축2c 소상공인 전용과 같은 형태다** — 절에 그 어휘만 있고 일반 기업·창업자
+#   언급이 없을 때만 뺀다.
+#
+#   일반 어휘 목록에 `예비창업`·`창업자`·`초기창업` 을 넣지 않으면 두 건이 오배제된다.
+#     125432 [충북] 장애인기업 육성 — `장애인기업 또는 장애인 예비창업자`
+#     124128 [경기] 반려동물 창업 공모전 — `예비창업자 및 도내 3년 이내 초기창업자`
+#   둘 다 우리 타겟이다. 사회적경제는 지원내용 쪽에 나오는 낱말일 뿐이다.
+SPECIAL_ORG = re.compile(
+    r"사회적경제|사회적기업|협동조합|마을기업|자활기업|장애인기업")
+GENERAL_BIZ = re.compile(
+    r"중소기업|창업기업|스타트업|벤처기업|중견기업|제조기업|예비창업|창업자|초기창업")
+
+# ══════════════════════════════════════════════════════════════════
+# 축2i — 금융 비용 보전. 2026-08-18 추가.
+#
+#   보증료·화재보험료·사회보험료·전세대출이자. **사업에 쓸 돈이 아니라 이미 낸
+#   비용의 일부를 돌려주는 것**이다. 축2 가 중분류 `융자` 를 이미 빼고 있는데,
+#   이것들은 `시설/입지지원`·`디자인/상품화/사업화` 로 분류돼 새 나갔다.
+#
+#   지원내용에 `보험료` 가 들어 있다고 다 빼면 안 된다. `125330` 무역사절단은
+#   `편도 항공료 및 보험료`, `122876` 물류바우처는 `국제운송료 및 보험료` 라
+#   **묶음 안의 한 항목**이다. 그래서 절 첫머리이거나 나열의 머리일 때만 본다.
+FIN_COST_SUPPORT = re.compile(
+    r"^\s*보증료|보증료[,ㆍ·]|화재보험료|사회보험료|수출보험ㆍ보증료|전세대출이자")
+FIN_COST_TITLE = re.compile(r"보증료|화재보험료|사회보험료|보험료 ?지원")
 
 # ══════════════════════════════════════════════════════════════════
 # 축3 — 업력 상한·하한
@@ -375,6 +426,7 @@ def filter_notice(n: dict, today: str | None = None, biz_years: float = 2.5,
     st = strip_paren(title)
     task = [k for k, p in TASK if p.search(st)]
     grow = [k for k, p in GROW if p.search(st)]
+    sup = second_clause(sm)
     ceil, floor, pre = parse_age(cl)
     sfloor = parse_staff_floor(cl)
     end = parse_end(n)
@@ -383,6 +435,9 @@ def filter_notice(n: dict, today: str | None = None, biz_years: float = 2.5,
     ok3 = (ceil is None or ceil >= biz_years) and floor < biz_years
     okpre = pre and floor == 0
     sole = bool(SOLE_TARGET.search(cl)) and not BIZ_MENTION.search(cl)
+    facility = bool(FACILITY.search(title) or FACILITY.search(sup))
+    fin_cost = bool(FIN_COST_SUPPORT.search(sup) or FIN_COST_TITLE.search(title))
+    special = bool(SPECIAL_ORG.search(cl)) and not GENERAL_BIZ.search(cl)
     ok_staff = sfloor <= staff
     # 축2e — 세 조건이 동시에 성립할 때만. 하나라도 있으면 통과다.
     no_signal = unv and not grow and ceil is None and floor == 0 and lclas != "창업"
@@ -400,6 +455,12 @@ def filter_notice(n: dict, today: str | None = None, biz_years: float = 2.5,
         reasons.append("축2b 과업 " + ",".join(task))
     if sole:
         reasons.append("축2c 소상공인 전용 — 지원대상 절에 기업 언급이 없다")
+    if facility:
+        reasons.append("축2g 설비·시설 지원 — 사업장 보유가 전제다")
+    if fin_cost:
+        reasons.append("축2i 금융 비용 보전 — 사업에 쓸 돈이 아니다")
+    if special:
+        reasons.append("축2h 특정 법인격 전용 — 지원대상 절에 일반 기업·창업자 언급이 없다")
     if end and end < today:
         reasons.append(f"마감 {end}")
     if not ok_staff:
@@ -414,11 +475,12 @@ def filter_notice(n: dict, today: str | None = None, biz_years: float = 2.5,
         "ceil": ceil, "floor": floor, "pre_stated": pre,
         "eligible_biz": ok3, "eligible_pre": okpre, "sole_proprietor": sole,
         "staff_floor": sfloor, "eligible_staff": ok_staff,
+        "facility": facility, "finCost": fin_cost, "specialOrg": special,
         "tier": tier(unv, grow, ceil, floor, lclas), "unverifiedMlsfc": unv,
         "noPlanMlsfc": mlsfc in SKIP_MLSFC_NOPLAN, "noSignal": no_signal,
         "lclas": lclas, "mlsfc": mlsfc, "target": n.get("trgetNm"),
         "jrsd": n.get("jrsdInsttNm"), "exc": n.get("excInsttNm"),
-        "eligibility": cl, "support": second_clause(sm),
+        "eligibility": cl, "support": sup,
         "region": (REGION_TAG.match(title).group(1) if REGION_TAG.match(title) else "전국·미표기"),
         "period": n.get("reqstBeginEndDe"), "end": end, "rolling": end is None,
         "planForm": bool(PLAN_FN.search((n.get("fileNm") or "") + (n.get("printFileNm") or ""))),
@@ -430,7 +492,8 @@ def run(items: list[dict], today: str | None = None) -> dict:
     """전체를 돌리고 퍼널까지 돌려준다."""
     today = today or date.today().isoformat()
     stage = {"①전량": 0, "②축1": 0, "③축2": 0, "④계획서없음": 0, "⑤신호없음": 0,
-             "⑥과업배제": 0, "⑦소상공인제외": 0, "⑧규모": 0, "⑨마감전": 0, "⑩업력": 0}
+             "⑥설비시설": 0, "⑦금융비용": 0, "⑧과업배제": 0, "⑨소상공인제외": 0,
+             "⑩특정법인": 0, "⑪규모": 0, "⑫마감전": 0, "⑬업력": 0}
     out, dropped = [], []
     for n in items:
         stage["①전량"] += 1
@@ -447,21 +510,30 @@ def run(items: list[dict], today: str | None = None) -> dict:
         if r["noSignal"]:
             dropped.append(r); continue
         stage["⑤신호없음"] += 1
+        if r["facility"]:
+            dropped.append(r); continue
+        stage["⑥설비시설"] += 1
+        if r["finCost"]:
+            dropped.append(r); continue
+        stage["⑦금융비용"] += 1
         if r["task"]:
             dropped.append(r); continue
-        stage["⑥과업배제"] += 1
+        stage["⑧과업배제"] += 1
         if r["sole_proprietor"]:
             dropped.append(r); continue
-        stage["⑦소상공인제외"] += 1
+        stage["⑨소상공인제외"] += 1
+        if r["specialOrg"]:
+            dropped.append(r); continue
+        stage["⑩특정법인"] += 1
         if not r["eligible_staff"]:
             dropped.append(r); continue
-        stage["⑧규모"] += 1
+        stage["⑪규모"] += 1
         if r["end"] and r["end"] < today:
             dropped.append(r); continue
-        stage["⑨마감전"] += 1
+        stage["⑫마감전"] += 1
         if not r["eligible_biz"]:
             dropped.append(r); continue
-        stage["⑩업력"] += 1
+        stage["⑬업력"] += 1
         out.append(r)
     out.sort(key=lambda x: (0 if x["eligible_pre"] else 1, x["tier"], x["end"] or "9999", x["sn"]))
     return {"generated": today, "funnel": stage, "kept": out, "dropped": dropped}
@@ -527,6 +599,18 @@ FIXTURES = [
     ("121389", True,  "농식품글로벌성장패키지 — 끝명사가 '중견기업으로 아래' 였다"),
     ("120117", False, "소상공인 LIPS — 축1 오판(운영사)은 고쳤다. 이제 축2c 가 제 이유로 뺀다"),
     ("124232", False, "투ㆍ융자 연계 기술개발 — 운영사가 **신청자**다. 공급자 배제는 살아 있어야 한다"),
+    # 2026-08-18 축2g — 정부가 주는 것이 사업장 설비다
+    ("122168", False, "경주시 소규모 사업장 방지시설 — 축2g. 대기배출시설이 있어야 낸다"),
+    ("122893", True,  "세종테크밸리 임차료 — **같은 `시설/입지지원` 인데 남긴다.** 사무실 임차료다"),
+    ("118285", True,  "실감콘텐츠 스튜디오 현물지원 — 분류로 빼면 이것도 빠진다"),
+    # 2026-08-18 축2i — 이미 낸 비용의 보전이지 사업에 쓸 돈이 아니다
+    ("120135", False, "하남산업단지 보증료 — 축2i"),
+    ("117068", False, "청년하우스 전세대출이자ㆍ월세 — 축2i. 개인 주거 복지다"),
+    ("125330", True,  "말레이시아-인도 무역사절단 — `항공료 및 보험료` 는 묶음 안의 한 항목이라 남긴다"),
+    # 2026-08-18 축2h — 인증·지정을 받아야 자격이 생기는 공고
+    ("119332", False, "하남시 사회적경제기업 컨설팅 — 축2h"),
+    ("125432", True,  "충북 장애인기업 육성 — `장애인 예비창업자` 가 있어 남긴다. 일반 어휘가 덮는다"),
+    ("124128", True,  "경기 반려동물 창업 공모전 — `예비창업자 및 3년 이내 초기창업자` 다"),
 ]
 
 # 축2d 가 공고 단위 픅스처를 가로채도 살아남아야 하는 회귀. 함수를 직접 잰다.
@@ -561,6 +645,16 @@ UNIT = [
      lambda: not supplier_hit("중기부가 지정한 운영사로부터 先투자받은 유망 소상공인")),
     ("'및 운영사' 는 신청자다",
      lambda: supplier_hit("창업기획자 및 운영사")),
+    # 2026-08-18 축2g·2h·2i — 어휘가 '묶음 안의 한 항목' 일 때 걸리면 안 된다
+    ("보험료가 나열 뒤쪽이면 금융비용이 아니다",
+     lambda: not FIN_COST_SUPPORT.search("편도 항공료 및 보험료, BuyKorea 활용 마케팅")),
+    ("보증료가 첫머리면 금융비용이다",
+     lambda: bool(FIN_COST_SUPPORT.search("보증료의 30% 지원 (최대 1백만원)"))),
+    ("사업장 임차료는 설비·시설이 아니다",
+     lambda: not FACILITY.search("사무실 임차료(연간 20백만원), 사무실 조성 공사비")),
+    ("일반 창업 어휘가 있으면 특정 법인격 전용이 아니다",
+     lambda: bool(SPECIAL_ORG.search("장애인기업 또는 장애인 예비창업자"))
+             and bool(GENERAL_BIZ.search("장애인기업 또는 장애인 예비창업자"))),
 ]
 FIXTURE_TODAY = "2026-08-18"   # 픅스처는 이 날짜로 고정해야 마감 판정이 재현된다
 

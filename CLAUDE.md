@@ -29,7 +29,7 @@
 Python 3.13 · uv · FastAPI · Jinja2 · PostgreSQL 18 · SQLAlchemy 2.0 · Alembic ([ADR-0020](docs/adr/0020-스택-확정.md)).
 제품 프론트는 **Next.js 16 · TypeScript · CSS Modules** ([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md)). ADR-0020이 비워 둔 자리를 채운 것이라 뒤집는 게 아니다.
 
-**v2가 여기 없는 것을 요구한다.** 오브젝트 스토리지(원본 파일), 큐와 워커(파일별 비동기 상태머신), 벡터 저장(근거 청크 검색), HWP 파서, OCR.
+**v2가 여기 없는 것을 요구한다.** 큐와 워커(파일별 비동기 상태머신), 벡터 저장(근거 청크 검색). ~~오브젝트 스토리지~~는 [ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)가 로컬로 정했고, ~~HWP 파서~~와 ~~OCR~~은 붙었다([ADR-0030](docs/adr/0030-OCR은-rapidocr-로컬로-하고-검출은-server-를-쓴다.md)).
 
 **이걸 미리 고르지 않는다**([ADR-0021](docs/adr/0021-인프라-선정을-미룬다.md)). 전부 아직 없는 코드의 것이라, 각각을 실제로 필요로 하는 작업에서 정하고 ADR로 남긴다. 파일을 처음 받는 작업이 저장 위치와 격리 정책을 함께 정한다.
 
@@ -45,6 +45,7 @@ uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘�
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
+uv sync --group ocr                              # OCR (ADR-0030). 기본 의존성이 아니다
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 사용자 파일 → 원문 청크
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
@@ -150,7 +151,9 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **`FINNECT_API` 에 배포 URL(`finnect-<해시>-<팀>.vercel.app`)을 넣으면 안 된다.** 그 주소는 불변이라 **API 에 새 경로가 생겨도 웹이 영원히 못 본다.** 2026-08-17 운영 화면을 올린 뒤 `/admin/*` 만 500 이었고 `/` 는 멀쩡해서 늦게 잡혔다 — 옛 배포에도 `/api/notices` 는 있었기 때문이다. 값은 `https://finnect-api.vercel.app` 이고, **고친 뒤 웹을 재배포해야 한다**(`next.config.ts` 의 `env` 는 빌드 때 박힌다) — [deploy.md](docs/deploy.md)
 - **PDF 추출률은 91%가 아니라 86.1%다.** 91%는 표본 22개였고 1,167개로 다시 재니 낮아졌다. 차이 5%p가 전부 스캔본이다
 - **"스캔 PDF는 매뉴얼뿐이라 OCR 실익이 없다"는 스파이크 결론은 틀렸다.** 표본 3건에서 나온 말이고, 158건에서는 **34건이 그 공고의 유일한 근거**다
-- **사업자등록증은 거의 사진이라 OCR이 필요하다.** 위키의 자격 판별 입력 다섯 중 넷이 여기서 나온다. **OCR로 가기로 정했고**(2026-08-17) 엔진과 범위는 T-0007이 정한다
+- **사업자등록증은 거의 사진이라 OCR이 필요하다.** 위키의 자격 판별 입력 다섯 중 넷이 여기서 나온다. **2026-08-18 붙었다** — RapidOCR 로컬([ADR-0030](docs/adr/0030-OCR은-rapidocr-로컬로-하고-검출은-server-를-쓴다.md)). **검출 모델을 `server`로 못 박은 것이 요점이다** — 기본값(`small`)으로는 소재지와 업종이 아예 안 나온다(실측 5/8 대 7/8)
+- **OCR은 기본으로 안 돈다.** 사용자 파일만 켜져 있고(`USER_FILE_OCR`) **첨부는 꺼져 있다** — 켜면 plan/07이 측정한 2,827/3,354를 다시 재야 하고 총 비용을 아직 모른다. **`uv sync --group ocr`** 로 설치하고, 없으면 그림이 `unsupported`로 남는다
+- **OCR 텍스트로 제목에 기대는 규칙을 만들지 않는다.** 굵은 서체와 자간 넓힌 글자가 깨진다(`름눌을`·`H거3`). 본문은 쓸 만하고 표 구조는 안 나온다
 - **첨부 URL은 `HEAD`가 403이고 `GET`만 200이다.** 브라우저 UA와 Referer가 필요하고, 기업마당은 **오류도 HTTP 200 + HTML로** 준다. 안 거르면 오류 페이지가 hwp로 저장돼 '파서 실패'로 둔갑한다
 - **확장자를 파일명으로 판정하지 않는다.** 3,354건 중 7건이 파일명과 내용이 다르다(`.hwpx`인데 HWP 5건 등). 판정은 `attach/formats.py`가 내용으로 한다
 - **ZIP 166개 안에 읽을 수 있는 문서가 799개 있다.** 지금은 목록만 읽고 안 푼다. 풀지 말지는 이 숫자를 보고 정한다

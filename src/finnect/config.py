@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     #: 사용자 파일에서 해독을 시도할 확장자. **첨부와 따로 둔다**(ADR-0029).
     #: 첨부 목록에 xlsx·pptx 를 더하면 plan/07 이 측정한 2,827/3,354 가 근거를 잃는다.
     #: 사용자 파일에는 재무제표(xlsx)와 피치덱(pptx)이 반드시 오므로 여기는 넣는다.
-    user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx"
+    user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx,jpg,png"
+
+    #: 사용자 파일에 OCR 을 쓸지(ADR-0030). **첨부는 별도다** — 켜면 plan/07 이
+    #: 측정한 값을 다시 재야 하고 총 비용을 아직 모른다.
+    user_file_ocr: bool = True
 
     #: 청크 한 조각의 목표 길이(자). 문단 경계를 넘지 않으려고 넘칠 수 있다.
     chunk_target_chars: int = 900

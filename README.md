@@ -117,14 +117,15 @@ uv run python -m finnect.attach --report     # 집계만. 아무것도 안 받�
 아직 사실을 뽑지 않는다 — 거기부터가 [plan/12](docs/plan/12-사업-위키-구축.md) T-0045다.
 
 ```bash
+uv sync --group ocr   # OCR(ADR-0030). 기본 의존성이 아니다 — onnxruntime 이 무겁다
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*
 uv run python -m finnect.wiki --company c_dasiro --report     # 집계만
 uv run python -m finnect.wiki --company c_dasiro --rechunk    # 청킹 규칙을 고쳤을 때
 uv run python -m finnect.wiki --company c_dasiro --purge      # 탈퇴. 원본까지 지운다
 ```
 
-`tests/fixtures/wiki/`에 예시 파일 일곱이 있다. **일곱 중 둘은 아직 안 읽힌다** —
-이미지와 스캔 PDF라서 OCR이 필요하다. XLSX·PPTX는 2026-08-18에 붙었다. 무엇을 심어 뒀는지는
+`tests/fixtures/wiki/`에 예시 파일 일곱이 있다. **`uv sync --group ocr`을 하면 일곱 전부 읽힌다.**
+OCR을 안 깔면 이미지와 스캔 PDF 둘이 각각 `unsupported`·`empty`로 남는다 — 조용히 사라지지 않는다. 무엇을 심어 뒀는지는
 [픽스처 README](tests/fixtures/wiki/README.md)에 있다.
 
 원본은 `data/user-files/<company_id>/`에 쌓인다([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)).

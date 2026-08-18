@@ -16,7 +16,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from finnect.attach import extract, formats, hwp
+from finnect.attach import extract, formats
 from finnect.config import settings
 from finnect.models import Chunk, ParseStatus, UserFile, UserFileStatus
 from finnect.wiki import chunk as chunker
@@ -39,29 +39,15 @@ class IngestReport:
     problems: list[tuple[str, str]] = field(default_factory=list)
 
 
-def _pages(path: Path, ext: str | None, text: str) -> tuple[list[str], bool | None]:
-    """조각 경계와 **번호를 붙일지**.
-
-    | 포맷 | 경계 | `page` |
-    |---|---|---|
-    | PDF | 쪽 | **찬다.** 쪽이 실재한다 |
-    | PPTX | 슬라이드 | **찬다.** 슬라이드는 쪽처럼 세어진다 |
-    | XLSX | 시트 | **비운다.** 시트는 쪽이 아니다. 이름은 `heading` 이 받는다 |
-    | 그 밖 | 없음 | 비운다 |
-
-    없는 쪽 번호를 만들어 붙이면 근거가 거짓이 된다. 경계를 지키는 것과 번호를 붙이는
-    것은 다른 일이다.
-    """
-    try:
-        if ext == "pdf":
-            return hwp.pages_from_pdf(path), True
-        if ext == "pptx":
-            return hwp.slides_from_pptx(path), True
-        if ext == "xlsx":
-            return hwp.sheets_from_xlsx(path), False
-    except Exception:  # noqa: BLE001 — 조각 분해가 실패하면 통짜로라도 청크는 낸다
-        return [text], False
-    return [text], None
+#: 조각에 번호를 붙일지. **경계를 지키는 것과 번호를 붙이는 것은 다른 일이다** —
+#: 없는 쪽 번호를 만들어 붙이면 근거가 거짓이 된다.
+#:
+#: | 포맷 | 경계 | `page` |
+#: |---|---|---|
+#: | PDF | 쪽 | **찬다.** 쪽이 실재한다 |
+#: | PPTX | 슬라이드 | **찬다.** 슬라이드는 쪽처럼 세어진다 |
+#: | XLSX | 시트 | **비운다.** 시트는 쪽이 아니다. 이름은 `heading` 이 받는다 |
+NUMBERED = {"pdf": True, "pptx": True, "xlsx": False}
 
 
 def ingest_file(
@@ -101,7 +87,9 @@ def ingest_file(
     session.add(uf)
     session.flush()
 
-    parsed = extract.parse(path, name, allowed=settings.wiki_formats)
+    parsed = extract.parse(
+        path, name, allowed=settings.wiki_formats, use_ocr=settings.user_file_ocr
+    )
     uf.parse_status = parsed.status
     uf.parser = parsed.parser
     uf.parse_error = parsed.error
@@ -118,14 +106,19 @@ def ingest_file(
         uf.chunk_count = 0
         return uf, uf.status
 
-    pages, numbered = _pages(path, ext, parsed.text or "")
+    # **파서가 준 조각을 그대로 쓴다.** 다시 파싱하면 PDF 를 두 번 읽고, OCR 이면
+    # 그 비용이 쪽당 십수 초씩 두 배가 된다.
+    pages = parsed.pages or [parsed.text or ""]
+    # **쪽 수가 아니라 포맷으로 정한다.** 1쪽짜리 PDF 도 그 1쪽이 어딘지 안다 —
+    # `len(pages) > 1` 로 걸면 한 장짜리 사업자등록증의 쪽이 NULL 이 된다.
+    numbered = NUMBERED.get(ext or "")
 
     # **청커가 이은 것을 저장한다.** 파서의 `text` 를 저장하면 좌표계가 두 벌이 되고,
     # 이으는 문자가 한 글자만 달라도 모든 청크의 좌표가 어긋난다. 실제로 그랬다.
     text = chunker.join(pages)
     storage.put_text(company_id, sha, text)
     uf.text_chars = len(text)
-    uf.page_count = len(pages) if numbered and len(pages) > 1 else None
+    uf.page_count = len(pages) if numbered else None
 
     pieces = chunker.split(pages, numbered=numbered)
     session.add_all(
@@ -200,10 +193,9 @@ def rechunk(session: Session, company_id: str, *, sha256: str | None = None) -> 
         text = storage.read_text(company_id, uf.sha256)
         if text is None:
             continue
-        if uf.ext in {"pdf", "pptx", "xlsx"}:
-            pages, numbered = _pages(storage.abs_path(company_id, uf.sha256), uf.ext, text)
-        else:
-            pages, numbered = [text], None
+        # 다시 쪼갤 때는 저장된 텍스트만 쓴다. **원본을 다시 읽지 않는다** —
+        # OCR 을 다시 돌리는 것은 특히 비싸다. 대가로 조각 경계가 사라져 통짜가 된다.
+        pages, numbered = [text], None
         session.execute(sa_delete(Chunk).where(Chunk.user_file_id == uf.id))
         pieces = chunker.split(pages, numbered=numbered)
         session.add_all(

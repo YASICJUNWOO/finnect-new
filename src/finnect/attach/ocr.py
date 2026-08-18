@@ -1,0 +1,103 @@
+"""그림에서 글자를 찾는다 — RapidOCR (ADR-0030).
+
+**기본으로 안 돈다.** 텍스트 레이어를 읽는 것과 그림에서 글자를 찾는 것은 비용이
+세 자릿수 배 다르다 — 밀리초 대 십수 초. 부르는 쪽이 켠다.
+
+임포트를 함수 안에서 하는 이유는 배포본이다. `requirements.txt` 는 읽기 경로만 싣고
+(ADR-0026) 서버리스 함수에 ONNX 런타임을 넣을 이유가 없다.
+
+**검출 모델을 `server` 로 못 박은 것이 이 파일의 요점이다.** 기본값(`small`)으로는
+사업자등록증의 소재지와 업종이 아예 안 나온다 — 실측 5/8 대 7/8. 그 둘이 자격 판별의
+입력이라 5배 느린 것을 받는다.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any
+
+log = logging.getLogger(__name__)
+
+#: 그림 파일. PDF 는 여기 없다 — 텍스트 레이어를 먼저 보고 없을 때만 OCR 로 간다.
+IMAGE_EXTS = frozenset({"jpg", "png", "gif", "bmp", "tiff", "webp"})
+
+#: 렌더 해상도. 200 → 300 에서 실측 차이가 없었으나 300 이 안전한 쪽이다.
+DPI = 300
+
+_engine: Any = None
+
+
+class OcrUnavailable(RuntimeError):
+    """rapidocr 가 없다. **조용히 0자를 돌려주지 않는다.**"""
+
+
+def available() -> bool:
+    try:
+        import rapidocr  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def engine() -> Any:
+    """모델을 한 번만 올린다. 매번 만들면 로딩이 인식보다 오래 걸린다."""
+    global _engine
+    if _engine is not None:
+        return _engine
+    try:
+        from rapidocr import RapidOCR
+        from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
+    except ImportError as e:  # pragma: no cover - 설치 여부에 달렸다
+        raise OcrUnavailable("rapidocr 가 없다. uv sync --group ocr") from e
+
+    # 인식과 검출을 **둘 다 PP-OCRv5 로** 맞춘다. Rec 만 korean 으로 주면
+    # 기본 검출이 PP-OCRv6 이고 그 버전에 한국어 인식 모델이 없어서 터진다.
+    _engine = RapidOCR(
+        params={
+            "Rec.lang_type": LangRec.KOREAN,
+            "Rec.model_type": ModelType.MOBILE,
+            "Rec.ocr_version": OCRVersion.PPOCRV5,
+            "Det.ocr_version": OCRVersion.PPOCRV5,
+            "Det.model_type": ModelType.SERVER,  # ← 5/8 을 7/8 로 만드는 한 줄
+        }
+    )
+    return _engine
+
+
+def _read(img: Any) -> str:
+    """인식 결과를 줄바꿈으로 이어 붙인다.
+
+    **신뢰도로 걸러내지 않는다.** 모델이 자기에게 매긴 점수라 눈금이 없고, 실측에서
+    맞은 줄과 틀린 줄의 점수가 겹쳤다. 거르면 맞은 것도 같이 버린다.
+    """
+    res = engine()(img)
+    return "\n".join(t for t in (res.txts or []) if t and t.strip())
+
+
+def from_image(path: Path) -> str:
+    import numpy as np
+    from PIL import Image
+
+    with Image.open(path) as im:
+        return _read(np.array(im.convert("RGB")))
+
+
+def pages_from_pdf(path: Path) -> list[str]:
+    """스캔 PDF 를 쪽별로. **쪽 번호가 여기서만 살아난다**(ADR-0014)."""
+    import numpy as np
+    import pypdfium2 as pdfium
+
+    out: list[str] = []
+    doc = pdfium.PdfDocument(str(path))
+    try:
+        for page in doc:
+            img = page.render(scale=DPI / 72).to_pil()
+            out.append(_read(np.array(img)))
+    finally:
+        doc.close()
+    return out
+
+
+def from_pdf(path: Path) -> str:
+    return "\n".join(pages_from_pdf(path))

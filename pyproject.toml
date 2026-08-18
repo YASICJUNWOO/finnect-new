@@ -24,6 +24,14 @@ dependencies = [
 ]
 
 [dependency-groups]
+# OCR(ADR-0030). **기본 의존성에 안 넣는다** — onnxruntime 과 모델이 무겁고
+# 배포본은 읽기 경로뿐이다(ADR-0026). `uv sync --group ocr` 로 켠다.
+ocr = [
+    "rapidocr>=3.4",
+    "onnxruntime>=1.20",
+    "pypdfium2>=4.30",
+    "pillow>=11.0",
+]
 dev = [
     "pytest>=8.3",
     "ruff>=0.9",

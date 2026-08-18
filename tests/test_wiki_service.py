@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
+from finnect.attach import ocr
 from finnect.config import settings
 from finnect.models import Base, Chunk, UserFile, UserFileStatus
 from finnect.wiki import service, storage
@@ -24,12 +25,24 @@ FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
 COMPANY = "c_test"
 
 
-@pytest.fixture
-def factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
+def _factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, use_ocr: bool):  # noqa: ANN202
     monkeypatch.setattr(settings, "user_file_dir", tmp_path / "files")
+    monkeypatch.setattr(settings, "user_file_ocr", use_ocr)
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine, tables=[UserFile.__table__, Chunk.__table__])
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
+
+
+@pytest.fixture
+def factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
+    """**OCR 을 끈 상태가 기본이다.** 켜면 스위트가 5초에서 46초로 가고, 첫 실행에
+    모델을 내려받아야 해서 네트워크에 묶인다. OCR 은 아래 전용 테스트가 본다."""
+    return _factory(tmp_path, monkeypatch, use_ocr=False)
+
+
+@pytest.fixture
+def ocr_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
+    return _factory(tmp_path, monkeypatch, use_ocr=True)
 
 
 def _fixture(name: str) -> Path:
@@ -102,11 +115,11 @@ def test_표_구조가_살아_있다(factory) -> None:  # noqa: ANN001
 
 
 def test_파일_하나가_실패해도_나머지가_완주한다(factory) -> None:  # noqa: ANN001
-    """**부분 성공이 예외가 아니라 정상 상태다**(F1-1-8)."""
+    """**부분 성공이 예외가 아니라 정상 상태다**(F1-1-8). OCR 이 꺼진 상태로 본다."""
     paths = [
-        _fixture("현장사진_파일럿매장.jpg"),  # 파서가 없다
+        _fixture("현장사진_파일럿매장.jpg"),  # 그림. OCR 이 꺼져 있어 실패
         _fixture("회사소개서_v3.pdf"),  # 읽힌다
-        _fixture("사업자등록증_스캔.pdf"),  # 글자가 0자다
+        _fixture("사업자등록증_스캔.pdf"),  # 스캔본. 텍스트 레이어가 0자
         _fixture("성남시_시범사업_신청서.hwpx"),  # 읽힌다
     ]
 
@@ -119,8 +132,8 @@ def test_파일_하나가_실패해도_나머지가_완주한다(factory) -> Non
     assert len(report.problems) == 2, "못 읽은 것이 이유와 함께 남아야 한다"
 
 
-def test_스캔본은_실패가_아니라_검토_대기다(factory) -> None:  # noqa: ANN001
-    """포맷이 없는 것과 글자가 안 나온 것은 다르다. **스캔본은 OCR 이 붙으면 읽힌다**(T-0042)."""
+def test_OCR_이_꺼져_있으면_스캔본은_검토_대기다(factory) -> None:  # noqa: ANN001
+    """포맷이 없는 것과 글자가 안 나온 것은 다르다. **스캔본은 OCR 이 붙으면 읽힌다.**"""
     report = service.ingest_files(factory, COMPANY, [_fixture("사업자등록증_스캔.pdf")])
 
     assert report.needs_review == 1
@@ -203,3 +216,57 @@ def test_읽을_파일이_없으면_조용히_끝난다(factory) -> None:  # noq
 
     assert report.files == 0
     assert report.problems == []
+
+
+# ─────────────────────────────────────────────────────────────
+# OCR (ADR-0030). **모델을 내려받아야 하고 쪽당 십수 초 걸린다.**
+# 스위트를 여기 묶지 않으려고 나눠 뒀다.
+# ─────────────────────────────────────────────────────────────
+
+ocr_needed = pytest.mark.skipif(
+    not ocr.available(), reason="rapidocr 가 없다 (uv sync --group ocr)"
+)
+
+
+@ocr_needed
+def test_OCR_을_켜면_스캔본에서_글자가_나온다(ocr_factory) -> None:  # noqa: ANN001
+    """**위키의 정형 슬롯 다섯 중 넷이 사업자등록증에서 나온다.** OCR 없이는 0자다."""
+    report = service.ingest_files(ocr_factory, COMPANY, [_fixture("사업자등록증_스캔.pdf")])
+
+    assert report.done == 1, "OCR 을 켰는데도 안 읽혔다"
+    assert report.needs_review == 0
+    assert report.chunks > 0
+
+    with ocr_factory() as s:
+        uf = s.scalar(select(UserFile))
+        assert uf.status == UserFileStatus.CHUNKED
+        assert uf.parser and uf.parser.startswith("ocr/"), "OCR 로 읽은 것이 기록돼야 한다"
+
+        text = "".join(c.text for c in s.scalars(select(Chunk)))
+        flat = text.replace(" ", "")
+        # 자격 판별의 입력. **라벨이 아니라 값을 본다** — 라벨은 자간 때문에 깨진다
+        assert "501-86-33271" in flat, "사업자등록번호"
+        assert "110111-8842301" in flat, "법인등록번호"
+        assert "주식회사다시로" in flat, "법인명"
+        assert "판교로255" in flat, "소재지"
+        assert "2024년03월11일" in flat, "개업일"
+
+
+@ocr_needed
+def test_OCR_을_켜면_그림_파일도_읽는다(ocr_factory) -> None:  # noqa: ANN001
+    report = service.ingest_files(ocr_factory, COMPANY, [_fixture("현장사진_파일럿매장.jpg")])
+
+    assert report.failed == 0, "OCR 을 켰는데 그림이 실패했다"
+    with ocr_factory() as s:
+        uf = s.scalar(select(UserFile))
+        assert uf.parser and uf.parser.startswith("ocr/")
+
+
+@ocr_needed
+def test_OCR_은_텍스트가_있는_PDF_를_건드리지_않는다(ocr_factory) -> None:  # noqa: ANN001
+    """**순서를 뒤집으면 읽히는 PDF 에도 쪽당 십수 초를 쓴다.**"""
+    service.ingest_files(ocr_factory, COMPANY, [_fixture("회사소개서_v3.pdf")])
+
+    with ocr_factory() as s:
+        uf = s.scalar(select(UserFile))
+        assert uf.parser == "pdf/plumber", f"OCR 로 갔다: {uf.parser}"

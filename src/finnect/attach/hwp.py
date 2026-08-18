@@ -15,6 +15,7 @@ HWP 5.0 은 OLE 복합문서다. BodyText/Section* 스트림이 raw deflate 로 
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 import struct
 import zipfile
@@ -361,3 +362,101 @@ def zip_listing(path: Path) -> list[dict[str, object]]:
             for i in z.infolist()
             if not i.is_dir()
         ]
+
+
+# ─────────────────────────────────────────────────────────────────
+# 사용자 파일 전용(plan/12 T-0042). 첨부는 기본으로 안 쓴다 — 그 숫자를 다시 재야 해서다.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _cell(v: object, number_format: str = "") -> str:
+    """셀 하나를 글자로. **뭉개지 않는 것이 요점이다.**
+
+    `24100000.0` 을 그대로 두면 사람도 모델도 읽기 어렵고, 반대로 천 단위 쉼표를
+    넣으면 숫자를 다시 파싱할 때 걸린다. 정수인 실수만 정수로 내린다.
+
+    **백분율은 서식을 봐야 한다.** 엑셀은 258.5% 를 값 `2.585062240663901` 로 들고 있어서
+    값만 읽으면 모델이 2.58 로 읽는다. 화면에 뜬 것과 뽑아낸 것이 달라지면 근거가 거짓이 된다.
+    """
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "예" if v else "아니오"
+    if isinstance(v, dt.datetime):
+        return v.date().isoformat() if (v.hour, v.minute, v.second) == (0, 0, 0) else v.isoformat()
+    if isinstance(v, dt.date):
+        return v.isoformat()
+    if isinstance(v, (int, float)):
+        if "%" in number_format:
+            return f"{v * 100:.1f}%"
+        if isinstance(v, float):
+            return str(int(v)) if v.is_integer() else f"{v:.6g}"
+        return str(v)
+    return str(v).strip()
+
+
+def sheets_from_xlsx(path: Path) -> list[str]:
+    """시트별 텍스트. **행이 줄, 셀이 탭이다.**
+
+    재무제표는 표 구조와 셀 좌표를 보존해야 한다. 뭉개면 `매출액 24,100,000 86,400,000` 의
+    두 값이 각각 2024·2025 인지 알 수 없어져 **연도-항목-값 대응이 통째로 깨진다.**
+    행을 줄로, 셀을 탭으로 두면 그 대응이 텍스트 안에 남는다.
+
+    시트를 따로 돌려주는 이유는 청크가 시트를 넘지 않아야 하기 때문이다. 손익계산서와
+    재무상태표가 한 조각에 섞이면 같은 항목명이 두 뜻을 갖는다.
+    """
+    from openpyxl import load_workbook
+
+    wb = load_workbook(str(path), data_only=True, read_only=True)
+    try:
+        out: list[str] = []
+        for ws in wb.worksheets:
+            lines = [f"## {ws.title}"]
+            for row in ws.iter_rows():
+                cells = [_cell(c.value, c.number_format or "") for c in row]
+                while cells and not cells[-1]:
+                    cells.pop()  # 오른쪽 빈 칸은 버린다. 탭만 남은 줄이 생긴다
+                if any(cells):
+                    lines.append("\t".join(cells))
+            out.append("\n".join(lines))
+        return out
+    finally:
+        wb.close()
+
+
+def from_xlsx(path: Path) -> str:
+    return "\n".join(sheets_from_xlsx(path))
+
+
+def slides_from_pptx(path: Path) -> list[str]:
+    """슬라이드별 텍스트. 표와 발표자 노트를 포함한다.
+
+    피치덱의 숫자는 표와 도형에 흩어져 있어 둘 중 하나만 읽으면 절반이 사라진다.
+    노트까지 읽는 이유는 화면에 안 쓴 근거가 거기 적히기 때문이다.
+    """
+    from pptx import Presentation
+
+    prs = Presentation(str(path))
+    out: list[str] = []
+    for idx, slide in enumerate(prs.slides, start=1):
+        lines = [f"## 슬라이드 {idx}"]
+        for shape in slide.shapes:
+            if shape.has_table:
+                for row in shape.table.rows:
+                    cells = [c.text.strip().replace("\n", " ") for c in row.cells]
+                    if any(cells):
+                        lines.append("\t".join(cells))
+            elif shape.has_text_frame:
+                text = shape.text_frame.text.strip()
+                if text:
+                    lines.append(text)
+        if slide.has_notes_slide:
+            note = (slide.notes_slide.notes_text_frame.text or "").strip()
+            if note:
+                lines.append(f"[노트] {note}")
+        out.append("\n".join(lines))
+    return out
+
+
+def from_pptx(path: Path) -> str:
+    return "\n".join(slides_from_pptx(path))

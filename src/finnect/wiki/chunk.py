@@ -32,6 +32,7 @@ _HEADING = re.compile(
     r"|\d{1,2}\)\s*\S"  # 1) ...
     r"|[■▶◆●□▪]\s*\S"  # ■ 사업계획서
     r"|\[[^\]]{1,24}\]\s*\S*"  # [붙임2] 사업계획서
+    r"|##\s*\S"  # ## 손익계산서 · ## 슬라이드 7 — xlsx·pptx 파서가 넣는 표지
     r"|제\s*\d+\s*[조장절편]"  # 제1조
     r")"
 )
@@ -56,6 +57,18 @@ class Piece:
     @property
     def chars(self) -> int:
         return len(self.text)
+
+
+#: **조각을 잇는 유일한 자리.** 이 문자열이 좌표계를 정한다 — 저장하는 텍스트와
+#: 청크의 `char_start`/`char_end` 가 같은 기준을 써야 한다. 두 곳에서 각자 이으면
+#: 어긋난다. 실제로 그랬다: `from_pptx` 가 "\n\n" 로, 청커가 "\n" 로 이어서
+#: pptx 청크 12개 중 11개의 좌표가 거짓이 됐다.
+PAGE_SEP = "\n"
+
+
+def join(pages: list[str]) -> str:
+    """청크 좌표가 가리키는 그 텍스트. **저장할 것도 이것이다.**"""
+    return PAGE_SEP.join(pages)
 
 
 def is_heading(line: str) -> bool:
@@ -87,20 +100,25 @@ def split(
     *,
     target: int | None = None,
     maximum: int | None = None,
+    numbered: bool | None = None,
 ) -> list[Piece]:
     """쪽 목록을 청크로 쪼갠다.
 
     `pages` 가 한 원소면 쪽이 없는 포맷이고 `page` 는 전부 None 이다.
     **쪽 경계를 절대 넘지 않는다** — 넘으면 그 청크의 쪽 번호가 거짓이 된다.
 
+    `numbered=False` 는 **경계는 지키되 번호는 붙이지 않는다**. XLSX 시트가 그렇다 —
+    손익계산서와 재무상태표가 한 조각에 섞이면 안 되지만 시트는 쪽이 아니다.
+    시트 이름은 파서가 `## 손익계산서` 로 넣어 두고 `heading` 이 받는다.
+
     전체 텍스트는 `"\\n".join(pages)` 다. `attach.hwp.from_pdf` 와 같은 좌표계라
     `char_start`/`char_end` 가 그 텍스트에 그대로 들어맞는다.
     """
     target = target or settings.chunk_target_chars
     maximum = maximum or settings.chunk_max_chars
-    has_pages = len(pages) > 1
+    has_pages = len(pages) > 1 if numbered is None else numbered
 
-    full = "\n".join(pages)
+    full = join(pages)
     pieces: list[Piece] = []
     base = 0
 
@@ -133,7 +151,7 @@ def split(
                 buf = []
 
         _emit(pieces, full, buf, page_no, buf_heading)
-        base += len(page_text) + 1
+        base += len(page_text) + len(PAGE_SEP)
 
     for i, piece in enumerate(pieces):
         piece.ordinal = i

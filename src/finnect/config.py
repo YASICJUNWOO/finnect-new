@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     #: 공고 첨부는 공개 파일이고 이쪽은 사업자등록증·재무제표다.
     user_file_dir: Path = REPO_ROOT / "data" / "user-files"
 
+    #: 사용자 파일에서 해독을 시도할 확장자. **첨부와 따로 둔다**(ADR-0029).
+    #: 첨부 목록에 xlsx·pptx 를 더하면 plan/07 이 측정한 2,827/3,354 가 근거를 잃는다.
+    #: 사용자 파일에는 재무제표(xlsx)와 피치덱(pptx)이 반드시 오므로 여기는 넣는다.
+    user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx"
+
     #: 청크 한 조각의 목표 길이(자). 문단 경계를 넘지 않으려고 넘칠 수 있다.
     chunk_target_chars: int = 900
 
@@ -46,7 +51,15 @@ class Settings(BaseSettings):
 
     @property
     def formats(self) -> frozenset[str]:
-        return frozenset(f.strip().lower() for f in self.attachment_formats.split(",") if f.strip())
+        return _split(self.attachment_formats)
+
+    @property
+    def wiki_formats(self) -> frozenset[str]:
+        return _split(self.user_file_formats)
+
+
+def _split(raw: str) -> frozenset[str]:
+    return frozenset(f.strip().lower() for f in raw.split(",") if f.strip())
 
 
 settings = Settings()

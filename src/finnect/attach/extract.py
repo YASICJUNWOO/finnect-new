@@ -19,6 +19,9 @@ PARSERS = {
     "docx": (hwp.from_docx, "docx/zip"),
     "docm": (hwp.from_docx, "docx/zip"),
     "pdf": (hwp.from_pdf, "pdf/plumber"),
+    # 사용자 파일 전용(plan/12 T-0042). 첨부 목록에 없으면 여기 있어도 안 돈다.
+    "xlsx": (hwp.from_xlsx, "xlsx/openpyxl"),
+    "pptx": (hwp.from_pptx, "pptx/python-pptx"),
 }
 
 
@@ -32,11 +35,21 @@ class Parsed:
     contents: list[dict[str, object]] = field(default_factory=list)
 
 
-def parse(path: Path, filename: str | None = None) -> Parsed:
-    """파일 하나를 읽어 본다. **확장자는 파일명이 아니라 내용으로 정한다.**"""
-    ext = formats.detect(path, filename)
+def parse(
+    path: Path,
+    filename: str | None = None,
+    *,
+    allowed: frozenset[str] | None = None,
+) -> Parsed:
+    """파일 하나를 읽어 본다. **확장자는 파일명이 아니라 내용으로 정한다.**
 
-    if ext is None or ext not in formats.supported():
+    `allowed` 는 어느 포맷을 시도할지다. 기본은 첨부 목록이고, 사용자 파일은 자기
+    목록을 넘긴다(ADR-0029) — 첨부 목록을 늘리면 plan/07 이 측정한 값이 근거를 잃는다.
+    """
+    ext = formats.detect(path, filename)
+    allowed = allowed if allowed is not None else formats.supported()
+
+    if ext is None or ext not in allowed:
         # 안 해봤다. 해봤는데 안 된 것과 다르다.
         return Parsed(ParseStatus.UNSUPPORTED, ext)
 

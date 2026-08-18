@@ -123,8 +123,8 @@ uv run python -m finnect.wiki --company c_dasiro --rechunk    # 청킹 규칙을
 uv run python -m finnect.wiki --company c_dasiro --purge      # 탈퇴. 원본까지 지운다
 ```
 
-`tests/fixtures/wiki/`에 예시 파일 일곱이 있다. **일곱 중 넷은 일부러 안 읽힌다** —
-XLSX·PPTX·이미지는 파서가 없고 스캔 PDF는 OCR이 없다. 무엇을 심어 뒀는지는
+`tests/fixtures/wiki/`에 예시 파일 일곱이 있다. **일곱 중 둘은 아직 안 읽힌다** —
+이미지와 스캔 PDF라서 OCR이 필요하다. XLSX·PPTX는 2026-08-18에 붙었다. 무엇을 심어 뒀는지는
 [픽스처 README](tests/fixtures/wiki/README.md)에 있다.
 
 원본은 `data/user-files/<company_id>/`에 쌓인다([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)).

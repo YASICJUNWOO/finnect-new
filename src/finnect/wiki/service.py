@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from finnect.attach import extract, formats, hwp
+from finnect.config import settings
 from finnect.models import Chunk, ParseStatus, UserFile, UserFileStatus
 from finnect.wiki import chunk as chunker
 from finnect.wiki import storage
@@ -38,18 +39,29 @@ class IngestReport:
     problems: list[tuple[str, str]] = field(default_factory=list)
 
 
-def _pages(path: Path, ext: str | None, text: str) -> list[str]:
-    """쪽 경계를 살릴 수 있는 포맷만 쪼갠다.
+def _pages(path: Path, ext: str | None, text: str) -> tuple[list[str], bool | None]:
+    """조각 경계와 **번호를 붙일지**.
 
-    PDF 만 쪽이 있다. 나머지는 한 덩어리로 넘겨 `page` 가 NULL 이 되게 한다 —
-    없는 쪽 번호를 만들어 붙이면 근거가 거짓이 된다.
+    | 포맷 | 경계 | `page` |
+    |---|---|---|
+    | PDF | 쪽 | **찬다.** 쪽이 실재한다 |
+    | PPTX | 슬라이드 | **찬다.** 슬라이드는 쪽처럼 세어진다 |
+    | XLSX | 시트 | **비운다.** 시트는 쪽이 아니다. 이름은 `heading` 이 받는다 |
+    | 그 밖 | 없음 | 비운다 |
+
+    없는 쪽 번호를 만들어 붙이면 근거가 거짓이 된다. 경계를 지키는 것과 번호를 붙이는
+    것은 다른 일이다.
     """
-    if ext == "pdf":
-        try:
-            return hwp.pages_from_pdf(path)
-        except Exception:  # noqa: BLE001 — 쪽 분해가 실패하면 통짜로라도 청크는 낸다
-            return [text]
-    return [text]
+    try:
+        if ext == "pdf":
+            return hwp.pages_from_pdf(path), True
+        if ext == "pptx":
+            return hwp.slides_from_pptx(path), True
+        if ext == "xlsx":
+            return hwp.sheets_from_xlsx(path), False
+    except Exception:  # noqa: BLE001 — 조각 분해가 실패하면 통짜로라도 청크는 낸다
+        return [text], False
+    return [text], None
 
 
 def ingest_file(
@@ -89,7 +101,7 @@ def ingest_file(
     session.add(uf)
     session.flush()
 
-    parsed = extract.parse(path, name)
+    parsed = extract.parse(path, name, allowed=settings.wiki_formats)
     uf.parse_status = parsed.status
     uf.parser = parsed.parser
     uf.parse_error = parsed.error
@@ -106,13 +118,16 @@ def ingest_file(
         uf.chunk_count = 0
         return uf, uf.status
 
-    text = parsed.text or ""
+    pages, numbered = _pages(path, ext, parsed.text or "")
+
+    # **청커가 이은 것을 저장한다.** 파서의 `text` 를 저장하면 좌표계가 두 벌이 되고,
+    # 이으는 문자가 한 글자만 달라도 모든 청크의 좌표가 어긋난다. 실제로 그랬다.
+    text = chunker.join(pages)
     storage.put_text(company_id, sha, text)
+    uf.text_chars = len(text)
+    uf.page_count = len(pages) if numbered and len(pages) > 1 else None
 
-    pages = _pages(path, ext, text)
-    uf.page_count = len(pages) if len(pages) > 1 else None
-
-    pieces = chunker.split(pages)
+    pieces = chunker.split(pages, numbered=numbered)
     session.add_all(
         Chunk(
             user_file_id=uf.id,
@@ -185,12 +200,12 @@ def rechunk(session: Session, company_id: str, *, sha256: str | None = None) -> 
         text = storage.read_text(company_id, uf.sha256)
         if text is None:
             continue
-        if uf.ext == "pdf":
-            pages = _pages(storage.abs_path(company_id, uf.sha256), uf.ext, text)
+        if uf.ext in {"pdf", "pptx", "xlsx"}:
+            pages, numbered = _pages(storage.abs_path(company_id, uf.sha256), uf.ext, text)
         else:
-            pages = [text]
+            pages, numbered = [text], None
         session.execute(sa_delete(Chunk).where(Chunk.user_file_id == uf.id))
-        pieces = chunker.split(pages)
+        pieces = chunker.split(pages, numbered=numbered)
         session.add_all(
             Chunk(
                 user_file_id=uf.id,

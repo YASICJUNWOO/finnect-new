@@ -39,21 +39,66 @@ def _fixture(name: str) -> Path:
     return path
 
 
-def test_읽을_수_있는_파일은_청크가_나오고_좌표를_들고_있다(factory) -> None:  # noqa: ANN001
-    report = service.ingest_files(factory, COMPANY, [_fixture("회사소개서_v3.pdf")])
+#: 읽히는 픽스처 전부와 기대 쪽 유무. **포맷 하나만 검사하면 못 잡는 버그가 있다** —
+#: `from_pptx` 가 슬라이드를 "\n\n" 로, 청커가 "\n" 로 이어서 pptx 청크 12개 중 11개의
+#: 좌표가 거짓이었는데 PDF 만 보던 테스트가 통과했다.
+READABLE = [
+    ("회사소개서_v3.pdf", True),
+    ("사업계획서_2026_초기창업패키지.docx", False),
+    ("성남시_시범사업_신청서.hwpx", False),
+    ("재무제표_2025.xlsx", False),  # 시트는 쪽이 아니다
+    ("피치덱_2026H2.pptx", True),  # 슬라이드는 쪽처럼 세어진다
+]
 
-    assert report.done == 1
+
+@pytest.mark.parametrize(("name", "has_pages"), READABLE)
+def test_청크_좌표가_저장된_텍스트와_정확히_일치한다(factory, name, has_pages) -> None:  # noqa: ANN001
+    """**저장하는 텍스트와 청크 좌표가 같은 기준을 써야 한다.**
+
+    파서의 `text` 와 청커가 이은 것이 갈라지면 이으는 문자 하나 차이로 모든 좌표가
+    어긋난다. 그래서 `chunk.join` 이 좌표계의 유일한 주인이다.
+    """
+    report = service.ingest_files(factory, COMPANY, [_fixture(name)])
+
+    assert report.done == 1, f"{name} 이 안 읽혔다"
     assert report.chunks > 0
 
     with factory() as s:
         uf = s.scalar(select(UserFile))
         assert uf.status == UserFileStatus.CHUNKED
-        assert uf.page_count == 4, "PDF 는 쪽을 안다"
+        assert uf.text_chars == len(storage.read_text(COMPANY, uf.sha256) or "")
 
         text = storage.read_text(COMPANY, uf.sha256)
-        for c in s.scalars(select(Chunk).order_by(Chunk.ordinal)):
-            assert text[c.char_start : c.char_end] == c.text, "좌표가 원문과 어긋난다"
-            assert c.page is not None, "PDF 청크는 쪽 번호를 들고 있어야 한다"
+        chunks = s.scalars(select(Chunk).order_by(Chunk.ordinal)).all()
+        assert chunks
+        for c in chunks:
+            assert text[c.char_start : c.char_end] == c.text, f"{name} #{c.ordinal} 좌표 어긋남"
+
+        pages = {c.page for c in chunks}
+        if has_pages:
+            assert None not in pages, f"{name} 은 쪽을 안다"
+            assert uf.page_count and uf.page_count > 1
+        else:
+            assert pages == {None}, f"{name} 에는 쪽이 없다"
+            assert uf.page_count is None
+
+
+def test_표_구조가_살아_있다(factory) -> None:  # noqa: ANN001
+    """**뭉개면 연도-항목-값 대응이 깨진다.** 헤더 행과 데이터 행이 같은 조각에 있어야
+    `매출액 24100000 86400000` 의 두 값이 각각 2024·2025 임을 알 수 있다."""
+    service.ingest_files(factory, COMPANY, [_fixture("재무제표_2025.xlsx")])
+
+    with factory() as s:
+        c = s.scalar(select(Chunk).where(Chunk.text.like("%매출총이익%")))
+        assert c is not None
+        assert c.heading == "## 손익계산서", "시트 이름이 제목으로 와야 한다"
+
+        rows = [ln.split("\t") for ln in c.text.split("\n") if "\t" in ln]
+        lines = {r[0]: r for r in rows}
+        assert "과목" in lines, "헤더 행이 같은 조각에 있어야 한다"
+        assert lines["과목"][1:3] == ["제1기 (2024)", "제2기 (2025)"]
+        assert lines["매출액"][1:3] == ["24100000", "86400000"]
+        assert lines["매출액"][3] == "258.5%", "백분율은 서식을 반영해야 한다"
 
 
 def test_파일_하나가_실패해도_나머지가_완주한다(factory) -> None:  # noqa: ANN001

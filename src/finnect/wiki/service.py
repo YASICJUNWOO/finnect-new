@@ -215,3 +215,26 @@ def rechunk(session: Session, company_id: str, *, sha256: str | None = None) -> 
         uf.chunk_count = len(pieces)
         total += len(pieces)
     return total
+
+
+def purge(session: Session, company_id: str) -> tuple[int, int]:
+    """탈퇴. **회사의 것을 전부 지운다** — 파일 · 청크 · 사실 · 근거.
+
+    돌려주는 것은 (지운 파일 수, 지운 사실 수)다. 원본 파일은 `storage.purge` 가 따로 지운다.
+
+    **`wiki_fact` 와 `chunk` 를 여기서 명시적으로 지운다.** `user_file` 에 FK 가 없어서 —
+    사실 하나가 파일 여럿을 근거로 들 수 있으니 그게 맞다 — 파일을 지워도 안 따라 지워진다.
+    2026-08-18 실제로 그랬다: 탈퇴 뒤 다시 올렸더니 사실 118건이 전부 '이미 있음' 으로
+    나왔고, **지웠어야 할 값이 DB 에 그대로 있었다.**
+    """
+    from finnect.wiki import build  # 순환 임포트를 피한다 — build 가 service 를 안 쓴다
+
+    facts = build.clear(session, company_id)
+    files = session.scalars(select(UserFile).where(UserFile.company_id == company_id)).all()
+    # **청크를 DB 캐스케이드에 맡기지 않는다.** Postgres 는 지워 주지만 SQLite 는
+    # `PRAGMA foreign_keys` 가 꺼져 있으면 안 지운다. 탈퇴는 개인정보 경로라
+    # 어느 엔진에서든 같게 돌아야 한다.
+    session.execute(sa_delete(Chunk).where(Chunk.company_id == company_id))
+    for uf in files:
+        session.delete(uf)
+    return len(files), facts

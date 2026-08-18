@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     #: 이 길이를 넘으면 문단 안에서라도 자른다. 넘어가는 문단이 실제로 있다.
     chunk_max_chars: int = 1600
 
+    # --- 사실 추출 (plan/12 T-0045 · ADR-0031) ---
+
+    #: 어느 추출기를 쓰나. **`stub` 하나뿐이다** — LLM 제공자가 아직 안 정해졌다
+    #: (ADR-0021 G). `llm` 을 고르면 NotImplementedError 로 막는다.
+    wiki_extractor: str = "stub"
+
+    #: 스텁이 돌려줄 사실 표. **코퍼스에서 손으로 옮긴 것이라 테스트와 같이 산다.**
+    #: 레포 밖에서는 파일이 없어 스텁이 아예 안 돈다 — 그게 의도다.
+    wiki_stub_facts: Path = REPO_ROOT / "tests" / "fixtures" / "wiki" / "facts.json"
+
     @property
     def formats(self) -> frozenset[str]:
         return _split(self.attachment_formats)

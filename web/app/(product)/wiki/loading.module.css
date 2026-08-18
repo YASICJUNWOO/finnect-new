@@ -1,0 +1,36 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+/* 제목·부제·건수가 차지할 높이. 도착했을 때 궤도가 위로 안 뛴다 */
+.head {
+  height: 148px;
+  animation: pulse 1.4s ease-in-out infinite;
+  background: linear-gradient(var(--quiet) 0 0) no-repeat 0 0 / 220px 32px,
+    linear-gradient(var(--quiet) 0 0) no-repeat 0 44px / 420px 20px,
+    linear-gradient(var(--quiet) 0 0) no-repeat 0 100px / 300px 16px;
+}
+
+/* 궤도 자리. **원이라 원을 그린다** — 사각형 스켈레톤이면 도착 순간 모양이 통째로 바뀐다 */
+.orbit {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  animation: pulse 1.4s ease-in-out infinite;
+  animation-delay: 0.15s;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

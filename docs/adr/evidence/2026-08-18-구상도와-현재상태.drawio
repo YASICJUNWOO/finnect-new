@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="구상도와 현재상태">
+    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1750" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="ahdr" value="섹션 A · 도면 계획 — 기획이 넘긴 전체 구상도 (2026-08-18 수령 · 박스 열)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a1" value="1. 사용자 파일 → LLM Wiki (지식베이스 구축)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="110" width="1470" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_1" value="① 파일 업로드&#xa;&#xa;PDF · DOCX · XLSX · PPTX&#xa;이미지 · TXT&#xa;company_id 부여" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="20" y="50" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_2" value="② 파싱 / 전처리&#xa;&#xa;텍스트 추출 · 표/숫자 파싱&#xa;OCR · 메타데이터&#xa;위치 · 출처 보존" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="310" y="50" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_3" value="③ Chunking&#xa;&#xa;의미 단위 분할&#xa;문서 구조 보존&#xa;페이지 · 섹션 · 행 위치" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="600" y="50" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_4" value="④ LLM Fact Extraction&#xa;&#xa;사실 추출 · 고정 topic 분류&#xa;series 결정 (엔티티/이벤트)&#xa;confidence 부여" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="890" y="50" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_5" value="⑤ topic 기반 라우팅 / 통합&#xa;&#xa;엔티티 Upsert · 이벤트 Append&#xa;uncategorized → review 큐&#xa;결정론적 라우팅" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="1180" y="50" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_6" value="⑥ Wiki 문서 생성 / 갱신&#xa;&#xa;주제별 Markdown 생성·갱신&#xa;변경 이력 / 버전 관리&#xa;모든 사실에 출처 연결" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="1180" y="170" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_7" value="⑦ 저장 · Node Store&#xa;&#xa;엔티티 노드 (정형 데이터)&#xa;→ SQL 조회" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="890" y="170" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_8" value="⑧ Embedding&#xa;&#xa;의미 분할 후 임베딩 생성&#xa;Embeddings + Metadata" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="600" y="170" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_9" value="⑨ Vector DB&#xa;&#xa;Wiki Chunk + Embedding&#xa;+ Metadata&#xa;company_id 파티션" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="310" y="170" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1_10" value="LLM Wiki 구조&#xa;&#xa;폴더 여덟 · 안은 .md&#xa;Company · Product/Service · Market&#xa;Customer · Business Model&#xa;Strategy · Financial · Custom" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="a1">
+          <mxGeometry x="20" y="170" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ae1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_1" target="a1_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_2" target="a1_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_3" target="a1_4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_4" target="a1_5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_5" target="a1_6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_6" target="a1_7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_7" target="a1_8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="a1" source="a1_8" target="a1_9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a2" value="2. 저장소 구성" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1540" y="110" width="740" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="a2_1" value="A. Original File Storage — 원본 보관 (PDF/DOCX/XLSX/PPTX/이미지/TXT) → Source of Truth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="a2">
+          <mxGeometry x="20" y="50" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a2_2" value="B. Node Store (조회용) — 정형 엔티티 데이터 (SQL DB) → 정확한 조회" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="a2">
+          <mxGeometry x="20" y="95" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a2_3" value="C. Vector DB (RAG용) — Wiki Chunk + Embedding + Metadata (company_id 파티션)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="a2">
+          <mxGeometry x="20" y="140" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a2_4" value="D. Metadata DB — 출처/페이지/섹션/버전/구조 · 온톨로지 매핑 · 신뢰도 관리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="a2">
+          <mxGeometry x="20" y="185" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="a2_5" value="E. Review Queue — uncategorized Fact 및 충돌 검토 항목" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="a2">
+          <mxGeometry x="20" y="230" width="700" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a3" value="3 · 4 · 5. Fact Extraction · 고정 topic 온톨로지 · 충돌 정보 관리" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="430" width="720" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="a3_1" value="3. Fact Extraction&#xa;&#xa;원문을 바로 Wiki 로 재작성하지&#xa;않고 사실 단위로 추출한다&#xa;&#xa;원본 → Fact + Metadata → Wiki&#xa;&#xa;company_id · topic · series&#xa;fact · source(document, page)&#xa;confidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a3">
+          <mxGeometry x="20" y="50" width="210" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="a3_2" value="4. 고정 topic 온톨로지 (v3 핵심)&#xa;&#xa;엔티티 계열 (병합·조회 대상)&#xa;company_profile · vision · team&#xa;service_* · market_* · customer_*&#xa;pricing · revenue · funding …&#xa;&#xa;이벤트 계열 (append·검색 대상)&#xa;meeting · decision · action_item&#xa;application_history&#xa;&#xa;topic 은 온톨로지에서 선택&#xa;자유 생성 금지" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a3">
+          <mxGeometry x="250" y="50" width="210" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="a3_3" value="5. 충돌 정보 관리 (엔티티)&#xa;&#xa;이전 값 (2026.01)&#xa;직원 수 10명 · 상태 이전&#xa;↓&#xa;현재 값 (2026.08)&#xa;직원 수 15명 · 상태 최신&#xa;&#xa;최신성 기준 우선&#xa;새 파일 추가 시 전체 Wiki&#xa;재생성 없이 변경분만 반영" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a3">
+          <mxGeometry x="480" y="50" width="210" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a4" value="6. 공고 DB (공고 관리)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="790" y="430" width="420" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="a4_1" value="A. Structured Data (정형)&#xa;기본정보 · 지원자격 · 제출서류&#xa;사업계획서 항목 · 평가기준 · 작성조건" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a4">
+          <mxGeometry x="20" y="50" width="380" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a4_2" value="B. Original Document (원본 보관)&#xa;PDF / HTML / 원문 텍스트&#xa;→ Source of Truth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a4">
+          <mxGeometry x="20" y="115" width="380" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a4_3" value="C. Embedding (의미 검색용)&#xa;공고 원문 Chunk Embedding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a4">
+          <mxGeometry x="20" y="180" width="380" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a5" value="7. 공고 추천 (3단계)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="430" width="520" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="a5_1" value="① Structured Filter (조건 필터링)&#xa;지원자격 · 신청기 · 지역 · 업종/분야 · 사업자 여부&#xa;→ 지원 가능한 공고 생성" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a5">
+          <mxGeometry x="20" y="50" width="480" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a5_2" value="② Semantic Search (의미 기반 검색)&#xa;사용자 사업 Embedding ↔ 공고 Embedding&#xa;→ Top-K 공고 선정" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a5">
+          <mxGeometry x="20" y="115" width="480" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a5_3" value="③ LLM 재평가 (적합도 평가)&#xa;적합도 점수 · 추천 이유 · 주의 사항 · 핵심 조건&#xa;상세보기에 Retrieval → 근거 설명" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="a5">
+          <mxGeometry x="20" y="180" width="480" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a6" value="8. 사업계획서 자동 작성" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1790" y="430" width="490" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="a6_1" value="① 공고 선택&#xa;② 공고 요구사항 로딩 — 작성 항목 · 글자 수 · 필수 내용 · 평가 기준&#xa;③ 사용자 Wiki RAG (필요 시) — 엔티티 조회 / 이벤트 RAG&#xa;④ 공고 원문 Retrieval (필요 시) — 원문 근거 확인&#xa;⑤ LLM 생성 — 공고 요구사항 + Wiki RAG 결과 + 원문 근거&#xa;⑥ 검증 / 검사 — 필수 항목 · 글자 수 · 허위 감사 · 공고 표현 수 제한&#xa;⑦ 완성 사업계획서 — PDF / DOCX / 한글 / 마크다운" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=10;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="a6">
+          <mxGeometry x="20" y="50" width="450" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="a6_2" value="각 항목별 출처(근거) 표시 + 수정 · 보완 가능" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;" vertex="1" parent="a6">
+          <mxGeometry x="20" y="190" width="450" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a9" value="9. 기술 스택 (예시) — Backend Python/FastAPI · DB PostgreSQL · Vector DB Pinecone/Weaviate · LLM OpenAI/Claude/Gemini · Embedding OpenAI/Cohere · Storage AWS S3/GCS · Infra AWS/GCP/Azure&#xa;10. 공통 관리 기능 — 파일/공고 관리 · 버전/이력 관리 · 출처 추적 · 알림/마감 관리 · 권한/보안 · 백업/복구 · 감사 로그" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;align=left;spacingLeft=14;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="2240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bhdr" value="섹션 B · 지금 구현된 것 / 안 된 것 — 2026-08-18 기준 · 진행 상태 정본은 docs/plan/README.md" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="840" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lg1" value="돌아간다 — 실측으로 확인됨" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="900" width="240" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2" value="부분 — 절반만 돈다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="900" width="240" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3" value="없다 — 코드가 한 줄도 없다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="900" width="240" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4" value="안 만들기로 정했다 — ADR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#949aa2;fontColor=#5f656d;fontSize=11;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="900" width="240" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5" value="끊긴 자리 · 블로커" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="900" width="240" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lgnote" value="수치는 전부 실측이다. 근거는 docs/adr/evidence/ 와 각 plan 파일에 있다. 자동 판정 수치는 눈으로 본 건수를 함께 적었다." style="text;html=1;align=left;verticalAlign=middle;fontColor=#5f656d;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="900" width="930" height="36" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b1" value="① 사업 위키 — 도면 1번 · plan/12 (진행중)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="960" width="2240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_1" value="① 파일 업로드 · 격리&#xa;&#xa;data/user-files/&lt;company_id&gt;/…&#xa;회사 사이 중복 제거 안 한다&#xa;ADR-0029 · T-0041" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="50" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_2" value="② 파싱 · 7포맷 + OCR&#xa;&#xa;HWP · HWPX · DOCX · PDF&#xa;XLSX · PPTX · 이미지&#xa;RapidOCR 로컬 · 검출 server&#xa;ADR-0030 · T-0042" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="320" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_3" value="③ Chunking&#xa;&#xa;픽스처 7건 전부 · 청크 36개&#xa;text == full[start:end] 로 검증&#xa;쪽 번호는 PDF 만&#xa;T-0043 · T-0047" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="590" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_4" value="여기서 끊긴다&#xa;&#xa;LLM 을 아직 한 번도 안 불렀다&#xa;담을 것(노드 스키마)도 미확정&#xa;T-0044 미착수 · T-0045 보류" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=10;fontStyle=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="860" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_5" value="④ LLM Fact Extraction&#xa;&#xa;없다&#xa;&#xa;도면 3번 박스 전체가 여기다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="1130" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_6" value="⑤ 결정론적 라우팅&#xa;&#xa;없다&#xa;&#xa;도면 4번(온톨로지) 박스&#xa;topic 26개는 추출 라벨로만 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="1400" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_7" value="⑦ 노드 · 병합 / 충돌&#xa;&#xa;없다&#xa;&#xa;도면 5번 박스 · T-0046&#xa;도면의 confidence 는 안 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="1670" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b1_8" value="⑥ Markdown · ⑧⑨ Vector DB&#xa;&#xa;안 만들기로 정했다&#xa;&#xa;Markdown 은 저장소가 아니라 뷰&#xa;벡터는 회사당 노드 15개에 안 붙인다&#xa;ADR-0021 · plan/12 구상도와의 차이" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#949aa2;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+          <mxGeometry x="1940" y="50" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="be1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_1" target="b1_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_2" target="b1_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d92d20;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_3" target="b1_4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_4" target="b1_5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_5" target="b1_6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_6" target="b1_7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b2" value="② 공고 — 도면 6번 · plan/06 · 07 · 11 · 13" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1190" width="1480" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_1" value="목록 수집&#xa;&#xa;31,327건&#xa;기업마당 1,538&#xa;K-Startup 29,789&#xa;plan/06 완료" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="30" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_2" value="첨부 내려받기&#xa;&#xa;3,354건 · 약 2GB&#xa;콘텐츠 주소 저장&#xa;ADR-0022 · plan/07 완료" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="270" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_3" value="텍스트 해독&#xa;&#xa;2,827 / 3,354&#xa;지원 4포맷 모수 94.6%&#xa;HWP·HWPX·DOCX 100%&#xa;PDF 86.1%" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="510" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_4" value="작성 항목 추출&#xa;&#xa;칸 채우기형 공고 953/1,474&#xa;서술형은 규칙이 네 번 실패&#xa;unknown 5,874 — T-0036 보류&#xa;도면 6-A 의 일부" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="750" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_5" value="K-Startup 첨부&#xa;&#xa;공고 29,789건(95%)에&#xa;첨부가 아직 없다&#xa;T-0048 코드만 · 아직 안 돌렸다&#xa;plan/13" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="990" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b2_6" value="공고 Embedding&#xa;&#xa;없다&#xa;&#xa;도면 6-C&#xa;벡터가 정말 필요한 쪽이 여기다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
+          <mxGeometry x="1230" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="be7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b2" source="b2_1" target="b2_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b2" source="b2_2" target="b2_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b2" source="b2_3" target="b2_4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b3" value="③ 자격 · 추천 — 도면 7번 · plan/03 (진행중)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="1190" width="720" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="b3_1" value="① Structured Filter&#xa;&#xa;notice-filter/&#xa;기업마당 1,524 → 580&#xa;배제형 룰 12축 · LLM 0회&#xa;첨부 44건 눈으로 확인&#xa;T-0052 (2026-08-18)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
+          <mxGeometry x="20" y="50" width="210" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b3_2" value="제품 편입&#xa;&#xa;없다&#xa;&#xa;src/finnect/ 와 web/ 에&#xa;아무것도 안 붙어 있다&#xa;T-0053 재현율 · T-0054 K-Startup&#xa;T-0055 편입" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
+          <mxGeometry x="250" y="50" width="210" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b3_3" value="②③ 의미 검색 · LLM 재평가&#xa;&#xa;없다&#xa;&#xa;선행이 둘 다 아직이다 —&#xa;사업 위키(F1)와 공고 Embedding&#xa;점수·막대는 안 만든다 (DESIGN §6)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
+          <mxGeometry x="480" y="50" width="210" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="be10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b3" source="b3_1" target="b3_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="be11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b3" source="b3_2" target="b3_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b4" value="④ 사업계획서 자동 작성 · 화면 — 도면 8번 · SPEC S1~S7" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1420" width="2240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="b4_1" value="도면 8번 ①~⑦ 전부 없다&#xa;&#xa;선행이 둘 다 아직이다 — 위키 노드(F1)와 공고 요구사항(F2-3)&#xa;계획 파일도 아직 안 썼다 (틀린 문서를 미리 쓰지 않는다)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="50" y="50" width="520" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="b4_2" value="재료 하나는 이미 있다&#xa;&#xa;공고 상세에 '내야 할 서류'와 작성 항목 트리가 뜬다&#xa;도면 8-② 요구사항 로딩의 입력 · plan/11 T-0035 · T-0037 · T-0038" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="590" y="50" width="520" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="b4_3" value="화면 S4 · S5 는 돈다&#xa;&#xa;제품 목록 · 공고 상세 — Next.js · Vercel 프로덕션&#xa;운영 조회 화면 넷도 같이 올라가 있다 (ADR-0027)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="1130" y="50" width="520" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="b4_4" value="화면 S1 · S2 · S3 · S6 · S7 은 없다&#xa;&#xa;다섯 장이 통째로 없다. 화면 대부분이 '아직 없어요'로 비어 있고&#xa;그게 의도다 — 예시 데이터를 넣지 않는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="1670" y="50" width="520" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b5" value="지금 하나가 둘을 함께 막는다 — LLM 제공자가 안 정해졌다.&#xa;plan/11 T-0036(양식 구간 판별)과 plan/12 T-0045(사실 추출)가 같은 블로커를 공유하고, 먼저 착수하는 쪽이 정한다 (ADR-0021 G). 이 하나가 풀리기 전까지 도면 1번 ④⑤⑦, 3·4·5번 박스, 7번 ②③, 8번 전체가 열리지 않는다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=12;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1620" width="2240" height="90" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

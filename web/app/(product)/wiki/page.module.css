@@ -1,0 +1,48 @@
+/* S7 머리. 화면 이름이 상단 내비의 '내 사업'과 같은 말이어야 한다 (§8.3-3) */
+
+.head {
+  margin-bottom: var(--s5);
+}
+
+.title {
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.sub {
+  margin-top: var(--s2);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.counts b {
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.warn {
+  color: var(--blank);
+  font-weight: var(--w-medium);
+}
+
+/* 무엇이 뽑았는지. **본문이 아니라 각주다** — 사용자의 값이 아니라 우리 사정이다 */
+.note {
+  margin-top: var(--s6);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}

@@ -6,7 +6,7 @@
 
 **2026-08-16 v2로 피봇했다**([ADR-0012](docs/adr/0012-v2-피봇-사업-위키.md)). 폼 입력 → 판정 → 3단계 집필이던 v1 명세는 대체됐다. **`SPEC.md`를 다시 읽어라. 기억하고 있는 F0~F9와 S1~S8은 없다.**
 
-코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 첫 조각이 생겼다** — 파일을 받아 **원문 청크까지** 간다([plan/12](docs/plan/12-사업-위키-구축.md) T-0041·T-0043·T-0047). 사실 추출부터가 아직 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
+코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). 다만 **추출기가 스텁이라 픽스처 7건 밖에서는 안 돈다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
 **2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)이 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/12](docs/plan/12-사업-위키-구축.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)이 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
@@ -15,9 +15,11 @@
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - **사용자 파일은 `data/user-files/<company_id>/…` 에 있다**([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)). **개인정보다** — `.gitignore` 에 있고 배포본에 안 올라간다. `wiki/storage.py` 의 모든 함수가 `company_id` 를 필수로 받는다. **회사 사이 중복 제거를 하지 않는다** — 같은 양식이 회사마다 한 벌씩 쌓이는 것이 의도다
 - **해독 포맷 목록이 둘이다.** `ATTACHMENT_FORMATS`(첨부 4포맷)와 `USER_FILE_FORMATS`(+xlsx·pptx). **첨부 목록에 xlsx·pptx 를 더하지 않는다** — plan/07 이 측정한 2,827/3,354 가 근거를 잃는다. 파서는 이미 있어서 켜기만 하면 되지만, 켜면 다시 재야 한다
-- LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다** — [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 과 [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 가 같은 블로커를 공유하고, **먼저 착수하는 쪽이 정한다**
+- LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다.** [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 는 **정하지 않고 포트를 파서** 지나갔다([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)) — 남은 것은 [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 이고 **거기는 이 방법이 안 통한다**(LLM 이 라벨러가 아니라 판별기 자체다)
 - **질문 타이밍이 정해졌다**([ADR-0028](docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)). 초안이 먼저 다 나오고, 항목 옆에서 묻고, 답하면 **위키에 먼저 저장한 뒤** 그 항목만 재작성한다. 사용자 답변은 `user_stated` 등급이라 **문서가 자동으로 덮지 않는다**
-- 제품 화면은 **S4·S5 둘뿐이다.** 나머지 다섯(S1·S2·S3·S6·S7)은 없다. 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
+- 제품 화면은 **S4·S5·S7 셋이다.** 나머지 넷(S1·S2·S3·S6)은 없다([plan/14](docs/plan/14-사업-위키-화면.md)). 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
+- **위키 마크다운을 저장하지 않는다.** `wiki/markdown.py` 가 읽을 때마다 만드는 **뷰**다 — 사실이 `wiki_fact` 에 있는데 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다. **시각을 넣지 않는다**(`generated:` 같은 것). 넣으면 같은 DB 에서 만든 글이 매일 달라져 바이트로 못 비교한다
+- **값에 단위를 붙이는 자리는 `topics.display()` 하나다.** 저장값 `120000000` 은 병합의 재료라 손대면 충돌 판정이 깨진다. 화면·마크다운·API 가 같은 함수를 쓴다
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
 - **운영 조회 화면 넷은 `web/app/admin/`에 있고 배포본에서도 열린다**([ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 토큰을 입었고 T-0023이 그 커밋에서 닫혔다. `src/finnect/admin/`에는 **수집 실행 버튼만** 남았다 — 데몬 스레드라 안 올라간다. **읽기 화면을 거기 다시 만들지 않는다**
 - **`api/admin_service.py`에서 `attach.service`·`ingest.service`를 임포트하지 않는다.** 저 둘이 httpx와 파서를 끌고 오는데 `requirements.txt`가 그것들을 뺐다. 임포트하면 **로컬은 통과하고 배포본만 죽는다.** `tests/test_admin_api.py`가 막아 둔다
@@ -47,14 +49,19 @@ uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB ·
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
 uv sync --group ocr                              # OCR (ADR-0030). 기본 의존성이 아니다
-uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 사용자 파일 → 원문 청크
+uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 파일 → 청크 → 사실 → 노드
+uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키를 본다
+uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 청크를 본다
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
+uv run python -m finnect.wiki --company c_dasiro --rebuild   # 추출기를 바꿨을 때. 청크는 안 건드린다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
 uv run uvicorn finnect.admin.app:app --reload    # 수집 실행 :8000 (/ingest 하나뿐이다)
 uv run uvicorn finnect.api.app:app --port 8100   # API :8100 — 제품 + 운영. /docs 에 OpenAPI
 cd web && npm run dev                            # 화면 :3000. API 가 먼저 떠 있어야 한다
-                                                 #   /         제품 목록·상세
-                                                 #   /admin     운영 조회 화면 넷
+                                                 #   /              제품 목록·상세
+                                                 #   /wiki          내 사업 위키 (S7)
+                                                 #   /wiki/markdown 위키를 마크다운으로
+                                                 #   /admin         운영 조회 화면 넷
 uv run pytest
 uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이션 때문에 안 통과한다
 cd web && npm run lint && npm run typecheck && npm run build
@@ -75,7 +82,9 @@ cd web && npm run lint && npm run typecheck && npm run build
 | `document` | 공고가 요구하는 문서 한 벌. **첨부 텍스트 안의 한 구간이다** — 파일 하나가 문서 하나가 아니다. 키가 `sha256` 인 이유는 `attachment_file` 과 같다 ([plan/11](docs/plan/11-작성-항목-추출과-표시.md)) |
 | `document_item` | 그 문서 안의 작성 항목. 원문 지시문을 **우리가 고쳐 쓰지 않는다** |
 | `user_file` | 사용자가 올린 파일 하나. 키가 **(company_id, sha256)** 이다 — 회사 사이 중복 제거를 안 한다 ([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)) |
-| `chunk` | 그 파일에서 나온 원문 조각 + 위치정보. **노드가 나중에 이걸 가리킨다** ([ADR-0014](docs/adr/0014-통합-그래프와-근거-청크.md)) |
+| `chunk` | 그 파일에서 나온 원문 조각 + 위치정보. **노드가 이걸 가리킨다** ([ADR-0014](docs/adr/0014-통합-그래프와-근거-청크.md)) |
+| `wiki_fact` | 위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다. 병합은 `dedupe_key` 가 전부다 ([ADR-0032](docs/adr/0032-위키가-담을-것-정형-슬롯과-서술-노드.md)) |
+| `wiki_evidence` | 그 사실이 어느 청크에서 나왔나. **근거 없는 `wiki_fact` 행은 만들지 않는다** |
 | `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |
 
 **`attachment`에 해독 상태를 붙이지 않는다.** 공고가 갱신되면 그 행이 통째로 지워지고 다시 깔린다(`ingest/runner.py` `_flush`). 상태는 URL을 키로 하는 `attachment_file`에 산다. 원본 파일은 `data/attachments/<sha256[:2]>/<sha256>`.
@@ -155,6 +164,9 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **사업자등록증은 거의 사진이라 OCR이 필요하다.** 위키의 자격 판별 입력 다섯 중 넷이 여기서 나온다. **2026-08-18 붙었다** — RapidOCR 로컬([ADR-0030](docs/adr/0030-OCR은-rapidocr-로컬로-하고-검출은-server-를-쓴다.md)). **검출 모델을 `server`로 못 박은 것이 요점이다** — 기본값(`small`)으로는 소재지와 업종이 아예 안 나온다(실측 5/8 대 7/8)
 - **OCR은 기본으로 안 돈다.** 사용자 파일만 켜져 있고(`USER_FILE_OCR`) **첨부는 꺼져 있다** — 켜면 plan/07이 측정한 2,827/3,354를 다시 재야 하고 총 비용을 아직 모른다. **`uv sync --group ocr`** 로 설치하고, 없으면 그림이 `unsupported`로 남는다
 - **OCR 텍스트로 제목에 기대는 규칙을 만들지 않는다.** 굵은 서체와 자간 넓힌 글자가 깨진다(`름눌을`·`H거3`). 본문은 쓸 만하고 표 구조는 안 나온다
+- **위키 추출기는 스텁이고 픽스처 7건 밖에서는 안 돈다.** 다른 파일을 넣으면 빈 결과가 아니라 `UnknownFile` 이 난다 — **조용히 비면 진짜 파일에 가짜가 섞이거나, 더 나쁘게는 아무것도 안 나온 것이 정상처럼 보인다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). 사실 표는 `tests/fixtures/wiki/facts.json` 이고 **레포 밖에는 없어서 배포본에서 아예 안 돈다.** 그게 의도다
+- **`facts.json` 의 `anchor` 는 원문에 그대로 있어야 한다.** 픽스처 파일을 고치면 앵커가 깨지고, 깨진 사실은 근거가 없어서 **버려진다.** `tests/test_wiki_extract.py` 가 118개를 하나씩 찾아 막아 둔다
+- **스텁 정확도를 성능으로 보고하지 않는다.** 사람이 옮긴 것이라 정의상 100%다. 추출 정확도는 진짜 추출기가 붙어야 처음 잰다
 - **첨부 URL은 `HEAD`가 403이고 `GET`만 200이다.** 브라우저 UA와 Referer가 필요하고, 기업마당은 **오류도 HTTP 200 + HTML로** 준다. 안 거르면 오류 페이지가 hwp로 저장돼 '파서 실패'로 둔갑한다
 - **확장자를 파일명으로 판정하지 않는다.** 3,354건 중 7건이 파일명과 내용이 다르다(`.hwpx`인데 HWP 5건 등). 판정은 `attach/formats.py`가 내용으로 한다
 - **ZIP 166개 안에 읽을 수 있는 문서가 799개 있다.** 지금은 목록만 읽고 안 푼다. 풀지 말지는 이 숫자를 보고 정한다

@@ -1,0 +1,239 @@
+/* S7 껍데기. 탭 · 궤도 무대 · 파일 목록. */
+
+/* 탭. **DESIGN.md §5.4 가 금지한 다섯 조합에 안 걸린다** — 사이드바가 없고,
+ * 표 머리글도 체크박스도 일괄 작업 막대도 없다. 보기를 바꾸는 스위치 둘이다. */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s5);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ink-2);
+}
+
+/* 고른 탭. **색을 안 쓴다** — UI 크롬에 색을 쓰지 않는다(§3-6) */
+.tab[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+  font-weight: var(--w-medium);
+}
+
+.tabN {
+  font-size: var(--t-caption);
+  color: var(--ink-4);
+}
+
+.tab[aria-selected="true"] .tabN {
+  color: var(--ink-4);
+}
+
+/* 마크다운 전체로 나가는 문. 탭이 아니라 다른 화면이라 오른쪽 끝에 따로 선다 */
+.md {
+  margin-left: auto;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.md:hover {
+  color: var(--ink-2);
+  border-color: var(--ink-4);
+}
+
+/* --- 궤도 무대 --- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+/* 5. 빈 화면 (§7). 궤도는 그대로 두고 위에 한 줄만 얹는다 —
+ * **자리가 열다섯 있다는 것 자체가 안내다** */
+.hole {
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink-2);
+}
+
+.holeSub {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+
+/* 범례. **색이 무엇을 뜻하는지 화면이 말해야 한다** — 종류 셋과 표시 둘 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2) var(--s5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.legend > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.legend > li::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--sw, var(--ink-4));
+}
+
+.legend > li[data-kind="identity"] {
+  --sw: var(--n-identity);
+}
+.legend > li[data-kind="company"] {
+  --sw: var(--n-company);
+}
+.legend > li[data-kind="content"] {
+  --sw: var(--n-content);
+}
+.legend > li[data-mark="blank"] {
+  --sw: var(--blank);
+}
+
+/* 비어 있음은 점선 테두리로 말한다. 궤도의 도트와 같은 표시다 */
+.legend > li[data-mark="empty"]::before {
+  background: var(--surface);
+  border: 1.5px dashed var(--ink-4);
+}
+
+.hint {
+  text-align: center;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+.panelWrap {
+  scroll-margin-top: var(--s5);
+}
+
+/* --- 원본 파일 --- */
+
+.files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s3);
+}
+
+.file {
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* 아무것도 못 뽑은 파일. **숨기지 않는다** — 흐리게만 둔다 */
+.file[data-ok="false"] {
+  background: var(--quiet);
+}
+
+.fileName {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  word-break: break-all;
+}
+
+.fileMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s1);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+.made {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+/* 이 파일이 만든 자리. 누르면 궤도로 돌아가 그 자리가 열린다 */
+.chip {
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--ink-4);
+  color: var(--ink);
+}
+
+.fileWhy {
+  margin-top: var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+@media (max-width: 640px) {
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  /* 터치 타깃 44px 이상 (§8.2) */
+  .tab,
+  .chip {
+    min-height: 44px;
+  }
+
+  .md {
+    margin-left: 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}

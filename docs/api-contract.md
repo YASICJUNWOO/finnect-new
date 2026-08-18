@@ -225,6 +225,82 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 ---
 
+## `GET /api/wiki/{company_id}`
+
+사업 위키 한 장(S7). **정본은 [`api/wiki_schemas.py`](../src/finnect/api/wiki_schemas.py) 다.**
+
+**위키가 없어도 200 이고 궤도 열다섯이 온다.** 404 나 빈 목록으로 답하면 화면이 "데이터 없음"으로 끝난다 — `DESIGN.md` §7-5 가 빈 화면에 첫 동작을 안내하라고 한 자리다. 자리가 있어야 사용자가 무엇이 없는지 안다.
+
+```json
+{
+  "company_id": "c_dasiro",
+  "nodes": [
+    {
+      "key": "finance", "label": "자금 현황",
+      "kind": "content", "sector": "result_money",
+      "eligibility": false,
+      "values": [
+        {
+          "slot": "funding", "label": "조달액",
+          "value": "300000000", "display": "300,000,000원",
+          "qualifier": "시드", "as_of": "2025-09-30", "status": "conflict",
+          "evidence": [
+            {"filename": "재무제표_2025.xlsx", "page": null,
+             "quote": "자본잉여금 3억원은 2025.09 시드 라운드 유치액입니다"}
+          ]
+        }
+      ],
+      "statements": [
+        {"text": "2025년말 현금 1억 8,270만원…", "topic": "cost",
+         "evidence": [{"filename": "피치덱_2026H2.pptx", "page": 11, "quote": "…"}]}
+      ],
+      "source_count": 4, "filled": true, "conflicted": true,
+      "markdown": "---\nnode: finance\n…"
+    }
+  ],
+  "files": [
+    {"filename": "재무제표_2025.xlsx", "ext": "xlsx", "byte_size": 10700,
+     "status": "done", "parse_status": "ok", "parser": "xlsx/openpyxl",
+     "parse_error": null, "chunk_count": 4, "page_count": null,
+     "nodes": ["biz", "finance", "traction"]}
+  ],
+  "sectors": {"registration": "등록 정보", "…": "…"},
+  "filled": 15, "total": 15, "conflicts": 2, "uncategorized": 1,
+  "extractor": "stub/v1"
+}
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `nodes` | **궤도 자리 열다섯.** 순서가 곧 배치 순서다([ADR-0017](adr/0017-위키-그래프-궤도-배치.md)) — 프론트가 이 순서로 각도를 나눈다 |
+| `kind` | `identity` · `company` · `content`. **색은 이것만 말한다**(`DESIGN.md` §4.1) |
+| `value` / `display` | 저장값과 표시값. **둘 다 준다** — 프론트가 단위를 붙이면 규칙이 두 벌이 되고 갈린다 |
+| `status` | `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다. **셋 다 화면에 남는다** — 지우지 않는다(F1-1-7) |
+| `evidence` | **출처는 문자열이 아니라 연결이다**(SPEC F1-3). `filename` 과 `page` 를 따로 주는 것은 화면이 "3쪽"을 다르게 쓸 수 있어서다 |
+| `page` | PDF · PPTX 만 찬다. **다른 포맷에는 쪽이라는 것이 없다** |
+| `source_count` | 근거로 쓰인 **파일 수**. 근거 개수가 아니다 |
+| `markdown` | 그 자리 한 장. **저장된 것이 아니라 매번 만든 것이다** |
+| `files[].nodes` | 그 파일이 근거가 된 자리들(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** |
+| `extractor` | 무엇이 사실을 뽑았나. `stub/v1` 이면 픽스처 밖에서는 안 돈 것이다([ADR-0031](adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **화면이 이걸 숨기지 않는다** |
+
+**`confidence` 가 없다.** 구상도는 사실마다 0.9 를 붙이는데 0.9 와 0.7 을 가를 눈금이 없다. 대신 근거 유무 · `status` · `source_count` 셋으로 말한다.
+
+**`company_id` 를 경로로 받는다.** 인증이 아직 없어서 세션에서 꺼낼 자리가 없다 — 지금은 부르는 쪽이 누구인지 말한다. **격리가 이 인자 하나에 걸려 있고, 이 API 는 누구의 위키든 열어 준다.**
+
+---
+
+## `GET /api/wiki/{company_id}/markdown`
+
+위키 전부를 마크다운 한 덩어리로. `text/markdown; charset=utf-8` 이다.
+
+**저장된 파일을 읽는 것이 아니라 매번 만든다.** 마크다운은 저장소가 아니라 뷰다([plan/12](plan/12-사업-위키-구축.md) `구상도와의 차이`) — 사실이 `wiki_fact` 에 있는데 같은 내용을 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다.
+
+**아직 아무것도 없으면 404 다.** 빈 문서를 내려 주면 화면이 빈 `<pre>` 를 그린다. 위와 반대인 이유는 여기는 자리가 없기 때문이다 — 궤도는 빈 자리도 뜻이 있고 마크다운은 그렇지 않다.
+
+노드마다 `.md` 파일로 떨어뜨리는 것(F1-6 밖으로 꺼내기)은 아직 없다.
+
+---
+
 ## 아직 없는 것
 
 화면에 자리는 있지만 API 가 못 주는 값들이다. **`null` 로도 안 준다 — 필드 자체가 없다.**

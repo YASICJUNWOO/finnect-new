@@ -609,3 +609,109 @@ class Chunk(Base):
     page: Mapped[int | None] = mapped_column(Integer)
     #: 이 조각 위에 있던 제목. 규칙으로 잡은 것이라 **최선 추정이다**
     heading: Mapped[str | None] = mapped_column(Text)
+
+
+class WikiPlace(enum.StrEnum):
+    """사실 하나가 간 자리(plan/12 T-0045).
+
+    **셋을 섞지 않는 것이 이 컬럼의 존재 이유다.** 병합 키가 다르다 —
+    정형은 (슬롯, 한정어, 시점)이 키고, 서술은 키가 없어 근거만 쌓이며,
+    분류 못 한 것은 **버리지 않고** 검토 큐에 선다(구상도 ④ 예외).
+    """
+
+    SLOT = "slot"
+    NODE = "node"
+    UNCATEGORIZED = "uncategorized"
+
+
+class SourceType(enum.StrEnum):
+    """이 값이 어디서 왔나(ADR-0028 5번).
+
+    **문서가 `user_stated` 를 자동으로 덮지 않는다.** 사용자가 직접 답한 값은
+    문서 추출보다 세다 — 사용자가 자기 사업을 문서보다 잘 안다.
+    """
+
+    DOCUMENT = "document"
+    USER_STATED = "user_stated"
+
+
+class WikiFact(Base):
+    """위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다(F1-1-7).
+
+    ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
+    로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
+
+    `dedupe_key` 가 병합의 전부다. 정형은 `slot|이름|한정어|시점|값` 이라 문서 넷이
+    같은 사업자등록번호를 말하면 **행 하나에 근거 넷**이 된다. 서술은
+    `node|이름|fact_key` 라, 같은 사실이 문서마다 다른 문장으로 쓰여 있어도 묶인다.
+    """
+
+    __tablename__ = "wiki_fact"
+    __table_args__ = (
+        UniqueConstraint("company_id", "dedupe_key", name="uq_wiki_fact_company_key"),
+        Index("ix_wiki_fact_place", "company_id", "place_kind", "place"),
+        Index("ix_wiki_fact_status", "company_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    #: 격리의 기준. `chunk` 와 같은 이유로 여기 한 번 더 둔다
+    company_id: Mapped[str] = mapped_column(String(64), index=True)
+
+    place_kind: Mapped[str] = mapped_column(String(16))
+    #: 슬롯 이름(`headcount`) 또는 노드 이름(`solution`). uncategorized 면 빈 문자열
+    place: Mapped[str] = mapped_column(String(32))
+    #: 병합 키. 위 docstring 참고
+    dedupe_key: Mapped[str] = mapped_column(Text)
+
+    #: LLM 이 붙인 라벨. **목적지가 아니다** — 목적지는 `wiki/topics.py` 의 표가 정했다
+    topic: Mapped[str] = mapped_column(String(32))
+    #: 사람이 읽는 문장. 서술 노드는 이게 내용이다
+    text: Mapped[str] = mapped_column(Text)
+
+    # --- 정형 슬롯일 때만 찬다 ---
+    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수`. **슬롯 이름과 다르다**
+    slot_key: Mapped[str | None] = mapped_column(Text)
+    value: Mapped[str | None] = mapped_column(Text)
+    #: `시드` · `정책자금` · `예비창업패키지`
+    qualifier: Mapped[str | None] = mapped_column(Text)
+    #: 언제 기준의 값인가. **시점 없는 슬롯은 항상 NULL 이다**(merge.as_of_for)
+    as_of: Mapped[dt.date | None] = mapped_column(Date)
+    #: current | superseded | conflict. **서술 노드는 NULL 이다**
+    status: Mapped[str | None] = mapped_column(String(16))
+
+    source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
+    #: `stub/v1` · `llm/<모델>`. 무엇이 뽑았는지 남긴다 — 바꿔 돌릴 때 차이를 본다
+    extractor: Mapped[str] = mapped_column(String(32))
+
+    first_seen_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WikiEvidence(Base):
+    """사실 하나가 어느 원문 조각에서 나왔나. **이 표가 없으면 위키가 거짓말이 된다.**
+
+    ADR-0014: 집필은 노드가 든 근거 청크만 꺼내 쓴다. 값만 들고 문단을 쓰면 모델이
+    나머지를 지어낸다. **나중에 붙이는 것은 불가능하다** — 위치정보는 파싱 단계에서만
+    심을 수 있고, 그 자리가 `chunk` 다.
+    """
+
+    __tablename__ = "wiki_evidence"
+    __table_args__ = (
+        UniqueConstraint("fact_id", "chunk_id", name="uq_wiki_evidence_fact_chunk"),
+        Index("ix_wiki_evidence_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    company_id: Mapped[str] = mapped_column(String(64))
+    fact_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("wiki_fact.id", ondelete="CASCADE"), index=True
+    )
+    chunk_id: Mapped[int] = mapped_column(_PK, ForeignKey("chunk.id", ondelete="CASCADE"))
+    #: 편의용 비정규화. "어느 파일 몇 쪽" 을 청크 조인 없이 세는 자리가 많다
+    user_file_id: Mapped[int] = mapped_column(_PK, ForeignKey("user_file.id", ondelete="CASCADE"))
+    #: 청크 안에서 근거가 된 조각. 청크 전문을 보여 주기 전에 이걸 먼저 보여 준다
+    quote: Mapped[str] = mapped_column(Text)

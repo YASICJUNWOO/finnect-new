@@ -1,11 +1,15 @@
-"""사업 위키 CLI — 파일을 던지면 청크까지 만든다(plan/12).
+"""사업 위키 CLI — 파일을 던지면 위키가 선다(plan/12).
 
     uv run python -m finnect.wiki --company c_001 tests/fixtures/wiki/*
-    uv run python -m finnect.wiki --company c_001 --report
+    uv run python -m finnect.wiki --company c_001 --build       # 청크 → 사실 → 노드
+    uv run python -m finnect.wiki --company c_001 --wiki        # 세워진 위키를 본다
+    uv run python -m finnect.wiki --company c_001 --show 회사소개  # 원문 청크를 본다
     uv run python -m finnect.wiki --company c_001 --rechunk     # 청킹 규칙을 고쳤을 때
+    uv run python -m finnect.wiki --company c_001 --rebuild     # 추출기를 바꿨을 때
     uv run python -m finnect.wiki --company c_001 --purge       # 탈퇴. 원본까지 지운다
 
-**아직 사실을 뽑지 않는다.** 청크까지가 T-0043 이고 추출은 T-0045 다.
+**추출기가 아직 스텁이다**(ADR-0031). LLM 제공자가 안 정해져서 픽스처 7건만 돈다 —
+그 밖의 파일을 넣으면 청크까지만 가고 이유가 따라 나온다.
 """
 
 from __future__ import annotations
@@ -16,8 +20,8 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from finnect.db import SessionFactory
-from finnect.models import Chunk, UserFile, UserFileStatus
-from finnect.wiki import service, storage
+from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence, WikiFact, WikiPlace
+from finnect.wiki import build, service, storage, topics
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,17 +38,29 @@ def main(argv: list[str] | None = None) -> int:
         "정하려면 실제 청크를 봐야 한다**",
     )
     p.add_argument("--rechunk", action="store_true", help="저장된 텍스트로 다시 쪼갠다")
+    p.add_argument(
+        "--build",
+        action="store_true",
+        help="청크에서 사실을 뽑아 노드를 세운다. 파일을 올리면 자동으로 같이 돈다",
+    )
+    p.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="세운 위키를 지우고 다시 세운다. **원본과 청크는 안 건드린다**",
+    )
+    p.add_argument("--wiki", action="store_true", help="세워진 위키를 본다")
     p.add_argument("--purge", action="store_true", help="이 회사의 파일과 청크를 통째로 지운다")
     args = p.parse_args(argv)
 
     if args.purge:
         with SessionFactory() as s:
-            n = len(s.scalars(select(UserFile).where(UserFile.company_id == args.company)).all())
-            for uf in s.scalars(select(UserFile).where(UserFile.company_id == args.company)):
-                s.delete(uf)
+            n, facts = service.purge(s, args.company)
             s.commit()
         gone = storage.purge(args.company)
-        print(f"{args.company}: 파일 {n}건 삭제 · 원본 디렉터리 {'삭제' if gone else '없음'}")
+        print(
+            f"{args.company}: 파일 {n}건 · 사실 {facts}건 삭제 · "
+            f"원본 디렉터리 {'삭제' if gone else '없음'}"
+        )
         return 0
 
     if args.rechunk:
@@ -58,10 +74,27 @@ def main(argv: list[str] | None = None) -> int:
             print(render_chunks(s, args.company, args.show))
         return 0
 
+    if args.wiki:
+        with SessionFactory() as s:
+            print(render_wiki(s, args.company))
+        return 0
+
     if args.paths:
-        files = [f for f in args.paths if f.is_file() and f.suffix.lower() != ".md"]
+        files = [f for f in args.paths if f.is_file() and f.suffix.lower() not in {".md", ".json"}]
         report = service.ingest_files(SessionFactory, args.company, files)
         print(render_ingest(report))
+        print()
+
+    if args.rebuild:
+        with SessionFactory() as s:
+            n = build.clear(s, args.company)
+            s.commit()
+        print(f"{args.company}: 세웠던 사실 {n}건을 지웠어요. 원본과 청크는 그대로예요")
+
+    if args.paths or args.build or args.rebuild:
+        with SessionFactory() as s:
+            print(render_build(build.build_company(s, args.company)))
+            s.commit()
         print()
 
     with SessionFactory() as s:
@@ -156,6 +189,101 @@ def render_chunks(s, company_id: str, needle: str) -> str:  # noqa: ANN001
                 out.append(f"      {line[:96]}")
         out.append("")
     return "\n".join(out)
+
+
+
+def render_build(r: build.BuildReport) -> str:
+    """사실을 세운 결과. **건너뛴 것과 버린 것을 같이 적는다** — 조용히 넘어가지 않는다."""
+    lines = [
+        f"[위키를 세웠어요] {r.company_id}",
+        f"  읽은 파일      {r.built} / {r.files}",
+        f"  사실           {r.facts}건   (이미 있어서 근거만 더 붙은 것 {r.merged}건)",
+        f"  근거 연결      {r.evidence}개",
+        f"  정형 슬롯      {r.slots}개",
+        f"  서술 노드      {r.nodes}개",
+    ]
+    if r.conflicts:
+        lines.append(f"  충돌           {r.conflicts}건  ← 값이 갈려요. 물어봐야 해요")
+    if r.uncategorized:
+        lines.append(f"  검토 대기      {r.uncategorized}건  ← 갈 자리를 못 찾았어요")
+    if r.problems:
+        lines.append("")
+        lines.append("  [못 세운 것]")
+        lines += [f"    {name}  —  {why}" for name, why in r.problems]
+    return "\n".join(lines)
+
+
+def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
+    """세워진 위키를 편다. **근거가 어느 파일 몇 쪽인지까지 나와야 한다**(ADR-0014)."""
+    slots = build.read_slots(s, company_id)
+    if not any(v.current or v.history for v in slots):
+        return f"[{company_id}] 아직 위키가 없어요. 파일을 올리고 --build 를 해 보세요"
+
+    out = [f"[{company_id} 사업 위키]", "", "─── 사업체 정보 (정형)"]
+    for v in slots:
+        mark = "!" if v.conflicted else ("·" if v.current else " ")
+        need = " *" if v.eligibility else "  "
+        if not v.current:
+            out.append(f"  {mark}{need} {v.label:14} —  아직 몰라요")
+            continue
+        for f in v.current:
+            when = f" ({f.as_of})" if f.as_of else ""
+            qual = f" [{f.qualifier}]" if f.qualifier else ""
+            out.append(f"  {mark}{need} {v.label:14} {f.value}{qual}{when}   {_ev(s, f)}")
+            mark, need = " ", "  "
+        for f in v.history:
+            when = f" ({f.as_of})" if f.as_of else ""
+            qual = f" [{f.qualifier}]" if f.qualifier else ""
+            out.append(f"      {'':14} └ 이전  {f.value}{qual}{when}   {_ev(s, f)}")
+
+    out += [
+        "",
+        "  * 는 자격 판별에 쓰는 자리예요. ! 는 값이 갈린 자리예요",
+        "",
+        "─── 사업 내용 (서술)",
+    ]
+    for name, label in topics.NODES.items():
+        facts = s.scalars(
+            select(WikiFact)
+            .where(
+                WikiFact.company_id == company_id,
+                WikiFact.place_kind == WikiPlace.NODE,
+                WikiFact.place == name,
+            )
+            .order_by(WikiFact.id)
+        ).all()
+        if not facts:
+            out.append(f"  ○ {label}   —  아직 없어요")
+            continue
+        out.append(f"  ● {label}   사실 {len(facts)}개")
+        for f in facts:
+            out.append(f"      {f.text}")
+            out.append(f"        {_ev(s, f)}")
+
+    un = s.scalars(
+        select(WikiFact)
+        .where(WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.UNCATEGORIZED)
+        .order_by(WikiFact.id)
+    ).all()
+    if un:
+        out += ["", f"─── 검토 대기 {len(un)}건 — 갈 자리를 못 찾았어요. 버리지는 않았어요"]
+        out += [f"  ? {f.text}" for f in un]
+    return "\n".join(out)
+
+
+def _ev(s, fact) -> str:  # noqa: ANN001
+    """근거를 `파일명 3쪽` 꼴로. **문자열이 아니라 연결이다** — 청크를 조인해서 만든다."""
+    rows = s.execute(
+        select(UserFile.filename, Chunk.page)
+        .join(WikiEvidence, WikiEvidence.chunk_id == Chunk.id)
+        .join(UserFile, UserFile.id == WikiEvidence.user_file_id)
+        .where(WikiEvidence.fact_id == fact.id)
+        .order_by(UserFile.filename)
+    ).all()
+    if not rows:
+        return "근거 없음"
+    where = [f"{name}{f' {page}쪽' if page else ''}" for name, page in rows]
+    return f"근거 {len(rows)} — " + " · ".join(where)
 
 if __name__ == "__main__":
     raise SystemExit(main())

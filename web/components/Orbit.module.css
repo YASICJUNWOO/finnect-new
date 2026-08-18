@@ -1,0 +1,133 @@
+/* 궤도. **제품에서 색이 허용된 유일한 자리다**(DESIGN.md §3-7).
+ *
+ * 공고 화면(S4·S5)은 근검정 하나뿐이다. 그 대비가 이 화면의 성격이고, 그래서
+ * 여기서도 색은 **노드 도트에만** 있다. 링·바큇살·라벨은 전부 무채색이다. */
+
+.svg {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible; /* 구획 라벨이 viewBox 밖으로 조금 나간다 */
+}
+
+/* 궤도 두 줄. 구조를 말하는 선이라 거의 안 보인다 — 장식이 아니다 */
+.ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* 하위 관계(ADR-0017 결정 3). 링보다도 옅다 — 링이 층을 말하고 이건 소속만 말한다 */
+.spoke {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* 구획 라벨. **각도가 뜻을 갖는다는 것을 이게 말한다.**
+ * 12px 은 --t-caption 이고 §4.2 가 배지·메타에 쓰라고 한 크기다 */
+.sector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.02em;
+}
+
+/* --- 자리 하나 --- */
+
+.node {
+  cursor: pointer;
+}
+
+/* 도트. **색이 종류를 말한다.** 채워졌으면 속을 채우고, 비었으면 속을 비우고
+ * 점선을 두른다 — **테두리 색은 제 종류 색이다**(DESIGN.md §4.1) */
+.dot {
+  fill: var(--kind);
+  stroke: none;
+  transition: fill-opacity 120ms ease;
+}
+
+.node[data-kind="identity"] {
+  --kind: var(--n-identity);
+}
+.node[data-kind="company"] {
+  --kind: var(--n-company);
+}
+.node[data-kind="content"] {
+  --kind: var(--n-content);
+}
+
+.node[data-filled="false"] .dot {
+  fill: var(--surface);
+  stroke: var(--kind);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+/* 손봐야 하는 자리. --blank 는 상태색이라 노드 분류색과 다른 팔레트다(§4.1).
+ * 표면색 테두리가 도트에서 떼어 놓는다 */
+.badge {
+  fill: var(--blank);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+/* 고른 자리. 색을 하나 더 만들지 않고 근검정 링을 두른다 —
+ * **선택은 종류가 아니라 상태라 색으로 말하면 안 된다** */
+.halo {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.label {
+  fill: var(--ink-2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+}
+
+.centerLabel {
+  fill: var(--surface);
+  font-size: var(--t-caption);
+  font-weight: var(--w-bold);
+}
+
+/* --- 상태 (§7) --- */
+
+/* 2. 호버. **행 전체가 아니라 이 자리만** 반응한다.
+ *
+ * 도트를 키우지 않는다 — SVG `r` 은 자리마다 값이 달라 CSS 한 줄로 못 키우고,
+ * `transform: scale` 은 원점이 자리마다 달라 각 도트에 좌표를 또 심어야 한다.
+ * 이름이 진해지는 것으로 충분하고, 그게 누를 수 있다는 신호다 */
+.node:hover .dot {
+  fill-opacity: 0.82;
+}
+
+.node[data-filled="false"]:hover .dot {
+  fill: var(--quiet);
+  fill-opacity: 1;
+}
+
+.node:hover .label {
+  fill: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+/* 1. 포커스. globals.css 의 outline 은 SVG 안에서 도트를 감싸지 못해 여기서 다시 준다.
+ * **궤도가 노드로 가는 유일한 길이라 키보드에서 어디 있는지 보여야 한다** */
+.node:focus {
+  outline: none;
+}
+
+.node:focus-visible .dot {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+
+.node:focus-visible .label {
+  fill: var(--ink);
+  font-weight: var(--w-bold);
+}

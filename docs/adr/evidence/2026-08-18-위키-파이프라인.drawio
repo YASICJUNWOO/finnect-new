@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="위키 파이프라인">
+    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1620" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="h1" value="1. 파일 한 개가 겪는 일 — 런타임 플로우 (uv run python -m finnect.wiki --company c_dasiro &lt;파일들&gt;)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=15;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="2240" height="350" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s1" value="① 올린다&#xa;&#xa;CLI 가 경로들을 받는다&#xa;service.ingest_files()&#xa;&#xa;파일마다 세션을 따로 연다 —&#xa;하나가 터져도 나머지는 간다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="50" y="30" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="② 저장 · 격리&#xa;&#xa;wiki/storage.py&#xa;data/user-files/&lt;company_id&gt;/&lt;sha[:2]&gt;/&lt;sha&gt;&#xa;&#xa;user_file 행 생성 · status = parsing&#xa;회사 사이 중복 제거를 안 한다 (ADR-0029)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="590" y="30" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="③ 해독&#xa;&#xa;attach/extract.py — 공고 첨부와 파서를 공유한다&#xa;HWP · HWPX · DOCX · PDF · XLSX · PPTX · 이미지&#xa;그림과 스캔본은 RapidOCR (검출 server · ADR-0030)&#xa;&#xa;parse_status · parser · text_chars" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="1130" y="30" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="④ 청킹&#xa;&#xa;wiki/chunk.py — 의미 단위로 쪼갠다&#xa;&#xa;chunk 행 N개 · char_start / char_end 는 항상&#xa;page 는 PDF · PPTX 만 (쪽이 실재할 때만)&#xa;status = chunked   ← 어제까지 여기가 끝이었다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="1670" y="30" width="510" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s5" value="⑤ 사실 추출          ← LLM 이 들어갈 자리. 지금은 스텁&#xa;&#xa;wiki/extract.py — FactExtractor Protocol&#xa;StubExtractor 가 tests/fixtures/wiki/facts.json 을 읽는다&#xa;&#xa;픽스처 sha256 화이트리스트. 밖이면 UnknownFile&#xa;돌려주는 것: Fact[] (메모리) · status = extracting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;fontStyle=0" vertex="1" parent="c1">
+          <mxGeometry x="1670" y="190" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" value="⑥ 라우팅&#xa;&#xa;wiki/merge.py place() + wiki/topics.py 표&#xa;topic 25개 → 정형 슬롯 14 / 서술 노드 9 / 검토 대기&#xa;&#xa;결정론이다. 여기 모델이 안 들어간다 —&#xa;그래야 같은 파일을 두 번 넣어도 같은 배치가 나온다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="1130" y="190" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s7" value="⑦ 근거 연결&#xa;&#xa;사실이 든 anchor 문자열을 담은 청크를 찾는다&#xa;wiki_evidence 행 · status = linking&#xa;&#xa;못 찾으면 그 사실을 버리고 보고한다 —&#xa;근거 없는 값은 위키에 세우지 않는다 (ADR-0014)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="590" y="190" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s8" value="⑧ 병합 · 충돌&#xa;&#xa;dedupe_key 가 같으면 한 사실 — 근거만 쌓인다&#xa;그다음 merge.decide() 가 회사 전체를 한 번에 본다&#xa;&#xa;wiki_fact.status = current / superseded / conflict&#xa;status = done" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="50" y="190" width="510" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s3" target="s4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="여기가 이음매" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontColor=#b45309;fontSize=11;labelBackgroundColor=#f7f7f8;" edge="1" parent="c1" source="s4" target="s5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s5" target="s6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s6" target="s7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="s7" target="s8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h2" value="2. 무엇이 어디에 쌓이나 — 표 넷" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=15;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="490" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="550" width="2240" height="270" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t1" value="user_file&#xa;&#xa;올린 파일 하나&#xa;&#xa;키 = (company_id, sha256)&#xa;&#xa;회사 사이 중복 제거를 안 한다.&#xa;같은 양식이 회사마다 한 벌씩&#xa;쌓이는 것이 의도다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="50" y="30" width="500" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="chunk&#xa;&#xa;그 파일에서 나온 원문 조각&#xa;&#xa;키 = (user_file_id, ordinal)&#xa;text · char_start · char_end · page&#xa;&#xa;위치정보는 여기서만 심을 수 있다.&#xa;파싱이 끝나면 되찾을 방법이 없다&#xa;(ADR-0014)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="620" y="30" width="500" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="wiki_evidence&#xa;&#xa;사실 하나가 어느 조각에서 나왔나&#xa;&#xa;키 = (fact_id, chunk_id)&#xa;quote = 근거가 된 문장 조각&#xa;&#xa;이 표가 없으면 위키가 거짓말이 된다.&#xa;화면의 &quot;회사소개서_v3.pdf 3쪽&quot; 이&#xa;여기서 나온다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="1190" y="30" width="500" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="wiki_fact&#xa;&#xa;위키에 선 사실 하나&#xa;값이 아니라 &lt;b&gt;주장&lt;/b&gt;이다 — 충돌하면 둘 다 남는다&#xa;&#xa;키 = (company_id, dedupe_key)&#xa;&#xa;정형  slot|이름|한정어|시점|값&#xa;서술  node|이름|fact_key&#xa;&#xa;place_kind = slot / node / uncategorized" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="1760" y="30" width="430" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="te1" value="1 : N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontColor=#5f656d;fontSize=11;labelBackgroundColor=#f7f7f8;" edge="1" parent="c2" source="t1" target="t2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te2" value="N : 1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontColor=#5f656d;fontSize=11;labelBackgroundColor=#f7f7f8;" edge="1" parent="c2" source="t2" target="t3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te3" value="N : 1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#949aa2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontColor=#5f656d;fontSize=11;labelBackgroundColor=#f7f7f8;" edge="1" parent="c2" source="t3" target="t4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h3" value="3. 병합 규칙 — 이 한 줄이 시계열과 충돌을 가른다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=15;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="860" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="920" width="2240" height="290" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r0" value="자리 = (슬롯, 한정어, 시점)&#xa;&#xa;한 자리에 서로 다른 값이 둘 이상  →  전부 conflict&#xa;한 자리에 값이 하나                →  같은 (슬롯, 한정어) 중 시점이 가장 늦으면 current, 아니면 superseded&#xa;&#xa;시점이 다르면 성장이고, 같으면 모순이다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;verticalAlign=top;spacingTop=10;spacingLeft=10;align=left;fontStyle=1" vertex="1" parent="c3">
+          <mxGeometry x="50" y="25" width="1010" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="한정어가 없으면 시드 3억(2025-09)과 정책자금 5천만(2025-04)이 시계열로 서서&#xa;&quot;조달액이 3억에서 5천만으로 줄었다&quot; 가 된다.  ·  근거 수로 값을 정하지 않는다 — 2 대 1 이어도 다수결로 안 푼다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;verticalAlign=top;spacingTop=10;spacingLeft=10;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="50" y="175" width="1010" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r1" value="직원 수 — 시점이 넷 다 다르다  →  시계열&#xa;&#xa;  상시 근로자   7명   2025-08   성남시 신청서.hwpx      superseded&#xa;  종업원 수     8명   2025-11   사업계획서.docx        superseded&#xa;  구성원       10명   2026-01   회사소개서.pdf 2쪽      superseded&#xa;  임직원       15명   2026-08   피치덱.pptx 10쪽        &lt;b&gt;current&lt;/b&gt;&#xa;&#xa;이름이 넷 다 다른데 한 슬롯으로 모였다 — 별칭 표가 한 일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=10;spacingLeft=10;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="1100" y="25" width="540" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="시드 금액 — 셋 다 2025-09  →  충돌&#xa;&#xa;  시드 투자     3.0억   사업계획서.docx        &lt;b&gt;conflict&lt;/b&gt;&#xa;  자본잉여금    3.0억   재무제표.xlsx          (같은 값이라 같은 행)&#xa;  시드 라운드   2.8억   피치덱.pptx 11쪽        &lt;b&gt;conflict&lt;/b&gt;&#xa;&#xa;둘 다 보관하고 사용자에게 묻는다 (F1-1-7).&#xa;3억 쪽이 근거 2개지만 그걸로 이기지 않는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=11;verticalAlign=top;spacingTop=10;spacingLeft=10;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="1670" y="25" width="520" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h4" value="4. 코드 지도 — 어느 파일이 무엇을 하나 (src/finnect/wiki/)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=15;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1250" width="2240" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1310" width="2240" height="250" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m1" value="storage.py&#xa;원본을 회사 단위 콘텐츠 주소로 둔다.&#xa;모든 함수가 company_id 를 필수로 받는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="40" y="30" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" value="chunk.py&#xa;해독 텍스트를 원문 조각으로 쪼갠다.&#xa;위치정보는 여기서만 심을 수 있다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="480" y="30" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" value="service.py&#xa;파일 → 저장 → 해독 → 청크. 파일별로 독립.&#xa;purge() 가 탈퇴 — 파일·청크·사실·근거를 다 지운다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="920" y="30" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" value="extract.py          ← 포트&#xa;FactExtractor Protocol · Fact · FileView&#xa;StubExtractor (지금) / LlmExtractor (아직 없다)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="1360" y="30" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" value="topics.py          ← 사람이 만든 표&#xa;고정 topic 25 · 별칭 표 · 목적지 표&#xa;슬롯 14 · 노드 9. LLM 이 이걸 못 고친다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="1800" y="30" width="400" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m6" value="merge.py&#xa;place() 라우팅 · dedupe_key() 병합 키 · decide() 상태 판정.&#xa;전부 순수 함수다 — DB 도 파일도 안 만진다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="40" y="140" width="640" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m7" value="build.py&#xa;청크 → 추출 → 라우팅 → 근거 연결 → 병합. DB 를 만지는 유일한 곳.&#xa;clear() 다시 세우기 · read_slots() 화면에 넘길 모양" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="700" y="140" width="740" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="m8" value="__main__.py&#xa;CLI. --build · --wiki · --show · --rechunk · --rebuild · --purge&#xa;화면은 아직 없다 — S1·S2 가 이걸 대신할 자리다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c4">
+          <mxGeometry x="1460" y="140" width="740" height="90" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

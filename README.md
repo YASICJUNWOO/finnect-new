@@ -113,14 +113,18 @@ uv run python -m finnect.attach --report     # 집계만. 아무것도 안 받�
 
 ### 사용자 파일로 위키 세우기
 
-공고와 별개다. 사용자가 가진 파일을 던지면 **원문 조각(청크)까지** 만든다.
-아직 사실을 뽑지 않는다 — 거기부터가 [plan/12](docs/plan/12-사업-위키-구축.md) T-0045다.
+공고와 별개다. 사용자가 가진 파일을 던지면 **청크 → 사실 → 노드까지** 만들고, 노드에서 원문이 열린다.
+
+**추출기가 아직 스텁이다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). LLM 제공자를 안 정하고 포트만 팠고, 스텁은 `tests/fixtures/wiki/` 일곱 건에서 손으로 옮긴 사실을 돌려준다. **그 밖의 파일을 넣으면 청크까지만 가고 이유가 따라 나온다.**
 
 ```bash
 uv sync --group ocr   # OCR(ADR-0030). 기본 의존성이 아니다 — onnxruntime 이 무겁다
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*
+uv run python -m finnect.wiki --company c_dasiro --wiki       # 세워진 위키를 본다
+uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 청크를 본다
 uv run python -m finnect.wiki --company c_dasiro --report     # 집계만
 uv run python -m finnect.wiki --company c_dasiro --rechunk    # 청킹 규칙을 고쳤을 때
+uv run python -m finnect.wiki --company c_dasiro --rebuild    # 추출기를 바꿨을 때. 청크는 안 건드린다
 uv run python -m finnect.wiki --company c_dasiro --purge      # 탈퇴. 원본까지 지운다
 ```
 

@@ -1,0 +1,37 @@
+/* 주 동작이라 근검정이다 (§4.1 · §3-4). 조작 요소라 --r-sm (§4.3) */
+.button {
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.button:hover {
+  opacity: 0.88;
+}
+
+/* 끝난 상태. **색을 바꾸지 않는다** — 글자가 이미 말하고 있고,
+ * 여기에 초록을 들이면 액센트가 마감 하나라는 규칙이 깨진다 (§4.1) */
+.button[data-state="done"] {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.button[data-state="failed"] {
+  background: var(--surface);
+  border-color: var(--line-2);
+  color: var(--ink-2);
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .button {
+    min-height: 44px;
+  }
+}

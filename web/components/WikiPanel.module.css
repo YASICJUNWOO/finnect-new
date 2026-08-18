@@ -1,0 +1,391 @@
+/* 자리 한 장(SPEC F1-3). **근거 줄이 이 화면의 시그니처다.**
+ *
+ * 카드에 그림자를 주지 않는다 — 흐름 안에 있는 카드라 §4.4 가 경계선을 쓰라고 한다.
+ * 색은 궤도가 다 썼다. 여기서 색이 나오는 곳은 종류 점 하나와 충돌 상자 하나뿐이다. */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s5);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+/* 종류 점. **궤도의 도트와 같은 색이다** — 여기가 어느 궤도에서 왔는지 말한다 */
+.kind {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--kind);
+}
+
+.kind[data-kind="identity"] {
+  --kind: var(--n-identity);
+}
+.kind[data-kind="company"] {
+  --kind: var(--n-company);
+}
+.kind[data-kind="content"] {
+  --kind: var(--n-content);
+}
+
+/* 자격 판별에 쓰는 자리. **색을 쓰지 않는다** — 경고가 아니라 사실이다 */
+.tag {
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+}
+
+.title {
+  margin-top: var(--s1);
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.meta {
+  display: flex;
+  gap: var(--s3);
+  margin-top: var(--s1);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.warn {
+  color: var(--blank);
+  font-weight: var(--w-medium);
+}
+
+/* 마크다운 토글. 조작 요소라 --r-sm 이다 (§4.3) */
+.toggle {
+  margin-left: auto;
+  flex: none;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-4);
+}
+
+.toggle[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+
+/* 마크다운 원문. **저장된 파일이 아니라 매번 만든 것이다.**
+ *
+ * 여기만 고정폭 서체다. §4.2 가 "서체를 나누지 않는다"고 한 이유는 웹폰트가 한 벌 더
+ * 붙는 대가였는데, 시스템 고정폭은 내려받는 것이 없다. 마크다운을 비례 서체로 두면
+ * 표와 들여쓰기가 어긋나 **원문이 아닌 것처럼 보인다.** */
+.raw {
+  margin: var(--s4) 0 0;
+  padding: var(--s4);
+  background: var(--quiet);
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 5. 빈 화면 (§7). **다음 동작을 권한다** */
+.empty {
+  margin-top: var(--s4);
+  color: var(--ink-2);
+}
+
+.block + .block {
+  margin-top: var(--s5);
+}
+
+.block {
+  margin-top: var(--s4);
+}
+
+.blockTitle {
+  margin-bottom: var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-medium);
+  color: var(--ink-3);
+}
+
+/* --- 정형 슬롯 --- */
+
+.slots {
+  margin: 0;
+}
+
+.slot + .slot {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.slotName {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+/* 한정어. 시드와 정책자금을 가르는 것이라 슬롯 이름과 같은 줄에 붙는다 */
+.qual {
+  padding: 0 var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font-size: var(--t-caption);
+}
+
+.slotBody {
+  margin: var(--s1) 0 0;
+}
+
+/* 충돌. **액센트가 여기 하나뿐이다.** 마감(--urgent)이 아니라 --blank 계열을 쓴다 —
+ * 마감은 시간이 없다는 뜻이고 이건 사람이 정해야 한다는 뜻이라 다른 일이다 */
+.conflict {
+  margin-bottom: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--blank-bg);
+  border: 1px solid var(--blank-line);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--blank);
+}
+
+.value + .value {
+  margin-top: var(--s3);
+}
+
+.valueText {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+
+.asOf {
+  font-size: var(--t-small);
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+}
+
+/* --- 서술 사실 --- */
+
+.facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact + .fact {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.factText {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  /* 줄길이 62ch 이하 (§8.2) */
+  max-width: 62ch;
+}
+
+/* --- 근거 줄. 이 블록이 시그니처다 --- */
+
+.src,
+.srcQuiet {
+  margin-top: var(--s2);
+}
+
+.srcSummary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.srcSummary::-webkit-details-marker {
+  display: none;
+}
+
+/* 펼침 표시. 삼각형 대신 부호 하나 — 행마다 반복되는 것이라 조용해야 한다 */
+.srcSummary::after {
+  content: "＋";
+  color: var(--ink-4);
+}
+
+[open] > .srcSummary::after {
+  content: "－";
+}
+
+.srcSummary:hover {
+  color: var(--ink-2);
+}
+
+.srcCount {
+  flex: none;
+  padding: 0 var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.srcWhere {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srcQuiet .srcCount {
+  background: none;
+  padding: 0;
+}
+
+/* 원문 조각. **여기까지 와야 "출처가 연결"이 된다**(F1-3) */
+.quotes {
+  margin: var(--s2) 0 0;
+  padding: 0 0 0 var(--s3);
+  border-left: 2px solid var(--line-2);
+  list-style: none;
+}
+
+.quote + .quote {
+  margin-top: var(--s3);
+}
+
+.quoteWhere {
+  display: flex;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.page {
+  font-variant-numeric: tabular-nums;
+}
+
+.quoteText {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* 근거 없는 값. **저장되지 않으므로 여기 오면 안 된다** — 와도 조용히 넘어가지 않는다 */
+.noSource {
+  margin-top: var(--s2);
+  font-size: var(--t-small);
+  color: var(--urgent);
+}
+
+/* --- 이전 값. 지우지 않는다 (F1-1-7) --- */
+
+.history {
+  margin-top: var(--s3);
+}
+
+.historySummary {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.historySummary:hover {
+  color: var(--ink-2);
+}
+
+.historyList {
+  margin: var(--s2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.historyList > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+}
+
+.historyList > li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* 모바일. 터치 타깃 44px 이상 (§8.2) */
+@media (max-width: 640px) {
+  .panel {
+    padding: var(--s4);
+  }
+
+  .head {
+    flex-wrap: wrap;
+  }
+
+  .toggle {
+    margin-left: 0;
+    min-height: 44px;
+  }
+
+  .srcSummary,
+  .historySummary {
+    min-height: 44px;
+    align-items: center;
+  }
+}

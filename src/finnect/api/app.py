@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
-from finnect.api import admin_service, service
+from finnect.api import admin_service, service, wiki_service
 from finnect.api.admin_schemas import (
     AdminAttachmentsOut,
     AdminIngestOut,
@@ -18,6 +19,7 @@ from finnect.api.admin_schemas import (
     AdminNoticeListOut,
 )
 from finnect.api.schemas import NoticeDetailOut, NoticeDocumentsOut, NoticeListOut
+from finnect.api.wiki_schemas import WikiOut
 from finnect.db import SessionFactory
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
@@ -72,6 +74,47 @@ def notice_documents(source: str, external_id: str) -> NoticeDocumentsOut:
     if found is None:
         raise HTTPException(404, f"모르는 출처: {source}")
     return found
+
+
+# --- 사업 위키 (S7) ---------------------------------------------------------
+#
+# **`company_id` 를 경로로 받는다.** 인증이 아직 없어서 세션에서 꺼낼 자리가 없다 —
+# 지금은 부르는 쪽이 누구인지 말한다. 로그인이 붙으면 이 인자가 사라지고 세션이 대신한다.
+#
+# **격리가 이 인자 하나에 걸려 있다.** `wiki/storage.py` 와 `chunk.company_id` 가 같은
+# 값을 쓰고, 서비스가 그 값으로만 조회한다. 지금 이 API 는 누구의 위키든 열어 준다.
+
+
+@app.get("/api/wiki/{company_id}", response_model=WikiOut)
+def wiki(company_id: str) -> WikiOut:
+    """사업 위키 한 장.
+
+    **위키가 없어도 200 이고 궤도 열다섯이 온다.** 빈 자리도 사실이라 화면이 무엇을
+    물어야 하는지 알 수 있어야 한다(DESIGN.md §7-5). 404 는 회사가 없을 때가 아니라
+    이 경로가 없을 때만 난다.
+
+    **추출기가 아직 스텁이라 픽스처 밖 회사는 자리만 비어서 온다**(ADR-0031).
+    응답의 `extractor` 가 무엇이 뽑았는지 말한다.
+    """
+    with SessionFactory() as s:
+        return wiki_service.get_wiki(s, company_id)
+
+
+@app.get("/api/wiki/{company_id}/markdown", response_class=PlainTextResponse)
+def wiki_markdown(company_id: str) -> PlainTextResponse:
+    """위키 전부를 마크다운 한 덩어리로.
+
+    **저장된 파일을 읽는 것이 아니라 매번 만든다.** 마크다운은 저장소가 아니라 뷰다
+    (plan/12 `구상도와의 차이`) — 사실이 `wiki_fact` 에 있는데 같은 내용을 마크다운으로도
+    들고 있으면 둘 중 하나가 먼저 낡는다.
+
+    노드마다 `.md` 파일로 떨어뜨리는 것(F1-6 밖으로 꺼내기)은 아직 없다.
+    """
+    with SessionFactory() as s:
+        body = wiki_service.get_markdown(s, company_id)
+    if body is None:
+        raise HTTPException(404, f"아직 위키가 없어요: {company_id}")
+    return PlainTextResponse(body, media_type="text/markdown; charset=utf-8")
 
 
 # --- 운영 화면 (ADR-0027) ---------------------------------------------------

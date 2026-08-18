@@ -6,14 +6,15 @@
 
 **2026-08-16 v2로 피봇했다**([ADR-0012](docs/adr/0012-v2-피봇-사업-위키.md)). 폼 입력 → 판정 → 3단계 집필이던 v1 명세는 대체됐다. **`SPEC.md`를 다시 읽어라. 기억하고 있는 F0~F9와 S1~S8은 없다.**
 
-코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 한 줄도 없다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
+코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **아직 코드가 한 줄도 없다** — 다만 2026-08-18 계획([plan/12](docs/plan/12-사업-위키-구축.md))과 테스트 코퍼스([`tests/fixtures/wiki/`](tests/fixtures/wiki/README.md))가 먼저 생겼다. 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-17 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)이 닫혔고 [plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+**2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)이 닫혔고 [plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/12](docs/plan/12-사업-위키-구축.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
 **앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
-- LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다**
+- LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다** — [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 과 [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 가 같은 블로커를 공유하고, **먼저 착수하는 쪽이 정한다**
+- **질문 타이밍이 정해졌다**([ADR-0028](docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)). 초안이 먼저 다 나오고, 항목 옆에서 묻고, 답하면 **위키에 먼저 저장한 뒤** 그 항목만 재작성한다. 사용자 답변은 `user_stated` 등급이라 **문서가 자동으로 덮지 않는다**
 - 제품 화면은 **S4·S5 둘뿐이다.** 나머지 다섯(S1·S2·S3·S6·S7)은 없다. 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
 - **운영 조회 화면 넷은 `web/app/admin/`에 있고 배포본에서도 열린다**([ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 토큰을 입었고 T-0023이 그 커밋에서 닫혔다. `src/finnect/admin/`에는 **수집 실행 버튼만** 남았다 — 데몬 스레드라 안 올라간다. **읽기 화면을 거기 다시 만들지 않는다**
@@ -64,6 +65,8 @@ cd web && npm run lint && npm run typecheck && npm run build
 | `notice` (뷰) | 둘을 공통 8필드로 매핑. 매핑 정본은 `src/finnect/views.py`. **제품 목록만 이 뷰를 쓴다** — 운영 상세는 출처별 표에서 직접 읽는다 |
 | `attachment` | 첨부 메타. **API가 준 것** |
 | `attachment_file` | 첨부를 받아서 읽어 본 결과. **우리가 한 것** ([ADR-0022](docs/adr/0022-첨부-원본을-콘텐츠-주소로-로컬에-둔다.md)) |
+| `document` | 공고가 요구하는 문서 한 벌. **첨부 텍스트 안의 한 구간이다** — 파일 하나가 문서 하나가 아니다. 키가 `sha256` 인 이유는 `attachment_file` 과 같다 ([plan/11](docs/plan/11-작성-항목-추출과-표시.md)) |
+| `document_item` | 그 문서 안의 작성 항목. 원문 지시문을 **우리가 고쳐 쓰지 않는다** |
 | `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |
 
 **`attachment`에 해독 상태를 붙이지 않는다.** 공고가 갱신되면 그 행이 통째로 지워지고 다시 깔린다(`ingest/runner.py` `_flush`). 상태는 URL을 키로 하는 `attachment_file`에 산다. 원본 파일은 `data/attachments/<sha256[:2]>/<sha256>`.
@@ -85,6 +88,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다
 - [`docs/adr/`](docs/adr/README.md) — 결정 로그. **append-only. 기존 파일 본문을 수정하지 않는다**
 - [`docs/adr/evidence/2026-08-16-v2-기획문서/`](docs/adr/evidence/2026-08-16-v2-기획문서/) — **기획이 넘긴 v2 원본 일곱.** SPEC이 이걸 흡수했다. 문서끼리 안 맞는 곳이 있으니 SPEC §9를 먼저 본다
+- [`docs/adr/evidence/2026-08-18-전체-구상도.md`](docs/adr/evidence/2026-08-18-전체-구상도.md) — **기획이 넘긴 시스템 전체 구상도**의 전사본. 어디를 다르게 가는지는 [plan/12](docs/plan/12-사업-위키-구축.md)의 `구상도와의 차이`에 있다
 - ~~`docs/design/`~~ — **v1 산출물. 대체됐다**([ADR-0018](docs/adr/0018-디자인-방향-이관.md)). Primer 팔레트와 S1~S8 와이어프레임이 들어 있다. 현재 설계로 읽지 않는다
 - `docs/archive/` — 폐기된 방향. **구 방향(청년 정책 추천) 기준이다.** 현재 설계로 착각하지 않는다
 

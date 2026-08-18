@@ -29,6 +29,9 @@ data/attachments/
 *.hwp
 *.hwpx
 
+# 테스트 픽스처는 예외다. 내려받은 첨부가 아니라 일부러 만든 것이라 재생성되지 않는다
+!tests/fixtures/**
+
 # 스파이크 산출물 (재생성 가능 — git 미포함)
 spike/data/
 .venv/

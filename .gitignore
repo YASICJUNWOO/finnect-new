@@ -26,6 +26,7 @@ dist/
 
 # 로컬 데이터 산출물 (수집 스크립트로 재생성 가능 — git 미포함)
 data/attachments/
+data/user-files/          # 사용자가 올린 원본 (ADR-0029). 개인정보다 — 절대 커밋하지 않는다
 *.hwp
 *.hwpx
 

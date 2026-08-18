@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from finnect.attach import service
+from finnect.attach import kstartup, service
 from finnect.db import SessionFactory
 from finnect.models import Source
 
@@ -34,11 +34,36 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="텍스트가 0자인 스캔본만 OCR 로 다시 본다(ADR-0030). 새로 받지 않는다",
     )
+    p.add_argument(
+        "--scrape-kstartup",
+        action="store_true",
+        help="K-Startup 상세 페이지에서 첨부 목록을 긁는다(plan/13). **파일은 안 받는다**",
+    )
     p.add_argument("--report", action="store_true", help="집계만 찍는다")
     args = p.parse_args(argv)
 
     if args.limit is not None and args.limit < 1:
         p.error("--limit 은 1 이상이어야 한다")
+
+    if args.scrape_kstartup:
+        r = kstartup.scrape(
+            limit=args.limit,
+            redo=args.redo,
+            on_progress=lambda x: print(
+                f"  … {x.done}/{x.total}건 · 첨부 {x.attachments}개 · "
+                f"{x.seconds / 60:.1f}분",
+                flush=True,
+            ),
+        )
+        print()
+        print(r.render())
+        with SessionFactory() as s:
+            c = kstartup.coverage(s)
+            print(
+                f"\n[K-Startup 첨부] 공고 {c['notices']:,}건 중 "
+                f"{c['scraped']:,}건에 첨부 {c['attachments']:,}개"
+            )
+        return 0
 
     if args.ocr:
         r = service.ocr_pass(

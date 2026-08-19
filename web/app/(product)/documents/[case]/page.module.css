@@ -66,3 +66,7 @@
   color: var(--ink-3);
   max-width: 62ch;
 }
+
+.next {
+  color: var(--ink-2);
+}

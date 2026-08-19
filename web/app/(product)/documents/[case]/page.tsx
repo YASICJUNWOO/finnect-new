@@ -56,7 +56,10 @@ export default async function DocumentsPreviewPage({
 
       {/* 아직 없는 것을 있는 척하지 않는다 */}
       <p className={styles.note}>
-        실제 공고에서 뽑은 값이에요. 아직 이 세 건만 있고, 나머지 공고에는 안 붙어 있어요.
+        실제 공고에서 뽑은 값이에요. 아직 이 세 건만 있고, 나머지 공고에는 안 붙어 있어요.{" "}
+        <Link className={styles.next} href={`/documents/${key}/write`}>
+          여기에 뭘 쓰는지 보기
+        </Link>
       </p>
     </article>
   );

@@ -62,6 +62,17 @@ def test_상태를_모르면_마감으로_친다() -> None:
         assert "bizpbanc-deadline.do" in kstartup.detail_url(ONGOING, unknown)
 
 
+def test_낡은_모집중_상태를_주소로_되짚는다() -> None:
+    """**`rcrt_prgs_yn` 은 적재 시점의 값이라 그 뒤에 마감된 공고는 `Y` 로 남는다.**
+
+    2026-08-19 실측에서 모집중 50건 중 7건이 그랬다. `178876` 은 접수마감이
+    `20260817` 인데 `Y` 였고, ongoing 은 18,783자 껍데기 · deadline 은 108,876자에
+    첨부 1개였다. 껍데기가 오면 반대쪽을 한 번 더 봐야 그 일곱을 잃지 않는다.
+    """
+    assert kstartup.flip_url(ONGOING) == kstartup.detail_url(ONGOING, "N")
+    assert kstartup.flip_url(kstartup.detail_url(ONGOING, "N")) == ONGOING
+
+
 def test_파일명을_title_에서_가져온다() -> None:
     """**링크 텍스트로 잡으면 전부 '다운로드' 가 된다.**"""
     pairs = kstartup.parse_attachments(HTML)

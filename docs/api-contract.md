@@ -80,6 +80,68 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 ---
 
+## `GET /api/companies/{company_id}/recommendations`
+
+**추천 세 건.** `DESIGN.md` §6.1 의 두 섹션 중 위쪽이고, 아래쪽(전체 공고 · 마감 임박순)은 `GET /api/notices` 가 그대로 낸다. 경로를 나눈 이유는 **위키가 없어도 그쪽이 떠야** 하기 때문이다.
+
+계획은 [plan/17](plan/17-맞는-공고를-고른다.md), 결정은 [ADR-0013](adr/0013-판정-두-층.md) 이다.
+
+### 응답
+
+```json
+{
+  "items": [
+    {
+      "source": "bizinfo",
+      "external_id": "PBLN_000000000125473",
+      "title": "…",
+      "apply_end": "2026-09-30",
+      "days_left": 41,
+      "reason": "소상공인·판로가 주제예요. 바코드와 QR로 입출고 기록을 자동으로 남겨…",
+      "evidence_count": 2
+    }
+  ],
+  "computed": true
+}
+```
+
+`NoticeOut` 의 필드 전부에 둘이 붙는다.
+
+| 필드 | 무엇 |
+|---|---|
+| `reason` | 왜 맞는지 한 줄. **템플릿이 만든다** — LLM 이 아니다 |
+| `evidence_count` | 이 이유가 위키의 몇 개 사실에서 나왔나. 화면이 "근거 2" 로 쓴다 |
+| `computed` | 판정을 돌렸나. **빈 목록과 다르다** |
+
+### 적합도 숫자가 없다
+
+`verdict` · `matched` · `sector_hit` 가 응답에 **없다.** 목록이 이미 적합도순이라 순서가 정보를 담고, 92 와 74 의 차이를 설명할 눈금이 없다(`DESIGN.md` §6). `tests/test_api_recommendations.py` 가 응답 JSON 에 그 이름들이 없는지 검사한다.
+
+### `computed` 가 왜 따로 있는가
+
+```
+{"items": [], "computed": false}   아직 판정을 안 돌렸다
+{"items": [], "computed": true}    돌렸는데 맞는 것이 없다
+```
+
+**404 를 내지 않는다.** 화면이 "파일을 올리면 맞는 공고를 골라 드려요"(빈 화면)와 "맞는 것이 없어요"를 다르게 말해야 하고, 그 둘은 다음 동작이 다르다(`DESIGN.md` §7-5).
+
+### 세 건까지다
+
+`SPEC.md` F4-1 — *"적합도순 **3건.** 전체를 늘어놓지 않는다."* 상한은 `api/service.TOP_N` 에 있다.
+
+### LLM 을 부르지 않는다
+
+`notice_fit` 을 **읽기만 한다.** 판정은 `uv run python -m finnect.match --company <id>` 가 미리 돌린다 — 화면 요청 경로에서 모델을 부르지 않는 것(F6-1 과 같은 원칙)이고, 페이지 열 때마다 열린 공고 1,790건을 정규식으로 훑지 않는 이유도 그것이다.
+
+그래서 **`api/service.py` 가 `match.service` 를 임포트하지 않는다.** 저쪽이 `llm` 을 끌고 오는데 `requirements.txt` 에 httpx 가 없다 — 임포트하면 로컬은 통과하고 배포본만 죽는다.
+
+### 마감이 지난 것은 낸 뒤에 뺀다
+
+판정은 어제 돌았어도 오늘 마감일 수 있다. 정렬은 `match/rank.py` 와 같은 규칙이다 — **분야 일치 → 겹침 수 → 마감 임박.**
+
+---
+
 ## `GET /api/notices/{source}/{external_id}`
 
 목록 한 줄에 `summary` 와 `attachments` 가 붙는다. 없으면 **404**. 모르는 출처도 404.

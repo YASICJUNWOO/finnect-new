@@ -75,21 +75,38 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.6-luna"
     openai_timeout_sec: float = 120.0
 
-    # --- 사실 추출 (plan/12 T-0045 · ADR-0031) ---
+    # --- 사실 추출 (plan/12 T-0045 · ADR-0031 · ADR-0037) ---
 
-    #: 어느 추출기를 쓰나. **`stub` 하나뿐이다** — LLM 제공자가 아직 안 정해졌다
-    #: (ADR-0021 G). `llm` 을 고르면 NotImplementedError 로 막는다.
+    #: 어느 추출기를 쓰나. `stub` 또는 `llm`.
+    #:
+    #: **`llm` 이 기본이 아닌 이유는 키다.** 키 없이 `llm` 을 고르면 멈추는데, 기본값이면
+    #: 레포를 처음 받은 사람이 아무것도 못 한다. `stub` 은 픽스처 7건에서 항상 돈다.
     wiki_extractor: str = "stub"
 
     #: 스텁이 돌려줄 사실 표. **코퍼스에서 손으로 옮긴 것이라 테스트와 같이 산다.**
     #: 레포 밖에서는 파일이 없어 스텁이 아예 안 돈다 — 그게 의도다.
     wiki_stub_facts: Path = REPO_ROOT / "tests" / "fixtures" / "wiki" / "facts.json"
 
+    # --- 양식 구간 판별 (plan/11 T-0036 · ADR-0037) ---
+
+    #: 어느 판정기를 쓰나. `rule` 또는 `llm`.
+    #:
+    #: **여기는 `llm` 이 기본이다.** `wiki_extractor` 와 반대인 이유가 있다 — 규칙은
+    #: 이미 분할 때 한 번 돌았고 네 번 실패했다. `rule` 로 이 판정을 돌리면 아무것도
+    #: 안 바뀌는데, 그 결과가 "LLM 도 못 가른다" 처럼 보인다.
+    document_classifier: str = "llm"
+
     # --- 초안 집필 (plan/16 T-0069) ---
 
     #: 항목을 몇 개씩 동시에 쓰나. **상한은 rate limit 이다** — 크게 잡으면 429
     #: 재시도가 늘어 오히려 느려진다. 8 에서 시작해 재 본다.
     draft_workers: int = 8
+
+    # --- 맞는 공고 고르기 (plan/17 T-0070) ---
+
+    #: 공고를 몇 개씩 동시에 정규화하나. `draft_workers` 와 같은 이유로 8 이다.
+    #: **③④⑤ 에는 워커가 없다** — LLM 을 안 부르고 1,790건에 0.02초다
+    match_workers: int = 8
 
     # --- 관측 (Langfuse) ---
 

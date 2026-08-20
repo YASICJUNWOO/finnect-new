@@ -145,7 +145,22 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
       "url": "https://www.bizinfo.go.kr/…",
       "items": [
         {"number": null, "title": "업 체 명", "instruction": null,
-         "limit_text": null, "input_kind": "field"}
+         "limit_text": null, "input_kind": "field", "children": []}
+      ]
+    },
+    {
+      "id": 4706,
+      "title": "서식 3 사업계획서",
+      "kind": "narrative",
+      "decided_by": "llm/gpt-5.6-luna",
+      "filename": "신청서류_….hwp",
+      "url": "https://www.bizinfo.go.kr/…",
+      "items": [
+        {"number": "1", "title": "신청기업 현황", "instruction": null,
+         "limit_text": null, "input_kind": "narrative", "children": [
+           {"number": "1-1", "title": "일반현황", "instruction": null,
+            "limit_text": null, "input_kind": "narrative", "children": []}
+         ]}
       ]
     }
   ],
@@ -154,12 +169,25 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 }
 ```
 
+### `items` 는 트리다
+
+**`children` 을 버리면 화면이 틀린 곳에 칸을 만든다.** 쓰는 자리는 **잎**이고 가지는
+양식의 묶음이라, `1 신청기업 현황` 의 자식을 안 주면 그것이 잎이 되어 **거기 쓰는 칸이
+붙는다** — 그 칸에 쓴 글은 어느 항목의 것도 아니다. 화면이 잎을 세는 곳은
+`web/components/FormFill.tsx` 의 `leafKeys` 한 곳이다.
+
+깊이는 실측 3단까지다(plan/11 T-0039). `fields` 는 평평하다 — 라벨이 서로 부모가 아니고,
+트리를 만들면 칸 199개짜리 서식이 접힌다.
+
+**항목이 0개인 문서가 있다.** 양식으로는 갈렸는데 목차가 안 나온 것이고(서술형 25건 중
+6건 · 2026-08-20), 화면은 그렇게 말한다 — "이 양식에서 항목을 못 뽑았어요".
+
 ### `kind` 가 넷인데 둘만 나간다
 
 | 값 | 뜻 | 응답에 나오나 |
 |---|---|---|
 | `fields` | 칸만 채우는 서식 | **나온다** |
-| `narrative` | 글로 쓰는 양식 | 나온다. **아직 하나도 없다** — T-0036 이 채운다 |
+| `narrative` | 글로 쓰는 양식 | 나온다. **2026-08-20 현재 25건** — T-0036 을 예산 안에서 일부만 돌렸다 |
 | `none` | 채울 것이 없다 | 안 나온다 |
 | `unknown` | 아직 안 갈랐다 | **안 나온다.** `undecided` 로만 센다 |
 

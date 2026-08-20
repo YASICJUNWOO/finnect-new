@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -27,7 +28,10 @@ from finnect.wiki import build, service, storage, topics
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="finnect.wiki", description="사용자 파일 → 원문 청크")
     p.add_argument("paths", nargs="*", type=Path, help="올릴 파일들")
-    p.add_argument("--company", required=True, metavar="ID", help="회사 식별자. 격리의 기준이다")
+    p.add_argument(
+        "--company", default="", metavar="ID",
+        help="회사 식별자. 격리의 기준이다. **`--score` 말고는 필수**",
+    )
     p.add_argument("--report", action="store_true", help="집계만 찍는다")
     p.add_argument(
         "--show",
@@ -50,7 +54,29 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--wiki", action="store_true", help="세워진 위키를 본다")
     p.add_argument("--purge", action="store_true", help="이 회사의 파일과 청크를 통째로 지운다")
+    p.add_argument(
+        "--score",
+        action="store_true",
+        help="추출 정확도를 픽스처 118개와 대조해 잰다(ADR-0037). **DB 를 안 쓴다**",
+    )
     args = p.parse_args(argv)
+
+    if args.score:
+        # **DB 도 회사도 필요 없다.** 정답지와 추출기만 있으면 된다
+        from finnect.wiki import score
+
+        try:
+            print(score.run().render())
+        except Exception as e:  # noqa: BLE001 — 키 문제는 사용자 실수지 우리 버그가 아니다
+            if type(e).__name__ not in ("MissingKey", "LlmError"):
+                raise
+            print(e, file=sys.stderr)
+            return 2
+        return 0
+
+    # `--score` 말고는 회사가 격리의 기준이라 없으면 안 된다(ADR-0029).
+    if not args.company:
+        p.error("--company 는 필수예요. (--score 만 예외예요)")
 
     if args.purge:
         with SessionFactory() as s:

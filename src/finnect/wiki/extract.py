@@ -5,7 +5,7 @@ LLM 제공자가 아직 없다(ADR-0021 G). 그런데 파이프라인에서 LLM 
 제공자 없이 만들 수 있다. 그래서 **여기 포트를 파고 구현 둘을 둔다.**
 
     StubExtractor   코퍼스에서 손으로 옮긴 사실을 돌려준다. 지금 쓰는 것
-    (LlmExtractor)  아직 없다. 제공자가 정해지면 이 Protocol 만 만족시키면 된다
+    LlmExtractor    OpenAI 로 진짜로 뽑는다. 키가 있어야 돈다 (ADR-0037)
 
 ## 스텁은 지어낸 값을 돌려주지 않는다
 
@@ -36,7 +36,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -172,15 +173,226 @@ def _fact(d: dict) -> Fact:
     )
 
 
-def get_extractor() -> FactExtractor:
-    """설정이 고른 추출기. **지금은 스텁 하나뿐이다.**
+# ══════════════════════════════════════════════════════════════════
+# LLM 추출기 (ADR-0037)
+# ══════════════════════════════════════════════════════════════════
+_SYSTEM_TEMPLATE = """\
+너는 한국 창업기업 문서에서 **사실**을 뽑는 추출기다. 요약하지 말고 문서에 적힌 것만 낸다.
 
-    `llm` 을 고르면 여기서 막는다 — 없는 것을 있는 척하지 않는다(ADR-0031).
+## 두 종류
+- `slot` — 정형 값. 아래 `key` 목록에 있는 것
+- `node` — 서술 문장. 문제 인식·솔루션·목표 고객·시장·팀·로드맵 등
+
+한 문장이 둘 다이면 **사실을 둘로 낸다.**
+
+## key — 아래 한국어 이름 중 하나를 쓴다 (slot 일 때만)
+
+{slot_vocab}
+
+**영어나 snake_case 를 쓰지 마라.** 우리 슬롯 표가 한국어 표현으로 돼 있어서
+`company_name` 같은 것을 주면 어느 자리인지 못 찾고 그 사실이 미분류로 떨어진다.
+
+문서가 위 목록에 없는 이름을 쓰면 **문서가 쓴 그대로** 준다. 억지로 끼워 맞추지 마라.
+
+**업력과 만 나이는 슬롯이 아니다.** 개업연월일과 생년월일만 낸다 —
+업력은 공고마다 기준일이 달라 저장하면 틀린 값이 된다.
+
+## anchor — 가장 중요하다
+`anchor` 는 **원문에서 그대로 복사한 조각**이다. 한 글자도 바꾸지 마라.
+띄어쓰기·조사·괄호·숫자 표기를 손대면 그 사실은 근거를 잃고 **버려진다.**
+10~60자 정도로, 그 사실이 실제로 적힌 자리를 잡아라.
+
+## value — 정규화한다 (slot 일 때만)
+
+**숫자만 정규화한다.**
+- 금액: `24,100천원` → `24100000` · `2,410만원` → `24100000` · `3억원` → `300000000`
+- 날짜: `2024. 3. 5.` → `2024-03-05` · `2024년03월11일` → `2024-03-11`
+- 수: `15명` → `15`
+
+**이름·주소·등록번호는 숫자가 아니다. 표기를 바꾸지 마라.**
+- 등록번호: `501-86-33271` 그대로. **하이픈을 빼지 마라**
+- 사업자등록증은 스캔본이라 **띄어쓰기가 뭉개져 온다.** 자연스러운 한국어 띄어쓰기로
+  되돌린다 — `주식회사다시로` → `주식회사 다시로` ·
+  `경기도성남시분당구판교로255,3층(삼평동)` → `경기도 성남시 분당구 판교로 255, 3층 (삼평동)`
+  **뭉갠 채로 두면 다른 문서의 같은 값과 안 맞아 없는 충돌이 생긴다.**
+
+**한 슬롯에 값을 둘 넣지 마라.** 문서가 두 칸으로 준 것은 사실 둘이다.
+- 업태와 종목은 **다른 슬롯**이다. `정보통신업 / 응용 소프트웨어 개발 및 공급업` 처럼
+  붙이면 안 된다 — 업태 `정보통신업` · 종목 `응용 소프트웨어 개발 및 공급업` 둘로 낸다
+- 상호에 영문 병기를 넣지 마라. `주식회사 다시로 (DASIRO Inc.)` 가 아니라 `주식회사 다시로`
+
+## qualifier — 같은 슬롯 안의 종류 (slot 일 때만)
+
+조달액과 정부지원 이력은 건이 여럿이라 **무엇인지를 `qualifier` 에 적고 금액을
+`value` 에 적는다.** `예비창업패키지 38,000천원` 이면
+`key=지원금 · qualifier=예비창업패키지 · value=38000000` 이다.
+**사업명을 value 에 넣으면 금액이 사라진다.**
+
+문서가 쓴 표현은 `text` 에 남긴다. **단위·쉼표·한글 수사를 value 에 넣지 마라.**
+
+## as_of — 언제 기준 값인가 (slot 일 때만)
+
+`2024년 매출` 이면 `2024-12-31` · `2025. 08. 기준` 이면 `2025-08-31`.
+
+**문서 어딘가에 작성 기준일이 있으면 시점 있는 슬롯 전부에 그 날짜를 쓴다.**
+`작성 기준일: 2025. 08. 22.` · `2026년 1월 현재` 같은 것이다. 소재지·업태·종목·
+직원 수·자본금·매출액은 **언제 기준인지가 값의 일부다** — 비워 두면 나중에 다른
+문서의 값과 어느 쪽이 최신인지 못 가린다.
+
+값 옆에 더 구체적인 날짜가 있으면 그쪽이 이긴다.
+어디에도 날짜가 없으면 비운다. **지어내지 마라.**
+
+시점이 없는 슬롯도 있다 — 사업자등록번호·법인등록번호·상호·대표자·개업연월일.
+이것들은 비운다.
+
+## fact_key — 같은 사실 묶기 (node 일 때만)
+같은 내용이 문서 여럿에 다른 문장으로 있으면 **같은 키**를 준다(`retention_34_to_51` 처럼).
+확신이 없으면 비운다. 잘못 묶는 것보다 안 묶는 것이 낫다.
+
+## 안 하는 것
+- 문서에 없는 것을 채우지 않는다. 추측·일반 상식 금지
+- 목차·머리말·쪽 번호·표 머리글만 있는 조각에서는 아무것도 안 낸다
+- 신뢰도 점수를 매기지 않는다
+"""
+
+def _slot_vocab() -> str:
+    """`SLOT_ALIASES` 에서 만든다. **손으로 적으면 표와 어긋난다.**"""
+    by: dict[str, list[str]] = {}
+    for alias, slot in topics.SLOT_ALIASES.items():
+        by.setdefault(slot, []).append(alias)
+    # **별칭만 보인다.** 라벨(`업종(종목)`)을 왼쪽에 두면 모델이 그걸 key 로 쓰는데
+    # 라벨은 `SLOT_ALIASES` 에 없어서 슬롯이 `None` 으로 떨어진다. 실측으로 겪었다.
+    return "\n".join(f"- {' · '.join(names)}" for names in by.values())
+
+
+def system_prompt() -> str:
+    return _SYSTEM_TEMPLATE.format(slot_vocab=_slot_vocab())
+
+
+_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["facts"],
+    "properties": {
+        "facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "topic", "kind", "text", "anchor",
+                    "fact_key", "key", "value", "as_of", "qualifier",
+                ],
+                "properties": {
+                    "topic": {"type": "string", "enum": sorted(topics.TOPICS)},
+                    "kind": {"type": "string", "enum": ["slot", "node"]},
+                    "text": {"type": "string"},
+                    "anchor": {"type": "string"},
+                    "fact_key": {"type": ["string", "null"]},
+                    "key": {"type": ["string", "null"]},
+                    "value": {"type": ["string", "null"]},
+                    "as_of": {"type": ["string", "null"]},
+                    "qualifier": {"type": ["string", "null"]},
+                },
+            },
+        }
+    },
+}
+
+
+def _squash(s: str) -> str:
+    """공백을 지운 형태로 비교한다. **`build.py` 와 같은 규칙이어야 한다** —
+    거기서 근거 청크를 찾을 때 쓰는 것과 다르면 여기서 통과한 앵커가 거기서 죽는다."""
+    return re.sub(r"\s+", "", s)
+
+
+@dataclass(slots=True)
+class LlmExtractor:
+    """청크를 LLM 에 넘겨 사실을 받는다 (ADR-0037).
+
+    **자기 출력을 원문에 대조한다.** 앵커가 원문에 없으면 그 사실을 버리고 센다 —
+    `build.py` 가 한 번 더 찾지만, 여기서 걸러야 무엇이 왜 사라졌는지 남는다.
+    """
+
+    client: object | None = None
+    #: 앵커가 원문에 없어 버린 사실. **조용히 사라지면 '아무것도 안 나온 것' 과
+    #: 구분이 안 된다**(ADR-0037 결정 5)
+    dropped: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        c = self._c()
+        return f"llm/{c.model}"
+
+    def _c(self):  # noqa: ANN202
+        """**함수 안에서 임포트한다.** 최상단에 두면 `import finnect.api.app` 이
+        `wiki.service → build → extract → llm` 을 타고 httpx 를 끌고 와
+        **로컬은 통과하고 배포본만 죽는다**(CLAUDE.md 함정 · `tests/test_admin_api.py`).
+        """
+        from finnect import llm
+
+        if self.client is None:
+            self.client = llm.client()
+        return self.client
+
+    def extract(self, view: FileView) -> list[Fact]:
+        c = self._c()
+        out = c.json(
+            system=system_prompt(),
+            user=_user_prompt(view),
+            schema=_SCHEMA,
+            schema_name="wiki_facts",
+        )
+        body = _squash(view.text)
+        facts: list[Fact] = []
+        for d in out.get("facts") or []:
+            anchor = (d.get("anchor") or "").strip()
+            if not anchor or _squash(anchor) not in body:
+                self.dropped.append((view.filename, anchor[:60]))
+                continue
+            facts.append(_fact_from_llm(d))
+        return facts
+
+
+def _user_prompt(view: FileView) -> str:
+    body = "\n\n".join(f"[{i}] {t}" for i, t in view.chunks)
+    return f"파일 이름: {view.filename}\n\n--- 원문 ---\n{body}"
+
+
+def _fact_from_llm(d: dict) -> Fact:
+    """스키마가 `strict` 라 키는 다 온다. **값의 뜻을 여기서 다시 검사한다.**"""
+    as_of = (d.get("as_of") or "").strip()
+    try:
+        parsed = dt.date.fromisoformat(as_of) if as_of else None
+    except ValueError:
+        parsed = None  # 날짜가 아니면 시점 없는 값으로 둔다. 지어내지 않는다
+    kind = d["kind"] if d.get("kind") in ("slot", "node") else "node"
+    return Fact(
+        topic=d["topic"] if d.get("topic") in topics.TOPICS else topics.UNCATEGORIZED,
+        kind=kind,
+        text=(d.get("text") or "").strip(),
+        anchor=(d.get("anchor") or "").strip(),
+        # **서술 노드에서만 쓴다.** 슬롯에 오면 병합 키가 어긋난다
+        fact_key=(d.get("fact_key") or None) if kind == "node" else None,
+        key=(d.get("key") or None) if kind == "slot" else None,
+        value=(d.get("value") or None) if kind == "slot" else None,
+        as_of=parsed if kind == "slot" else None,
+        qualifier=(d.get("qualifier") or None) if kind == "slot" else None,
+    )
+
+
+def get_extractor() -> FactExtractor:
+    """설정이 고른 추출기.
+
+    **`llm` 은 키가 있어야 돈다.** 없으면 `llm.MissingKey` 로 멈춘다 — 조용히 스텁으로
+    물러나지 않는다(ADR-0037 결정 4). 물러나면 픽스처 7건만 처리하고 나머지를 조용히
+    버리는데, 그게 ADR-0031 이 `UnknownFile` 로 막은 상황이다.
     """
     choice = settings.wiki_extractor
     if choice == "stub":
         return StubExtractor()
+    if choice == "llm":
+        return LlmExtractor()
     raise NotImplementedError(
-        f"추출기 '{choice}' 는 아직 없어요. LLM 제공자가 안 정해졌어요 "
-        "— ADR-0021 G · plan/11 T-0036 · plan/12 T-0045"
+        f"추출기 '{choice}' 를 몰라요. `stub` 또는 `llm` 이에요 — ADR-0037"
     )

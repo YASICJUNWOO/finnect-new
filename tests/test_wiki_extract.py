@@ -141,10 +141,15 @@ def test_표가_없으면_아예_안_돈다(tmp_path: Path):
         stub.extract(FileView(sha256="0" * 64, filename="x", chunks=()))
 
 
-def test_llm_을_고르면_없다고_말한다(monkeypatch: pytest.MonkeyPatch):
-    """**없는 것을 있는 척하지 않는다.** 제공자가 정해지면 여기 한 줄이 늘어난다."""
-    monkeypatch.setattr(settings, "wiki_extractor", "llm")
-    with pytest.raises(NotImplementedError, match="아직 없어요"):
+def test_모르는_추출기를_고르면_막는다(monkeypatch: pytest.MonkeyPatch):
+    """**없는 것을 있는 척하지 않는다.**
+
+    2026-08-19 이 테스트가 `llm` 을 막고 있었는데 ADR-0037 이 제공자를 정해서
+    `llm` 이 진짜가 됐다. 규율은 그대로다 — 모르는 이름은 막는다.
+    `llm` 이 어떻게 도는지는 `tests/test_wiki_llm_extract.py` 가 본다.
+    """
+    monkeypatch.setattr(settings, "wiki_extractor", "claude")
+    with pytest.raises(NotImplementedError, match="stub"):
         get_extractor()
 
 

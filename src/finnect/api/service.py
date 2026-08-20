@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
+from collections.abc import Sequence
 
 from sqlalchemy import func, or_, select, tuple_
 from sqlalchemy.orm import Session
@@ -240,7 +241,7 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
 
         items = s.scalars(
             select(DocumentItem)
-            .where(DocumentItem.document_id == doc.id, DocumentItem.parent_id.is_(None))
+            .where(DocumentItem.document_id == doc.id)
             .order_by(DocumentItem.ordinal)
         ).all()
         docs.append(
@@ -251,17 +252,7 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
                 decided_by=doc.decided_by,
                 filename=att.filename,
                 url=att.url,
-                items=[
-                    DocumentItemOut(
-                        number=i.number,
-                        title=i.title,
-                        instruction=i.instruction,
-                        limit_text=i.limit_text,
-                        input_kind=i.input_kind,
-                        children=[],
-                    )
-                    for i in items
-                ],
+                items=_tree(items),
             )
         )
 
@@ -272,6 +263,43 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
         submit_hint=_hints(s, source, external_id) if not docs else [],
         undecided=undecided,
     )
+
+
+def _tree(rows: Sequence[DocumentItem]) -> list[DocumentItemOut]:
+    """`parent_id` 로 트리를 세운다(plan/11 T-0037).
+
+    **한 번에 다 받아서 메모리에서 잇는다.** 단마다 질의를 날리면 항목 199개짜리
+    양식이 199번을 부른다.
+
+    **가지에 쓰는 칸이 붙으면 안 된다.** 화면이 잎만 쓰는 자리로 세는데
+    (`FormFill` 의 `leafKeys`) 자식을 안 내보내면 `2 추진배경 및 목표` 가 잎이 되고,
+    거기 붙은 칸에 쓴 글은 어느 항목의 것도 아니게 된다.
+
+    순서는 `ordinal` 이다 — 문서 안에서 한 번만 매겨지므로 형제끼리도 이 순서다.
+    """
+    kids: dict[int | None, list[DocumentItem]] = {}
+    for r in rows:
+        kids.setdefault(r.parent_id, []).append(r)
+
+    def build(parent: int | None, depth: int) -> list[DocumentItemOut]:
+        # 부모는 항상 자식보다 먼저 들어가므로(`extract/service.py` `_add_outline`)
+        # 고리가 생길 수 없다. 그래도 막아 두는 이유는 여기가 API 라서다 — 고리
+        # 하나가 응답을 못 끝내면 공고 상세가 통째로 안 뜬다.
+        if depth > 10:
+            return []
+        return [
+            DocumentItemOut(
+                number=i.number,
+                title=i.title,
+                instruction=i.instruction,
+                limit_text=i.limit_text,
+                input_kind=i.input_kind,
+                children=build(i.id, depth + 1),
+            )
+            for i in kids.get(parent, [])
+        ]
+
+    return build(None, 1)
 
 
 def _hints(s: Session, source: str, external_id: str) -> list[str]:

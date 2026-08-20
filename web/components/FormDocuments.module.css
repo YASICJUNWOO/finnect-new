@@ -296,3 +296,12 @@
   color: var(--ink-3);
   max-width: 62ch;
 }
+
+/* 양식은 갈랐는데 항목이 안 나온 자리. `FormFill.module.css` 의 짝이다. */
+.none {
+  margin: var(--s2) 0 var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

@@ -282,7 +282,13 @@ function Doc({
         </p>
       )}
 
-      {doc.kind === "narrative" ? (
+      {/* **양식은 갈랐는데 항목이 안 나온 것.** 서술형 25건 중 6건이 여기다
+          (2026-08-20 실측). `0 / 0` 만 두면 눌러 봐도 빈 서랍이라 왜 비었는지 모른다. */
+      doc.items.length === 0 ? (
+        <p className={styles.none}>
+          이 양식에서 항목을 못 뽑았어요. 원본 파일을 열어서 확인해 주세요.
+        </p>
+      ) : doc.kind === "narrative" ? (
         <ol className={styles.items}>
           {doc.items.map((it, i) => (
             <Item

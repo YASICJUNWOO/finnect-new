@@ -1,0 +1,42 @@
+/* 상세(`../page.module.css`)와 같은 뼈대다. 색 리터럴 없음 — 값은 tokens.css 하나다. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.back {
+  align-self: flex-start;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 상세의 제목은 --t-display 다. 여기는 쓰는 화면이라 한 단 낮춘다 —
+ * 이 화면의 주역은 제목이 아니라 칸이다(DESIGN.md §8.1-5). */
+.title {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+  /* 줄길이 62ch 이하 — DESIGN.md §8.2 */
+  max-width: 40ch;
+}
+
+.failed {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.link {
+  color: var(--ink);
+}

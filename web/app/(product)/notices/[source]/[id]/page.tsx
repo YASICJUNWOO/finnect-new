@@ -84,14 +84,27 @@ export default async function NoticeDetailPage({
       </section>
 
       {docs && (
-        <FormDocuments
-          data={fromApi(docs, {
-            id: external,
-            source,
-            title: notice.title ?? "",
-            url: notice.detail_url ?? null,
-          })}
-        />
+        <>
+          <FormDocuments
+            data={fromApi(docs, {
+              id: external,
+              source,
+              title: notice.title ?? "",
+              url: notice.detail_url ?? null,
+            })}
+          />
+          {/* 양식이 있을 때만 문을 연다. **없는 곳으로 보내지 않는다** — 서류가 0개면
+              쓰기 화면도 "쓸 양식이 없어요" 밖에 못 보여 준다.
+              카피는 `/documents/<표본>` 이 쓰는 것과 같다(DESIGN.md §8.3-3). */}
+          {docs.documents.length > 0 && (
+            <Link
+              href={`/notices/${source}/${encodeURIComponent(external)}/write`}
+              className={styles.write}
+            >
+              여기에 뭘 쓰는지 보기
+            </Link>
+          )}
+        </>
       )}
 
       <Attachments items={notice.attachments} decoded={notice.decoded_count} />

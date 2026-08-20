@@ -391,3 +391,13 @@
     padding-left: var(--s3);
   }
 }
+
+/* 양식은 갈랐는데 항목이 안 나온 자리. 상태색을 쓰지 않는다 —
+ * 사용자가 손댈 자리가 아니라 우리가 못 읽은 자리다(§4.1 액센트는 마감 하나). */
+.none {
+  margin: var(--s2) 0 var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

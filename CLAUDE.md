@@ -8,14 +8,23 @@
 
 코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). 다만 **추출기가 스텁이라 픽스처 7건 밖에서는 안 돈다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **2026-08-18 입구가 화면에 생겼다** — `/wiki/files` 에 던지면 단계 다섯이 돌고 파일마다 어느 자리를 채웠는지 이름으로 뜬다([plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/12](docs/plan/12-사업-위키-구축.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+**2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/12](docs/plan/12-사업-위키-구축.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
 **앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - **사용자 파일은 `data/user-files/<company_id>/…` 에 있다**([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)). **개인정보다** — `.gitignore` 에 있고 배포본에 안 올라간다. `wiki/storage.py` 의 모든 함수가 `company_id` 를 필수로 받는다. **회사 사이 중복 제거를 하지 않는다** — 같은 양식이 회사마다 한 벌씩 쌓이는 것이 의도다
 - **해독 포맷 목록이 둘이다.** `ATTACHMENT_FORMATS`(첨부 4포맷)와 `USER_FILE_FORMATS`(+xlsx·pptx). **첨부 목록에 xlsx·pptx 를 더하지 않는다** — plan/07 이 측정한 2,827/3,354 가 근거를 잃는다. 파서는 이미 있어서 켜기만 하면 되지만, 켜면 다시 재야 한다
-- LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다.** [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 는 **정하지 않고 포트를 파서** 지나갔다([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)) — 남은 것은 [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 이고 **거기는 이 방법이 안 통한다**(LLM 이 라벨러가 아니라 판별기 자체다)
+- **LLM 제공자를 정했다** — OpenAI `gpt-5.6-luna`([ADR-0037](docs/adr/0037-llm-제공자를-openai-로-정하고-gpt-5-6-luna-부터-잰다.md)). `OPENAI_API_KEY` 하나만 넣고 `WIKI_EXTRACTOR=llm` 이면 위키 추출기가 켜진다. **키가 없는데 `llm` 을 고르면 멈춘다** — 조용히 스텁으로 안 물러난다. **`openai` 패키지를 안 쓴다**(`httpx` 로 직접) — 넣으면 배포본 임포트 경로가 죽는다.
+- ~~LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다.**~~ [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 는 **정하지 않고 포트를 파서** 지나갔다([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)) — 남은 것은 [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 이고 **거기는 이 방법이 안 통한다**(LLM 이 라벨러가 아니라 판별기 자체다)
+- **초안 집필(G)의 배관이 섰고 한 번도 안 돌렸다**([plan/16](docs/plan/16-항목마다-초안을-쓴다.md)). `src/finnect/draft/` — 양식 읽기 → 배분 → 집필 → 검증 → 중복 점검. **초안은 0건이다** — 한 번도 안 돌렸다. 그 앞의 `narrative` 는 25건이 생겼다(plan/11 T-0036 을 예산 안에서 일부 돌렸다). **항목이 서로 독립이다** — 문서 전체를 도는 루프로 만들지 않는다. 재작성·실패·질문의 단위가 전부 항목이라(ADR-0028 3번 · ADR-0015) 문서 단위로 들면 셋 다 안 된다
+- **초안 집필은 3단으로 갈려 있다** — 조립(세션 안) · 호출(세션 밖 · 스레드) · 저장(세션 안 · `ordinal` 순). **`Session` 을 LLM 호출 내내 붙잡으면 스레드를 못 얹는다.** `build_draft(writers=...)` 가 인스턴스가 아니라 **만드는 함수**를 받는 이유는 `Usage.calls += 1` 이 원자적이 아니어서다 — 하나를 공유하면 **토큰 수가 어긋난다.** 저장 순서를 고정하는 이유는 위키 마크다운에 시각을 안 넣은 것과 같다
+- **쪽 수 제한을 글자로 환산하지 않는다**(`draft/limits.py`). `50페이지 내외` 는 `unmeasurable` 이다 — A4 한 장에 한글 몇 자인지는 서체·여백이 정하고 관례(1,800자)는 근거가 아니다. `내외` 도 초과 판정을 안 한다. **분량 검사 결과를 저장하지 않는다** — `limit_text` 와 `body` 로 계산되는 뷰다
+- **환각을 프롬프트가 아니라 계층으로 막는다.** `draft/write.py` `verify()` 가 출력의 숫자와 고유명사를 재료에 대조하고 없으면 `[확인 필요]` 로 바꾼다(F6-12). **모델에 도구를 안 쥐어 주는 이유도 같다** — 검색을 열면 어느 청크가 어느 문단에 들어갔는지 사후에 복원이 안 돼 F6-13 이 깨진다
+- **`item_need` 에 `company_id` 가 없다.** 양식 읽기는 회사와 무관하다 — `document` 가 콘텐츠 주소라 한 번 읽으면 그 양식을 쓰는 모든 회사가 쓴다. 넣으면 같은 양식을 회사 수만큼 다시 물어야 한다
+- **`draft_evidence` 가 `fact_id` 를 드는 것이 요점이다.** 그 사실이 갱신될 때 어느 항목이 낡았는지 계산된다(ADR-0028 4번). **나중에 붙일 수 없다.** `chunk_id` 는 중복 점검이 읽는다 — 두 항목이 같은 청크를 근거로 들면 **코드가 안다**
+- **LLM 호출이 전부 Langfuse 로 남는다**([ADR-0038](docs/adr/0038-llm-호출을-langfuse-로-남기고-sdk-대신-otlp-엔드포인트를-부른다.md) · `src/finnect/trace.py`). `llm.Client.json()` 이 유일한 호출 자리라 부르는 쪽이 아무것도 안 해도 된다. **`langfuse` 패키지를 안 쓴다** — OTLP/HTTP 엔드포인트 하나(`/api/public/otel/v1/traces`)만 부른다(ADR-0037 결정 2 와 같은 이유). **키가 없으면 그냥 꺼진다** — 정확성 기능이 아니라 보는 기능이라 `wiki_extractor` 처럼 멈추면 안 된다. **관측이 본 일을 막지 않는다** — 큐에 넣고 즉시 돌아오고, 큐가 차면 버리고 세고, 전송 실패는 **한 번만** 말한다. CLI 가 끝나기 전에 `trace.flush()` 를 부른다 — 데몬 스레드라 안 부르면 남은 것이 사라진다
+- **초안 한 벌이 한 추적이다.** `trace.session()` 이 묶고, **스레드에는 `current()`/`adopt()` 로 물려 준다** — `contextvars` 는 스레드로 안 넘어가서 안 물려 주면 항목 67개가 흩어진다
 - **질문 타이밍이 정해졌다**([ADR-0028](docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)). 초안이 먼저 다 나오고, 항목 옆에서 묻고, 답하면 **위키에 먼저 저장한 뒤** 그 항목만 재작성한다. 사용자 답변은 `user_stated` 등급이라 **문서가 자동으로 덮지 않는다**
 - 제품 화면은 **S1·S4·S5·S7 넷이다.** 나머지 셋(S2·S3·S6)은 없다([plan/14](docs/plan/14-사업-위키-화면.md) · [plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
 - **위키 마크다운을 저장하지 않는다.** `wiki/markdown.py` 가 읽을 때마다 만드는 **뷰**다 — 사실이 `wiki_fact` 에 있는데 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다. **시각을 넣지 않는다**(`generated:` 같은 것). 넣으면 같은 DB 에서 만든 글이 매일 달라져 바이트로 못 비교한다
@@ -55,6 +64,9 @@ uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 �
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
 uv run python -m finnect.wiki --company c_dasiro --rebuild   # 추출기를 바꿨을 때. 청크는 안 건드린다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
+uv run python -m finnect.draft --read-forms 20   # 양식을 읽어 항목마다 필요한 자리를 정한다 (LLM)
+uv run python -m finnect.draft --company c_dasiro --notice bizinfo:PBLN-000   # 초안 (LLM)
+uv run python -m finnect.draft --report          # 집필 현황만
 uv run uvicorn finnect.admin.app:app --reload    # 수집 실행 :8000 (/ingest 하나뿐이다)
 uv run uvicorn finnect.api.app:app --port 8100   # API :8100 — 제품 + 운영. /docs 에 OpenAPI
 cd web && npm run dev                            # 화면 :3000. API 가 먼저 떠 있어야 한다

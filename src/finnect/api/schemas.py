@@ -116,3 +116,116 @@ class NoticeDocumentsOut(BaseModel):
     submit_hint: list[str]
     #: 아직 안 갈라 낸 구간 수. 0 이 아니면 화면이 그렇게 말해야 한다.
     undecided: int
+
+
+# --- 초안 (plan/16 · F6) -----------------------------------------------------
+
+
+class EvidenceOut(BaseModel):
+    """문단 하나가 어디서 나왔나 (F6-13).
+
+    **`fact_id` 를 내보낸다.** 화면이 그 사실을 눌러 위키로 건너가고, 그 사실이
+    갱신되면 어느 항목이 낡았는지 되짚는다([ADR-0028](
+    ../../../docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md) 4번).
+    """
+
+    fact_id: int
+    #: 위키에서 어느 자리인가. `problem` · `revenue`
+    place: str
+    #: 사람이 읽는 자리 이름. **화면이 한국어를 짓지 않는다**(`topics.display()` 규율)
+    place_label: str
+    #: 그 사실 문장
+    text: str
+    #: 근거 청크. **`user_stated` 면 없다** — 사용자가 말한 것은 원문이 없다
+    chunk_id: int | None
+    #: 청크에서 잘라 온 조각. 원문을 열기 전에 이걸 먼저 보여 준다
+    quote: str | None
+    #: `document` · `user_stated`. **색을 새로 주지 않고 글자로 가른다**(ADR-0028 결과 절)
+    source_type: str
+
+
+class ParagraphOut(BaseModel):
+    """문단 하나와 그 근거."""
+
+    ordinal: int
+    text: str
+    evidence: list[EvidenceOut]
+
+
+class MissingOut(BaseModel):
+    """필요한데 위키에 없는 자리. **F6-6 이 가리키는 것**."""
+
+    place: str
+    place_label: str
+    #: 없으면 이 항목을 아예 못 쓰는가
+    required: bool
+
+
+class LengthOut(BaseModel):
+    """분량. **저장하지 않고 읽을 때 계산한다**(`draft/limits.py`)."""
+
+    #: `none` 제한 없음 · `ok` · `over` · `unmeasurable`
+    verdict: str
+    #: 양식이 쓴 말. `50페이지 내외`
+    limit_text: str | None
+    #: 잰 값. 쪽 수 제한이면 None — **환산하지 않는다**
+    measured: int | None
+    note: str
+
+
+class DraftItemOut(BaseModel):
+    """항목 하나의 초안.
+
+    **`body` 가 비어 있어도 내보낸다.** `blank` 인 항목이 화면에서 사라지면 적립
+    루프의 입구가 없어진다 — 못 쓴 자리를 보여 주는 것이 F6-6 이다.
+    """
+
+    document_item_id: int
+    number: str | None
+    title: str
+    #: 양식이 쓴 "무엇을 쓰라". **우리가 고쳐 쓰지 않는다**
+    instruction: str | None
+
+    #: `drafted` 문서 근거로 썼다 · `answered` 사용자 답변이 들어갔다 ·
+    #: `blank` **위키에 없어서 못 썼다 — 여기만 물어본다** ·
+    #: `no_needs` 쓸 자리가 아니다(상위 묶음) ·
+    #: `yielded` 위키에는 있는데 다른 항목이 맡았다 ·
+    #: `unwritten` **재료는 받았는데 글이 안 나왔다 — 집필 실패다** ·
+    #: `stale` 근거가 바뀌었다
+    status: str
+    paragraphs: list[ParagraphOut]
+    missing: list[MissingOut]
+    #: 있으면 좋은데 없는 자리. **물어볼 목록의 뒷줄이다**
+    missing_optional: list[MissingOut]
+    length: LengthOut
+    #: `yielded` 일 때, 그 재료를 맡은 항목 번호들. **"그 얘기는 6번에 썼어요"**
+    yielded_to: list[str]
+    #: 이 항목만 실패했다. 나머지는 남는다(ADR-0015)
+    error: str | None
+    children: list[DraftItemOut] = []
+
+
+class DraftDocumentOut(BaseModel):
+    """양식 하나에 대한 초안 한 벌."""
+
+    document_id: int
+    title: str
+    filename: str
+    #: 무엇이 배분했나. `llm/<모델>` · `none`(다툰 것이 없어 안 불렀다)
+    allotted_by: str | None
+    items: list[DraftItemOut]
+
+
+class DraftOut(BaseModel):
+    """공고 하나 + 회사 하나의 초안.
+
+    **없으면 빈 목록이다. 404 가 아니다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이
+    같은 자리에서 말해야 하고, 404 는 원인을 안 남긴다(ADR-0034 와 같은 규율).
+    """
+
+    company_id: str
+    source: str
+    external_id: str
+    documents: list[DraftDocumentOut]
+    #: 이 공고에 서술형 양식이 있는데 초안이 아직 없다 — 돌리면 생긴다
+    pending_documents: int

@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="권하는 구조">
+    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1680" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="2026-08-20  초안 집필(G) — 권하는 구조 :  고정 계획  +  항목별 서브에이전트 루프  +  병렬" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h1" value="1. 전체 구조 — 계획은 루프가 아니고, 루프는 항목 안에만 있다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=14;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="110" width="2240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="2240" height="430" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gp" value="계획 — 고정 호출 2회 · 루프 아님" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#949aa2;dashed=1;fontColor=#5f656d;fontSize=11;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="c1">
+          <mxGeometry x="20" y="20" width="650" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="pa" value="①-a  양식 읽기&#xa;T-0063 · draft/needs.py&#xa;&#xa;항목별 필요한 자리 ·&#xa;겹침 쌍 · 요약 항목&#xa;&#xa;회사 무관 · 양식당 1회 ·&#xa;영구 캐시" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="gp">
+          <mxGeometry x="15" y="30" width="290" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="pb" value="①-b  배분&#xa;T-0064 · draft/allot.py&#xa;&#xa;겹침 쌍 안에서 후보가&#xa;겹칠 때만 부른다&#xa;&#xa;다투는 것이 없으면&#xa;호출 0회" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="gp">
+          <mxGeometry x="335" y="30" width="290" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fan" value="흩뿌리기&#xa;&#xa;ThreadPool&#xa;Executor&#xa;(max_workers=8)&#xa;&#xa;상한은 rate&#xa;limit 이다.&#xa;8 에서 시작해&#xa;재 본다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="710" y="60" width="180" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sa1" value="항목 1 — 서브에이전트 루프    AGENT → TOOL → EXECUTE → COMPACT → AGENT    (도구 K회 상한)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="c1">
+          <mxGeometry x="940" y="45" width="620" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sa2" value="항목 2 — 서브에이전트 루프    (같은 모양 · 서로 안 본다)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="c1">
+          <mxGeometry x="940" y="130" width="620" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sa3" value="…  항목 N&#xa;하나가 죽어도 나머지가 남는다 (ADR-0015)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="c1">
+          <mxGeometry x="940" y="215" width="620" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ret" value="요약만 돌려받는다&#xa;문단[] + fact_id[]&#xa;&#xa;루프가 도구를 몇 번 쥐었는지는&#xa;돌려주지 않는다 — 그래야 저장이&#xa;지금과 같은 모양으로 남는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="940" y="300" width="620" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="save" value="저장&#xa;&#xa;ordinal 순 ·&#xa;결정론&#xa;&#xa;DraftItem ·&#xa;DraftEvidence&#xa;&#xa;문단마다&#xa;chunk_id +&#xa;fact_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="1610" y="60" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="ded" value="⑤ 중복 점검&#xa;&#xa;by_chunk()&#xa;코드 · LLM 0회&#xa;&#xa;LlmChecker&#xa;초안당 1회&#xa;&#xa;요약 항목은&#xa;건드리지 않는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=6;align=left;" vertex="1" parent="c1">
+          <mxGeometry x="1840" y="60" width="180" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cost" value="호출 산수 — 항목 67개 · 도구 K=3 :  계획 2 + 항목 67×4 = 약 270회.  대기는 병렬 8 로 1~2분 (순차면 20분 넘는다).  루프를 계획까지 올리면 재계획이 재작성을 깨고 T-0063 캐시가 회사별로 쪼개진다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;align=left;spacingLeft=12;verticalAlign=middle;" vertex="1" parent="c1">
+          <mxGeometry x="20" y="350" width="900" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ea" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="gp" source="pa" target="pb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eb" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="pb" target="fan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="fan" target="sa1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="fan" target="sa2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="fan" target="sa3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="c1" source="sa1" target="save">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="sa2" target="save">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="c1" source="sa3" target="save">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ee" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c1" source="save" target="ded">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h2" value="2. 서브에이전트 하나의 속 — 여기가 당신 그림의 오른쪽. COMPACT 경계가 항목이다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=14;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="2240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="680" width="2240" height="430" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sk" value="SKILL&#xa;항목 종류별 집필 지침&#xa;T-0063 이 붙인 자리에서 유도한다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=6;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="300" y="30" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ag" value="AGENT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=13;fontStyle=1;verticalAlign=middle;align=center;" vertex="1" parent="c2">
+          <mxGeometry x="50" y="150" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tl" value="TOOL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=13;fontStyle=1;verticalAlign=middle;align=center;" vertex="1" parent="c2">
+          <mxGeometry x="350" y="150" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ex" value="EXECUTE&#xa;(코드가 DB 를 읽는다)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;verticalAlign=middle;align=center;" vertex="1" parent="c2">
+          <mxGeometry x="650" y="150" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cp" value="COMPACT&#xa;항목이 끝나면 버린다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;verticalAlign=middle;align=center;" vertex="1" parent="c2">
+          <mxGeometry x="380" y="310" width="240" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tools" value="도구 넷이면 된다&#xa;&#xa;search_wiki(query)      → [{fact_id, place, text}]&#xa;read_chunk(chunk_id)   → 근거 청크 원문&#xa;read_notice(field)         → 공고가 준 값&#xa;submit(text, fact_ids)   → 문단 제출 · 루프 종료&#xa;&#xa;식별자를 돌려주는 것이 요점이다 — 그래서&#xa;문단별 근거가 그대로 추적된다 (F6-13)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="900" y="30" width="640" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="cond" value="같이 걸어야 하는 조건 셋&#xa;&#xa;1.  항목당 도구 호출 K회 하드 캡&#xa;      F6-1 &quot;진입하면 이미 써져 있다&quot; 가 상한을 요구한다&#xa;2.  색인에서 다른 항목에 배분된 사실을 뺀다&#xa;      안 빼면 T-0064 배분이 무의미해지고 중복이 돌아온다&#xa;3.  도구가 돌려준 것을 verify() 의 corpus 에 누적한다&#xa;      안 하면 모델이 본 것을 검증이 몰라 맞는 값을 지운다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="900" y="235" width="640" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="why" value="경계를 항목에 두는 이유 — 새로 발명할 것이 없다&#xa;&#xa;재작성 단위        ADR-0028 3번  →  항목&#xa;실패 격리            ADR-0015 결과 절  →  항목&#xa;근거 저장            F6-13 · draft_evidence  →  문단(항목 안)&#xa;&#xa;셋의 단위가 이미 다 항목이다. COMPACT 를 항목에 맞추면&#xa;세 규율이 손도 안 대고 살아남는다.&#xa;&#xa;그리고 되돌리기가 싸다 — K=0 이면 지금과 똑같아진다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c2">
+          <mxGeometry x="1570" y="30" width="620" height="375" as="geometry" />
+        </mxCell>
+
+        <mxCell id="l1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c2" source="ag" target="tl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c2" source="tl" target="ex">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c2" source="ex" target="cp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l4" value="K회까지" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontColor=#b45309;fontSize=11;labelBackgroundColor=#f7f7f8;" edge="1" parent="c2" source="cp" target="ag">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c2" source="sk" target="tl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h3" value="3. 병렬을 어떻게 짜나 — 세션을 스레드가 만나지 않게 3단으로 가른다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=14;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1150" width="2240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1200" width="2240" height="380" as="geometry" />
+        </mxCell>
+
+        <mxCell id="st1" value="① 조립  —  세션 안 · 읽기만&#xa;&#xa;with Session(engine) as s:&#xa;    facts = _company_facts(s, company_id)&#xa;    jobs  = [(row.id, material) for …]&#xa;&#xa;facts 는 읽기 전용이라 스레드가 공유해도 된다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="30" y="30" width="560" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="st2" value="② 호출  —  세션 밖 · 스레드&#xa;&#xa;with ThreadPoolExecutor(max_workers=8) as pool:&#xa;    futs = {pool.submit(_write_one, m): rid …}&#xa;&#xa;_write_one 이 Writer 를 안에서 새로 만든다 —&#xa;그래야 unverified · dropped · Usage 가 안 섞인다.&#xa;lock 을 안 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="620" y="30" width="560" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="st3" value="③ 저장  —  세션 안 · ordinal 순&#xa;&#xa;with Session(engine) as s:&#xa;    for rid, fut in sorted(done, …):&#xa;        try:    paragraphs = fut.result()&#xa;        except: item.error = …&#xa;&#xa;실패가 항목별로 온다. 집계를 여기서 합친다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="1210" y="30" width="560" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="obs" value="지금 구조로는 스레드를&#xa;못 얹는다&#xa;&#xa;1.  Session 을 LLM 호출 내내&#xa;     붙잡고 있다. Session 은&#xa;     스레드 안전하지 않다&#xa;&#xa;2.  s.flush() 로 id 를 받아 쓴다.&#xa;     동시에 flush 하면 깨진다&#xa;&#xa;3.  Usage.calls += 1 이 원자적이&#xa;     아니라 토큰 수가 어긋난다 —&#xa;     &quot;지어내지 않고 센다&quot; 던 값이다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="c3">
+          <mxGeometry x="1800" y="30" width="400" height="300" as="geometry" />
+        </mxCell>
+
+        <mxCell id="det" value="저장 순서를 ordinal 로 못 박는 이유 — 같은 입력에서 같은 초안이 나와야 --redo 로 무엇이 바뀌었는지 바이트로 본다.  위키 마크다운에 시각을 안 넣은 것과 같은 이유다.&#xa;재작성(ADR-0028 3번)이 같은 코드가 된다 — ① 에서 그 항목만 조립하고, ② 에서 워커 1개, ③ 에서 그 행만 갈아치운다.  병렬을 만들면 재작성이 공짜로 따라온다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;align=left;spacingLeft=12;verticalAlign=middle;" vertex="1" parent="c3">
+          <mxGeometry x="30" y="235" width="1740" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.4;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="c3" source="st1" target="st2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.4;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="c3" source="st2" target="st3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="순서와 결정">
+    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1320" math="0" shadow="0">
+      <root>
+        <mxCell id="b0" />
+        <mxCell id="b1" parent="b0" />
+
+        <mxCell id="btitle" value="순서 —  앞의 둘은 키 없이 되고, 뒤의 둘은 재기 전에는 동전 던지기다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="b1">
+          <mxGeometry x="40" y="30" width="2240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bc1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="b1">
+          <mxGeometry x="40" y="110" width="2240" height="230" as="geometry" />
+        </mxCell>
+
+        <mxCell id="q1" value="T-0069  병렬로 바꾼다&#xa;&#xa;3단 세션 분리 + 백그라운드.&#xa;plan/15 의 202 + 락 + progress&#xa;패턴을 복사한다&#xa;&#xa;키 없이 된다 · 어느 쪽으로 가도 필요하다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="bc1">
+          <mxGeometry x="30" y="35" width="510" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" value="구멍 1·2 를 막는다&#xa;&#xa;공고 데이터를 재료에 넣고,&#xa;분량 검사를 verify() 옆에 더한다&#xa;&#xa;키 없이 된다 · 안 막고 재면&#xa;blank 가 부풀려진다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="bc1">
+          <mxGeometry x="570" y="35" width="510" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" value="키를 넣고 한 공고를 돌린다&#xa;&#xa;extract --classify&#xa;→ draft --read-forms&#xa;→ draft --company … --notice …&#xa;&#xa;여기서 처음 숫자가 나온다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="bc1">
+          <mxGeometry x="1110" y="35" width="510" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="q4" value="그 숫자로 정하고 ADR 을 쓴다&#xa;&#xa;지금 &quot;항목 단위 · 도구 없음&quot; 은&#xa;결정 로그에 없다. 이 레포 규칙으로는&#xa;ADR 에 없는 결정은 관성이다.&#xa;&#xa;지금 쓰면 가정 위에 쓴 ADR 이 된다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=8;align=left;" vertex="1" parent="bc1">
+          <mxGeometry x="1650" y="35" width="540" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bq1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc1" source="q1" target="q2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bq2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc1" source="q2" target="q3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bq3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16181b;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc1" source="q3" target="q4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bh2" value="③ 에서 재는 것 셋 — 각각이 다른 것을 정한다" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=14;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="b1">
+          <mxGeometry x="40" y="380" width="2240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bc2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;container=1;pointerEvents=0;collapsible=0;" vertex="1" parent="b1">
+          <mxGeometry x="40" y="430" width="2240" height="420" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d1" value="blank 비율" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;fontStyle=1;" vertex="1" parent="bc2">
+          <mxGeometry x="40" y="25" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="d1a" value="낮다 → 도구를 안 넣는다.  서브에이전트 루프도 필요 없고 지금 구조가 맞았다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="25" width="820" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d1b" value="높다 → 항목이 쓸 재료를 못 받고 있다.  도구 + 서브에이전트 루프를 넣는다 (조건 셋과 함께)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="80" width="820" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d2" value="T-0063 매핑&#xa;정확도" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;fontStyle=1;" vertex="1" parent="bc2">
+          <mxGeometry x="40" y="155" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="d2a" value="높다 → 계획을 고정 호출로 둔다.  양식당 1회 · 회사 무관 캐시가 살아남는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="155" width="820" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d2b" value="낮다 → 왼쪽(오케스트레이터)도 루프로 올린다.  그때 캐시를 회사별로 쪼개는 값을 치른다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="210" width="820" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d3" value="지시문 충족률" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=12;fontStyle=1;" vertex="1" parent="bc2">
+          <mxGeometry x="40" y="285" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="d3a" value="높다 → 검증을 더 안 붙인다.  verify() 로 충분하다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="285" width="820" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d3b" value="낮다 → 도구보다 SKILL 분리(항목 종류별 지침)가 먼저다.  호출이 안 늘어서 더 싸다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle;" vertex="1" parent="bc2">
+          <mxGeometry x="340" y="340" width="820" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ground" value="추천이 무엇에 기대나 — 근거와 가정을 갈라 둔다&#xa;&#xa;근거 있음&#xa;   순차는 대기가 길다                                  산수 — 67 × 5~15초 = 6~17분 · 도구 K=3 이면 4배&#xa;   재작성 단위가 항목이어야 한다               ADR-0028 3번 · ADR-0015 결과 절 · F6-13&#xa;   계획을 루프로 하면 캐시가 깨진다        코드 구조 — item_need 에 company_id 가 없다&#xa;&#xa;가정&#xa;   도구가 blank 를 줄인다                              안 쟀다&#xa;   오케스트레이터 루프가 불필요하다        T-0063 정확도를 안 쟀다&#xa;&#xa;그래서 앞의 둘(병렬 · 구멍 막기)을 먼저 한다 — 어느 쪽으로 가도 버려지지 않는 일이다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#949aa2;fontColor=#5f656d;fontSize=11;verticalAlign=top;spacingTop=8;spacingLeft=10;align=left;" vertex="1" parent="bc2">
+          <mxGeometry x="1200" y="25" width="1000" height="360" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bd1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d1" target="d1a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bd2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d1" target="d1b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bd3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d2" target="d2a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bd4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d2" target="d2b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bd5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d3" target="d3a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bd6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="bc2" source="d3" target="d3b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bnote" value="세 숫자를 한 번에 얻는다 — ③ 을 한 번 돌리면 blank 비율 · T-0063 불일치 · 지시문 충족률이 같은 실행에서 나온다.  세 번 돌릴 필요가 없다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=11;align=left;spacingLeft=12;verticalAlign=middle;" vertex="1" parent="b1">
+          <mxGeometry x="40" y="880" width="2240" height="44" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

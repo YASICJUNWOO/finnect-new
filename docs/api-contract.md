@@ -211,6 +211,61 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 ---
 
+## `GET /api/notices/{source}/{external_id}/draft?company={id}`
+
+이 회사가 이 공고에 대해 쓴 초안([plan/16](plan/16-항목마다-초안을-쓴다.md) · F6).
+
+**읽기만 한다. 여기서 초안을 만들지 않는다.** 만드는 것은 `finnect.draft` CLI 이고, 그 모듈은 `llm` 을 끌고 와서 배포본에 없는 `httpx` 가 딸려 온다. 백그라운드 실행은 화면이 붙는 슬라이스에서 [plan/15](plan/15-파일-올리기와-진행-표시.md) 의 202 + 락 패턴을 복사한다.
+
+**없으면 빈 목록이고 404 가 아니다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이 같은 자리에서 말해야 하고, 404 는 원인을 안 남긴다.
+
+```
+company_id · source · external_id
+pending_documents   서술형 양식은 있는데 초안이 아직 없는 수
+documents[]
+  document_id · title · filename
+  allotted_by       llm/<모델> · none(다툰 것이 없어 안 불렀다)
+  items[]           **트리다.** children 으로 접혀 있다
+    document_item_id · number · title · instruction
+    status          아래 표
+    paragraphs[]    ordinal · text · evidence[]
+      evidence[]    fact_id · place · place_label · text · chunk_id · quote · source_type
+    missing[]       place · place_label · required
+    missing_optional[]
+    length          verdict · limit_text · measured · note
+    yielded_to[]    그 재료를 맡은 항목 번호들
+    error           이 항목만 실패했다
+```
+
+### `status` 가 여섯이고 **물어볼 자리는 하나다**
+
+| 값 | 뜻 | 화면이 할 일 |
+|---|---|---|
+| `drafted` | 문서 근거로 썼다 | 본문 + 문단별 근거 |
+| `answered` | 사용자 답변이 들어간 문단이 있다 | 근거 줄에서 **글자로** 가른다. 색을 새로 주지 않는다 |
+| `blank` | **위키에 없어서 못 썼다** | **여기만 묻는다.** `missing[]` 이 무엇을 물을지 말한다 (F6-6) |
+| `no_needs` | 쓸 자리가 아니다 — 상위 묶음이거나 사업 내용을 안 쓰는 자리 | 제목만. **초안 자리로 그리지 않는다** |
+| `yielded` | 위키에는 있는데 **다른 항목이 그 재료를 맡았다** | `yielded_to` 로 **"그 얘기는 6번에 썼어요"** |
+| `unwritten` | 재료는 받았는데 글이 안 나왔다 | **집필 실패다.** 다시 쓰기를 권한다 |
+| `stale` | 근거가 된 사실이 바뀌었다 | 낡았다고 표시만. **자동으로 안 고친다**(F1-5-5) |
+
+**여섯을 섞으면 화면이 사용자에게 이미 아는 것을 묻는다.** 실측에서 항목 16개 중 `못 채움` 이 7개로 보였는데, 갈라 보니 상위 묶음 3 · 배분에서 못 받음 4 였고 **진짜 물어볼 자리는 0개**였다.
+
+### `place_label` 을 API 가 붙이는 이유
+
+`place` 는 `problem` 같은 영문 키다. 사람이 읽는 이름은 `wiki/topics.py` 가 정본이고, **화면이 한국어를 지으면 갈린다** — `topics.display()` 가 단위를 한 자리에서 붙이는 것과 같은 규율이다.
+
+### `length` 를 저장하지 않는다
+
+`limit_text` 는 `document_item` 에, 본문은 `draft_item` 에 있다. 둘로 계산되는 값이라 읽을 때마다 만드는 **뷰**다 — 위키 마크다운과 같은 이유다.
+
+**`verdict` 가 `unmeasurable` 인 경우가 둘이다.** 쪽 수 제한(`50페이지 내외`)은 글자로 환산하지 않고, `내외` 는 초과 판정을 안 한다. 환산율의 근거가 없다 — **틀린 숫자를 내는 것보다 못 잰다고 말하는 것이 낫다.**
+
+### `yielded_to` 를 저장하지 않는다
+
+`draft.allotment` 와 `item_need` 로 계산된다. 못 받은 항목의 배분은 비어 있으니 **이 항목이 원했던 자리에서 출발해 그 자리의 사실을 누가 받았는지 거꾸로 찾는다.**
+
+
 ## 운영 경로 — `/api/admin/*`
 
 > 정본은 `src/finnect/api/admin_schemas.py`. 결정은 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).

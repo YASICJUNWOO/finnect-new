@@ -15,14 +15,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select
 
-from finnect.api import admin_service, service, wiki_service
+from finnect.api import admin_service, draft_service, service, wiki_service
 from finnect.api.admin_schemas import (
     AdminAttachmentsOut,
     AdminIngestOut,
     AdminNoticeDetailOut,
     AdminNoticeListOut,
 )
-from finnect.api.schemas import NoticeDetailOut, NoticeDocumentsOut, NoticeListOut
+from finnect.api.schemas import (
+    DraftOut,
+    NoticeDetailOut,
+    NoticeDocumentsOut,
+    NoticeListOut,
+)
 from finnect.api.wiki_schemas import ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
 from finnect.db import SessionFactory
@@ -125,6 +130,29 @@ def notice_documents(source: str, external_id: str) -> NoticeDocumentsOut:
     if found is None:
         raise HTTPException(404, f"모르는 출처: {source}")
     return found
+
+
+@app.get("/api/notices/{source}/{external_id}/draft", response_model=DraftOut)
+def notice_draft(source: str, external_id: str, company: str) -> DraftOut:
+    """이 회사가 이 공고에 대해 쓴 초안 (plan/16 · F6).
+
+    **없으면 빈 목록이고 404 가 아니다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이
+    같은 자리에서 말해야 한다 — `pending_documents` 가 "서술형 양식은 있는데 초안이
+    아직 없다" 를 센다.
+
+    **읽기만 한다. 여기서 초안을 만들지 않는다.** 만드는 것은 `finnect.draft` 이고
+    그 모듈은 `llm` 을 끌고 와서 **배포본에 없는 `httpx`** 가 딸려 온다. 지금은
+    CLI 로 만들고, 백그라운드 실행은 화면이 붙는 슬라이스에서 plan/15 의 202 + 락
+    패턴을 복사한다.
+
+    `status` 여섯 중 **물어볼 자리는 `blank` 하나다**(F6-6). `no_needs` 는 상위
+    묶음이고 `yielded` 는 다른 항목이 그 재료를 맡은 것이다 — 셋을 섞으면 화면이
+    사용자에게 이미 아는 것을 묻는다.
+    """
+    if not company:
+        raise HTTPException(400, "company 를 주세요")
+    with SessionFactory() as s:
+        return draft_service.notice_draft(s, company, source, external_id)
 
 
 # --- 사업 위키 (S7) ---------------------------------------------------------

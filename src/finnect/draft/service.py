@@ -1,0 +1,718 @@
+"""초안 집필 실행 (plan/16).
+
+**양식 읽기는 회사와 무관하다.** 그래서 `read_forms` 만 `company_id` 를 안 받는다 —
+한 번 읽으면 그 양식을 쓰는 모든 회사가 쓴다(T-0063).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+
+from sqlalchemy import delete, or_, select
+from sqlalchemy.orm import Session
+
+from finnect import trace
+from finnect.config import settings
+from finnect.db import engine
+from finnect.draft import allot as al
+from finnect.draft import dedupe as dd
+from finnect.draft import limits
+from finnect.draft import needs as nd
+from finnect.draft import write as wr
+from finnect.llm import Usage
+from finnect.models import (
+    Attachment,
+    AttachmentFile,
+    Document,
+    DocumentItem,
+    DocumentKind,
+    Draft,
+    DraftEvidence,
+    DraftItem,
+    DraftItemStatus,
+    ItemNeed,
+    ItemOverlap,
+    SourceType,
+    WikiEvidence,
+    WikiFact,
+)
+from finnect.views import Notice
+
+#: 공고 본문을 재료에 넣을 때의 상한. **지원금액이 값으로 오는 필드가 없어서
+#: 본문에서만 나온다** — 너무 짧게 자르면 금액이 잘리고, 길면 프롬프트가 커진다
+NOTICE_SUMMARY_CHARS = 3_000
+
+
+@dataclass(slots=True)
+class ReadReport:
+    forms: int = 0
+    items: int = 0
+    needs: int = 0
+    overlaps: int = 0
+    summaries: int = 0
+    #: 항목이 하나도 없는 서술형 구간. **판정이 틀렸다는 신호다**(plan/11 T-0037)
+    empty: int = 0
+    dropped: list[tuple[str, str]] = field(default_factory=list)
+    usage: str = ""
+
+    def line(self) -> str:
+        out = [
+            f"양식 {self.forms:,} · 항목 {self.items:,} · 필요한 자리 {self.needs:,} · "
+            f"겹침 쌍 {self.overlaps:,} · 요약 항목 {self.summaries:,}",
+        ]
+        if self.empty:
+            out.append(f"항목이 없는 서술형 구간 {self.empty:,}건 — 판정을 의심한다")
+        if self.dropped:
+            out.append(f"버림 {len(self.dropped):,}건 — {self.dropped[:3]}")
+        if self.usage:
+            out.append(self.usage)
+        return "\n".join(out)
+
+
+def read_forms(
+    *, limit: int | None = None, redo: bool = False, reader: nd.LlmReader | None = None
+) -> ReadReport:
+    """서술형 양식을 읽어 `item_need` 와 `item_overlap` 을 깐다 (T-0063).
+
+    `reader` 를 넘길 수 있는 이유는 **테스트가 네트워크 없이 돌아야 해서**다.
+    """
+    reader = reader or nd.LlmReader()
+    report = ReadReport()
+
+    with Session(engine) as s:
+        docs = s.scalars(
+            select(Document)
+            .where(Document.kind == str(DocumentKind.NARRATIVE))
+            .order_by(Document.sha256, Document.seq)
+        ).all()
+
+        for doc in docs:
+            if limit is not None and report.forms >= limit:
+                break
+            rows = s.scalars(
+                select(DocumentItem)
+                .where(DocumentItem.document_id == doc.id)
+                .order_by(DocumentItem.ordinal)
+            ).all()
+            if not rows:
+                report.empty += 1
+                continue
+            if not redo and any(r.needs_decided_by for r in rows):
+                continue  # **같은 양식을 두 번 묻지 않는다**
+
+            views = [
+                nd.ItemView(
+                    number=r.number,
+                    title=r.title,
+                    level=_level(r, rows),
+                    instruction=r.instruction,
+                    limit_text=r.limit_text,
+                )
+                for r in rows
+            ]
+            reading = reader.read(doc.title, views)
+            _store(s, doc, rows, reading, reader.name, report)
+            report.forms += 1
+
+        report.dropped = list(reader.dropped)
+        report.usage = _usage_line(reader)
+        s.commit()
+    return report
+
+
+def _level(row: DocumentItem, rows: list[DocumentItem]) -> int:
+    """`parent_id` 를 타고 올라가 깊이를 센다. **DB 에 단을 따로 안 들고 있다** —
+    `outline` 이 만든 트리가 정본이고, 단은 거기서 유도되는 값이다."""
+    by_id = {r.id: r for r in rows}
+    depth, cur = 1, row
+    while cur.parent_id and cur.parent_id in by_id and depth < 10:
+        cur = by_id[cur.parent_id]
+        depth += 1
+    return depth
+
+
+def _store(
+    s: Session,
+    doc: Document,
+    rows: list[DocumentItem],
+    reading: nd.Reading,
+    decider: str,
+    report: ReadReport,
+) -> None:
+    ids = [r.id for r in rows]
+    s.execute(delete(ItemNeed).where(ItemNeed.document_item_id.in_(ids)))
+    s.execute(delete(ItemOverlap).where(ItemOverlap.document_id == doc.id))
+
+    for item in reading.items:
+        row = rows[item.index]
+        row.summary_of_others = item.summary_of_others
+        row.needs_decided_by = decider
+        report.items += 1
+        report.summaries += int(item.summary_of_others)
+        for need in item.needs:
+            s.add(
+                ItemNeed(
+                    document_item_id=row.id,
+                    place=need.place,
+                    place_kind=nd.PLACE_KIND[need.place],
+                    required=need.required,
+                )
+            )
+            report.needs += 1
+
+    for ov in reading.overlaps:
+        a, b = rows[ov.a].id, rows[ov.b].id
+        s.add(
+            ItemOverlap(
+                document_id=doc.id,
+                a_item_id=min(a, b),
+                b_item_id=max(a, b),
+                note=ov.note[:500],
+            )
+        )
+        report.overlaps += 1
+
+
+def _usage_line(obj: object) -> str:
+    c = getattr(obj, "client", None)
+    usage = getattr(c, "usage", None)
+    return usage.line() if usage is not None and getattr(usage, "calls", 0) else ""
+
+
+# ─────────────────────────────────────────────────────────────────
+#
+# **세션을 스레드가 만나지 않게 3단으로 가른다** (T-0069).
+#
+#   ① 조립   세션 안 · 읽기만.  ORM 객체를 밖으로 안 들고 나간다
+#   ② 호출   세션 밖 · 스레드.  Writer 를 워커마다 새로 만든다
+#   ③ 저장   세션 안 · ordinal 순.  같은 입력에서 같은 초안이 나온다
+#
+# 앞의 구조는 Session 을 LLM 호출 내내 붙잡고 있어서 스레드를 못 얹었다.
+# **생성 버튼이 없다**(F6-1) — 큐는 여기서 정하지 않는다(SPEC §9-7 · ADR-0021).
+# ─────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class _ItemPlan:
+    """세션 밖으로 들고 나가는 항목 하나. **ORM 객체를 안 담는다** — 세션이 닫힌
+    뒤에도 스레드가 읽어야 한다."""
+
+    row_id: int
+    ordinal: int
+    number: str | None
+    title: str
+    instruction: str | None
+    limit_text: str | None
+    places: tuple[str, ...]
+    places_optional: tuple[str, ...]
+    summary_of_others: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _FormPlan:
+    document_id: int
+    doc_title: str
+    items: tuple[_ItemPlan, ...]
+    #: 겹침 쌍. 인덱스는 `items` 안의 자리다
+    pairs: tuple[tuple[int, int], ...]
+
+
+@dataclass(slots=True)
+class BuildReport:
+    forms: int = 0
+    items: int = 0
+    drafted: int = 0
+    #: 위키에 없어서 못 썼다. **F6-6 이 가리키는 자리** — 여기만 물어본다
+    blank: int = 0
+    #: 쓸 자리가 아니다. 상위 묶음 등
+    no_needs: int = 0
+    #: 위키에는 있는데 다른 항목이 맡았다 (배분)
+    yielded: int = 0
+    #: 재료는 받았는데 글이 안 나왔다. **집필 실패다**
+    unwritten: int = 0
+    failed: int = 0
+    paragraphs: int = 0
+    #: 재료 밖이라 `[확인 필요]` 로 바꾼 것
+    unverified: int = 0
+    clashes: int = 0
+    #: 분량 상한을 넘은 항목 (구멍 2). **넘어도 다시 쓰지 않는다**
+    over_limit: int = 0
+    #: 제한은 있는데 못 잰 항목. 쪽 수 제한과 `내외` 다
+    unmeasured: int = 0
+    #: 필요한데 위키에 없는 자리. **F6-6 이 읽는다**
+    missing: dict[str, int] = field(default_factory=dict)
+    usage: str = ""
+
+    def line(self) -> str:
+        miss = " · ".join(
+            f"{n} {c}건" for n, c in sorted(self.missing.items(), key=lambda x: -x[1])[:6]
+        )
+        out = [
+            f"양식 {self.forms:,} · 항목 {self.items:,} (썼음 {self.drafted:,} · "
+            f"못 채움 {self.blank:,} · 쓸 자리 아님 {self.no_needs:,} · "
+            f"배분에서 못 받음 {self.yielded:,} · 글이 안 나옴 {self.unwritten:,} · "
+            f"실패 {self.failed:,})",
+            f"문단 {self.paragraphs:,} · 확인 필요 {self.unverified:,} · 겹침 {self.clashes:,} · "
+            f"분량 초과 {self.over_limit:,} · 분량 못 잼 {self.unmeasured:,}",
+        ]
+        if miss:
+            out.append(f"위키에 없어서 못 쓴 자리: {miss}")
+        if self.usage:
+            out.append(self.usage)
+        return "\n".join(out)
+
+
+def build_draft(  # noqa: PLR0913
+    company_id: str,
+    source: str,
+    external_id: str,
+    *,
+    redo: bool = False,
+    workers: int | None = None,
+    allotter: al.Allotter | None = None,
+    writers: Callable[[], wr.LlmWriter] | None = None,
+    checker: dd.LlmChecker | None = None,
+) -> BuildReport:
+    """공고 하나에 대해 초안을 세운다 (T-0068 · T-0069).
+
+    **항목 하나가 실패해도 나머지는 남는다**(ADR-0015 결과 절).
+
+    `writers` 는 **집필기를 만드는 함수**다. 워커마다 새로 만들어야 `unverified` ·
+    `dropped` · `Usage` 가 안 섞인다 — `Usage.calls += 1` 이 원자적이 아니라서
+    하나를 공유하면 **토큰 수가 어긋난다.** lock 을 안 쓰는 이유가 그것이다.
+    """
+    report = BuildReport()
+    allotter = allotter or al.Allotter()
+    checker = checker or dd.LlmChecker()
+    make_writer = writers or wr.LlmWriter
+    n = workers or settings.draft_workers
+
+    # ① 조립 — 세션 안 · 읽기만
+    with Session(engine) as s:
+        facts = _company_facts(s, company_id)
+        notice = _notice_material(s, source, external_id)
+        plans = _read_plans(s, source, external_id)
+
+    if not plans:
+        return report
+
+    for plan in plans:
+        # **초안 한 벌이 한 추적이다.** 항목 67개가 한 화면에 뜬다(`trace.py`)
+        with trace.session(f"draft:{company_id}:{source}:{external_id}#{plan.document_id}"):
+            _build_one(
+                plan, facts, notice, report,
+                company_id=company_id, source=source, external_id=external_id,
+                redo=redo, workers=n,
+                allotter=allotter, make_writer=make_writer, checker=checker,
+            )
+
+    report.usage = _total_usage(allotter, checker)
+    return report
+
+
+def _total_usage(*objs: object) -> str:
+    """배분·중복점검·집필을 합친다. **하나만 찍으면 나머지가 사라진다.**"""
+    total = Usage()
+    total.merge(_writer_usage)
+    for o in objs:
+        total.merge(_usage_of(o))
+    _writer_usage.reset()
+    return total.line() if total.calls else ""
+
+
+
+def _build_one(  # noqa: PLR0913
+    plan: _FormPlan,
+    facts: dict[int, wr.FactMaterial],
+    notice: tuple[tuple[str, str], ...],
+    report: BuildReport,
+    *,
+    company_id: str,
+    source: str,
+    external_id: str,
+    redo: bool,
+    workers: int,
+    allotter: al.Allotter,
+    make_writer: Callable[[], wr.LlmWriter],
+    checker: dd.LlmChecker,
+) -> None:
+    """양식 하나. **3단이 여기 다 들어 있다** — 조립은 부르는 쪽이 이미 했다."""
+    views = [
+        al.ItemView(
+            index=i, number=it.number, title=it.title, instruction=it.instruction,
+            places=it.places, places_optional=it.places_optional,
+            summary_of_others=it.summary_of_others,
+        )
+        for i, it in enumerate(plan.items)
+    ]
+    fact_views = [
+        al.FactView(id=f.id, place=f.place, text=f.text, source_type=f.source_type)
+        for f in facts.values()
+    ]
+    # ①-b 배분 — 세션 밖. LLM 0 또는 1회
+    allots = allotter.allot(views, fact_views, list(plan.pairs))
+
+    # ② 호출 — 세션 밖 · 스레드
+    # **필요한 자리가 0개면 안 부른다.** 상위 묶음은 자식이 쓴다 — 부르면
+    # 재료가 없어서 빈 결과가 오고, 그것을 "못 채움" 과 구분할 수 없게 된다
+    writable = {i for i, it in enumerate(plan.items) if it.places or it.places_optional}
+    jobs = [
+        (a, wr.Material(
+            number=plan.items[a.index].number,
+            title=plan.items[a.index].title,
+            instruction=plan.items[a.index].instruction,
+            limit_text=plan.items[a.index].limit_text,
+            facts=tuple(facts[i] for i in a.fact_ids if i in facts),
+            notice=notice,
+        ))
+        for a in allots
+        if a.index in writable
+    ]
+    results = _run(jobs, make_writer, workers)
+
+    # ③ 저장 — 세션 안 · ordinal 순
+    with Session(engine) as s:
+        draft = _draft_row(s, company_id, source, external_id, plan.document_id, redo=redo)
+        if draft is None:
+            return
+        draft.allotment = {str(plan.items[a.index].row_id): list(a.fact_ids) for a in allots}
+        draft.allotted_by = allotter.name if allotter.client is not None else "none"
+        paras = _store_items(s, draft, plan, allots, results, facts, report)
+        s.commit()
+
+    report.clashes += _check_clashes(checker, plan, paras)
+    report.forms += 1
+
+
+def _run(
+    jobs: list[tuple[al.Allotment, wr.Material]],
+    make_writer: Callable[[], wr.LlmWriter],
+    workers: int,
+) -> dict[int, tuple[list[wr.Paragraph], int, str | None]]:
+    """항목마다 집필한다. **세션이 열려 있지 않은 구간이다.**
+
+    돌려주는 것은 `{항목 인덱스: (문단[], 확인 필요 수, 오류)}` 다. 예외를 여기서
+    잡아 문자열로 바꾸는 이유는 **③에서 다시 던지면 트랜잭션이 통째로 죽어서**다.
+
+    LLM 호출은 I/O 바운드라 스레드로 충분하다. `llm.py` 가 호출마다 `httpx.Client`
+    를 열고 닫는 동기 코드라 그대로 얹힌다 — asyncio 로 가면 그 파일을 통째로 다시
+    써야 하고 얻는 것이 없다.
+    """
+    out: dict[int, tuple[list[wr.Paragraph], int, str | None]] = {}
+    if not jobs:
+        return out
+    tally = Usage()
+
+    # **`contextvars` 는 스레드로 안 넘어간다.** 잡기 전에 떠서 워커 안에서 이어받는다 —
+    # 안 하면 항목 67개가 한 추적으로 안 묶이고 따로 흩어진다
+    parent = trace.current()
+
+    def one(job: tuple[al.Allotment, wr.Material]):  # noqa: ANN202
+        trace.adopt(parent)
+        allot, material = job
+        writer = make_writer()  # **워커마다 새로 만든다.** 집계가 안 섞인다
+        try:
+            paragraphs, err = writer.write(material), None
+        except Exception as e:  # noqa: BLE001 — 항목 하나가 나머지를 안 죽인다
+            paragraphs, err = [], f"{type(e).__name__}: {e}"[:500]
+        # **집계를 여기서 걷는다.** 안 걷으면 워커와 함께 버려진다 — 실측에서
+        # 초안 한 벌이 "호출 1회" 로 보고됐다(실제로는 12회)
+        return allot.index, paragraphs, len(writer.unverified), err, _usage_of(writer)
+
+    if workers <= 1:
+        for job in jobs:
+            i, paras, unv, err, used = one(job)
+            out[i] = (paras, unv, err)
+            tally.merge(used)
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, len(jobs))) as pool:
+            for fut in as_completed([pool.submit(one, j) for j in jobs]):
+                i, paras, unv, err, used = fut.result()
+                out[i] = (paras, unv, err)
+                tally.merge(used)
+    _writer_usage.merge(tally)
+    return out
+
+
+#: 집필기들이 쓴 토큰. **워커마다 새로 만들어 버리니 여기 걷어 둔다**
+_writer_usage = Usage()
+
+
+def _usage_of(writer: object) -> Usage:
+    c = getattr(writer, "client", None)
+    return getattr(c, "usage", None) or Usage()
+
+
+def _read_plans(s: Session, source: str, external_id: str) -> list[_FormPlan]:
+    """공고에 붙은 서술형 양식을 **평범한 데이터로** 읽는다.
+
+    **공고와 문서를 잇는 표를 만들지 않았다.** 조인으로 푼다(ADR-0022).
+    """
+    docs = s.execute(
+        select(Document)
+        .join(AttachmentFile, AttachmentFile.sha256 == Document.sha256)
+        .join(Attachment, Attachment.url == AttachmentFile.url)
+        .where(
+            Attachment.source == source,
+            Attachment.external_id == external_id,
+            Document.kind == str(DocumentKind.NARRATIVE),
+        )
+        .order_by(Attachment.position, Document.seq)
+    ).scalars().all()
+
+    out: list[_FormPlan] = []
+    seen: set[int] = set()
+    for doc in docs:
+        if doc.id in seen:
+            continue
+        seen.add(doc.id)
+
+        rows = s.scalars(
+            select(DocumentItem)
+            .where(DocumentItem.document_id == doc.id)
+            .order_by(DocumentItem.ordinal)
+        ).all()
+        if not rows:
+            continue
+
+        ids = [r.id for r in rows]
+        req: dict[int, list[str]] = {}
+        opt: dict[int, list[str]] = {}
+        for n in s.scalars(select(ItemNeed).where(ItemNeed.document_item_id.in_(ids))).all():
+            (req if n.required else opt).setdefault(n.document_item_id, []).append(n.place)
+
+        pos = {r.id: i for i, r in enumerate(rows)}
+        pairs = tuple(
+            (pos[o.a_item_id], pos[o.b_item_id])
+            for o in s.scalars(
+                select(ItemOverlap).where(ItemOverlap.document_id == doc.id)
+            ).all()
+            if o.a_item_id in pos and o.b_item_id in pos
+        )
+        out.append(
+            _FormPlan(
+                document_id=doc.id,
+                doc_title=doc.title,
+                items=tuple(
+                    _ItemPlan(
+                        row_id=r.id,
+                        ordinal=r.ordinal,
+                        number=r.number,
+                        title=r.title,
+                        instruction=r.instruction,
+                        limit_text=r.limit_text,
+                        places=tuple(req.get(r.id, ())),
+                        places_optional=tuple(opt.get(r.id, ())),
+                        summary_of_others=bool(r.summary_of_others),
+                    )
+                    for r in rows
+                ),
+                pairs=pairs,
+            )
+        )
+    return out
+
+
+def _notice_material(s: Session, source: str, external_id: str) -> tuple[tuple[str, str], ...]:
+    """공고가 준 값 (plan/16 구멍 1).
+
+    **여기가 비어 있으면 F6-12 가 자기 자신을 막는다.** F6-12 는 "금액·자격·마감일·
+    고유명사는 **공고 데이터와** 근거 청크에서 온 것만" 이라고 허용했는데, 공고
+    데이터를 안 넘기면 `verify()` 가 지원금액과 마감일을 지운다.
+
+    `notice` 뷰만 읽는다 — 출처별 표를 직접 읽으면 매핑이 둘이 되고, 그 매핑의
+    정본은 `views.py` 다(CLAUDE.md).
+    """
+    row = s.execute(
+        select(
+            Notice.title, Notice.organization, Notice.supervisor, Notice.category,
+            Notice.apply_period_raw, Notice.apply_start, Notice.apply_end, Notice.summary,
+        ).where(Notice.source == source, Notice.external_id == external_id)
+    ).first()
+    if row is None:
+        return ()
+
+    title, org, sup, cat, raw, start, end, summary = row
+    period = raw or " ~ ".join(str(d) for d in (start, end) if d)
+    pairs = [
+        ("사업명", title), ("수행기관", org), ("주관기관", sup),
+        ("분야", cat), ("접수기간", period),
+        # **공고 본문이다.** 지원금액이 값으로 오는 필드가 없어서 여기서만 나온다
+        ("공고 내용", (summary or "")[:NOTICE_SUMMARY_CHARS]),
+    ]
+    return tuple((k, v) for k, v in pairs if v)
+
+
+def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
+    """위키 사실과 그 근거. **근거 없는 사실은 애초에 없다**(ADR-0014)."""
+    out: dict[int, wr.FactMaterial] = {}
+    rows = s.scalars(
+        select(WikiFact).where(
+            WikiFact.company_id == company_id,
+            or_(WikiFact.status.is_(None), WikiFact.status != "superseded"),
+        )
+    ).all()
+    for f in rows:
+        ev = s.execute(
+            select(WikiEvidence.chunk_id, WikiEvidence.quote).where(
+                WikiEvidence.fact_id == f.id
+            )
+        ).all()
+        out[f.id] = wr.FactMaterial(
+            id=f.id, place=f.place, text=f.text,
+            quotes=tuple(q for _, q in ev),
+            chunk_ids=tuple(c for c, _ in ev),
+            source_type=f.source_type,
+        )
+    return out
+
+
+def _store_items(  # noqa: PLR0913
+    s: Session,
+    draft: Draft,
+    plan: _FormPlan,
+    allots: list[al.Allotment],
+    results: dict[int, tuple[list[wr.Paragraph], int, str | None]],
+    facts: dict[int, wr.FactMaterial],
+    report: BuildReport,
+) -> list[dd.ParaView]:
+    """`ordinal` 순으로 깐다.
+
+    **순서를 고정하는 것이 요점이다.** 같은 입력에서 같은 초안이 나와야 `--redo` 로
+    무엇이 바뀌었는지 바이트로 본다 — 위키 마크다운에 시각을 안 넣은 것과 같은 이유다.
+    """
+    out: list[dd.ParaView] = []
+    by_index = {a.index: a for a in allots}
+
+    for index, it in enumerate(plan.items):
+        paragraphs, unverified, error = results.get(index, ([], 0, None))
+        report.items += 1
+        report.unverified += unverified
+
+        # **`allot` 이 계산한 것을 그대로 쓴다. 다시 세지 않는다.**
+        # F6-6 은 "위키에 정보가 없어 못 쓴 자리" 다. 배분에서 못 받은 것과 다르다 —
+        # 다른 항목이 그 사실을 맡았으면 위키에는 있는 것이고, 그건 못 채움이 아니다.
+        allot = by_index.get(index)
+        missing = list(allot.missing) if allot else list(it.places)
+        for place in missing:
+            report.missing[place] = report.missing.get(place, 0) + 1
+
+        item = DraftItem(
+            draft_id=draft.id,
+            document_item_id=it.row_id,
+            ordinal=it.ordinal,
+            missing=missing,
+            missing_optional=list(allot.missing_optional) if allot else [],
+        )
+        s.add(item)
+        s.flush()
+
+        if error:
+            item.error = error
+            report.failed += 1
+            continue
+        if not paragraphs:
+            # **셋을 가른다.** 같은 이름으로 부르면 화면이 물어볼 자리를 잘못 가리킨다
+            if not (it.places or it.places_optional):
+                item.status = str(DraftItemStatus.NO_NEEDS)
+                report.no_needs += 1
+            elif missing:
+                item.status = str(DraftItemStatus.BLANK)   # 진짜 F6-6
+                report.blank += 1
+            elif not (allot and allot.fact_ids):
+                # 위키에는 있는데 이 항목이 못 받았다 — 물어볼 자리가 아니다
+                item.status = str(DraftItemStatus.YIELDED)
+                report.yielded += 1
+            else:
+                # **재료를 받고도 글이 안 나왔다.** 집필이 실패한 자리다
+                item.status = str(DraftItemStatus.UNWRITTEN)
+                report.unwritten += 1
+            continue
+
+        item.body = "\n\n".join(p.text for p in paragraphs)
+        item.status = _status(paragraphs, facts)
+        item.written_by = f"llm/{settings.openai_model}"
+        report.drafted += 1
+        report.paragraphs += len(paragraphs)
+
+        # 분량 검사 (구멍 2). **저장하지 않는다** — 읽을 때마다 만드는 값이다
+        check = limits.check(item.body, it.limit_text)
+        if check.verdict == "over":
+            report.over_limit += 1
+        elif check.verdict == "unmeasurable":
+            report.unmeasured += 1
+
+        for n, p in enumerate(paragraphs):
+            chunks: list[int] = []
+            for fid in p.fact_ids:
+                f = facts[fid]
+                chunks.extend(f.chunk_ids)
+                s.add(
+                    DraftEvidence(
+                        draft_item_id=item.id, paragraph=n, fact_id=fid,
+                        chunk_id=f.chunk_ids[0] if f.chunk_ids else None,
+                        source_type=f.source_type,
+                    )
+                )
+            out.append(
+                dd.ParaView(
+                    item_index=index, paragraph=n, text=p.text,
+                    chunk_ids=tuple(chunks), fact_ids=p.fact_ids,
+                )
+            )
+    return out
+
+
+def _status(paragraphs: list[wr.Paragraph], facts: dict[int, wr.FactMaterial]) -> str:
+    """사용자 답변이 들어간 문단이 있으면 `answered` 다(ADR-0028 5번)."""
+    used = {i for p in paragraphs for i in p.fact_ids}
+    if any(facts[i].source_type == str(SourceType.USER_STATED) for i in used if i in facts):
+        return str(DraftItemStatus.ANSWERED)
+    return str(DraftItemStatus.DRAFTED)
+
+
+def _check_clashes(checker: dd.LlmChecker, plan: _FormPlan, paras: list[dd.ParaView]) -> int:
+    """겹침을 찾는다. **코드가 먼저, 그다음 LLM 이다.**
+
+    지금은 **세기만 한다.** 겹친 항목을 다시 쓰는 것은 화면이 붙어야 뜻이 있다 —
+    무엇이 겹쳤는지 사람이 보고 판단할 자리가 없으면 자동 재작성은 소리 없이 본문을
+    바꾸는 일이 된다(F1-5-5).
+    """
+    summary = frozenset(i for i, it in enumerate(plan.items) if it.summary_of_others)
+    found = dd.by_chunk(paras, summary=summary)
+    if len(paras) >= 2:
+        found += checker.check(paras, summary=summary, known=found)
+    return len(found)
+
+
+def _draft_row(  # noqa: PLR0913
+    s: Session,
+    company_id: str,
+    source: str,
+    external_id: str,
+    document_id: int,
+    *,
+    redo: bool,
+) -> Draft | None:
+    """이미 있으면 안 다시 쓴다. **`--redo` 면 항목만 갈고 초안 행은 남긴다.**"""
+    row = s.scalar(
+        select(Draft).where(
+            Draft.company_id == company_id,
+            Draft.notice_id == external_id,
+            Draft.document_id == document_id,
+        )
+    )
+    if row is None:
+        row = Draft(
+            company_id=company_id, notice_id=external_id,
+            source=source, document_id=document_id,
+        )
+        s.add(row)
+        s.flush()
+        return row
+    if not redo:
+        return None
+    s.execute(delete(DraftItem).where(DraftItem.draft_id == row.id))
+    return row

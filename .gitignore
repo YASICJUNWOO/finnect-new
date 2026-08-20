@@ -40,3 +40,6 @@ spike/data/
 
 # Next.js 증분 빌드 산출물
 *.tsbuildinfo
+
+# 개인 학습 노트. 레포 문서 체계(SPEC·plan·adr) 밖이라 커밋하지 않는다
+notes/

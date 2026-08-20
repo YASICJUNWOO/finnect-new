@@ -8,15 +8,19 @@
 
 코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). 다만 **추출기가 스텁이라 픽스처 7건 밖에서는 안 돈다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **2026-08-18 입구가 화면에 생겼다** — `/wiki/files` 에 던지면 단계 다섯이 돌고 파일마다 어느 자리를 채웠는지 이름으로 뜬다([plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/12](docs/plan/12-사업-위키-구축.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+**2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)·[plan/12](docs/plan/12-사업-위키-구축.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)·[plan/17](docs/plan/17-맞는-공고를-고른다.md)가 열려 있다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
 **앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
 - 첨부는 **내려받아 텍스트까지 뽑는다**([plan/07](docs/plan/07-첨부-내려받기와-해독.md)). 뽑은 텍스트로 **아직 아무것도 판단하지 않는다**
 - **사용자 파일은 `data/user-files/<company_id>/…` 에 있다**([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)). **개인정보다** — `.gitignore` 에 있고 배포본에 안 올라간다. `wiki/storage.py` 의 모든 함수가 `company_id` 를 필수로 받는다. **회사 사이 중복 제거를 하지 않는다** — 같은 양식이 회사마다 한 벌씩 쌓이는 것이 의도다
 - **해독 포맷 목록이 둘이다.** `ATTACHMENT_FORMATS`(첨부 4포맷)와 `USER_FILE_FORMATS`(+xlsx·pptx). **첨부 목록에 xlsx·pptx 를 더하지 않는다** — plan/07 이 측정한 2,827/3,354 가 근거를 잃는다. 파서는 이미 있어서 켜기만 하면 되지만, 켜면 다시 재야 한다
-- **LLM 제공자를 정했다** — OpenAI `gpt-5.6-luna`([ADR-0037](docs/adr/0037-llm-제공자를-openai-로-정하고-gpt-5-6-luna-부터-잰다.md)). `OPENAI_API_KEY` 하나만 넣고 `WIKI_EXTRACTOR=llm` 이면 위키 추출기가 켜진다. **키가 없는데 `llm` 을 고르면 멈춘다** — 조용히 스텁으로 안 물러난다. **`openai` 패키지를 안 쓴다**(`httpx` 로 직접) — 넣으면 배포본 임포트 경로가 죽는다.
+- **LLM 제공자를 정했다** — OpenAI `gpt-5.6-luna`([ADR-0037](docs/adr/0037-llm-제공자를-openai-로-정하고-gpt-5-6-luna-부터-잰다.md)). `OPENAI_API_KEY` 하나만 넣고 `WIKI_EXTRACTOR=llm` 이면 위키 추출기가 켜진다. **키가 없는데 `llm` 을 고르면 멈춘다** — 조용히 스텁으로 안 물러난다. **`openai` 패키지를 안 쓴다**(`httpx` 로 직접) — 넣으면 배포본 임포트 경로가 죽는다. 정확도는 `--score` 가 픽스처 118개와 대조해 잰다 — **2026-08-20 재현율 70.3%**([실측](docs/adr/evidence/2026-08-20-위키-추출-정확도-실측.md)). **정밀도는 이 픽스처로 못 잰다** — 정답지가 사람이 고른 일부라 정답에 없는 것 25건 중 22건이 진짜 사실이었다
 - ~~LLM은 아직 한 번도 부르지 않는다. **제공자를 정하지 않았다.**~~ [plan/12](docs/plan/12-사업-위키-구축.md) T-0045 는 **정하지 않고 포트를 파서** 지나갔다([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)) — 남은 것은 [plan/11](docs/plan/11-작성-항목-추출과-표시.md) T-0036 이고 **거기는 이 방법이 안 통한다**(LLM 이 라벨러가 아니라 판별기 자체다)
+- **맞는 공고 고르기(M)가 섰다**([plan/17](docs/plan/17-맞는-공고를-고른다.md)). `src/finnect/match/` — 공고 정규화 → 자격 → 분야 → 순서·이유. **LLM 이 회사 쪽을 안 본다** — 공고를 한 번 정규화하면 회사 수와 무관하다(709회 고정). ③④⑤ 는 전부 코드고 **재판정이 29,789건에 0.36초**라 안 저장한다. **정규화를 209건 돌렸다** — `regions` 가 손 라벨 15건과 15/15 일치하고 앵커 유실이 99.5%→0.5% 다. **육안이 결함 넷을 찾았다**(`소상공인` 조건 · 근거 노드 선택 · 프롬프트 구분선 · HTML 엔티티). 한 건에 **0.77원**이라 전량 1,790건은 1,379원이고 아직 안 돌렸다
+- **`notice-filter/` 를 제품에 안 넣기로 했다.** 재 보니 사용자를 축 둘로만 봐서 개인화 이득이 **13건(0.08%)** 이었다 — 실제로 갈리는 축 넷(소재지·업종·연령·중복수혜)이 거기 아예 없다. 그 폴더는 **층0(제품 범주)** 으로 밖에 남고 목록 파일로 넘긴다(`attach --only` 와 같은 경계 · `tests/test_match_only.py`). 대가로 절 나누기 정규식이 `match/bodies.py` 에 한 벌 더 산다
+- **`애매` 에 이유가 없어서 추천이 안 뜬다.** 실측 — 층0 542건 중 자격을 넘은 8건이 `맞다 0 · 애매 5 · 아니다 3` 이고 **애매 5건은 눈으로 보면 5/5 합리적이다.** ④ 분야가 살렸는데 ⑤ 키워드 교집합이 0 이라 이유가 없다. **다음 할 일이 이것 하나다** — ④가 어느 노드의 어느 낱말에 걸렸는지 이미 안다(`sectors.Match.cues`). 임베딩은 그 뒤에 얘기한다
+- **적합도 이유를 LLM 이 안 만든다.** `match/rank.py` 가 템플릿으로 만들고 **근거가 자동으로 매달린다**(겹친 `wiki_fact.id`). 등급이 셋(`맞다`·`애매`·`아니다`)뿐이고 **점수가 없다** — 연속값을 만들면 화면에 안 내도 설명할 눈금이 없는 순서가 된다. 어색하면 상위 3건에만 LLM 을 붙이되 **육안 40건을 재기 전에는 안 붙인다**
 - **초안 집필(G)의 배관이 섰고 한 번도 안 돌렸다**([plan/16](docs/plan/16-항목마다-초안을-쓴다.md)). `src/finnect/draft/` — 양식 읽기 → 배분 → 집필 → 검증 → 중복 점검. **2026-08-20 한 벌 돌았다** — `c_dasiro` × 서식 3 하나로 항목 16 중 10 을 썼고 근거 49개가 붙었다. **문장을 아직 아무도 안 읽었다.** **항목이 서로 독립이다** — 문서 전체를 도는 루프로 만들지 않는다. 재작성·실패·질문의 단위가 전부 항목이라(ADR-0028 3번 · ADR-0015) 문서 단위로 들면 셋 다 안 된다
 - **초안 집필은 3단으로 갈려 있다** — 조립(세션 안) · 호출(세션 밖 · 스레드) · 저장(세션 안 · `ordinal` 순). **`Session` 을 LLM 호출 내내 붙잡으면 스레드를 못 얹는다.** `build_draft(writers=...)` 가 인스턴스가 아니라 **만드는 함수**를 받는 이유는 `Usage.calls += 1` 이 원자적이 아니어서다 — 하나를 공유하면 **토큰 수가 어긋난다.** 저장 순서를 고정하는 이유는 위키 마크다운에 시각을 안 넣은 것과 같다
 - **쪽 수 제한을 글자로 환산하지 않는다**(`draft/limits.py`). `50페이지 내외` 는 `unmeasurable` 이다 — A4 한 장에 한글 몇 자인지는 서체·여백이 정하고 관례(1,800자)는 근거가 아니다. `내외` 도 초과 판정을 안 한다. **분량 검사 결과를 저장하지 않는다** — `limit_text` 와 `body` 로 계산되는 뷰다
@@ -30,11 +34,13 @@
 - **위키 마크다운을 저장하지 않는다.** `wiki/markdown.py` 가 읽을 때마다 만드는 **뷰**다 — 사실이 `wiki_fact` 에 있는데 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다. **시각을 넣지 않는다**(`generated:` 같은 것). 넣으면 같은 DB 에서 만든 글이 매일 달라져 바이트로 못 비교한다
 - **값에 단위를 붙이는 자리는 `topics.display()` 하나다.** 저장값 `120000000` 은 병합의 재료라 손대면 충돌 판정이 깨진다. 화면·마크다운·API 가 같은 함수를 쓴다
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
+- **`api/service.py` 에서 `match.service` 를 임포트하지 않는다.** 저쪽이 `llm` 을 끌고 오는데 `requirements.txt` 에 httpx 가 없다 — `attach.service`·`ingest.service` 와 똑같은 함정이고 `tests/test_admin_api.py` 가 막아 둔다. 추천 API 는 `notice_fit` 을 **읽기만 한다**
 - **운영 조회 화면 넷은 `web/app/admin/`에 있고 배포본에서도 열린다**([ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 토큰을 입었고 T-0023이 그 커밋에서 닫혔다. `src/finnect/admin/`에는 **수집 실행 버튼만** 남았다 — 데몬 스레드라 안 올라간다. **읽기 화면을 거기 다시 만들지 않는다**
 - **`api/admin_service.py`에서 `attach.service`·`ingest.service`를 임포트하지 않는다.** 저 둘이 httpx와 파서를 끌고 오는데 `requirements.txt`가 그것들을 뺐다. 임포트하면 **로컬은 통과하고 배포본만 죽는다.** `tests/test_admin_api.py`가 막아 둔다
 - **`DESIGN.md` §4 토큰 실값이 찼다**([ADR-0025](docs/adr/0025-토큰-실값-확정.md)). 값의 유일한 자리는 `web/app/tokens.css`이고 정본은 DESIGN.md §4다
 - `spike/`는 실측용 **버리는 코드**다. 기능을 얹거나 리팩터하지 않는다. 다시 돌리려면 `uv sync --group spike`
-- **`notice-filter/` 는 제품 코드가 아니지만 버리는 코드도 아니다.** 기업마당 1,524건을 룰 베이스로 580건까지 좁히는 **자격 층**([ADR-0013](docs/adr/0013-판정-두-층.md)) 판정기다. 의존성 0 · LLM 0회 · `python3 filter.py --test` 로 69/69 가 네트워크 없이 재현된다. **`src/finnect/` 와 `web/` 에 아무것도 안 붙어 있다** — 제품에 넣으려면 스펙 동기화 절차를 따르고, 그때 `plan/03` 이 정본이다. **기업마당만 본다**(우리 공고의 5%)
+- **K-Startup 첨부는 전량을 안 받는다.** 목록은 전량 긁어 뒀지만(67,300개 · [plan/13](docs/plan/13-kstartup-첨부-수집.md) T-0049) **파일은 55.3GB 이고 이 서버 여유가 24GB 다.** 받을 것은 `--only <목록>` 으로 좁힌다. **`attach` 는 그 목록을 누가 만들었는지 모른다** — 고르는 규칙은 `notice-filter/` 에 살고 `tests/test_attach_only.py` 가 임포트 경계를 막는다. 안 받아도 `attachment` 행과 URL 은 남아 있어 나중에 받을 수 있다
+- **`notice-filter/` 는 제품 코드가 아니지만 버리는 코드도 아니다.** 기업마당 1,524건을 룰 베이스로 580건까지 좁히는 **자격 층**([ADR-0013](docs/adr/0013-판정-두-층.md)) 판정기다. 의존성 0 · LLM 0회 · `python3 filter.py --test` 로 69/69 가 네트워크 없이 재현된다. **`src/finnect/` 와 `web/` 에 아무것도 안 붙어 있다** — 제품에 넣으려면 스펙 동기화 절차를 따르고, 그때 `plan/03` 이 정본이다. **2026-08-19 `kstartup.py` 가 붙었다**(29,789 → 15,643 · 22/22) — 다만 **축 열셋 중 다섯만 옮겨졌다.** 축1 은 정밀도 65% 라 못 쓰고(끝명사 규칙은 기업마당 작성 관례다), 분류 축은 이름 교집합이 0 이라 새로 만들었다
 
 ## 스택
 
@@ -57,6 +63,8 @@ uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘�
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
+uv run python -m finnect.attach --scrape-kstartup             # K-Startup 첨부 목록. 파일은 안 받는다
+uv run python -m finnect.attach --only 목록.txt --source kstartup  # 목록에 있는 URL 만 받는다
 uv sync --group ocr                              # OCR (ADR-0030). 기본 의존성이 아니다
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 파일 → 청크 → 사실 → 노드
 uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키를 본다
@@ -64,6 +72,15 @@ uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 �
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
 uv run python -m finnect.wiki --company c_dasiro --rebuild   # 추출기를 바꿨을 때. 청크는 안 건드린다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
+uv run python -m finnect.wiki --score                        # 추출 정확도. DB 도 회사도 필요 없다
+uv run python -m finnect.extract                 # 첨부 텍스트 → 구간 → 칸. 네트워크 안 쓴다
+uv run python -m finnect.extract --classify 40 --dry   # 서술형 판별을 찍어만 본다 (LLM · 안 쓴다)
+uv run python -m finnect.extract --classify      # unknown 7,717개에 종류를 붙인다 (LLM)
+uv run python -m finnect.match --normalize 40 --dry  # 공고 정규화를 찍어만 본다 (LLM)
+uv run python -m finnect.match --normalize          # 열린 공고 전량. 회사와 무관하다 (LLM)
+uv run python -m finnect.match --company c_dasiro   # 자격 → 분야 → 추천 3건. LLM 0회
+uv run python -m finnect.match --company c_dasiro --only 후보.txt   # 층0 목록으로 좁힌다
+uv run python -m finnect.match --report             # 퍼널만
 uv run python -m finnect.draft --read-forms 20   # 양식을 읽어 항목마다 필요한 자리를 정한다 (LLM)
 uv run python -m finnect.draft --company c_dasiro --notice bizinfo:PBLN-000   # 초안 (LLM)
 uv run python -m finnect.draft --report          # 집필 현황만
@@ -98,6 +115,9 @@ cd web && npm run lint && npm run typecheck && npm run build
 | `chunk` | 그 파일에서 나온 원문 조각 + 위치정보. **노드가 이걸 가리킨다** ([ADR-0014](docs/adr/0014-통합-그래프와-근거-청크.md)) |
 | `wiki_fact` | 위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다. 병합은 `dedupe_key` 가 전부다 ([ADR-0032](docs/adr/0032-위키가-담을-것-정형-슬롯과-서술-노드.md)) |
 | `wiki_evidence` | 그 사실이 어느 청크에서 나왔나. **근거 없는 `wiki_fact` 행은 만들지 않는다** |
+| `notice_profile` | 공고가 **누구를 찾나**. 지역·업종·조건·취지키워드. **`company_id` 가 없다** — 한 번 뽑으면 모든 회사가 쓴다. 캐시 키가 `content_hash` 가 아니라 `body_hash` 인 이유는 조회수다 ([plan/17](docs/plan/17-맞는-공고를-고른다.md)) |
+| `notice_fit` | 이 회사에게 이 공고가 맞나. 등급 셋 + 이유 한 줄. **`맞다`·`애매` 만 앉는다** — 자격은 재계산이 0.36초라 저장이 손해다 |
+| `notice_fit_evidence` | 그 이유가 어느 사실에서 나왔나. **`fact_id` 를 든다** — 나중에 못 붙인다 |
 | `ingest_run` | 수집 실행 기록. **코퍼스가 아니라 운영 기록이다** ([ADR-0011](docs/adr/0011-수집-실행-화면.md)) |
 
 **`attachment`에 해독 상태를 붙이지 않는다.** 공고가 갱신되면 그 행이 통째로 지워지고 다시 깔린다(`ingest/runner.py` `_flush`). 상태는 URL을 키로 하는 `attachment_file`에 산다. 원본 파일은 `data/attachments/<sha256[:2]>/<sha256>`.
@@ -179,6 +199,10 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **OCR 텍스트로 제목에 기대는 규칙을 만들지 않는다.** 굵은 서체와 자간 넓힌 글자가 깨진다(`름눌을`·`H거3`). 본문은 쓸 만하고 표 구조는 안 나온다
 - **올리기는 파일을 못 쓰는 서버에서 503 이다**([ADR-0034](docs/adr/0034-업로드를-같은-api-에-두고-못-쓰는-곳에서는-503-으로-답한다.md)). 판정을 환경 이름으로 하지 않고 **실제로 써 본다**(`wiki/storage.py` `writable()`) — 배포처가 바뀌면 이름으로 적은 규칙은 틀리고, 실제로 [ADR-0035](docs/adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md)가 같은 날 바꿨다. **경로를 지우지 않는 이유는 404 가 원인을 안 남기기 때문이다.** `api/app.py` 가 `wiki.service` 를 **함수 안에서** 임포트하는 것도 같은 이유다 — 최상단에 두면 `import finnect.api.app` 이 pdfplumber 를 끌고 와 로컬은 통과하고 배포본만 죽는다
 - **`chunked` 는 두 가지 뜻이다.** 파일을 막 넣었을 때는 "사실을 뽑을 차례"이고, 빌드가 끝난 뒤에도 `chunked` 면 "추출기가 몰라서 되돌려놨다"다(`wiki/build.py` `_shelve`). **행만 봐서는 구분이 안 된다** — `wiki/progress.py` 가 `ingest/jobs.py` 의 락(`running`)을 같이 보고 가른다. 이 값 없이 상태만 보면 화면이 `chunked` 에서 영원히 물어본다
+- **공고의 지역을 제목 태그로 판정하면 틀린다.** `[경기]` 46건 중 성남시가 **2건**이고 나머지는 김포·화성·안양·시흥·안산·용인이다. 반대로 `전국·미표기` 205건 안에 수성알파시티(대구)·대구콘텐츠코리아랩·제주형 그린바이오·울산창조경제혁신센터가 섞여 있다. **광역 태그는 시·군 사업을 가리고, 태그 없음은 전국을 뜻하지 않는다** — 지역은 본문 `지원대상` 절에서 뽑는다
+- **`notice_profile` 캐시를 `content_hash` 에 걸면 안 된다.** 조회수(`inqireCo`)가 그 재료라 기업마당은 재수집마다 1,538건 전부가 '변경' 이고, 거기 걸면 **조회수 하나에 709회를 다시 쓴다.** `body_hash` 가 판정에 쓰는 본문만 해싱하는 이유다
+- **분야 대조 어휘를 공백 지운 문자열로 찾으면 안 된다.** `"결손금이 자본금을 초과"` 에서 `이자` 가 걸려 `융자` 분야가 맞는다(실측). 앵커 대조(`match/normalize.py`)는 공백을 지워야 하고 어휘 대조(`match/sectors.py`)는 지우면 안 된다 — 저쪽은 LLM 이 공백을 바꿔 쓰는 것을 견뎌야 하고 이쪽은 양쪽을 우리가 들고 있다
+- **`wiki_fact.status == 'current'` 를 판정에 그대로 쓰면 틀린다.** `current` 는 "가장 늦은 시점" 이라 **미래 날짜도 `current` 다** — `c_dasiro` 의 직원 수 15가 `as_of 2026-08-31` 이다. 자격 판정은 **신청일 이전의 최신값**을 골라야 한다(`match/profile.py` `_pick`)
 - **`openpyxl` 은 파일 이름의 확장자를 본다.** 우리 저장소는 콘텐츠 주소라 이름에 확장자가 없어서, 경로를 넘기면 재무제표가 통째로 `failed` 가 된다. `sheets_from_xlsx` 가 **열어서 넘기는** 이유다. 첨부 쪽은 `ATTACHMENT_FORMATS` 에 xlsx 가 없어 이 버그를 안 만났다
 - **위키 추출기는 스텁이고 픽스처 7건 밖에서는 안 돈다.** 다른 파일을 넣으면 빈 결과가 아니라 `UnknownFile` 이 난다 — **조용히 비면 진짜 파일에 가짜가 섞이거나, 더 나쁘게는 아무것도 안 나온 것이 정상처럼 보인다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). 사실 표는 `tests/fixtures/wiki/facts.json` 이고 **레포 밖에는 없어서 배포본에서 아예 안 돈다.** 그게 의도다
 - **`facts.json` 의 `anchor` 는 원문에 그대로 있어야 한다.** 픽스처 파일을 고치면 앵커가 깨지고, 깨진 사실은 근거가 없어서 **버려진다.** `tests/test_wiki_extract.py` 가 118개를 하나씩 찾아 막아 둔다

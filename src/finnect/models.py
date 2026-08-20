@@ -145,7 +145,10 @@ class _NoticeMixin:
     """출처 테이블 공통 부가 컬럼. API 필드가 아니라 우리가 붙이는 것이다."""
 
     # API 에 없던 필드가 오면 여기 담고 건수를 보고한다. 조용히 사라지지 않게.
-    extra: Mapped[dict] = mapped_column(JSONB, default=dict)
+    #: `_JSON` 을 쓰는 이유는 테스트다 — plan/17 대조 테스트가 이 표를 SQLite 에
+    #: 세워야 한다(지원분야 중분류가 뷰에 없어 출처별 표에서 읽는다).
+    #: **Postgres DDL 은 그대로라 마이그레이션이 안 바뀐다**
+    extra: Mapped[dict] = mapped_column(_JSON, default=dict)
 
     # 파생 값. API 가 준 값과 섞지 않으려고 접두사를 단다.
     derived_apply_start: Mapped[dt.date | None] = mapped_column(Date)
@@ -524,6 +527,7 @@ class DocumentItem(Base):
 #: 두고** SQLite 에서만 INTEGER 로 낮춘다. 위키 테스트가 DB 없이 돌아야 해서다 —
 #: 나머지 128건이 전부 DB 를 안 쓰는데 여기서 그 성질을 깨지 않는다.
 _PK = BigInteger().with_variant(Integer, "sqlite")
+
 
 
 class UserFileStatus(enum.StrEnum):
@@ -945,3 +949,130 @@ class DraftEvidence(Base):
     )
     #: `document` · `user_stated`. 화면이 근거 줄에서 **글자로** 가른다(ADR-0028 결과 절)
     source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
+
+
+# ─────────────────────────────────────────────────────────────────
+# 맞는 공고 고르기 (plan/17 · F3 · M 계층)
+#
+# **LLM 이 회사 쪽을 안 본다.** `notice_profile` 에 `company_id` 가 없는 것이
+# 이 세 표의 전부다 — 공고를 한 번 읽으면 회사 수와 무관하게 모두가 쓴다.
+# ─────────────────────────────────────────────────────────────────
+
+
+class NoticeProfile(Base):
+    """공고 하나가 **누구를 찾나** (plan/17 T-0070).
+
+    **회사와 무관하다.** `item_need` 가 `company_id` 를 안 드는 것과 같은 이유고,
+    그래서 LLM 호출이 회사 수와 무관해진다 — 회사가 1,000개여도 709회다.
+
+    ## 캐시 키가 `content_hash` 가 아니다
+
+    기업마당은 조회수(`inqireCo`)가 `content_hash` 재료라 **재수집마다 1,538건
+    전부가 '변경'** 이다. 거기 걸면 매번 전량을 다시 뽑는다. `body_hash` 는
+    **판정에 실제로 쓰는 본문만** 해싱한 값이라 조회수가 올라도 안 바뀐다.
+
+    ## 제목의 지역 태그를 안 담는다
+
+    실측으로 틀렸다 — `[경기]` 46건 중 성남시가 **2건**이고 나머지는 김포·화성·
+    안양·시흥·안산·용인이다. 그리고 태그 없는 205건 안에 수성알파시티(대구)와
+    제주형 그린바이오가 섞여 있다. **광역 태그는 시·군 사업을 가리고, 태그 없음은
+    전국을 뜻하지 않는다.** 그래서 지역을 본문에서 뽑는다.
+    """
+
+    __tablename__ = "notice_profile"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_notice_profile_notice"),
+        Index("ix_notice_profile_body", "body_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+    #: 판정에 쓰는 본문만의 해시. **`content_hash` 가 아니다** — 위 docstring 참고
+    body_hash: Mapped[str] = mapped_column(String(64))
+
+    #: 신청 가능한 지역. **시·군까지.** 빈 배열이면 제한 없음(전국)
+    regions: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 요구하는 업종. 빈 배열이면 무관
+    industries: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 그 밖의 요구. `만 39세 이하` · `프로토타입 필요` · `기수혜 제외`
+    conditions: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 취지 키워드. **⑤ 가 사업 내용 노드와 겹쳐 본다**
+    keywords: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 하려는 일 한 문장. 이유 템플릿의 앞부분이 된다
+    purpose: Mapped[str] = mapped_column(Text, default="")
+
+    #: `llm/<모델>`. 무엇이 뽑았나 — 바꿔 돌릴 때 차이를 본다
+    decided_by: Mapped[str] = mapped_column(String(32))
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class FitVerdict(enum.StrEnum):
+    """적합도 등급. **셋뿐이고 점수가 없다.**
+
+    연속값을 만들면 화면에 안 내도 **설명할 눈금이 없는 순서**가 된다.
+    `Fact` 에 `confidence` 를 안 넣은 것과 같은 이유다(plan/12 구상도와의 차이).
+    """
+
+    #: 취지 키워드가 사업 내용 노드와 겹쳤다
+    MATCH = "맞다"
+    #: 분야는 맞는데 취지가 안 겹쳤다
+    MAYBE = "애매"
+    #: 겹친 것이 없다. **추천에 안 올린다**
+    MISS = "아니다"
+    #: `notice_profile` 이 없어 판정하지 않았다. **`아니다` 와 섞으면 안 된다** —
+    #: 저쪽은 봤는데 안 맞는 것이고 이쪽은 아직 안 본 것이다(`SPEC.md` F3-1-5)
+    UNKNOWN = "확인 필요"
+
+
+class NoticeFit(Base):
+    """이 회사에게 이 공고가 맞나 (plan/17 T-0074).
+
+    **자격(M1)은 여기 없다.** 못 넘은 공고는 행을 만들지 않는다 — 재계산이
+    29,789건에 0.36초라 저장이 손해다. 여기 앉는 것은 **이유 문장과 근거 링크**뿐이다.
+    """
+
+    __tablename__ = "notice_fit"
+    __table_args__ = (
+        UniqueConstraint("company_id", "source", "external_id", name="uq_notice_fit_target"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    #: **유니크 제약의 첫 열이라 인덱스를 따로 안 만든다.** 회사로 훑는 질의가
+    #: 그 제약의 앞부분만 써도 인덱스를 탄다
+    company_id: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+
+    verdict: Mapped[str] = mapped_column(String(16))
+    #: 화면에 나가는 한 줄. **템플릿이 만든다**(T-0074). 비면 추천에 안 올린다
+    reason: Mapped[str] = mapped_column(Text, default="")
+    #: ④ 분야 대조가 맞았나. 같은 등급 안의 순서를 이걸로 먼저 가른다
+    sector_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: 겹친 취지 키워드. **화면에 안 쓴다** — 왜 그 순서인지 되짚을 때 읽는다
+    matched: Mapped[list] = mapped_column(_JSON, default=list)
+
+    computed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class NoticeFitEvidence(Base):
+    """그 이유가 어느 사실에서 나왔나 (plan/17 T-0074).
+
+    **`fact_id` 를 드는 것이 요점이다.** 그 사실이 갱신될 때 어느 추천이 낡았는지
+    계산된다 — `draft_evidence` 와 같은 자리고 **나중에 붙일 수 없다**(ADR-0014).
+    """
+
+    __tablename__ = "notice_fit_evidence"
+    __table_args__ = (
+        UniqueConstraint("fit_id", "fact_id", name="uq_notice_fit_evidence_fact"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    fit_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("notice_fit.id", ondelete="CASCADE"), index=True
+    )
+    fact_id: Mapped[int] = mapped_column(_PK, ForeignKey("wiki_fact.id", ondelete="CASCADE"))

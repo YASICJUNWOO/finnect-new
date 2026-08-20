@@ -21,6 +21,8 @@ from finnect.api.schemas import (
     NoticeDocumentsOut,
     NoticeListOut,
     NoticeOut,
+    RecommendationOut,
+    RecommendationsOut,
 )
 from finnect.api.text import to_text
 from finnect.attach import store
@@ -30,6 +32,9 @@ from finnect.models import (
     Document,
     DocumentItem,
     DocumentKind,
+    FitVerdict,
+    NoticeFit,
+    NoticeFitEvidence,
     Source,
 )
 from finnect.views import Notice
@@ -115,6 +120,93 @@ def _to_out(row: Notice, today: dt.date, attachment_count: int) -> NoticeOut:
         days_left=_days_left(row.apply_end, today),
         detail_url=row.detail_url,
         attachment_count=attachment_count,
+    )
+
+
+#: 화면에 세우는 추천 건수. `SPEC.md` F4-1 — "적합도순 **3건.** 전체를 늘어놓지 않는다"
+TOP_N = 3
+
+
+def recommendations(
+    s: Session, company_id: str, *, today: dt.date | None = None
+) -> RecommendationsOut:
+    """추천 세 건 (plan/17 T-0075).
+
+    **`notice_fit` 을 읽기만 한다.** 판정은 `python -m finnect.match` 가 미리
+    돌린다 — 화면 요청 경로에서 LLM 을 부르지 않는 것(F6-1 과 같은 원칙)이고,
+    `match.service` 를 임포트하지 않는 이유도 그것이다: 저쪽이 `llm` 을 끌고
+    오는데 `requirements.txt` 에 httpx 가 없어 **배포본만 죽는다**(CLAUDE.md 함정).
+
+    마감이 지난 것은 낸 뒤에 뺀다 — 판정은 어제 돌았어도 오늘 마감일 수 있다.
+    """
+    today = today or dt.date.today()
+
+    fits = list(
+        s.scalars(
+            select(NoticeFit).where(
+                NoticeFit.company_id == company_id,
+                NoticeFit.verdict == str(FitVerdict.MATCH),
+                NoticeFit.reason != "",
+            )
+        )
+    )
+    if not fits:
+        # 행이 하나도 없으면 **아직 안 돌린 것**이다. `맞다` 가 0건인 것과 다르다
+        any_row = s.scalar(
+            select(func.count())
+            .select_from(NoticeFit)
+            .where(NoticeFit.company_id == company_id)
+        )
+        return RecommendationsOut(items=[], computed=bool(any_row))
+
+    keys = [(f.source, f.external_id) for f in fits]
+    rows = {
+        (r.source, r.external_id): r
+        for r in s.scalars(
+            select(Notice).where(tuple_(Notice.source, Notice.external_id).in_(keys))
+        )
+    }
+    ev = {
+        fid: n
+        for fid, n in s.execute(
+            select(NoticeFitEvidence.fit_id, func.count())
+            .where(NoticeFitEvidence.fit_id.in_([f.id for f in fits]))
+            .group_by(NoticeFitEvidence.fit_id)
+        ).all()
+    }
+
+    live = [
+        (f, rows[(f.source, f.external_id)])
+        for f in fits
+        if (f.source, f.external_id) in rows
+        and (
+            rows[(f.source, f.external_id)].apply_end is None
+            or rows[(f.source, f.external_id)].apply_end >= today
+        )
+    ]
+    # **분야 일치 → 겹침 수 → 마감 임박.** `match/rank.py` 의 정렬과 같은 규칙이다
+    live.sort(
+        key=lambda t: (
+            0 if t[0].sector_hit else 1,
+            -len(t[0].matched or []),
+            _days_left(t[1].apply_end, today) or 10_000,
+            t[0].source,
+            t[0].external_id,
+        )
+    )
+    live = live[:TOP_N]
+    counts = _counts(s, [r for _f, r in live])
+
+    return RecommendationsOut(
+        items=[
+            RecommendationOut(
+                **_to_out(r, today, counts.get((r.source, r.external_id), 0)).model_dump(),
+                reason=f.reason,
+                evidence_count=ev.get(f.id, 0),
+            )
+            for f, r in live
+        ],
+        computed=True,
     )
 
 

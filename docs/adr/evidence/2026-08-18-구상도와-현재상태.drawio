@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="drawio" version="26.0.0">
   <diagram name="구상도와 현재상태">
-    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1750" math="0" shadow="0">
+    <mxGraphModel dx="2400" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="2020" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -140,7 +140,7 @@
           <mxGeometry x="40" y="710" width="2240" height="70" as="geometry" />
         </mxCell>
 
-        <mxCell id="bhdr" value="섹션 B · 지금 구현된 것 / 안 된 것 — 2026-08-18 기준 · 진행 상태 정본은 docs/plan/README.md" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+        <mxCell id="bhdr" value="섹션 B · 지금 구현된 것 / 안 된 것 — 2026-08-18 갱신 (plan/12 닫힘 · 14 · 15 진행중 · API 가 자체 서버로 내려옴) · 진행 상태 정본은 docs/plan/README.md" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#16181b;strokeColor=none;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="40" y="840" width="2240" height="44" as="geometry" />
         </mxCell>
 
@@ -159,35 +159,35 @@
         <mxCell id="lg5" value="끊긴 자리 · 블로커" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="1080" y="900" width="240" height="36" as="geometry" />
         </mxCell>
-        <mxCell id="lgnote" value="수치는 전부 실측이다. 근거는 docs/adr/evidence/ 와 각 plan 파일에 있다. 자동 판정 수치는 눈으로 본 건수를 함께 적었다." style="text;html=1;align=left;verticalAlign=middle;fontColor=#5f656d;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="lgnote" value="수치는 전부 실측이다. 근거는 docs/adr/evidence/ 와 각 plan 파일에 있다.  ·  uv run pytest → 261 passed (2026-08-18)" style="text;html=1;align=left;verticalAlign=middle;fontColor=#5f656d;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1350" y="900" width="930" height="36" as="geometry" />
         </mxCell>
 
-        <mxCell id="b1" value="① 사업 위키 — 도면 1번 · plan/12 (진행중)" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+        <mxCell id="b1" value="① 사업 위키 — 도면 1번 · plan/12 완료 (2026-08-18) · 화면은 plan/14 · 15" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="960" width="2240" height="200" as="geometry" />
         </mxCell>
-        <mxCell id="b1_1" value="① 파일 업로드 · 격리&#xa;&#xa;data/user-files/&lt;company_id&gt;/…&#xa;회사 사이 중복 제거 안 한다&#xa;ADR-0029 · T-0041" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_1" value="① 올리기 · 격리&#xa;&#xa;화면 /wiki/files 에서 던진다&#xa;data/user-files/&lt;company_id&gt;/…&#xa;회사 사이 중복 제거 안 한다&#xa;ADR-0029 · 0034 · T-0041 · T-0059" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="50" y="50" width="250" height="120" as="geometry" />
         </mxCell>
         <mxCell id="b1_2" value="② 파싱 · 7포맷 + OCR&#xa;&#xa;HWP · HWPX · DOCX · PDF&#xa;XLSX · PPTX · 이미지&#xa;RapidOCR 로컬 · 검출 server&#xa;ADR-0030 · T-0042" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="320" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_3" value="③ Chunking&#xa;&#xa;픽스처 7건 전부 · 청크 36개&#xa;text == full[start:end] 로 검증&#xa;쪽 번호는 PDF 만&#xa;T-0043 · T-0047" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_3" value="③ Chunking&#xa;&#xa;픽스처 7건 전부 · 청크 36개&#xa;text == full[start:end] 36/36&#xa;쪽이 찬 것 19개 (PDF · PPTX)&#xa;T-0043 · T-0047" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="590" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_4" value="여기서 끊긴다&#xa;&#xa;LLM 을 아직 한 번도 안 불렀다&#xa;담을 것(노드 스키마)도 미확정&#xa;T-0044 미착수 · T-0045 보류" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=10;fontStyle=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_4" value="④ LLM Fact Extraction&#xa;&#xa;&lt;b&gt;포트는 섰고 구현이 스텁이다&lt;/b&gt;&#xa;facts.json 118건 · 사람이 옮김&#xa;픽스처 밖이면 UnknownFile&#xa;&lt;b&gt;LLM 호출은 여전히 0회&lt;/b&gt;&#xa;ADR-0031 · T-0045" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="860" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_5" value="④ LLM Fact Extraction&#xa;&#xa;없다&#xa;&#xa;도면 3번 박스 전체가 여기다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_5" value="⑤ 결정론적 라우팅&#xa;&#xa;topic 25 → 슬롯 14 · 노드 10&#xa;못 가면 검토 대기 (안 버린다)&#xa;두 번 돌려도 같은 배치다&#xa;ADR-0032 · ADR-0033" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="1130" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_6" value="⑤ 결정론적 라우팅&#xa;&#xa;없다&#xa;&#xa;도면 4번(온톨로지) 박스&#xa;topic 26개는 추출 라벨로만 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_6" value="⑦ 노드 · 병합 / 충돌&#xa;&#xa;사실 65 · 근거 118 · 충돌 2&#xa;검토 대기 1 · 근거 0인 사실 0&#xa;도면의 confidence 는 안 쓴다&#xa;T-0044 · T-0046" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="1400" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_7" value="⑦ 노드 · 병합 / 충돌&#xa;&#xa;없다&#xa;&#xa;도면 5번 박스 · T-0046&#xa;도면의 confidence 는 안 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_7" value="⑥ Wiki 마크다운&#xa;&#xa;&lt;b&gt;뷰로 만들었다. 저장은 안 한다&lt;/b&gt;&#xa;읽을 때마다 만든다 · 8,704자&#xa;시각을 안 넣어 바이트로 비교된다&#xa;plan/14 T-0056" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="1670" y="50" width="250" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b1_8" value="⑥ Markdown · ⑧⑨ Vector DB&#xa;&#xa;안 만들기로 정했다&#xa;&#xa;Markdown 은 저장소가 아니라 뷰&#xa;벡터는 회사당 노드 15개에 안 붙인다&#xa;ADR-0021 · plan/12 구상도와의 차이" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#949aa2;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
+        <mxCell id="b1_8" value="⑧⑨ Embedding · Vector DB&#xa;&#xa;안 만들기로 정했다&#xa;&#xa;회사당 자리 열다섯에 안 붙인다&#xa;ADR-0021 · plan/12 구상도와의 차이" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#949aa2;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b1">
           <mxGeometry x="1940" y="50" width="250" height="120" as="geometry" />
         </mxCell>
         <mxCell id="be1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_1" target="b1_2">
@@ -196,20 +196,20 @@
         <mxCell id="be2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_2" target="b1_3">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="be3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d92d20;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_3" target="b1_4">
+        <mxCell id="be3" value="이음매" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b45309;strokeWidth=2;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontColor=#b45309;fontSize=10;labelBackgroundColor=#f7f7f8;" edge="1" parent="b1" source="b1_3" target="b1_4">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="be4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_4" target="b1_5">
+        <mxCell id="be4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_4" target="b1_5">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="be5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_5" target="b1_6">
+        <mxCell id="be5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_5" target="b1_6">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="be6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_6" target="b1_7">
+        <mxCell id="be6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0f766e;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b1" source="b1_6" target="b1_7">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="b2" value="② 공고 — 도면 6번 · plan/06 · 07 · 11 · 13" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+        <mxCell id="b2" value="② 공고 — 도면 6번 · plan/06 · 07 완료 · 11 · 13 진행중" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="1190" width="1480" height="200" as="geometry" />
         </mxCell>
         <mxCell id="b2_1" value="목록 수집&#xa;&#xa;31,327건&#xa;기업마당 1,538&#xa;K-Startup 29,789&#xa;plan/06 완료" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b2">
@@ -246,10 +246,10 @@
         <mxCell id="b3_1" value="① Structured Filter&#xa;&#xa;notice-filter/&#xa;기업마당 1,524 → 580&#xa;배제형 룰 12축 · LLM 0회&#xa;첨부 44건 눈으로 확인&#xa;T-0052 (2026-08-18)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
           <mxGeometry x="20" y="50" width="210" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b3_2" value="제품 편입&#xa;&#xa;없다&#xa;&#xa;src/finnect/ 와 web/ 에&#xa;아무것도 안 붙어 있다&#xa;T-0053 재현율 · T-0054 K-Startup&#xa;T-0055 편입" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
+        <mxCell id="b3_2" value="제품 편입&#xa;&#xa;없다 — 그런데 &lt;b&gt;이제 이을 수 있다&lt;/b&gt;&#xa;위키가 자격 판별 입력 여섯을&#xa;근거와 함께 채운다 (6/6)&#xa;둘 다 결정론이라 LLM 이 필요 없다&#xa;T-0053 · T-0054 · T-0055" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
           <mxGeometry x="250" y="50" width="210" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="b3_3" value="②③ 의미 검색 · LLM 재평가&#xa;&#xa;없다&#xa;&#xa;선행이 둘 다 아직이다 —&#xa;사업 위키(F1)와 공고 Embedding&#xa;점수·막대는 안 만든다 (DESIGN §6)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
+        <mxCell id="b3_3" value="②③ 의미 검색 · LLM 재평가&#xa;&#xa;없다&#xa;&#xa;선행 둘 중 하나가 풀렸다 —&#xa;사업 위키는 섰고 공고 Embedding 이 없다&#xa;점수·막대는 안 만든다 (DESIGN §6)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=6;" vertex="1" parent="b3">
           <mxGeometry x="480" y="50" width="210" height="120" as="geometry" />
         </mxCell>
         <mxCell id="be10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cbd0d6;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="b3" source="b3_1" target="b3_2">
@@ -260,23 +260,36 @@
         </mxCell>
 
         <mxCell id="b4" value="④ 사업계획서 자동 작성 · 화면 — 도면 8번 · SPEC S1~S7" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1420" width="2240" height="170" as="geometry" />
+          <mxGeometry x="40" y="1420" width="2240" height="190" as="geometry" />
         </mxCell>
-        <mxCell id="b4_1" value="도면 8번 ①~⑦ 전부 없다&#xa;&#xa;선행이 둘 다 아직이다 — 위키 노드(F1)와 공고 요구사항(F2-3)&#xa;계획 파일도 아직 안 썼다 (틀린 문서를 미리 쓰지 않는다)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
-          <mxGeometry x="50" y="50" width="520" height="100" as="geometry" />
+        <mxCell id="b4_1" value="도면 8번 ①~⑦ 전부 없다&#xa;&#xa;계획 파일도 아직 안 썼다 (틀린 문서를 미리 쓰지 않는다)&#xa;질문 타이밍만 정해져 있다 — 초안을 먼저 다 내고 못 채운 자리에서 묻는다 (ADR-0028)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="50" y="50" width="520" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="b4_2" value="재료 하나는 이미 있다&#xa;&#xa;공고 상세에 '내야 할 서류'와 작성 항목 트리가 뜬다&#xa;도면 8-② 요구사항 로딩의 입력 · plan/11 T-0035 · T-0037 · T-0038" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
-          <mxGeometry x="590" y="50" width="520" height="100" as="geometry" />
+        <mxCell id="b4_2" value="재료 &lt;b&gt;둘이&lt;/b&gt; 이미 있다&#xa;&#xa;공고 상세에 &apos;내야 할 서류&apos;와 작성 항목 트리가 뜬다 (도면 8-② 입력 · plan/11)&#xa;위키 노드가 근거를 달고 선다 (도면 8-③ 입력 · plan/12)&#xa;&lt;b&gt;남은 것이 ⑤ 생성이고 거기가 LLM 이다&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;fontColor=#7c3f06;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="590" y="50" width="520" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="b4_3" value="화면 S4 · S5 는 돈다&#xa;&#xa;제품 목록 · 공고 상세 — Next.js · Vercel 프로덕션&#xa;운영 조회 화면 넷도 같이 올라가 있다 (ADR-0027)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
-          <mxGeometry x="1130" y="50" width="520" height="100" as="geometry" />
+        <mxCell id="b4_3" value="화면 S1 · S4 · S5 · S7 은 돈다&#xa;&#xa;S1 파일 올리기 /wiki/files — 단계 다섯 · 7건 18.1초 · 자리 15/15 (plan/15)&#xa;S7 내 사업 위키 /wiki — 궤도 열다섯 · 값마다 근거 · 마크다운 (plan/14)&#xa;S4 · S5 제품 목록 · 공고 상세 + 운영 조회 화면 넷 (ADR-0027)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="1130" y="50" width="520" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="b4_4" value="화면 S1 · S2 · S3 · S6 · S7 은 없다&#xa;&#xa;다섯 장이 통째로 없다. 화면 대부분이 '아직 없어요'로 비어 있고&#xa;그게 의도다 — 예시 데이터를 넣지 않는다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
-          <mxGeometry x="1670" y="50" width="520" height="100" as="geometry" />
+        <mxCell id="b4_4" value="화면 S2 · S3 · S6 은 없다&#xa;&#xa;일곱 중 셋이 없다. 있는 넷도 &lt;b&gt;대부분 &apos;아직 없어요&apos;로 비어 있고 그게 의도다&lt;/b&gt;&#xa;예시 데이터를 넣지 않는다&#xa;브라우저가 없어 호버 · 포커스 · 클릭 전환은 아직 눈으로 못 봤다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f5f6;strokeColor=#cbd0d6;fontColor=#5f656d;fontSize=10;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="b4">
+          <mxGeometry x="1670" y="50" width="520" height="110" as="geometry" />
         </mxCell>
 
-        <mxCell id="b5" value="지금 하나가 둘을 함께 막는다 — LLM 제공자가 안 정해졌다.&#xa;plan/11 T-0036(양식 구간 판별)과 plan/12 T-0045(사실 추출)가 같은 블로커를 공유하고, 먼저 착수하는 쪽이 정한다 (ADR-0021 G). 이 하나가 풀리기 전까지 도면 1번 ④⑤⑦, 3·4·5번 박스, 7번 ②③, 8번 전체가 열리지 않는다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=12;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1620" width="2240" height="90" as="geometry" />
+        <mxCell id="b6" value="⑤ 어디서 도나 — 도면 9번 기술 스택 · 2026-08-18 바뀌었다" style="swimlane;startSize=34;html=1;fillColor=#f7f7f8;strokeColor=#dfe2e6;fontColor=#16181b;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1640" width="2240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="b6_1" value="Vercel finnect-web — 화면만&#xa;&#xa;제품 화면과 운영 조회 화면 넷. HTTPS.&#xa;&lt;b&gt;브라우저는 API 주소를 모른다&lt;/b&gt; — 서버 컴포넌트가 부른다&#xa;plan/10 · ADR-0027" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b6">
+          <mxGeometry x="50" y="50" width="690" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="b6_2" value="이 서버 — API · 워커 · DB · 파일&#xa;&#xa;Caddy :443 (Let&apos;s Encrypt IP 인증서 · ADR-0036)&#xa;  → uvicorn 127.0.0.1:8101 → PostgreSQL :55433&#xa;  + data/user-files/ · data/attachments/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7f4;strokeColor=#0f766e;fontColor=#0f4c46;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b6">
+          <mxGeometry x="790" y="50" width="690" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="b6_3" value="&lt;b&gt;API 가 Vercel 에서 내려왔다&lt;/b&gt; — ADR-0035 가 ADR-0026 을 대체&#xa;&#xa;이유는 자원이 아니라 성질이다. 함수 파일시스템이 읽기 전용이라&#xa;올리기(①)와 OCR 모델 내려받기가 거기서 안 된다&#xa;실측은 오히려 넉넉했다 — 메모리 1,820 / 3,009MB · 패키지 450MB / 5GB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#16181b;fontColor=#16181b;fontSize=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="b6">
+          <mxGeometry x="1530" y="50" width="690" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b5" value="LLM 을 아직 한 번도 안 불렀고 제공자도 안 정해졌다. &lt;b&gt;그런데 이것 하나가 더는 전부를 막지 않는다&lt;/b&gt; — plan/12 가 포트를 파고 스텁을 끼워 지나갔다(ADR-0031). 라우팅 · 근거 연결 · 병합 · 충돌이 전부 결정론이라 제공자 없이 돈다.&#xa;남은 것 넷.  ① &lt;b&gt;진짜 추출기&lt;/b&gt; — 스텁은 픽스처 7건 밖에서 안 돈다. 새 회사에서는 위키가 아예 안 선다  ·  ② plan/11 T-0036 양식 구간 판별 — 거기서 LLM 은 라벨러가 아니라 &lt;b&gt;판별기 자체&lt;/b&gt;라 이 방법이 안 통한다  ·  ③ 도면 6-C · 7-②③ 공고 Embedding 과 적합도  ·  ④ 도면 8번 집필" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff5f4;strokeColor=#d92d20;fontColor=#d92d20;fontSize=12;align=left;spacingLeft=16;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1840" width="2240" height="110" as="geometry" />
         </mxCell>
 
       </root>

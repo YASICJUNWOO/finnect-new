@@ -27,6 +27,7 @@ from finnect.api.schemas import (
     NoticeDetailOut,
     NoticeDocumentsOut,
     NoticeListOut,
+    RecommendationsOut,
 )
 from finnect.api.wiki_schemas import ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
@@ -88,6 +89,22 @@ def healthz() -> dict[str, str]:
     흔들릴 때 프로세스까지 재시작되면 복구가 더 느려진다.
     """
     return {"status": "ok"}
+
+
+@app.get(
+    "/api/companies/{company_id}/recommendations", response_model=RecommendationsOut
+)
+def recommendations(company_id: str) -> RecommendationsOut:
+    """추천 세 건 (plan/17 T-0075).
+
+    `DESIGN.md` §6.1 의 두 섹션 중 위쪽이다. 아래쪽(전체 공고 · 마감 임박순)은
+    `/api/notices` 가 그대로 낸다 — **위키가 없어도 그쪽은 뜬다.**
+
+    **404 를 내지 않는다.** 판정이 안 돌았으면 `computed: false` 로 답한다 —
+    화면이 "아직 없어요" 와 "맞는 것이 없어요" 를 다르게 말해야 한다.
+    """
+    with SessionFactory() as s:
+        return service.recommendations(s, company_id)
 
 
 @app.get("/api/notices", response_model=NoticeListOut)

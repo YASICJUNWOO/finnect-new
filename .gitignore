@@ -41,10 +41,5 @@ spike/data/
 # Next.js 증분 빌드 산출물
 *.tsbuildinfo
 
-# 개인 학습 노트와 그 HTML 산출물. 레포 문서 체계(SPEC·plan·adr) 밖이라 커밋하지 않는다.
-# www/ 는 notes/ 에서 생성된다 — `python3 notes/build.py`
-notes/
-www/
-
 # Claude Code 로컬 설정. 켠 플러그인과 MCP 서버라 사람마다 다르다.
 .claude/

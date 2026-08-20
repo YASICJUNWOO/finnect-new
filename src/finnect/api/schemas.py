@@ -67,6 +67,29 @@ class NoticeListOut(BaseModel):
     open_only: bool
 
 
+class RecommendationOut(NoticeOut):
+    """추천 한 장 (plan/17 T-0075).
+
+    **적합도 숫자가 없다.** 목록이 이미 적합도순이라 순서가 정보를 담는다
+    (`DESIGN.md` §6). 92 와 74 의 차이를 설명할 눈금이 없다.
+    """
+
+    #: 왜 맞는지 한 줄. **비어 있으면 추천에 오르지 않는다** — 이유 없는 점수는
+    #: 근거가 없다(ADR-0013)
+    reason: str
+    #: 이 이유가 위키의 몇 개 사실에서 나왔나. 화면이 "근거 2" 로 쓴다
+    evidence_count: int
+
+
+class RecommendationsOut(BaseModel):
+    """`DESIGN.md` §6.1 의 두 섹션 중 위쪽. 아래쪽은 `/api/notices` 다."""
+
+    items: list[RecommendationOut]
+    #: 위키가 아직 없거나 판정이 안 돌았다. **빈 목록과 다르다** —
+    #: 저쪽은 맞는 것이 없다는 뜻이고 이쪽은 아직 못 봤다는 뜻이다
+    computed: bool
+
+
 class NoticeDetailOut(NoticeOut):
     """상세. 목록에 요약과 첨부가 붙는다."""
 

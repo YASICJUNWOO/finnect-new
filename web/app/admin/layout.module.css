@@ -6,13 +6,23 @@
 .bar {
   background: var(--surface);
   border-bottom: 1px solid var(--line);
+  /* **제품 화면이 켠 것을 여기서도 물어야 한다.** `viewportFit: "cover"` 는 루트
+   * 레이아웃에 하나뿐이라(`app/layout.tsx`) 이 화면에도 적용된다 — 앱이 두 겹인데
+   * (ADR-0027) 뷰포트 설정은 한 겹이다.
+   *
+   * 보정을 안 하면 설치본에서 이 막대가 시계 밑으로 들어간다. **매니페스트 `scope` 가
+   * `/` 라서 운영 도구도 앱 안에서 열리고**(ADR-0039), 제품 헤더에 여기로 오는 링크가 있다.
+   * DESIGN.md §12.3 이 '상단 막대'라고만 적었고 제품 화면으로 한정하지 않았다. */
+  padding-top: env(safe-area-inset-top);
 }
 
 .inner {
   max-width: 1280px;
   margin: 0 auto;
   height: 56px;
-  padding: 0 var(--s5);
+  /* 눕힌 폰에서 노치가 옆으로 온다. §12.3 */
+  padding-left: max(var(--s5), env(safe-area-inset-left));
+  padding-right: max(var(--s5), env(safe-area-inset-right));
   display: flex;
   align-items: center;
   gap: var(--s6);
@@ -85,5 +95,6 @@
 .main {
   max-width: 1280px;
   margin: 0 auto;
-  padding: var(--s6) var(--s5) var(--s8);
+  padding: var(--s6) max(var(--s5), env(safe-area-inset-left)) var(--s8)
+    max(var(--s5), env(safe-area-inset-right));
 }

@@ -399,6 +399,12 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
         {"text": "2025년말 현금 1억 8,270만원…", "topic": "cost",
          "evidence": [{"filename": "피치덱_2026H2.pptx", "page": 11, "quote": "…"}]}
       ],
+      "groups": [
+        {"topic": "cost", "label": "비용 구조",
+         "statements": [{"text": "2025년말 현금 1억 8,270만원…", "topic": "cost", "evidence": [{"…": "…"}]}]},
+        {"topic": "funding", "label": "자금 조달", "statements": []}
+      ],
+      "grouped": true,
       "source_count": 4, "filled": true, "conflicted": true,
       "markdown": "---\nnode: finance\n…"
     }
@@ -423,10 +429,15 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 | `status` | `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다. **셋 다 화면에 남는다** — 지우지 않는다(F1-1-7) |
 | `evidence` | **출처는 문자열이 아니라 연결이다**(SPEC F1-3). `filename` 과 `page` 를 따로 주는 것은 화면이 "3쪽"을 다르게 쓸 수 있어서다 |
 | `page` | PDF · PPTX 만 찬다. **다른 포맷에는 쪽이라는 것이 없다** |
+| `groups` | `statements` 를 **event topic 별로 묶은 것**([ADR-0048](adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)). 순서는 서버의 표(`topics.ORBIT_TOPICS`)가 정하고 **빈 것도 온다** — 화면이 "무엇이 없는지"를 말할 수 있어야 한다 |
+| `groups[].label` | topic 한국어 이름. **화면이 한국어를 짓지 않는다** — `display` 와 같은 규율이다 |
+| `grouped` | 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리 다섯만 `true`** 다(`solution` 7 · `traction` 4 · `market` 3 · `problem` 2 · `finance` 2). `false` 면 화면이 `statements` 를 통째로 뿌린다. **판정을 서버가 하는 이유는 규칙을 두 곳에 적지 않으려는 것이다** |
 | `source_count` | 근거로 쓰인 **파일 수**. 근거 개수가 아니다 |
 | `markdown` | 그 자리 한 장. **저장된 것이 아니라 매번 만든 것이다** |
 | `files[].nodes` | 그 파일이 근거가 된 자리들(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** |
 | `extractor` | 무엇이 사실을 뽑았나. `stub/v1` 이면 픽스처 밖에서는 안 돈 것이다([ADR-0031](adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **화면이 이걸 숨기지 않는다** |
+
+**`statements` 와 `groups` 가 같은 것을 두 번 준다.** `groups` 는 묶기만 한 것이고 사실은 같다 — 프론트가 묶는 규칙을 다시 구현하지 않게 하려고 서버가 두 모양을 다 준다.
 
 **`confidence` 가 없다.** 구상도는 사실마다 0.9 를 붙이는데 0.9 와 0.7 을 가를 눈금이 없다. 대신 근거 유무 · `status` · `source_count` 셋으로 말한다.
 

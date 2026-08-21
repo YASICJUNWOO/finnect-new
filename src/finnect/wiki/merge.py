@@ -82,7 +82,7 @@ def place(fact: Fact) -> Placement:
             return Placement(topics.UNCATEGORIZED, "", f"값이 비어 있음 — {fact.key!r}")
         return Placement("slot", slot)
 
-    node = topics.node_of(fact.topic)
+    node = topics.orbit_of(fact.topic)
     if node is None:
         # `company_profile` · `application_history` 가 서술로 오면 여기다.
         # 둘은 정형 슬롯의 재료라 서술 노드가 없다.

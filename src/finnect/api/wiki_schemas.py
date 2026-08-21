@@ -54,6 +54,19 @@ class StatementOut(BaseModel):
     evidence: list[EvidenceOut]
 
 
+class TopicGroupOut(BaseModel):
+    """event topic 하나와 그 밑의 사실들. **빈 것도 온다**(ADR-0048 결정 5).
+
+    묶는 것을 서버가 한다. 절 제목을 보일지 말지도 서버가 정한다(`WikiNodeOut.grouped`) —
+    "event topic 이 둘 이상일 때만" 이라는 규칙을 화면에 한 번 더 적으면 두 곳이 된다.
+    """
+
+    topic: str
+    #: 한국어 이름. **화면이 한국어를 짓지 않는다**(`topics.display()` 와 같은 규율)
+    label: str
+    statements: list[StatementOut]
+
+
 class WikiNodeOut(BaseModel):
     """궤도 위의 자리 하나. **빈 자리도 온다** — 비어 있다는 것도 보여야 한다."""
 
@@ -66,6 +79,10 @@ class WikiNodeOut(BaseModel):
     eligibility: bool
     values: list[ValueOut]
     statements: list[StatementOut]
+    #: 위 `statements` 를 topic 별로 묶은 것. **순서는 표가 정한다**(`topics.ORBIT_TOPICS`)
+    groups: list[TopicGroupOut]
+    #: 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리 다섯만 true** 다
+    grouped: bool
     #: 근거로 쓰인 **파일 수**. 근거 개수가 아니다
     source_count: int
     filled: bool

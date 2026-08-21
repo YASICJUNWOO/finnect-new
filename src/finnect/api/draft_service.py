@@ -169,7 +169,7 @@ def _label(place: str) -> str:
     spec = topics.SLOTS.get(place)
     if spec is not None:
         return spec.label
-    return topics.NODES.get(place, place)
+    return topics.EVENT_ORBITS.get(place, place)
 
 
 def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, EvidenceOut]]]:

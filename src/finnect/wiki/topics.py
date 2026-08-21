@@ -157,7 +157,7 @@ SLOT_ALIASES: dict[str, str] = {
 
 
 # ─────────────────────────────────────────────────────────────────
-# 서술 노드
+# event topic — 서술 자리 (ADR-0048)
 # ─────────────────────────────────────────────────────────────────
 
 #: `SPEC.md` F1-2 의 **정체성 하나 + 사업 내용 아홉**. 늘리지 않는다 —
@@ -167,7 +167,7 @@ SLOT_ALIASES: dict[str, str] = {
 #: `SPEC.md` F1-2 가 "정체성 노드 하나가 따로 있다. 사업 한 줄 정의이고 그래프의
 #: 중심이다"라고 적었고 SPEC 이 정본이다. ADR-0032 자신이 `vision → solution` 매핑을
 #: "가장 약하다"고 적어 둔 그 자리다.
-NODES: dict[str, str] = {
+EVENT_ORBITS: dict[str, str] = {
     "identity": "우리가 하는 일",
     "problem": "문제 인식",
     "solution": "솔루션과 기술",
@@ -186,7 +186,7 @@ NODES: dict[str, str] = {
 #: `company_profile` 과 `application_history` 가 일부러 빠져 있다. 둘은 정형 슬롯의
 #: 재료라 서술로 오면 `uncategorized` 다. 라벨이 세밀할수록 좋고 노드는 집필 단위와
 #: 맞아야 해서 25 → 9 로 모은다.
-TOPIC_NODE: dict[str, str] = {
+TOPIC_ORBIT: dict[str, str] = {
     "customer_problem": "problem",
     "customer_evidence": "problem",
     #: **사업 한 줄 정의는 정체성으로 간다.** 솔루션과 기술은 "무엇을 어떻게 만들었나"이고
@@ -215,22 +215,88 @@ TOPIC_NODE: dict[str, str] = {
 }
 
 
+#: event topic 한국어 이름. **화면과 마크다운의 절 제목이 여기서 나온다**(ADR-0048 결정 5).
+#:
+#: **관측이 아니라 우리가 고른 값이다.** 2026-08-21 까지 topic 은 순전히 내부 라벨이라
+#: 이 말들이 코드에 하나도 없었다 — `기능`·`차별점`·`개발현황` 을 그램하면 0건이었다.
+#:
+#: orbit 라벨과 겹치지 않게 골랐다. `target_customer` 를 「목표 고객」이 아니라
+#: 「고객 정의」로 둔 이유가 그것이다 — orbit `customer` 의 라벨이 이미 「목표 고객」이다.
+TOPIC_LABELS: dict[str, str] = {
+    "customer_problem": "고객 문제",
+    "customer_evidence": "고객 검증",
+    "vision": "사업 정의",
+    "service_overview": "서비스 소개",
+    "service_feature": "기능",
+    "service_differentiator": "차별점",
+    "development_status": "개발 현황",
+    "technology": "기술",
+    "patent": "특허",
+    "certification": "인증",
+    "target_customer": "고객 정의",
+    "market_size": "시장 규모",
+    "market_trend": "시장 트렌드",
+    "competitor": "경쟁사",
+    "region_link": "지역 관계",
+    "revenue": "매출 실적",
+    "revenue_model": "수익 모델",
+    "pricing": "가격 정책",
+    "go_to_market": "판매 전략",
+    "team": "구성원",
+    "roadmap": "추진 일정",
+    "cost": "비용 구조",
+    "funding": "자금 조달",
+}
+
+
+#: topic 타입 둘(ADR-0048 결정 2). **층이 아니라 타입이다.**
+#:
+#:     value topic   병합 키가 (이름, 한정어, 시점). 충돌 판정이 붙는다
+#:     event topic   병합 키가 없다. `fact_key` 로만 묶이고 쌓인다
+#:
+#: `revenue` 와 `funding` 이 **양쪽에 다 있다.** 매출액(값)과 매출(문장)이 다른 것이고
+#: 조달액과 자금조달이 다른 것이다 — 타입이 갈라서 코드에서는 안 부딪힌다.
+VALUE_TOPICS: frozenset[str] = frozenset(SLOTS)
+EVENT_TOPICS: frozenset[str] = frozenset(TOPIC_ORBIT)
+
+
+#: orbit 하나가 든 event topic 들. **표가 정하고 데이터가 정하지 않는다**(ADR-0048 결정 5).
+#:
+#: 실제로 나온 사실 수로 판단하면 파일을 하나 더 올릴 때 절 제목이 생겼다 없어진다.
+ORBIT_TOPICS: dict[str, tuple[str, ...]] = {
+    orbit: tuple(t for t, o in TOPIC_ORBIT.items() if o == orbit) for orbit in EVENT_ORBITS
+}
+
+
 #: 추출기에 줄 라벨 목록. **자유 생성 금지**(구상도 ④). 밖의 것은 `uncategorized` 다.
 #:
 #: 도면 22 + 우리가 더한 둘(`region_link` · `roadmap`) + `company_profile` ·
 #: `application_history`. `meeting` · `decision` · `action_item` 은 뺐다 — 위 문서 2번.
-TOPICS: frozenset[str] = frozenset(TOPIC_NODE) | {"company_profile", "application_history"}
+TOPICS: frozenset[str] = frozenset(TOPIC_ORBIT) | {"company_profile", "application_history"}
 
 #: 목적지를 못 찾은 것이 가는 자리. **버리지 않는다**(구상도 ④ 예외).
 UNCATEGORIZED = "uncategorized"
 
 
+#: 공백을 지운 별칭 색인. **정확 일치라 부분 문자열 오탐이 없다.**
+#:
+#: `match/sectors.py` 가 공백을 지우면 안 되는 것과 여기가 지워야 하는 것은 다른 문제다.
+#: 저쪽은 본문에서 어휘를 **찾는** 것이라 `결손금이 자본금을 초과` 에서 `이자` 가 걸리고,
+#: 이쪽은 항목 이름 하나를 표에서 **꺼내는** 것이라 걸릴 것이 없다.
+_ALIAS_TIGHT: dict[str, str] = {"".join(k.split()): v for k, v in SLOT_ALIASES.items()}
+
+
 def slot_of(key: str | None) -> str | None:
-    """원문 표현 하나를 슬롯 이름으로. 모르면 `None` — **추측하지 않는다.**"""
+    """원문 표현 하나를 슬롯 이름으로. 모르면 `None` — **추측하지 않는다.**
+
+    **공백을 지운 뒤 한 번 더 찾는다.** HWP 표와 OCR 이 `상시근로자` · `직원수` 처럼
+    띄어쓰기를 지워서 내보내는데, 별칭 표에는 `상시 근로자` · `직원 수` 로 적혀 있어서
+    **표에 있는 말이 미분류로 갔다**(plan/19 항목 7).
+    """
     if not key:
         return None
     k = " ".join(key.split()).strip().strip(":·").strip()
-    return SLOT_ALIASES.get(k)
+    return SLOT_ALIASES.get(k) or _ALIAS_TIGHT.get("".join(k.split()))
 
 
 def display(slot: str, value: str) -> str:
@@ -250,9 +316,13 @@ def display(slot: str, value: str) -> str:
     return f"{n:,}원" if spec.unit == "money" else f"{n:,}명"
 
 
-def node_of(topic: str | None) -> str | None:
-    """topic 하나를 서술 노드 이름으로. 모르면 `None`."""
-    return TOPIC_NODE.get(topic or "")
+def orbit_of(topic: str | None) -> str | None:
+    """event topic 하나를 orbit 이름으로. 모르면 `None`.
+
+    **옛 이름은 `node_of` 였다**(ADR-0048). 노드 이름이 orbit 키와 전부 같아서
+    층이 아니라 이름만 있었다.
+    """
+    return TOPIC_ORBIT.get(topic or "")
 
 
 # ─────────────────────────────────────────────────────────────────

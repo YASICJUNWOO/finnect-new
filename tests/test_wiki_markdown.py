@@ -27,6 +27,10 @@ def _node(**kw) -> NodeView:  # noqa: ANN003
     return NodeView(**{**base, **kw})
 
 
+def _V(slot: str, value: str) -> Value:
+    return Value(slot, topics.SLOTS[slot].label, value, None, None, Status.CURRENT, (E1,))
+
+
 E1 = Evidence("사업계획서.docx", None, "시드 투자 3억원")
 E2 = Evidence("재무제표.xlsx", None, "자본잉여금 3억원은 2025.09 시드 라운드 유치액입니다")
 E3 = Evidence("피치덱.pptx", 11, "시드 라운드 2.8억원")
@@ -139,3 +143,85 @@ def test_묶음은_노드를_순서대로_잇는다():
     out = markdown.bundle([a, b])
     assert out.startswith("# 사업 위키 — c_t")
     assert out.index("# 팀 구성") < out.index("# 자금 현황")
+
+
+# ─────────────────────────────────────────────────────────────────
+# topic 절 — ADR-0048 결정 5
+# ─────────────────────────────────────────────────────────────────
+
+
+def test_event_topic_이_둘_이상이면_절로_가른다():
+    """**이게 ADR-0048 이 얻으려던 것이다.** 섞여 있던 것이 절로 갈린다."""
+    out = markdown.render(
+        _node(
+            key="solution",
+            label="솔루션과 기술",
+            statements=(
+                Statement("대시보드를 제공한다.", "service_feature", (E1,)),
+                Statement("출원번호 10-2025-0012345.", "patent", (E1,)),
+            ),
+        )
+    )
+    assert "## 기능" in out
+    assert "## 특허" in out
+    assert out.index("## 기능") < out.index("## 특허")
+    assert out.index("대시보드를 제공한다.") < out.index("## 특허")
+
+
+def test_빈_topic_도_절이_선다():
+    """비어 있다는 것도 사실이고 물어야 할 자리다(ADR-0028)."""
+    out = markdown.render(
+        _node(key="solution", label="솔루션과 기술", statements=(Statement("ㄱ", "patent", (E1,)),))
+    )
+    assert f"## 인증\n\n{markdown.EMPTY_TOPIC}" in out
+    assert out.count(markdown.EMPTY_TOPIC) == 6
+
+
+def test_event_topic_이_하나뿐이면_절을_안_세운다():
+    """`# 목표 고객` 밑의 `## 목표 고객` 은 DESIGN.md §10 을 어긴다."""
+    out = markdown.render(
+        _node(
+            key="customer",
+            label="목표 고객",
+            statements=(Statement("소상공인이다.", "target_customer", (E1,)),),
+        )
+    )
+    assert "##" not in out.split("## 근거 파일")[0]
+    assert "소상공인이다." in out
+
+
+def test_절이_안_서는_자리는_빈_것을_따로_안_알린다():
+    """제목이 없어서 「아직 없어요」 한 줄만 뜨면 무엇이 없다는 말인지 알 수 없다."""
+    out = markdown.render(
+        _node(key="team", label="팀 구성", values=(_V("headcount", "15"),), statements=())
+    )
+    assert markdown.EMPTY_TOPIC not in out
+
+
+def test_표에_없는_topic_으로_온_것도_버리지_않는다():
+    """라우팅 표를 고치면 옛 topic 이 붙은 행이 남는다."""
+    out = markdown.render(
+        _node(
+            key="solution",
+            label="솔루션과 기술",
+            statements=(Statement("옛 것", "meeting", (E1,)),),
+        )
+    )
+    assert "옛 것" in out
+
+
+def test_topic_한국어_이름이_event_topic_전부에_있다():
+    """**하나라도 없으면 화면에 영문 키가 나간다.**"""
+    assert topics.EVENT_TOPICS - set(topics.TOPIC_LABELS) == set()
+
+
+def test_topic_이름이_orbit_이름과_안_겹친다():
+    """겹치면 `# X` 밑에 `## X` 가 서서 DESIGN.md §10 을 어긴다."""
+    assert set(topics.TOPIC_LABELS.values()) & {o.label for o in topics.ORBIT.values()} == set()
+
+
+def test_node_어휘가_orbit_과_한_벌이다():
+    """**노드 이름은 orbit 키와 같다.** ADR-0048 결정 3 이 마이그레이션을 안 하는 근거다."""
+    assert set(topics.EVENT_ORBITS) == {k for k, o in topics.ORBIT.items() if o.node}
+    assert all(topics.EVENT_ORBITS[k] == topics.ORBIT[k].label for k in topics.EVENT_ORBITS)
+    assert all(o.node == k for k, o in topics.ORBIT.items() if o.node)

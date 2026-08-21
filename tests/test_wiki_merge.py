@@ -125,7 +125,7 @@ def test_온톨로지의_모든_topic_이_갈_자리가_있다():
     """**표에 구멍이 있으면 사실이 통째로 검토 대기에 쌓인다.** 여기서 잡는다."""
     slot_only = {"company_profile", "application_history"}
     for topic in topics.TOPICS - slot_only:
-        assert topics.node_of(topic) in topics.NODES, topic
+        assert topics.orbit_of(topic) in topics.EVENT_ORBITS, topic
 
 
 def test_별칭이_가리키는_슬롯이_전부_실재한다():
@@ -162,3 +162,27 @@ def test_fact_key_가_같으면_문장이_달라도_한_사실이다():
     b = Fact(topic="customer_evidence", kind="node", anchor="",
              text="34% → 51%", fact_key="pilot_retention_34_51")
     assert merge.dedupe_key(a, merge.place(a)) == merge.dedupe_key(b, merge.place(b))
+
+
+def test_공백_지운_항목_이름도_슬롯을_찾는다():
+    """HWP 표와 OCR 이 띄어쓰기를 지워서 낸다 — **표에 있는 말이 미분류로 가면 안 된다.**
+
+    plan/19 항목 7. `match/sectors.py` 와 반대로 여기는 공백을 지워야 한다 — 저기는
+    본문에서 어휘를 **찾는** 것이고 여기는 이름 하나를 **꺼내는** 것이다.
+    """
+    assert topics.slot_of("상시근로자") == "headcount"
+    assert topics.slot_of("직원수") == "headcount"
+    assert topics.slot_of("종업원수") == "headcount"
+    assert topics.slot_of("대표자생년월일") == "ceo_birth"
+    #: 공백만 넣어도 찾는다
+    assert topics.slot_of("자 본 금") == "capital"
+    #: **모르는 것은 그대로 모른다.** 추측하지 않는다
+    assert topics.slot_of("직원현황표") is None
+
+
+def test_공백을_지워도_별칭이_안_부딪힌다():
+    """부딪히면 같은 문자열이 슬롯 둘을 가리켜 라우팅이 뒤집힌다."""
+    tight: dict[str, set[str]] = {}
+    for alias, slot in topics.SLOT_ALIASES.items():
+        tight.setdefault("".join(alias.split()), set()).add(slot)
+    assert {k: v for k, v in tight.items() if len(v) > 1} == {}

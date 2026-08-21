@@ -196,11 +196,11 @@ def _find(want: Fact, pool: list[Fact]) -> Fact | None:
         key = _slot_key(want)
         return next((g for g in pool if g.kind == "slot" and _slot_key(g) == key), None)
     # 서술은 **원문의 같은 자리**를 가리키면 같은 것으로 본다
-    node = topics.node_of(want.topic)
+    node = topics.orbit_of(want.topic)
     a = _squash(want.anchor)
     best, score = None, 0.0
     for g in pool:
-        if g.kind != "node" or topics.node_of(g.topic) != node:
+        if g.kind != "node" or topics.orbit_of(g.topic) != node:
             continue
         r = _overlap(a, _squash(g.anchor))
         if r > score:

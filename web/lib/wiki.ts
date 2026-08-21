@@ -37,6 +37,13 @@ export type WikiStatement = {
   evidence: Evidence[];
 };
 
+export type WikiTopicGroup = {
+  topic: string;
+  /** 한국어 이름. **화면이 한국어를 짓지 않는다** */
+  label: string;
+  statements: WikiStatement[];
+};
+
 export type WikiNode = {
   key: string;
   label: string;
@@ -47,6 +54,10 @@ export type WikiNode = {
   eligibility: boolean;
   values: WikiValue[];
   statements: WikiStatement[];
+  /** 위 `statements` 를 topic 별로 묶은 것. **순서는 서버의 표가 정한다** */
+  groups: WikiTopicGroup[];
+  /** 절 제목을 보일 자리인가. **판정은 서버가 한다** — 여기서 다시 세지 않는다 */
+  grouped: boolean;
   /** 근거로 쓰인 **파일 수**. 근거 개수가 아니다 */
   source_count: number;
   filled: boolean;

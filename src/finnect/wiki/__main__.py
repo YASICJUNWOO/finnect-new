@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 
 from finnect.db import SessionFactory
 from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence, WikiFact, WikiPlace
-from finnect.wiki import build, service, storage, topics
+from finnect.wiki import build, export, service, storage, topics
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
         help="세운 위키를 지우고 다시 세운다. **원본과 청크는 안 건드린다**",
     )
     p.add_argument("--wiki", action="store_true", help="세워진 위키를 본다")
+    p.add_argument(
+        "--export",
+        metavar="폴더",
+        type=Path,
+        help="기획 트리 모양으로 파일을 떨어뜨린다(ADR-0048 · F1-6). **폴더를 덮어쓴다**",
+    )
     p.add_argument("--purge", action="store_true", help="이 회사의 파일과 청크를 통째로 지운다")
     p.add_argument(
         "--score",
@@ -103,6 +109,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.wiki:
         with SessionFactory() as s:
             print(render_wiki(s, args.company))
+        return 0
+
+    if args.export:
+        with SessionFactory() as s:
+            print(render_export(s, args.company, args.export))
         return 0
 
     if args.paths:
@@ -239,6 +250,31 @@ def render_build(r: build.BuildReport) -> str:
     return "\n".join(lines)
 
 
+def render_export(s, company_id: str, dest: Path) -> str:  # noqa: ANN001
+    """기획 트리 모양으로 파일을 떨어뜨린다(ADR-0048 결정 4 · F1-6).
+
+    **빈 자리도 파일로 낸다.** 자리를 지우면 사용자가 무엇이 없는지 모른다. 대신
+    프론트매터에 왜 비는지 적혀 있어서 열어 보면 안다.
+    """
+    nodes = build.read_orbit(s, company_id)
+    pages = export.render(nodes)
+    root = dest / company_id
+    for page in pages:
+        target = root / page.spot.file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(page.body, encoding="utf-8")
+
+    filled = sum(1 for p in pages if p.values or p.statements)
+    folded = sum(1 for p in pages if p.spot.instanced or p.spot.folded)
+    return "\n".join(
+        [
+            f"[{company_id}] {root} 에 {len(pages)}장 썼어요",
+            f"  채워진 자리 {filled} · 빈 자리 {len(pages) - filled}",
+            f"  접힌 자리 {folded} — 회사마다 개수가 다른 자리예요. 아직 한 장으로 모아 둬요",
+        ]
+    )
+
+
 def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
     """세워진 위키를 편다. **근거가 어느 파일 몇 쪽인지까지 나와야 한다**(ADR-0014)."""
     slots = build.read_slots(s, company_id)
@@ -268,7 +304,7 @@ def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
         "",
         "─── 사업 내용 (서술)",
     ]
-    for name, label in topics.NODES.items():
+    for name, label in topics.EVENT_ORBITS.items():
         facts = s.scalars(
             select(WikiFact)
             .where(

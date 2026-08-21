@@ -20,6 +20,7 @@ from finnect.api.wiki_schemas import (
     ProgressOut,
     StatementOut,
     StepOut,
+    TopicGroupOut,
     ValueOut,
     WikiFileOut,
     WikiNodeOut,
@@ -114,19 +115,25 @@ def _node(n: markdown.NodeView) -> WikiNodeOut:
             )
             for v in n.values
         ],
-        statements=[
-            StatementOut(
-                text=s.text,
-                topic=s.topic,
-                evidence=[_evidence(e) for e in s.evidence],
+        statements=[_statement(s) for s in n.statements],
+        groups=[
+            TopicGroupOut(
+                topic=t,
+                label=topics.TOPIC_LABELS.get(t, t),
+                statements=[_statement(s) for s in n.statements if s.topic == t],
             )
-            for s in n.statements
+            for t in topics.ORBIT_TOPICS.get(n.key, ())
         ],
+        grouped=len(topics.ORBIT_TOPICS.get(n.key, ())) > 1,
         source_count=n.source_count,
         filled=n.filled,
         conflicted=n.conflicted,
         markdown=markdown.render(n),
     )
+
+
+def _statement(s: markdown.Statement) -> StatementOut:
+    return StatementOut(text=s.text, topic=s.topic, evidence=[_evidence(e) for e in s.evidence])
 
 
 def _evidence(e: markdown.Evidence) -> EvidenceOut:

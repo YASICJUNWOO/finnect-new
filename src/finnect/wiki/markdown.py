@@ -30,6 +30,9 @@ from finnect.wiki import merge, topics
 #: 충돌한 값 앞에 붙는 말. **이모지를 쓰지 않는다** — 옵시디언과 터미널에서 폭이 갈린다.
 CONFLICT_NOTE = "> 값이 갈려요. 어느 쪽이 맞는지 정해야 해요 — 둘 다 두었어요."
 
+#: 절은 섰는데 그 topic 에 사실이 없을 때. **자리를 지우지 않는다**(ADR-0028).
+EMPTY_TOPIC = "아직 없어요."
+
 
 @dataclass(frozen=True, slots=True)
 class Evidence:
@@ -109,11 +112,10 @@ def render(node: NodeView) -> str:
         return "\n".join(out)
 
     if node.values:
-        out += _values(node)
-    if node.statements:
-        out += _statements(node)
+        out += _values(node.values)
+    out += _statements(node)
 
-    out += _sources(node)
+    out += _sources(node._all_evidence)
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -143,12 +145,12 @@ def _front_matter(node: NodeView) -> str:
     return "\n".join(lines)
 
 
-def _values(node: NodeView) -> list[str]:
+def _values(values: tuple[Value, ...]) -> list[str]:
     """정형 슬롯. **현재값을 먼저 쓰고 이전값을 밑에 접는다.** 지우지 않는다(F1-1-7)."""
     out: list[str] = []
     # (슬롯, 한정어) 로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
     groups: dict[tuple[str, str | None], list[Value]] = {}
-    for v in node.values:
+    for v in values:
         groups.setdefault((v.slot, v.qualifier), []).append(v)
 
     for (slot, qualifier), items in groups.items():
@@ -180,9 +182,37 @@ def _values(node: NodeView) -> list[str]:
 
 
 def _statements(node: NodeView) -> list[str]:
-    """서술 사실. **한 사실에 근거가 여럿이다** — 문서 넷이 같은 말을 하면 줄 하나에 근거 넷."""
+    """event topic. **한 사실에 근거가 여럿이다** — 문서 넷이 같은 말을 하면 줄 하나에 근거 넷.
+
+    **event topic 이 둘 이상인 자리는 topic 마다 `##` 절을 세운다**(ADR-0048 결정 5).
+    하나뿐이면 안 세운다 — `# 목표 고객` 밑의 `## 목표 고객` 은 `DESIGN.md` §10
+    ("제목이 말한 것을 부제에서 반복하지 않는다")을 정면으로 어긴다.
+
+    절이 서는 자리에서는 **빈 topic 도 절을 낸다.** 비어 있다는 것도 사실이고 물어야 할
+    자리다(ADR-0028) — 지금 «솔루션과 기술» 한 장에 기능·특허·인증이 구분 없이 섞여
+    있어서 무엇이 없는지 볼 수가 없었다.
+
+    절이 안 서는 자리(단일 topic 다섯)는 빈 것을 따로 알리지 않는다. 제목이 없어서
+    「아직 없어요」한 줄만 뜨면 무엇이 없다는 말인지 알 수 없다.
+    """
+    order = topics.ORBIT_TOPICS.get(node.key, ())
+    if len(order) < 2:
+        return _facts(node.statements)
+
     out: list[str] = []
-    for s in node.statements:
+    for topic in order:
+        out += [f"## {topics.TOPIC_LABELS.get(topic, topic)}", ""]
+        items = [s for s in node.statements if s.topic == topic]
+        out += _facts(items) if items else [EMPTY_TOPIC, ""]
+
+    #: 표에 없는 topic 으로 온 것. **버리지 않는다** — 라우팅 표를 고치면 생긴다
+    rest = [s for s in node.statements if s.topic not in order]
+    return out + _facts(rest)
+
+
+def _facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:
+    out: list[str] = []
+    for s in items:
         out += [s.text, ""]
         where = " · ".join(str(e) for e in s.evidence)
         out.append(f"> 근거 {len(s.evidence)} — {where}")
@@ -190,9 +220,9 @@ def _statements(node: NodeView) -> list[str]:
     return out
 
 
-def _sources(node: NodeView) -> list[str]:
-    """이 노드를 만든 파일들. **어느 파일을 지우면 무엇이 사라지는지** 보이는 자리다."""
-    files = sorted({e.filename for e in node._all_evidence})
+def _sources(evidence: list[Evidence]) -> list[str]:
+    """이 장을 만든 파일들. **어느 파일을 지우면 무엇이 사라지는지** 보이는 자리다."""
+    files = sorted({e.filename for e in evidence})
     return ["## 근거 파일", "", *[f"- {f}" for f in files], ""]
 
 

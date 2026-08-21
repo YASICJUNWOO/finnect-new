@@ -94,7 +94,7 @@ class Test자리:
 
     def test_자리_목록이_위키와_같다(self) -> None:
         """**갈리면 여기서 통과한 자리가 위키에 없다.**"""
-        assert set(nd.PLACES) == set(topics.SLOTS) | set(topics.NODES)
+        assert set(nd.PLACES) == set(topics.SLOTS) | set(topics.EVENT_ORBITS)
         assert len(nd.PLACES) == 24
 
 

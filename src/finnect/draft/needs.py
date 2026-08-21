@@ -31,12 +31,12 @@ from finnect.wiki import topics
 #: 고를 수 있는 자리. **슬롯 14 + 노드 10 = 24.** 회사가 커져도 안 늘어난다
 PLACES: dict[str, str] = {
     **{k: v.label for k, v in topics.SLOTS.items()},
-    **topics.NODES,
+    **topics.EVENT_ORBITS,
 }
 #: 슬롯인가 노드인가. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
 PLACE_KIND: dict[str, str] = {
     **{k: "slot" for k in topics.SLOTS},
-    **{k: "node" for k in topics.NODES},
+    **{k: "node" for k in topics.EVENT_ORBITS},
 }
 
 #: 지시문을 프롬프트에 넣을 때의 상한. 최장이 2,031자다(plan/11 실측)
@@ -255,7 +255,7 @@ def _dedupe(needs: list[Need]) -> list[Need]:
 
 def _place_list() -> str:
     slots = " · ".join(f"`{k}` {v.label}" for k, v in topics.SLOTS.items())
-    nodes = " · ".join(f"`{k}` {v}" for k, v in topics.NODES.items())
+    nodes = " · ".join(f"`{k}` {v}" for k, v in topics.EVENT_ORBITS.items())
     return f"정형 값 — {slots}\n서술 글 — {nodes}"
 
 

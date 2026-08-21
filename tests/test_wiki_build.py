@@ -116,7 +116,7 @@ def test_서술_노드가_전부_찬다(built):  # noqa: ANN001
     정체성은 2026-08-18 하나 더 붙었다(ADR-0033)."""
     factory, _ = built
     filled = {f.place for f in _facts(factory, place_kind=WikiPlace.NODE)}
-    assert filled == set(topics.NODES)
+    assert filled == set(topics.EVENT_ORBITS)
 
 
 def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001

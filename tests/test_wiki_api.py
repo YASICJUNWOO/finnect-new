@@ -65,7 +65,7 @@ def test_궤도가_슬롯과_노드를_하나도_안_빠뜨린다():
     used_slots = {s for o in topics.ORBIT.values() for s in o.slots}
     used_nodes = {o.node for o in topics.ORBIT.values() if o.node}
     assert used_slots == set(topics.SLOTS)
-    assert used_nodes == set(topics.NODES)
+    assert used_nodes == set(topics.EVENT_ORBITS)
 
 
 def test_궤도가_SPEC_의_열다섯이다():
@@ -135,3 +135,45 @@ def test_모든_자리가_제_마크다운을_들고_온다(client) -> None:  # 
     for n in body.nodes:
         assert n.markdown.startswith("---"), n.key
         assert f"# {n.label}" in n.markdown
+
+
+def test_topic_묶음을_서버가_만들고_절을_보일지도_서버가_정한다():
+    """**규칙을 화면에 한 번 더 적으면 두 곳이 된다**(ADR-0048 결정 5).
+
+    `groups` 는 표 순서 그대로이고 빈 것도 온다 — 화면이 «무엇이 없는지» 를 말할 수
+    있어야 한다. `grouped` 가 false 인 자리에서는 화면이 `statements` 를 통째로 뿌린다.
+    """
+    from finnect.api.wiki_service import _node
+    from finnect.wiki.markdown import Evidence, NodeView, Statement
+
+    e = Evidence("사업계획서.hwp", 3, "ㅇ")
+    solution = _node(
+        NodeView(
+            key="solution",
+            label="솔루션과 기술",
+            kind="content",
+            sector="problem_solution",
+            company_id="c_t",
+            values=(),
+            statements=(Statement("출원번호 10-2025-0012345.", "patent", (e,)),),
+        )
+    )
+    assert solution.grouped is True
+    assert [g.topic for g in solution.groups] == list(topics.ORBIT_TOPICS["solution"])
+    assert [g.label for g in solution.groups][:2] == ["서비스 소개", "기능"]
+    #: 빈 topic 도 온다
+    assert sum(1 for g in solution.groups if not g.statements) == 6
+
+    customer = _node(
+        NodeView(
+            key="customer",
+            label="목표 고객",
+            kind="content",
+            sector="market_customer",
+            company_id="c_t",
+            values=(),
+            statements=(Statement("소상공인이다.", "target_customer", (e,)),),
+        )
+    )
+    assert customer.grouped is False
+    assert len(customer.groups) == 1

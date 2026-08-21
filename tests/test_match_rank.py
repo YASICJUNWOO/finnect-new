@@ -210,10 +210,10 @@ def test_표에_없는_노드는_맨_뒤다() -> None:
 
 
 def test_모든_서술_노드가_표에_있다() -> None:
-    """`topics.NODES` 에 노드가 더 생기면 여기도 채운다 — 안 채우면 맨 뒤로 밀린다."""
+    """`topics.EVENT_ORBITS` 에 노드가 더 생기면 여기도 채운다 — 안 채우면 맨 뒤로 밀린다."""
     from finnect.wiki import topics
 
-    assert set(rk.NODE_RANK) == set(topics.NODES)
+    assert set(rk.NODE_RANK) == set(topics.EVENT_ORBITS)
 
 
 # ─────────────── ④ 분야가 만드는 이유 (T-0076) ───────────────

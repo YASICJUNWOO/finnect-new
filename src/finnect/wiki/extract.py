@@ -94,7 +94,7 @@ class Fact:
 
     @property
     def node(self) -> str | None:
-        return topics.node_of(self.topic) if self.kind == "node" else None
+        return topics.orbit_of(self.topic) if self.kind == "node" else None
 
 
 @dataclass(frozen=True, slots=True)

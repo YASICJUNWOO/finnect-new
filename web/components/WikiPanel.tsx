@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evidence, WikiNode, WikiValue } from "@/lib/wiki";
+import type { Evidence, WikiNode, WikiStatement, WikiValue } from "@/lib/wiki";
 import styles from "./WikiPanel.module.css";
 
 /** 자리 한 장(SPEC F1-3). **이 화면의 시그니처는 근거 줄이다.**
@@ -59,22 +59,43 @@ export function WikiPanel({ node, sectorLabel }: { node: WikiNode; sectorLabel: 
       ) : (
         <>
           {node.values.length > 0 && <Values values={node.values} />}
-          {node.statements.length > 0 && (
-            <section className={styles.block}>
-              {node.values.length > 0 && <h3 className={styles.blockTitle}>사업 내용</h3>}
-              <ul className={styles.facts}>
-                {node.statements.map((s, i) => (
-                  <li key={i} className={styles.fact}>
-                    <p className={styles.factText}>{s.text}</p>
-                    <Sources evidence={s.evidence} />
-                  </li>
-                ))}
-              </ul>
-            </section>
+          {node.grouped ? (
+            /* topic 이 둘 이상인 자리. **빈 topic 도 자리를 지키고 무엇이 없는지 말한다** */
+            node.groups.map((g) => (
+              <section key={g.topic} className={styles.block}>
+                <h3 className={styles.blockTitle}>{g.label}</h3>
+                {g.statements.length > 0 ? (
+                  <Facts statements={g.statements} />
+                ) : (
+                  <p className={styles.empty}>아직 없어요.</p>
+                )}
+              </section>
+            ))
+          ) : (
+            node.statements.length > 0 && (
+              <section className={styles.block}>
+                {node.values.length > 0 && <h3 className={styles.blockTitle}>사업 내용</h3>}
+                <Facts statements={node.statements} />
+              </section>
+            )
           )}
         </>
       )}
     </article>
+  );
+}
+
+/** 서술 사실 목록. 값이든 문장이든 **바로 아래 근거 줄이 붙는다.** */
+function Facts({ statements }: { statements: WikiStatement[] }) {
+  return (
+    <ul className={styles.facts}>
+      {statements.map((s, i) => (
+        <li key={i} className={styles.fact}>
+          <p className={styles.factText}>{s.text}</p>
+          <Sources evidence={s.evidence} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -8,7 +8,7 @@
 
 코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). **2026-08-21 진짜 추출기를 실제 회사에 처음 돌렸다** — `c_dasiro` 가 `stub/v1` 에서 `llm/gpt-5.6-luna` 로 갈렸고 노드가 30→143 이 됐다. 슬롯 여덟 값은 사람이 옮긴 것과 글자까지 같았다. **대신 결함 둘이 나왔다**(위키가 공고문을 삼킨다 · 표 부스러기가 노드에 섞인다) — [plan/12](docs/plan/12-사업-위키-구축.md) T-0077·T-0078 이 다시 열렸다. **2026-08-18 입구가 화면에 생겼다** — `/wiki/files` 에 던지면 단계 다섯이 돌고 파일마다 어느 자리를 채웠는지 이름으로 뜬다([plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-21 [plan/18](docs/plan/18-설치되는-앱.md)이 닫혔다** — 홈 화면에 얹히고 크롬 없이 열린다. **2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)·[plan/17](docs/plan/17-맞는-공고를-고른다.md)가 열려 있다. **[plan/12](docs/plan/12-사업-위키-구축.md)는 2026-08-21 다시 열렸다**(T-0077·T-0078).** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+**2026-08-21 [plan/18](docs/plan/18-설치되는-앱.md)이 닫혔다** — 홈 화면에 얹히고 크롬 없이 열린다. **2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)·[plan/17](docs/plan/17-맞는-공고를-고른다.md)가 열려 있다. **[plan/12](docs/plan/12-사업-위키-구축.md)는 2026-08-21 다시 열렸다**(T-0077·T-0078). **2026-08-21 [plan/19](docs/plan/19-위키-자리-구조.md)가 열렸고 층 구조를 정했다** — `sector` 6 → `orbit` 15 → `topic` 37([ADR-0048](docs/adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)).** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
 
 **앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
@@ -36,6 +36,11 @@
 - **앱 아이콘 PNG 를 빌드에서 만들지 않는다.** `tools/make-icons.py` 가 표준 라이브러리로 굽고 **결과물을 커밋한다**. `npm run build` 에 걸면 빌드가 Python 을 요구하고 Vercel 은 그걸 안 준다(ADR-0035). `sharp` 를 `web/` 에 넣지 않는 것도 같은 이유다 — 이 서버에 PIL·cairosvg·ImageMagick 이 전부 없어서 SVG 를 굽는 길이 애초에 없었다. **SVG 도 같은 스크립트가 낸다** — 좌표를 두 곳에 두면 파비콘과 앱 아이콘이 갈린다
 - **앱 아이콘에 노드 분류색을 쓰지 않는다.** 궤도를 줄인 단색 마크다. `DESIGN.md` §3-7 이 색을 **위키 그래프와 문서 빈칸에만** 몰아 쓰라고 정했고, 앱 아이콘은 그 둘이 아니다. **16px 에서 뭉개지만 마크를 둘로 나누지 않았다**([실측](docs/adr/evidence/2026-08-21-앱-아이콘-크기-실측/)) — 둘째 글리프를 만드는 것은 §1 이 미정으로 남긴 '시그니처 요소'를 결정 없이 채우는 일이다
 - 제품 화면은 **S1·S4·S5·S7 넷이다.** 나머지 셋(S2·S3·S6)은 없다([plan/14](docs/plan/14-사업-위키-화면.md) · [plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 화면 대부분이 **"아직 없어요"로 비어 있고 그게 의도다** — 예시 데이터를 넣지 않는다
+- **위키의 층은 셋이고 `node` 는 층이 아니다**([ADR-0048](docs/adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)이 [ADR-0032](docs/adr/0032-위키가-담을-것-정형-슬롯과-서술-노드.md) 결정 2·3 을 대체). `sector` 6 → `orbit` 15 → `topic` 37 이고 `topic` 타입이 둘이다 — **value topic 14**(병합 키 `(이름,한정어,시점)` · 충돌 판정) · **event topic 23**(키 없음 · 쌓인다). 옛 이름은 `slot` 과 `node` 였다. **`node` 를 층으로 되살리지 않는다** — 노드 열 개가 orbit 키와 이름도 라벨도 전부 같아서 `place` 가 **이미 orbit id 다.** 그게 이 결정에 마이그레이션이 없는 이유다. 어휘는 `EVENT_ORBITS` · `TOPIC_ORBIT` · `orbit_of()` 이고 **`NODES`·`TOPIC_NODE`·`node_of` 는 없다**
+- **`topic` 한국어 이름 23개는 우리가 고른 값이다**(`TOPIC_LABELS`). 2026-08-21 까지 topic 은 순전히 내부 라벨이라 그 말들이 코드에 0건이었다. **orbit 라벨과 겹치면 안 된다** — 겹치면 `# X` 밑에 `## X` 가 서서 `DESIGN.md` §10("제목이 말한 것을 부제에서 반복하지 않는다")을 어긴다. `target_customer` 가 「목표 고객」이 아니라 「고객 정의」인 이유다. 테스트가 겹침 0을 막아 둔다
+- **뷰가 둘이다. 저장은 하나다**([ADR-0048](docs/adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md) 결정 4). **궤도 뷰**(`wiki/markdown.py`)는 orbit 15장이고 화면이 쓴다. **트리 뷰**(`wiki/export.py`)는 기획이 넘긴 폴더 트리 47자리(기획 46 + 우리가 더한 `Company/지역관계.md`)이고 `--export` 만 쓴다. **기획 트리를 저장 모델로 삼지 않는다** — 마크다운을 저장하지 않는 것과 같은 이유다. 자리 46 중 **25가 채워지고 21이 빈다**([대조표](docs/adr/evidence/2026-08-21-위키-자리-구조/04-기획-트리-대조표.md)). **빈 자리를 지우지 않고 왜 비는지 적는다**
+- **동적 자리 12개는 접혀 있다.** `Competitor/{업체명}.md` 를 진짜로 가르려면 사실마다 인스턴스 이름이 필요한데 **`fact_key` 가 컬럼으로 없다** — `dedupe_key` 안에 묶여 들어가 있고, 없을 때는 정규화된 문장이 그 자리를 채워서 둘을 구분할 수 없다. 그래서 한 장으로 접고 **`collapsed:` 로 원래 경로를 프론트매터에 적는다.** 조용히 접으면 트리를 지원한다는 말이 거짓이 된다([plan/19](docs/plan/19-위키-자리-구조.md) T-0090)
+- **event topic 절 제목은 그 orbit 에 event topic 이 둘 이상일 때만 붙는다**(`solution` 7 · `traction` 4 · `market` 3 · `problem` 2 · `finance` 2). 하나뿐인 다섯(`identity`·`customer`·`region`·`team`·`roadmap`)에는 안 붙인다. **표가 정하고 데이터가 정하지 않는다** — 실제로 나온 사실 수로 판단하면 파일을 하나 더 올릴 때 절 제목이 생겼다 없어진다. 절이 서는 자리에서는 **빈 topic 도 절을 낸다**
 - **위키 마크다운을 저장하지 않는다.** `wiki/markdown.py` 가 읽을 때마다 만드는 **뷰**다 — 사실이 `wiki_fact` 에 있는데 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다. **시각을 넣지 않는다**(`generated:` 같은 것). 넣으면 같은 DB 에서 만든 글이 매일 달라져 바이트로 못 비교한다
 - **값에 단위를 붙이는 자리는 `topics.display()` 하나다.** 저장값 `120000000` 은 병합의 재료라 손대면 충돌 판정이 깨진다. 화면·마크다운·API 가 같은 함수를 쓴다
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
@@ -78,6 +83,7 @@ uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키�
 uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 청크를 본다
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
 uv run python -m finnect.wiki --company c_dasiro --rebuild   # 추출기를 바꿨을 때. 청크는 안 건드린다
+uv run python -m finnect.wiki --company c_dasiro --export 폴더  # 기획 트리 47장으로 내보낸다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
 uv run python -m finnect.wiki --score                        # 추출 정확도. DB 도 회사도 필요 없다
 uv run python -m finnect.extract                 # 첨부 텍스트 → 구간 → 칸. 네트워크 안 쓴다
@@ -121,7 +127,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 | `document_item` | 그 문서 안의 작성 항목. 원문 지시문을 **우리가 고쳐 쓰지 않는다** |
 | `user_file` | 사용자가 올린 파일 하나. 키가 **(company_id, sha256)** 이다 — 회사 사이 중복 제거를 안 한다 ([ADR-0029](docs/adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)) |
 | `chunk` | 그 파일에서 나온 원문 조각 + 위치정보. **노드가 이걸 가리킨다** ([ADR-0014](docs/adr/0014-통합-그래프와-근거-청크.md)) |
-| `wiki_fact` | 위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다. 병합은 `dedupe_key` 가 전부다 ([ADR-0032](docs/adr/0032-위키가-담을-것-정형-슬롯과-서술-노드.md)) |
+| `wiki_fact` | 위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다. 병합은 `dedupe_key` 가 전부다. **`place` 가 orbit 키다** — `place_kind='node'` 는 「event topic 자리」를 뜻하는 옛 문자열이고 층이 아니다 ([ADR-0032](docs/adr/0032-위키가-담을-것-정형-슬롯과-서술-노드.md) · [ADR-0048](docs/adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)) |
 | `wiki_evidence` | 그 사실이 어느 청크에서 나왔나. **근거 없는 `wiki_fact` 행은 만들지 않는다** |
 | `notice_profile` | 공고가 **누구를 찾나**. 지역·업종·조건·취지키워드. **`company_id` 가 없다** — 한 번 뽑으면 모든 회사가 쓴다. 캐시 키가 `content_hash` 가 아니라 `body_hash` 인 이유는 조회수다 ([plan/17](docs/plan/17-맞는-공고를-고른다.md)) |
 | `notice_fit` | 이 회사에게 이 공고가 맞나. 등급 셋 + 이유 한 줄. **`맞다`·`애매` 만 앉는다** — 자격은 재계산이 0.36초라 저장이 손해다 |
@@ -210,7 +216,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **`chunked` 는 두 가지 뜻이다.** 파일을 막 넣었을 때는 "사실을 뽑을 차례"이고, 빌드가 끝난 뒤에도 `chunked` 면 "추출기가 몰라서 되돌려놨다"다(`wiki/build.py` `_shelve`). **행만 봐서는 구분이 안 된다** — `wiki/progress.py` 가 `ingest/jobs.py` 의 락(`running`)을 같이 보고 가른다. 이 값 없이 상태만 보면 화면이 `chunked` 에서 영원히 물어본다
 - **공고의 지역을 제목 태그로 판정하면 틀린다.** `[경기]` 46건 중 성남시가 **2건**이고 나머지는 김포·화성·안양·시흥·안산·용인이다. 반대로 `전국·미표기` 205건 안에 수성알파시티(대구)·대구콘텐츠코리아랩·제주형 그린바이오·울산창조경제혁신센터가 섞여 있다. **광역 태그는 시·군 사업을 가리고, 태그 없음은 전국을 뜻하지 않는다** — 지역은 본문 `지원대상` 절에서 뽑는다
 - **`notice_profile` 캐시를 `content_hash` 에 걸면 안 된다.** 조회수(`inqireCo`)가 그 재료라 기업마당은 재수집마다 1,538건 전부가 '변경' 이고, 거기 걸면 **조회수 하나에 709회를 다시 쓴다.** `body_hash` 가 판정에 쓰는 본문만 해싱하는 이유다
-- **분야 대조 어휘를 공백 지운 문자열로 찾으면 안 된다.** `"결손금이 자본금을 초과"` 에서 `이자` 가 걸려 `융자` 분야가 맞는다(실측). 앵커 대조(`match/normalize.py`)는 공백을 지워야 하고 어휘 대조(`match/sectors.py`)는 지우면 안 된다 — 저쪽은 LLM 이 공백을 바꿔 쓰는 것을 견뎌야 하고 이쪽은 양쪽을 우리가 들고 있다
+- **분야 대조 어휘를 공백 지운 문자열로 찾으면 안 된다.** `"결손금이 자본금을 초과"` 에서 `이자` 가 걸려 `융자` 분야가 맞는다(실측). 앵커 대조(`match/normalize.py`)는 공백을 지워야 하고 어휘 대조(`match/sectors.py`)는 지우면 안 된다 — 저쪽은 LLM 이 공백을 바꿔 쓰는 것을 견뎌야 하고 이쪽은 양쪽을 우리가 들고 있다. **`wiki/topics.py` 의 `slot_of()` 는 반대로 지워야 한다** — 저기는 본문에서 어휘를 *찾는* 것이고 이쪽은 항목 이름 하나를 표에서 *꺼내는* 것이라 부분 문자열로 걸릴 것이 없다. 안 지웠더니 `상시근로자`·`직원수` 가 미분류로 갔다(plan/19 T-0088)
 - **`wiki_fact.status == 'current'` 를 판정에 그대로 쓰면 틀린다.** `current` 는 "가장 늦은 시점" 이라 **미래 날짜도 `current` 다** — `c_dasiro` 의 직원 수 15가 `as_of 2026-08-31` 이다. 자격 판정은 **신청일 이전의 최신값**을 골라야 한다(`match/profile.py` `_pick`)
 - **`openpyxl` 은 파일 이름의 확장자를 본다.** 우리 저장소는 콘텐츠 주소라 이름에 확장자가 없어서, 경로를 넘기면 재무제표가 통째로 `failed` 가 된다. `sheets_from_xlsx` 가 **열어서 넘기는** 이유다. 첨부 쪽은 `ATTACHMENT_FORMATS` 에 xlsx 가 없어 이 버그를 안 만났다
 - **`WIKI_EXTRACTOR` 기본값이 아직 `stub` 이다.** 스텁은 픽스처 7건 밖에서 안 돌고, 다른 파일을 넣으면 빈 결과가 아니라 `UnknownFile` 이 난다 — **조용히 비면 진짜 파일에 가짜가 섞이거나, 더 나쁘게는 아무것도 안 나온 것이 정상처럼 보인다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). 사실 표는 `tests/fixtures/wiki/facts.json` 이고 **레포 밖에는 없어서 배포본에서 아예 안 돈다.** 그게 의도다

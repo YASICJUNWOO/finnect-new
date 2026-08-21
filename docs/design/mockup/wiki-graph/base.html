@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>현행 — 2D 궤도</title>
+
+<!--
+  대조군. `web/components/Orbit.tsx` 를 그대로 옮긴 것이다.
+  **이게 없으면 "좋아졌나"를 판정할 수 없다**(mockup-harness 규칙 2).
+  하단 바는 목업 전용이다 — 코드로 옮길 때 바는 빼고 고른 값만 전사한다.
+-->
+
+<link rel="stylesheet" href="common.css">
+<style>
+.svg { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; overflow: visible; }
+
+.ring, .spoke { fill: none; stroke: var(--line); stroke-width: 1; }
+
+.sector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.02em;
+}
+
+.node { cursor: pointer; }
+.dot { fill: var(--kind); }
+.node[data-filled="false"] .dot {
+  fill: var(--surface);
+  stroke: var(--kind);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.badge { fill: var(--blank); stroke: var(--surface); stroke-width: 2; }
+.halo { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+.label { fill: var(--ink-2); font-size: var(--t-caption); }
+.node[data-selected="true"] .label { fill: var(--ink); font-weight: var(--w-medium); }
+.centerLabel { fill: var(--surface); font-size: var(--t-caption); font-weight: var(--w-medium); text-anchor: middle; }
+.node:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: var(--r-sm); }
+</style>
+</head>
+
+<body>
+<script src="data.js"></script>
+<script src="common-parts.js"></script>
+<script>
+chrome({ thesis: "현행. 평면 SVG 하나. 중심 · 안쪽 다섯 · 바깥 아홉이고 각도가 구획을 뜻해요." });
+
+var SIZE = 640, C = SIZE / 2;
+var RING = { company: 132, content: 258 };
+var DOT = { identity: 40, company: 15, content: 15 };
+
+function arcPath(r, from, to) {
+  var a = from * Math.PI / 180, b = to * Math.PI / 180;
+  return "M " + (C + r * Math.cos(a)) + " " + (C + r * Math.sin(a)) +
+    " A " + r + " " + r + " 0 " + (to - from > 180 ? 1 : 0) + " 1 " +
+    (C + r * Math.cos(b)) + " " + (C + r * Math.sin(b));
+}
+
+var inner = place(byKind("company"));
+var outer = place(byKind("content"));
+var all = inner.placed.concat(outer.placed).map(function (n) {
+  var rad = n.angle * Math.PI / 180;
+  var radius = n.kind === "company" ? RING.company : RING.content;
+  return Object.assign({}, n, { x: C + radius * Math.cos(rad), y: C + radius * Math.sin(rad), r: DOT[n.kind] });
+});
+var center = Object.assign({}, byKind("identity")[0], { x: C, y: C, angle: 0, r: DOT.identity });
+
+var svg = ['<svg class="svg" viewBox="0 0 ' + SIZE + ' ' + SIZE + '" role="group" aria-label="사업 위키 궤도. 자리 열다섯">'];
+
+inner.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.company, a.from, a.to) + '"/>'); });
+outer.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.content, a.from, a.to) + '"/>'); });
+
+all.forEach(function (n) {
+  var rad = n.angle * Math.PI / 180;
+  var from = DOT.identity + 4, to = Math.hypot(n.x - C, n.y - C) - n.r - 4;
+  svg.push('<line class="spoke" x1="' + (C + from * Math.cos(rad)) + '" y1="' + (C + from * Math.sin(rad)) +
+    '" x2="' + (C + to * Math.cos(rad)) + '" y2="' + (C + to * Math.sin(rad)) + '"/>');
+});
+
+/* 구획 라벨 넷. 바깥 궤도에만 얹는다 — 안쪽은 지름이 작아 노드 이름과 겹친다 */
+outer.arcs.forEach(function (a) {
+  var rad = a.from * Math.PI / 180, r = RING.content + 52;
+  svg.push('<text class="sector" x="' + (C + r * Math.cos(rad)) + '" y="' + (C + r * Math.sin(rad) + 4) + '">' +
+    (SECTORS[a.sector] || a.sector) + '</text>');
+});
+
+function dot(n, inside) {
+  var rad = n.angle * Math.PI / 180, out = n.r + 16;
+  var lx = inside ? n.x : n.x + out * Math.cos(rad);
+  var ly = inside ? n.y + 5 : n.y + out * Math.sin(rad) + 4;
+  var anchor = inside ? "middle" : Math.cos(rad) > 0.25 ? "start" : Math.cos(rad) < -0.25 ? "end" : "middle";
+  return '<g class="node" data-key="' + n.key + '" data-kind="' + n.kind + '" data-filled="' + n.filled +
+    '" data-selected="false" role="button" tabindex="0" aria-label="' + n.label + ' — ' +
+    (n.filled ? (n.conflicted ? "손봐야 해요" : "찼어요") : "아직 비어 있어요") + '">' +
+    '<circle class="halo" cx="' + n.x + '" cy="' + n.y + '" r="' + (n.r + 7) + '" hidden/>' +
+    '<circle class="dot" cx="' + n.x + '" cy="' + n.y + '" r="' + n.r + '"/>' +
+    (n.conflicted ? '<circle class="badge" cx="' + (n.x + n.r * 0.72) + '" cy="' + (n.y - n.r * 0.72) + '" r="5"/>' : "") +
+    '<text class="' + (inside ? "centerLabel" : "label") + '" x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '">' +
+    n.label + '</text></g>';
+}
+
+svg.push(dot(center, true));
+all.forEach(function (n) { svg.push(dot(n, false)); });
+svg.push("</svg>");
+document.getElementById("graph").innerHTML = svg.join("");
+
+/* 고르기. 키보드로도 갈 수 있어야 한다 — 궤도가 유일한 길이다 */
+var picked = null;
+function pick(key) {
+  picked = picked === key ? null : key;
+  document.querySelectorAll(".node").forEach(function (g) {
+    var on = g.dataset.key === picked;
+    g.dataset.selected = on;
+    g.querySelector(".halo").toggleAttribute("hidden", !on);
+  });
+  selectNode(picked);
+}
+document.querySelectorAll(".node").forEach(function (g) {
+  g.addEventListener("click", function () { pick(g.dataset.key); });
+  g.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(g.dataset.key); }
+  });
+});
+</script>
+
+<script src="assets/harness.js"></script>
+<script src="variants.js"></script>
+<script>Harness.mount({ current: "base", variants: VARIANTS, persist: true });</script>
+</body>
+</html>

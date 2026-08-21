@@ -200,4 +200,4 @@ cd web && npm run lint && npm run typecheck && npm run build
 | [`docs/design/`](docs/design/README.md) | 화면 토큰·와이어프레임·카피 |
 
 `web/app/admin/`은 **운영 도구**다. 이 화면의 목적은 운영이 아니라 **L1 추출 스키마 설계를 위한 코퍼스 관찰**이다.
-`DESIGN.md` §4 토큰을 쓰지만 구성은 표 중심 그대로다 — §5.4의 금지 조합은 제품 화면 기준이고 admin은 예외다(plan/08 T-0023).
+`DESIGN.md` 토큰을 쓰지만 구성은 표 중심 그대로다 — §5 "쓰지 않는 구성"의 금지 조합은 제품 화면 기준이고 admin은 예외다(plan/08 T-0023).

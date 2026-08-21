@@ -4,72 +4,107 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}finnect 관리{% endblock %}</title>
+{# 제품 서체와 토큰. **사본을 만들지 않는다** — /tokens.css 가 web/app/tokens.css 를 그대로 낸다.
+   Pretendard 를 시스템 서체로 대체하면서 Pretendard 라고 적지 않는다(DESIGN.md §3). #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="/tokens.css">
 {% block head %}{% endblock %}
 <style>
-/* 임시 스타일이다. design/ 의 토큰을 따르지 않는다. 제품 화면이 아니다. */
-:root { color-scheme: light dark; }
+/* 값을 여기 박지 않는다. 전부 /tokens.css 의 토큰이다(ADR-0041).
+ *
+ * 이 화면은 `web/app/admin/` 의 자매다 — 같은 사람이 같은 날 쓰는 두 화면이라
+ * 규약을 맞춘다. 상태 색 넷(좋다 / 나쁘다 / 애매하다 / 안 했다)과 카드·알약 모양이
+ * `admin.module.css` 에서 온 것이다. **한쪽만 고치지 않는다.** */
+:root { color-scheme: light; }
 * { box-sizing: border-box; }
 body {
-  margin: 0; padding: 24px;
-  font: 14px/1.5 ui-sans-serif, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  margin: 0; padding: var(--s5);
+  background: var(--canvas); color: var(--ink);
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  font-size: var(--t-body); line-height: var(--lh-body);
 }
-a { color: #0645ad; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-h2 { font-size: 14px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
-.muted { color: #767676; }
-.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
-input[type=search], select { padding: 5px 8px; font: inherit; }
-button { padding: 5px 12px; font: inherit; cursor: pointer; }
+/* UI 크롬에 색을 쓰지 않는다(§7). 링크는 밑줄로 말한다 */
+a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+h1 { font-size: var(--t-title); line-height: var(--lh-title); font-weight: var(--w-bold); margin: 0 0 var(--s1); }
+h2 { font-size: var(--t-body); font-weight: var(--w-medium); margin: var(--s6) 0 var(--s2);
+     padding-bottom: var(--s1); border-bottom: 1px solid var(--line); }
+.muted { color: var(--ink-2); }
+.bar { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; margin: var(--s4) 0; }
+input[type=search], select {
+  font: inherit; font-size: var(--t-small); padding: var(--s2) var(--s3);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+}
+/* 주 동작은 동작 검정이다. **--ink 가 아니다**(§2 · §4) */
+button {
+  font: inherit; font-size: var(--t-small); font-weight: var(--w-medium);
+  padding: var(--s2) var(--s3); cursor: pointer;
+  background: var(--action); color: var(--surface);
+  border: 1px solid var(--action); border-radius: var(--r-sm);
+}
+button[disabled] { background: var(--quiet); color: var(--ink-3); border-color: var(--line-2); cursor: not-allowed; }
 table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
-th { font-weight: 600; white-space: nowrap; background: rgba(127,127,127,.08); }
+th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: var(--w-medium); white-space: nowrap; background: var(--quiet); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.key { width: 260px; font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+td.key { width: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+         font-size: var(--t-caption); white-space: nowrap; }
 td.val { white-space: pre-wrap; word-break: break-word; }
-.tag { font-size: 11px; padding: 1px 6px; border: 1px solid #999; border-radius: 3px; white-space: nowrap; }
-.null { color: #999; font-style: italic; }
-.pager { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+.tag { font-size: var(--t-caption); padding: 0 var(--s2); border: 1px solid var(--line-2);
+       border-radius: var(--r-sm); white-space: nowrap; color: var(--ink-2); }
+.null { color: var(--ink-3); font-style: italic; }
+.pager { display: flex; gap: var(--s3); align-items: center; margin: var(--s4) 0; }
 
-nav { display: flex; gap: 16px; margin: 0 0 20px; padding-bottom: 10px; border-bottom: 1px solid #ccc; }
-nav a { text-decoration: none; }
-nav a.on { font-weight: 600; color: inherit; }
+nav { display: flex; gap: var(--s4); margin: 0 0 var(--s5); padding-bottom: var(--s3);
+      border-bottom: 1px solid var(--line); }
+nav a { text-decoration: none; color: var(--ink-2); }
+nav a.on { font-weight: var(--w-medium); color: var(--ink); }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
-.card { border: 1px solid #ccc; border-radius: 5px; padding: 14px 16px; }
-.card h3 { margin: 0 0 2px; font-size: 15px; }
-.card .stored { font-size: 22px; font-variant-numeric: tabular-nums; margin: 8px 0 2px; }
-.card .actions { display: flex; gap: 8px; margin-top: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--s4); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+        padding: var(--s4) var(--s5); }
+.card h3 { margin: 0 0 var(--s1); font-size: var(--t-lead); line-height: var(--lh-lead); font-weight: var(--w-medium); }
+.card .stored { margin: var(--s3) 0 var(--s1);
+                font-size: var(--t-display); line-height: var(--lh-display); font-weight: var(--w-bold);
+                letter-spacing: var(--tracking-title); font-variant-numeric: tabular-nums; }
+.card .actions { display: flex; gap: var(--s2); margin-top: var(--s3); }
 .card form { margin: 0; }
 
-.banner { padding: 9px 12px; border-radius: 4px; margin: 0 0 16px; border: 1px solid; }
-.banner.ok { border-color: #1a7f37; }
-.banner.no { border-color: #cf222e; }
+.banner { padding: var(--s2) var(--s3); border-radius: var(--r-sm); margin: 0 0 var(--s4); border: 1px solid; }
+.banner.ok { border-color: var(--ink-4); background: var(--quiet); color: var(--ink); }
+.banner.no { border-color: var(--urgent-line); background: var(--urgent-bg); color: var(--urgent); }
 
-.pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
-.pill.running { border-color: #0969da; }
-.pill.ok { border-color: #1a7f37; }
-.pill.failed { border-color: #cf222e; }
-.pill.interrupted { border-color: #9a6700; }
-/* 해독 상태. '안 해봤다'와 '해봤는데 안 됐다'와 '해봤는데 비었다'를 눈으로 갈라야 한다. */
-.pill.ok { border-color: #1a7f37; }
-.pill.empty { border-color: #9a6700; }
-.pill.unsupported { border-color: #6e7781; }
-.pill.container { border-color: #8250df; }
-.pill.none { border-color: #d0d7de; color: #999; }
+/* 상태 알약. **색을 넷만 쓴다** — 상태가 여덟인데 색을 여덟 개 만들면 아무 뜻도 안 남는다.
+   뜻은 옆 컬럼이 글자로 적고, 색은 '좋다 / 나쁘다 / 애매하다 / 안 했다'만 말한다.
+   `admin.module.css` 의 .pillOk · .pillBad · .pillWarn · .pillNone 과 같은 값이다. */
+.pill { display: inline-block; padding: 0 var(--s2); border: 1px solid var(--line-2);
+        border-radius: var(--r-pill); font-size: var(--t-caption); line-height: 1.7;
+        white-space: nowrap; color: var(--ink-2); }
+.pill.ok { border-color: var(--ink-4); color: var(--ink); font-weight: var(--w-medium); }
+.pill.failed { border-color: var(--urgent-line); background: var(--urgent-bg); color: var(--urgent); }
+.pill.interrupted,
+.pill.empty { border-color: var(--blank-line); background: var(--blank-bg); color: var(--blank); }
+.pill.unsupported,
+.pill.none { border-color: var(--line); color: var(--ink-3); }
+/* .running 과 .container 에는 규칙이 없다. 진행 중과 컨테이너는 결과가 아니라서
+   기본 알약(--ink-2)으로 두는 것이 뜻이다 — 옆의 진행률과 글자가 말한다. */
 
-.meter { height: 6px; border: 1px solid #999; border-radius: 3px; overflow: hidden; margin: 8px 0 4px; }
-.meter > i { display: block; height: 100%; background: #0969da; }
-.warn { color: #9a6700; }
+.meter { height: 6px; border: 1px solid var(--line-2); border-radius: var(--r-sm);
+         overflow: hidden; margin: var(--s2) 0 var(--s1); }
+.meter > i { display: block; height: 100%; background: var(--ink); }
+.warn { color: var(--blank); }
 /* 설명은 호버가 아니라 컬럼이다. 마우스를 올려야 보이는 정보는 안 보이는 정보에 가깝다. */
-td.desc { width: 240px; color: #444; }
+td.desc { width: 240px; color: var(--ink-2); }
 /* 문서에 설명이 없는 필드. 빈칸으로 두면 '설명이 있는데 안 보이는 것'과 구별이 안 된다. */
-.undoc { color: #cf222e; font-style: italic; }
-.bad { color: #cf222e; }
-pre { margin: 0; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
+.undoc { color: var(--urgent); font-style: italic; }
+.bad { color: var(--urgent); }
+pre { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: var(--t-caption); line-height: 1.45; white-space: pre-wrap; }
 /* 원문 JSON. 기본은 접어 둔다 — 파싱한 컬럼이 먼저 읽혀야 한다. */
-details.raw { border: 1px solid #ccc; border-radius: 4px; padding: 9px 12px; margin: 8px 0; }
+details.raw { border: 1px solid var(--line); border-radius: var(--r-sm);
+              padding: var(--s3); margin: var(--s2) 0; background: var(--surface); }
 details.raw > summary { cursor: pointer; }
-details.raw > pre { margin-top: 10px; max-height: 460px; overflow: auto; }
+details.raw > pre { margin-top: var(--s3); max-height: 460px; overflow: auto; }
 </style>
 </head>
 <body>

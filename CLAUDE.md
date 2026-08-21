@@ -23,7 +23,9 @@
 - API 계약은 [`docs/api-contract.md`](docs/api-contract.md)에 있다. **`web/`은 DB를 모른다**
 - **운영 조회 화면 넷은 `web/app/admin/`에 있고 배포본에서도 열린다**([ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)). 토큰을 입었고 T-0023이 그 커밋에서 닫혔다. `src/finnect/admin/`에는 **수집 실행 버튼만** 남았다 — 데몬 스레드라 안 올라간다. **읽기 화면을 거기 다시 만들지 않는다**
 - **`api/admin_service.py`에서 `attach.service`·`ingest.service`를 임포트하지 않는다.** 저 둘이 httpx와 파서를 끌고 오는데 `requirements.txt`가 그것들을 뺐다. 임포트하면 **로컬은 통과하고 배포본만 죽는다.** `tests/test_admin_api.py`가 막아 둔다
-- **`DESIGN.md` §4 토큰 실값이 찼다**([ADR-0025](docs/adr/0025-토큰-실값-확정.md)). 값의 유일한 자리는 `web/app/tokens.css`이고 정본은 DESIGN.md §4다
+- **`DESIGN.md` 를 remember(리멤버) 레퍼런스로 다시 세웠다**([ADR-0041](docs/adr/0041-토큰-실값을-remember-canonical-로-바꾼다.md)이 [ADR-0025](docs/adr/0025-토큰-실값-확정.md)를 대체). 값의 유일한 자리는 `web/app/tokens.css`이고 정본은 DESIGN.md 다 — 색 §2 · 타입 §3 · 반경 §4 · 간격 §5 · 그림자 §6. **절 번호가 통째로 바뀌었다**(15절 구조). 옛 번호는 `DESIGN_DEPRECATED.md` 의 대응표로 찾는다
+- **`--ink`(`#222`)와 `--action`(`#000`)은 다른 색이다.** 주 버튼 배경만 `--action` 이고 로고 마크·본문은 `--ink` 다. 이 분리가 remember 의 첫째 특징이다
+- **글자색 대비는 캔버스(`#f7f7f8`) 기준으로 잰다. 흰 면 기준이 아니다.** 회색 캔버스라 기준이 더 높아서 고전 AA 회색 `#767676` 도 여기서는 4.24:1 로 떨어진다. `--ink-3` 가 remember canonical(`#808080`)을 안 쓰고 `#6b7280` 인 이유가 이것이다 — **remember 에서 의도적으로 벗어난 유일한 색**([ADR-0041](docs/adr/0041-토큰-실값을-remember-canonical-로-바꾼다.md)). **12·13px 도 WCAG 기준 일반 텍스트라 4.5:1 이 걸린다**
 - `spike/`는 실측용 **버리는 코드**다. 기능을 얹거나 리팩터하지 않는다. 다시 돌리려면 `uv sync --group spike`
 - **`notice-filter/` 는 제품 코드가 아니지만 버리는 코드도 아니다.** 기업마당 1,524건을 룰 베이스로 580건까지 좁히는 **자격 층**([ADR-0013](docs/adr/0013-판정-두-층.md)) 판정기다. 의존성 0 · LLM 0회 · `python3 filter.py --test` 로 69/69 가 네트워크 없이 재현된다. **`src/finnect/` 와 `web/` 에 아무것도 안 붙어 있다** — 제품에 넣으려면 스펙 동기화 절차를 따르고, 그때 `plan/03` 이 정본이다. **기업마당만 본다**(우리 공고의 5%)
 
@@ -102,6 +104,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 
 - [`docs/SPEC.md`](docs/SPEC.md) — **정본.** 무엇을 만드는가. 현재 진실이고, 충돌 시 이 문서가 이긴다. 구현 중 검수 기준으로 참조하되 임의로 고치지 않는다
 - [`DESIGN.md`](DESIGN.md) — **시각 방향의 정본**(레포 루트). 여기에 한해서는 SPEC보다 이 문서가 이긴다([ADR-0018](docs/adr/0018-디자인-방향-이관.md))
+- [`DESIGN_DEPRECATED.md`](DESIGN_DEPRECATED.md) — 2026-08-16~08-20 판. **현재 설계로 읽지 않는다.** 남겨 둔 이유는 옛 토큰 실값 전부와 **절 번호 대응표**가 거기 있어서다
 - [`docs/api-contract.md`](docs/api-contract.md) — 제품 API 계약. `web/`과 `src/finnect/api/` 사이의 유일한 경계다. **정본은 코드**(`api/schemas.py`)이고 이 문서가 뜻을 적는다
 - [`docs/deploy.md`](docs/deploy.md) — 배포 절차. **올라가는 것은 읽기 경로뿐이다**([ADR-0026](docs/adr/0026-읽기-경로만-vercel에-올린다.md)). 수집·해독·admin은 로컬에 남는다
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다
@@ -129,7 +132,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 
 **틀린 문서를 미리 쓰지 않는다.** 계층별 상세 사양(노드 스키마, 추출 스키마, 요건 표현식, 프롬프트)은 코퍼스를 보고 나서 쓴다.
 
-화면 카피는 **해요체**로 쓴다. 문서는 지금 문체 그대로다. 규칙은 [`DESIGN.md`](DESIGN.md) §8. 대행한다고 말하지 않는다.
+화면 카피는 **해요체**로 쓴다. 문서는 지금 문체 그대로다. 규칙은 [`DESIGN.md`](DESIGN.md) §10. 대행한다고 말하지 않는다.
 
 ### 스펙 동기화
 

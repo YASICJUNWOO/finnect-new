@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>랜딩 · 현행</title>
+
+<!--
+  대조군. 기획 시연의 `#s-home` 을 그대로 옮긴 것이다 —
+  `docs/adr/evidence/2026-08-16-v2-기획문서/demo_from_hwi.html` 652~749행(마크업) · 156~203행(스타일).
+
+  **고치지 않고 옮겼다.** 14px·15px 본문이 DESIGN.md §8.2 를 어기는 것도 그대로 뒀다(§10.2 가 지적한 그것).
+  대조군이 하는 일은 "지금 무엇이 있는가"를 재는 자가 되는 것이지 좋아지는 게 아니다.
+
+  **손댄 자리가 하나 있다 — `word-break:keep-all`.**
+  시연에는 이게 없어서 한글이 어절 중간에서 잘린다("정보로 / 정리하고", "파일마 / 다 값이", "문서 / 가 이미").
+  시안 다섯에만 켜면 현행이 **비교 축과 무관한 이유로** 나빠 보이고, 여섯 다 끄면 여섯 다 같은 이유로 망가져
+  줄길이·밀도 실측이 통째로 못 쓴 값이 된다. 그래서 여섯 다 똑같이 켰다.
+  이것은 시안이 갈리는 축이 아니다 — **제품 코드(`web/`)에도 없는 것이라 따로 고쳐야 한다.**
+
+  하단 검은 바는 목업 전용이다. 코드로 옮길 때 따라가지 않는다.
+-->
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+/* 제품 토큰이 값의 유일한 자리다(ADR-0025). 시연이 :root 를 따로 갖고 있었지만 값이 같다 */
+@import url("../../../../web/app/tokens.css");
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:16px;line-height:1.6;font-weight:400;letter-spacing:-.011em;
+  word-break:keep-all;overflow-wrap:break-word;   /* 시연에 없던 것. 위 주석 참고 — 여섯 다 켰다 */
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── 상단 내비 ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--line)}
+.nav .in{max-width:1000px;margin:0 auto;height:64px;display:flex;align-items:center;
+  gap:var(--s6);padding:0 var(--s5)}
+.brand{display:flex;align-items:center;gap:var(--s2);font-size:17px;font-weight:700;letter-spacing:-.03em}
+.brand i{width:18px;height:18px;border-radius:6px;background:var(--ink)}
+.nav .sp{flex:1}
+
+/* 채워진 버튼은 화면에 하나나 둘만 둔다 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+  height:48px;padding:0 var(--s5);border-radius:var(--r-sm);
+  font-size:16px;font-weight:700;letter-spacing:-.02em}
+.btn.fill{background:var(--ink);color:#fff}
+.btn.fill:hover{background:#2a2d31}
+.btn.line{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2)}
+.btn.line:hover{border-color:var(--ink-3);color:var(--ink)}
+.btn.sm{height:40px;padding:0 var(--s4);font-size:15px}
+
+/* ── 랜딩. 앱과 같은 토큰을 쓴다. 마케팅 페이지처럼 따로 놀지 않게 한다 ── */
+.wrap{max-width:1000px;margin:0 auto;padding:0 var(--s5)}
+
+.hero{padding:var(--s8) 0 var(--s7)}
+.hero h1{font-size:44px;line-height:1.28;font-weight:700;letter-spacing:-.04em;max-width:16ch}
+.hero h1 em{font-style:normal}
+.hero p{font-size:18px;line-height:1.7;color:var(--ink-2);margin-top:var(--s5);max-width:44ch}
+.hero .act{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s6);flex-wrap:wrap}
+.hero .sub{font-size:14px;color:var(--ink-3)}
+
+.how{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.how h2{font-size:14px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s5)}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+@media(max-width:760px){.steps{grid-template-columns:1fr}}
+.st{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:var(--s5)}
+.st .n{font-size:13px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.st h3{font-size:19px;font-weight:700;letter-spacing:-.03em;margin-top:var(--s2)}
+.st p{font-size:15px;line-height:1.65;color:var(--ink-2);margin-top:var(--s2)}
+
+.why{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.why h2{font-size:26px;font-weight:700;letter-spacing:-.035em;max-width:32ch}
+.why .body{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);margin-top:var(--s5)}
+@media(max-width:760px){.why .body{grid-template-columns:1fr}}
+.why p{font-size:16px;line-height:1.8;color:var(--ink-2)}
+.why p+p{margin-top:var(--s3)}
+.why b{color:var(--ink);font-weight:700}
+.pts{display:flex;flex-direction:column;gap:var(--s4)}
+.pt{display:flex;gap:var(--s3);align-items:flex-start}
+.pt .m{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
+  font-size:11px;display:grid;place-items:center;flex:none;margin-top:3px;line-height:1}
+.pt .t{font-size:16px;font-weight:700;letter-spacing:-.02em}
+.pt .d{font-size:15px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+
+.nope{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.nope h2{font-size:14px;font-weight:700;color:var(--ink-3);margin-bottom:var(--s4)}
+.nope .list{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+@media(max-width:760px){.nope .list{grid-template-columns:1fr}}
+.nope .n{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s4)}
+.nope .n h3{font-size:16px;font-weight:700;letter-spacing:-.025em}
+.nope .n p{font-size:15px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+
+.end{padding:var(--s7) 0 var(--s8);border-top:1px solid var(--line);text-align:center}
+.end h2{font-size:26px;font-weight:700;letter-spacing:-.035em}
+.end p{font-size:16px;color:var(--ink-2);margin-top:var(--s2)}
+.end .act{margin-top:var(--s5)}
+.foot{border-top:1px solid var(--line);padding:var(--s5) 0 var(--s7);font-size:14px;color:var(--ink-3)}
+
+body{padding-bottom:56px}   /* 하네스 바 자리. 목업 전용이다 */
+</style>
+</head>
+
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#"><i></i><span id="brand"></span></a>
+    <span class="sp"></span>
+    <a class="btn line sm" href="#" id="navcta"></a>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero" id="hero"></section>
+  <section class="how" id="how"></section>
+  <section class="why" id="why"></section>
+  <section class="nope" id="nope"></section>
+  <section class="end" id="end"></section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="copy.js"></script>
+<script src="variants.js"></script>
+<script src="assets/harness.js"></script>
+<script>
+var e = COPY.esc;
+
+document.getElementById("brand").textContent = COPY.brand;
+document.getElementById("navcta").textContent = COPY.navCta;
+document.getElementById("foot").textContent = COPY.foot;
+
+document.getElementById("hero").innerHTML =
+  "<h1>" + e(COPY.hero.line1) + "<br><em>" + e(COPY.hero.accent) + "</em>" + e(COPY.hero.line2Tail) + "</h1>" +
+  "<p>" + e(COPY.hero.body) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.hero.cta) + "</a>" +
+  '<span class="sub">' + e(COPY.hero.sub) + "</span></div>";
+
+document.getElementById("how").innerHTML =
+  "<h2>" + e(COPY.how.h2) + "</h2>" +
+  '<div class="steps">' + COPY.how.steps.map(function (s) {
+    return '<div class="st"><span class="n">' + e(s.n) + "</span>" +
+           "<h3>" + e(s.t) + "</h3><p>" + e(s.d) + "</p></div>";
+  }).join("") + "</div>";
+
+document.getElementById("why").innerHTML =
+  "<h2>" + e(COPY.why.h2) + "</h2>" +
+  '<div class="body"><div>' +
+    COPY.why.lead.map(function (l) { return "<p>" + COPY.leadHtml(l) + "</p>"; }).join("") +
+  '</div><div class="pts">' +
+    COPY.why.pts.map(function (p) {
+      return '<div class="pt"><span class="m">' + e(p.m) + "</span><div>" +
+             '<div class="t">' + e(p.t) + '</div><div class="d">' + e(p.d) + "</div></div></div>";
+    }).join("") +
+  "</div></div>";
+
+document.getElementById("nope").innerHTML =
+  "<h2>" + e(COPY.nope.h2) + "</h2>" +
+  '<div class="list">' + COPY.nope.items.map(function (n) {
+    return '<div class="n"><h3>' + e(n.t) + "</h3><p>" + e(n.d) + "</p></div>";
+  }).join("") + "</div>";
+
+document.getElementById("end").innerHTML =
+  "<h2>" + e(COPY.end.h2) + "</h2><p>" + e(COPY.end.d) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.end.cta) + "</a></div>";
+
+/* 대조군에는 조절할 값이 없다 — 전환만 붙인다. 여기서 값을 만지면 '현행'이 아니게 된다. */
+Harness.mount({ current: "base", variants: VARIANTS });
+</script>
+</body>
+</html>

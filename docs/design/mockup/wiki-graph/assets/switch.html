@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 전환 뷰</title>
+
+<!--
+  ═══ 전환 뷰 템플릿 ════════════════════════════════════════════════════════
+
+  갤러리(index.html)는 여럿을 축소해 나란히 놓는다 — 구조를 한눈에 보는 용도.
+  여기는 반대다. 하나를 **실제 크기**로 띄우고 갈아끼운다 — 밀도·가독성 판단용.
+
+  마크업을 한 파일로 합치지 않는 이유
+    · 시안끼리 id 가 충돌한다(트리·폼 등 같은 구조를 여럿이 가질 때).
+    · 바깥 골격이 다른 시안은 콘텐츠를 다른 컨테이너로 옮겨야 한다.
+    · 무엇보다 CSS 가 얽히면 "무엇 때문에 좋아 보이는지"가 흐려진다.
+
+  그래서 iframe 을 전부 띄워둔 채 **보이기만** 바꾼다. 문서가 각자라 충돌이 없고,
+  숨은 동안에도 스크롤·펼침 상태가 남는다.
+  숨김에 display:none 을 쓰지 않는 이유 — 레이아웃이 0폭으로 잡혀 안쪽 미디어쿼리가 어긋난다.
+
+  ── 쓰는 법 ──
+  1. VARIANTS 를 프로젝트에 맞게 고친다(id·label·file·note).
+  2. <div class="stage"> 안 iframe 을 같은 수만큼 둔다.
+  3. 각 시안 파일은 Harness.mount({ current, variants }) 로 하단 바를 갖는다.
+     전환 조작은 그 바가 맡는다 — 여기 상단은 논지·링크만.
+-->
+
+<style>
+:root{
+  --bar-h:34px;
+  --bg:#FFFFFF; --line:#E2E8F0; --ink:#0F172A; --muted:#64748B; --brand:#6366F1;
+  --font:system-ui,-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;
+  overflow:hidden;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+
+.bar{
+  height:var(--bar-h);flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px;
+  background:var(--bg);border-bottom:1px solid var(--line);
+}
+.thesis{flex:1;min-width:0;font-size:12.5px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thesis b{color:var(--ink);font-weight:700}
+.right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lnk{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 9px;
+  transition:color 100ms ease-out,border-color 100ms ease-out}
+.lnk:hover{color:var(--brand);border-color:var(--brand)}
+
+.stage{position:relative;flex:1;min-height:0;background:var(--bg)}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;visibility:hidden}
+.stage iframe.on{visibility:visible}
+</style>
+</head>
+
+<body>
+
+<div class="bar">
+  <!-- 시안 전환은 각 화면 하단의 Harness 바가 맡는다. 여기는 논지·링크만. -->
+  <span class="thesis" id="thesis"></span>
+  <div class="right">
+    <a class="lnk" id="solo" href="#" target="_blank">단독 열기 ↗</a>
+    <a class="lnk" href="index.html">나란히 보기 ↗</a>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <!-- 시안 수만큼. data-v 는 VARIANTS 의 id 와 맞춘다. -->
+  <iframe class="on" data-v="base" src="../index.html" title="현행"></iframe>
+  <iframe data-v="a" src="a-variant.html" title="시안 A"></iframe>
+  <iframe data-v="b" src="b-variant.html" title="시안 B"></iframe>
+</div>
+
+<script>
+/* 프로젝트에 맞게 고칠 곳 — note 는 상단에 뜨는 한 줄 논지·측정값 */
+var VARIANTS = {
+  base: { file: "../index.html",  label: "현행", note: "기준선. 아래 시안이 무엇을 얼마나 바꾸는지 재는 자." },
+  a:    { file: "a-variant.html", label: "시안 A", note: "무엇을 바꾸고 무엇을 대가로 내주는지 한 줄." },
+  b:    { file: "b-variant.html", label: "시안 B", note: "실측값을 숫자로 박는다 — '넓어졌다' 대신 '900 → 1084 (+184)'." },
+};
+
+function show(v) {
+  if (!VARIANTS[v]) v = Object.keys(VARIANTS)[0];
+  document.querySelectorAll(".stage iframe").forEach(function (f) {
+    f.classList.toggle("on", f.dataset.v === v);
+  });
+  document.getElementById("thesis").innerHTML =
+    "<b>" + VARIANTS[v].label + "</b> · " + VARIANTS[v].note;
+  document.getElementById("solo").href = VARIANTS[v].file;
+  if (location.hash.slice(1) !== v) history.replaceState(null, "", "#" + v);
+}
+
+/* 각 시안 하단 바가 보내는 전환 요청.
+ * file:// 은 프레임마다 origin 이 null 이라 contentDocument 직접 접근은 막히지만
+ * postMessage 는 통과한다. origin 검사가 불가능하므로 payload 모양만 엄격히 본다. */
+window.addEventListener("message", function (e) {
+  var d = e.data;
+  if (!d || d.type !== "hns-switch" || !VARIANTS[d.to]) return;
+  show(d.to);
+});
+
+show(location.hash.slice(1));
+</script>
+</body>
+</html>

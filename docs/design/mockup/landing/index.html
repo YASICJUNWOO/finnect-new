@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>랜딩 — 시안 갤러리</title>
+
+<!--
+  나란히 보기. **구조를 한눈에 보는 용도다** — 밀도·가독성 판단은 switch.html 에서 한다.
+  숫자는 전부 `node assets/measure.mjs` 와 `contrast.mjs` 출력을 옮긴 것이다.
+  체감을 적지 않는다.
+-->
+
+<style>
+/* 제품 토큰이 값의 유일한 자리다(ADR-0041). **여기 값을 복사해 두면 갈린다** —
+   실제로 갈렸다. base.html 은 @import 라 따라왔는데 이 파일은 복사본이라
+   껍데기와 안쪽 프레임이 다른 회색을 쓰고 있었다. */
+@import url("../../../../web/app/tokens.css");
+
+:root {
+  /* 갤러리 껍데기만의 것. 제품 토큰에 대응이 없다 */
+  --bg: var(--surface); --warn: var(--urgent); --ok: var(--n-content);
+  --font: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font);
+  word-break: keep-all; }
+a { color: inherit; }
+
+.wrap { max-width: 1500px; margin: 0 auto; padding: 40px 24px 80px; }
+
+header.top { border-bottom: 2px solid var(--ink); padding-bottom: 16px; }
+h1 { margin: 0 0 8px; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.lede { margin: 0; max-width: 74ch; font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+.warnbox {
+  margin: 16px 0 0; padding: 10px 14px;
+  border-left: 3px solid var(--warn); background: #fdf6f4;
+  font-size: 13px; line-height: 1.6; max-width: 100ch;
+}
+.warnbox + .warnbox { margin-top: 8px; }
+
+.row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 28px; }
+@media (max-width: 1380px) { .row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 800px) { .row { grid-template-columns: repeat(2, 1fr); } }
+
+.card { border: 1px solid var(--line); display: flex; flex-direction: column; }
+.card.pick { border-color: var(--ink); border-width: 2px; }
+.card h2 { margin: 0; padding: 12px 14px 10px; font-size: 15px; font-weight: 700;
+  border-bottom: 1px solid var(--line); }
+.card h2 small { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  color: var(--ink-3); font-weight: 400; margin-top: 3px; }
+
+/* 축소 프리뷰. iframe 을 통째로 띄우고 transform 으로 줄인다 —
+   스크린샷을 쓰면 고치고 다시 찍어야 해서 금방 낡는다 */
+.shot { position: relative; height: 300px; overflow: hidden; background: #f4f4f5;
+  border-bottom: 1px solid var(--line); }
+.shot iframe { position: absolute; top: 0; left: 0; width: 1400px; height: 1500px; border: 0;
+  transform: scale(0.16); transform-origin: 0 0; pointer-events: none; }
+
+.body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.thesis { margin: 0; font-size: 13px; line-height: 1.6; }
+.cost { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--warn); }
+.cost b { font-weight: 700; }
+
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 10.5px;
+  margin-top: auto; }
+td { padding: 3px 0; border-top: 1px solid var(--line); }
+td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+td.k { color: var(--ink-3); }
+.d { color: var(--ink-3); }
+.d.up { color: var(--warn); }
+.bad { color: var(--warn); font-weight: 700; }
+.good { color: var(--ok); font-weight: 700; }
+
+.links { display: flex; gap: 6px; padding: 0 14px 14px; }
+.links a { font-family: var(--mono); font-size: 10.5px; text-decoration: none;
+  border: 1px solid var(--line); padding: 5px 8px; }
+.links a:hover { border-color: var(--ink); }
+
+section.notes { margin-top: 44px; border-top: 1px solid var(--line); padding-top: 22px; }
+section.notes h3 { margin: 22px 0 10px; font-size: 15px; }
+section.notes h3:first-child { margin-top: 0; }
+section.notes p, section.notes li { font-size: 13.5px; line-height: 1.7; color: var(--ink-2);
+  max-width: 88ch; }
+section.notes code { font-family: var(--mono); font-size: 12px; background: #f4f4f5; padding: 1px 4px; }
+section.notes b { color: var(--ink); }
+.dead { border-left: 3px solid var(--ink-3); padding: 10px 14px; background: #f7f7f8;
+  font-size: 13px; line-height: 1.65; max-width: 100ch; margin-bottom: 8px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>랜딩 · 같은 말을 여섯 가지로 놓는다</h1>
+  <p class="lede">
+    <b>카피가 여섯 다 같다.</b> 기획 시연(<code>demo_from_hwi.html</code> <code>#s-home</code>)의 말을
+    한 글자도 바꾸지 않았고 <code>copy.js</code> 한 곳에서 온다 — 시안마다 길이가 달라지면 밀도 비교가 깨진다.
+    갈리는 것은 <b>그 말을 무엇으로 놓는가</b>다. 축을 하나로 묶지 않았으므로(사용자 지시)
+    서체·명도·구조·동작이 시안마다 함께 움직인다. <b>대신 무엇이 갈렸는지를 카드마다 적었다.</b>
+  </p>
+  <p class="warnbox">
+    <b>전사용이 아니다.</b> 다섯 중 둘이 <code>DESIGN.md</code> 를 어딘가 어긴다 —
+    B 는 §3-1(라이트로 간다), D 는 §3-7(색은 위키에만)과 §4.2(굵기 셋)·§3-4(주 버튼은 근검정).
+    <b>고르면 그 규칙을 먼저 고쳐야 한다.</b>
+    규칙 안에 온전히 있는 것은 <b>C 던지기 · E 조립 · F 현행+</b> 셋이다.
+  </p>
+  <p class="warnbox">
+    <b>여섯 다 <code>word-break:keep-all</code> 을 켰다.</b> 시연에는 없어서 한글이 어절 중간에서 잘린다
+    ("정보로 / 정리하고", "파일마 / 다 값이"). 대조군에 손댄 유일한 자리이고,
+    안 켜면 여섯 다 같은 이유로 망가져 줄길이·밀도 실측이 못 쓴 값이 된다.
+    <b>제품 코드(<code>web/</code>)에도 없다 — 따로 고쳐야 한다.</b>
+  </p>
+</header>
+
+<div class="row" id="row"></div>
+
+<section class="notes">
+  <h3>버려진 시안 둘</h3>
+  <p class="dead">
+    <b>A 접수증 — 피드백에서 폐기.</b> 서류 한 장의 어법(문서 메타 열 · § 항목 · 붉은 도장 · 괘선)이었다.
+    파일도 지웠다.
+  </p>
+  <p class="dead">
+    <b>C 여백 — 에디토리얼이라 버렸다.</b> 고대비 명조(Hahmlet) 디스플레이 · 단 하나짜리 좁은 본문 ·
+    아주 큰 여백 · 밑줄 하나짜리 CTA. 실측이 대가를 숫자로 보여 줬다 —
+    <b>화면 세로 3,654px(현행의 1.9배)에 CTA 가 687px</b>.
+    랜딩의 일은 읽게 만드는 것이 아니라 정하게 만드는 것이다(<code>DESIGN.md</code> §2-3).
+    자리는 <b>C 던지기</b>가 대신하고, 금지는 <code>DESIGN.md</code> §5.1-7 과
+    <a href="../../../adr/0040-에디토리얼-지면형-방향을-쓰지-않는다.md">ADR-0040</a> 에 올렸다.
+  </p>
+
+  <h3>재서 알게 된 것</h3>
+  <ul>
+    <li><b>E 조립만 타입 스케일이 일곱이다.</b> 나머지는 8~11 종을 쓴다(<code>DESIGN.md</code> §4.2 가 일곱으로 정했다).
+      E 가 제품 토큰(<code>web/app/tokens.css</code>)의 <code>--t-*</code> 만 쓰는 유일한 시안이라 그렇다 —
+      <b>규칙을 지키는 것과 토큰을 그대로 쓰는 것이 같은 일이라는 뜻이다.</b>
+      F 현행+ 는 8 종인데, 현행의 11px 배지와 13px 번호를 그대로 물려받아서다.</li>
+    <li><b>현행의 본문 최소 14px 은 푸터 한 줄이다.</b> 숫자만 보면 "본문이 14px"로 읽히므로
+      <code>measure.mjs</code> 가 어느 요소가 그 값을 냈는지 함께 찍는다. 나머지 다섯은 16px 을 넘겼다.</li>
+    <li><b>대비 미달 7건이 전부 현행이고 전부 같은 색이었다</b>(<code>--ink-3</code> <code>#949aa2</code>, 2.65:1).
+      시안과 무관한 <b>기존 제품 문제</b>였고 위키 그래프 시안에서도 같은 색이 걸렸다.
+      다섯 시안은 268개 글자 자리에서 미달 0 이다.
+      <br><b>2026-08-21 고쳐졌다</b> — <code>--ink-3</code> 가 <code>#6b7280</code> 이 되어 캔버스 위 4.52:1 이다
+      (<a href="../../../adr/0041-토큰-실값을-remember-canonical-로-바꾼다.md">ADR-0041</a>).
+      <b>이 항목의 숫자를 다시 재지 않았다</b> — 측정은 그때 것이다.</li>
+    <li><b>D 면의 거대 숫자가 2.11:1 이었다.</b> 불투명도 0.28 로 흐려 놨는데 86px 큰 글자 기준이 3:1 이다.
+      0.46 으로 올려 3.31:1 을 만들었다. <b>상록 면을 더 밝히면 다시 재야 한다.</b></li>
+    <li><b>D 면의 제목을 104px 에서 76px 로 내렸다.</b> 다섯 줄로 흘러 히어로를 통째로 먹었고
+      오른쪽 아래에 앉히려던 설명이 첫 화면 밖으로 밀렸다. CTA 가 737 → 533px 로 올라왔다.</li>
+    <li><b>여섯 다 CTA 가 첫 화면 안에 든다.</b> 1600×1000 기준이다. C 던지기가 551px 로 가장 낮은데
+      드롭존이 첫 화면을 차지하기 때문이다.</li>
+  </ul>
+
+  <h3>검증 스크립트가 한 번 거짓말을 했다</h3>
+  <p>
+    <code>font-probe.mjs</code> 가 <b>IBM Plex Sans KR 의 300·400·600 이 같은 face 로 떨어진다</b>고 보고했고,
+    그 말을 믿고 B 관제의 굵기 위계를 400/500/700 으로 줄였다. <b>틀린 판독이었다.</b>
+    프로브가 한글 표본의 <b>폭</b>으로 판별하는데, 한글 글자는 굵기가 달라져도 advance 가 거의 고정이다.
+  </p>
+  <p>
+    <code>IBM Plex Sans KR 40px — 한글 400: 187.84 · 700: 187.84 (같다) / 라틴 400: 250.38 · 700: 262.89 (다르다)</code>
+  </p>
+  <p>
+    획은 실제로 굵어지는데 폭이 안 변할 뿐이었다. <b>B 를 원래 위계로 되돌리고 프로브를 라틴 표본으로 고쳤다.</b>
+    등폭 폰트도 같은 이유로 판정에서 뺀다. 지금은 <b>문제 0건</b>이고, 시안마다 실제로 쓰는 굵기가
+    전부 구분되는 것을 확인했다.
+  </p>
+
+  <h3>다시 재려면</h3>
+  <p>
+    <code>npm i --no-save playwright@1.62.1 &amp;&amp; npx playwright install chromium</code> 한 번 하고,
+    <code>node assets/measure.mjs</code> · <code>node assets/contrast.mjs</code> ·
+    <code>node assets/font-probe.mjs</code> · <code>node assets/shot.mjs</code>.
+    <b>커밋하지 않는다</b> — <code>rm -rf node_modules package-lock.json</code>.
+  </p>
+</section>
+
+</div>
+
+<script src="variants.js"></script>
+<script>
+/* 실측값. **`node assets/measure.mjs` 출력을 그대로 옮긴 것이다.**
+ * 여기 손으로 좋아 보이는 숫자를 적지 않는다 — 그러면 표가 근거가 아니라 주장이 된다.
+ * `fails` 는 `contrast.mjs` 의 단색 배경 미달 건수다. */
+var MEASURED = {
+  base: { pageH: 1949, ctaTop: 389, ctaH: 48, minProse: 14, maxLine: 42, sizes: 10, filled: 2, minHit: 27, fails: 7 },
+  b:    { pageH: 2557, ctaTop: 495, ctaH: 50, minProse: 16, maxLine: 38, sizes: 8,  filled: 2, minHit: 44, fails: 0 },
+  c:    { pageH: 1983, ctaTop: 551, ctaH: 56, minProse: 16, maxLine: 45, sizes: 9,  filled: 2, minHit: 44, fails: 0 },
+  d:    { pageH: 3179, ctaTop: 533, ctaH: 56, minProse: 16, maxLine: 42, sizes: 11, filled: 1, minHit: 44, fails: 0 },
+  e:    { pageH: 1978, ctaTop: 448, ctaH: 48, minProse: 16, maxLine: 42, sizes: 7,  filled: 2, minHit: 44, fails: 0 },
+  f:    { pageH: 2059, ctaTop: 420, ctaH: 48, minProse: 16, maxLine: 38, sizes: 8,  filled: 2, minHit: 44, fails: 0 },
+};
+
+var COPY = {
+  base: {
+    tag: "대조군 · Pretendard · 회색 캔버스",
+    thesis: "기획 시연 #s-home 을 그대로 옮긴 것. 회색 캔버스에 흰 카드가 반복된다. 다섯이 무엇을 얼마나 바꾸는지 재는 자다.",
+    cost: "본문이 14·15px 이라 §8.2 미달이고(§10.2 가 지적한 그것), 보조 글자가 전부 2.65:1 이다. 절과 절의 차이가 여백뿐이라 스크롤해도 같은 화면처럼 보인다.",
+  },
+  b: {
+    tag: "데이터 · IBM Plex Sans KR · 근검정",
+    thesis: "공고 31,327건을 그 개수만큼 실제로 그린다. 표본이 아니다. 그중 열넷만 켜지고, 켜짐/꺼짐이 곧 자격 판별이라 색이 필요 없다(ADR-0013).",
+    cost: "§3-1(라이트로 간다)을 정면으로 뒤집는다. 화면 전부를 어둡게 갈 것인지가 같이 정해져야 한다. 이 시안만 카피가 한 줄 더 있다 — 건수 캡션이 없으면 점 밭이 장식이 된다.",
+  },
+  c: {
+    tag: "동작 · Pretendard · 밝은 회색",
+    thesis: "설득하지 않고 시켜 본다. 첫 화면이 통째로 드롭존이고, 던지면 「세 단계로 끝나요」가 말이 아니라 동작으로 돈다. 그래서 이 시안에는 how 절이 따로 없다.",
+    cost: "첫 화면에 설명이 가장 적다. 무엇을 하는 서비스인지 모르는 사람은 던질 이유가 없다. 데모가 plan/15 의 진짜 진행에 안 물리면 화면이 거짓말을 한다.",
+  },
+  d: {
+    tag: "면 · Gothic A1 900 · 모래 / 상록 / 근검정",
+    thesis: "카드를 없앤다. 절마다 화면 전체가 색을 갈아입어 스크롤이 곧 장(章)이 된다. 버튼은 면마다 반전된다 — 잉크로 채우고 글자는 면 색이다.",
+    cost: "면마다 명도가 뒤집혀 스크롤 중 눈이 계속 적응해야 한다. 화면 세로가 현행의 1.6배다. §3-7(색은 위키에만)을 통째로 다시 정해야 하고 §4.2 의 굵기 셋 밖의 900 을 쓴다.",
+  },
+  e: {
+    tag: "기계장치 · 제품 토큰 그대로",
+    thesis: "히어로가 제품의 기계장치를 보여 준다. 파일 여섯이 흩어져 있다가 노드로 조립된다(ADR-0014). 색은 노드 분류색 셋뿐이고 그 자리는 §3-7 이 허락한 곳이다. 눌러서 다시 돌린다.",
+    cost: "여섯 중 현행과 덜 다르다. 인상 변화가 작다. 논지가 모션이라 정지 화면(스크린샷·인쇄)에서는 논지가 아예 안 보인다.",
+  },
+  f: {
+    tag: "합본 · 현행 뼈대 + 살아남은 셋",
+    thesis: "현행을 갈아엎지 않고 피드백에서 살아남은 셋만 붙였다 — C 의 드롭존, E 의 조립, E 의 포인트 색. 셋을 나란히 얹지 않고 드롭존 안에서 조립이 일어나게 묶었고, 그 동작이 아래 카드 셋을 제 노드 색으로 켠다. 모션이 반복된다.",
+    cost: "여섯 중 현행과 가장 덜 다르다. 새 방향이 아니라 현행을 안 버리기로 했을 때의 최선이다. 끊임없이 도는 모션은 오래 보는 화면에서 피로하다 — 고르면 몇 바퀴 뒤 멈출지를 정해야 한다.",
+  },
+};
+
+var base = MEASURED.base;
+function delta(key, v) {
+  var d = v - base[key];
+  if (!d) return "";
+  return ' <span class="d' + (Math.abs(d) > 400 ? " up" : "") + '">' + (d > 0 ? "+" : "") + d + "</span>";
+}
+function flag(v, ok, suffix) {
+  return '<span class="' + (ok ? "good" : "bad") + '">' + v + (suffix || "") + "</span>";
+}
+
+document.getElementById("row").innerHTML = VARIANTS.map(function (v) {
+  var m = MEASURED[v.id], c = COPY[v.id];
+  return '<article class="card' + (v.id === "f" ? " pick" : "") + '">' +
+    "<h2>" + v.label + "<small>" + c.tag + "</small></h2>" +
+    '<div class="shot"><iframe src="' + v.file + '" title="' + v.label + '" loading="lazy" scrolling="no"></iframe></div>' +
+    '<div class="body">' +
+      '<p class="thesis">' + c.thesis + "</p>" +
+      '<p class="cost"><b>대가 —</b> ' + c.cost + "</p>" +
+      "<table>" +
+        '<tr><td class="k">화면 세로</td><td>' + m.pageH + delta("pageH", m.pageH) + "</td></tr>" +
+        '<tr><td class="k">CTA 세로</td><td>' + m.ctaTop + delta("ctaTop", m.ctaTop) + "</td></tr>" +
+        '<tr><td class="k">본문 최소</td><td>' + flag(m.minProse, m.minProse >= 16, "px") + "</td></tr>" +
+        '<tr><td class="k">최장 줄</td><td>' + m.maxLine + "자</td></tr>" +
+        '<tr><td class="k">타입 단계</td><td>' + flag(m.sizes, m.sizes <= 7) + "</td></tr>" +
+        '<tr><td class="k">채운 버튼</td><td>' + m.filled + "</td></tr>" +
+        '<tr><td class="k">최소 타깃</td><td>' + flag(m.minHit, m.minHit >= 44, "px") + "</td></tr>" +
+        '<tr><td class="k">대비 미달</td><td>' + flag(m.fails, m.fails === 0) + "</td></tr>" +
+      "</table>" +
+    "</div>" +
+    '<div class="links"><a href="' + v.file + '">단독</a>' +
+      '<a href="switch.html#' + v.id + '">실제 크기</a></div>' +
+  "</article>";
+}).join("");
+</script>
+</body>
+</html>

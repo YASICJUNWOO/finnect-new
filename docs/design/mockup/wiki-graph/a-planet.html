@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A — 행성</title>
+
+<!--
+  시안 A · 행성.
+
+  **궤도 구조는 현행 그대로다.** 중심 하나 · 안쪽 다섯 · 바깥 아홉, 각도가 구획을 뜻하고
+  자리는 고정이다(ADR-0017). 바뀐 것은 **자리를 무엇으로 그리는가** 하나다 —
+  납작한 원 대신 빛을 받는 구체로 그린다.
+
+  종류색의 뜻은 그대로 두되(§4.1) 색을 셋씩 쓴다 — 밝은 면 · 본색 · 그늘.
+  구체는 한 색으로는 안 선다. 세 색 다 같은 색조에서 나오므로 **말하는 것은 여전히 종류 하나다.**
+
+  안 채운 자리는 **아직 뭉치지 않은 행성**이다. 궤도 위 제 자리에 윤곽만 있고 속이 비었다.
+  값이 갈린 자리에는 고리를 두른다 — 색을 하나 더 만들지 않고 형태로 말한다.
+
+  우주 배경을 그리지 않는다. 별도 성운도 없다 — 어두운 촬영 배경 하나뿐이다.
+  하단 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="common.css">
+<style>
+/* 토큰을 갈아 끼운다. **껍데기 구조는 현행과 같고 색만 다른 것이 요점이다** */
+:root {
+  --canvas: #0e1116;
+  --surface: #171b22;
+  --quiet: #1b2029;
+  --ink: #eef1f5;
+  --ink-2: #a3adba;
+  --ink-3: #7c8898;   /* 빈 자리 이름표와 구획 라벨이 이 색이라 AA 를 넘겨야 한다. #6f7b8a 는 4.39:1 이었다 */
+  --ink-4: #3e4753;
+  --line: #242b34;
+  --line-2: #2e3640;
+  --blank: #f0a33a;
+  --n-identity: #7b7bf0;
+  --n-company: #e08a4a;
+  --n-content: #3fbfa8;
+}
+
+body {
+  /* 촬영 배경. 가운데가 조금 밝은 그라데이션 하나 — 별을 뿌리지 않는다 */
+  background:
+    radial-gradient(120% 80% at 50% 22%, #1a2029 0%, #0e1116 62%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+.thesis { background: rgba(255, 255, 255, 0.03); border-color: var(--line-2); }
+.panel { background: var(--surface); border-color: var(--line-2); }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--ink); }
+
+.svg { display: block; width: 100%; max-width: 700px; height: auto; margin: 0 auto; overflow: visible; }
+
+/* 궤도. 아주 얇다 — 선이 구조를 말하지 장식이 아니다 */
+.ring, .spoke { fill: none; stroke: rgba(255, 255, 255, 0.09); stroke-width: 1; }
+.spoke { stroke: rgba(255, 255, 255, 0.055); }
+
+.sector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.14em;
+}
+
+.node { cursor: pointer; }
+.node:focus-visible { outline: none; }
+.node:focus-visible .halo { opacity: 1; stroke: var(--ink); }
+
+/* 대기광. 구체 뒤에 깔리는 아주 옅은 번짐 — **행성처럼 보이게 하는 것의 절반이 이거다** */
+.air { opacity: 0.5; }
+.node[data-filled="false"] .air { opacity: 0.12; }
+
+/* 속이 빈 자리 — 윤곽만 남긴다. 테두리 색은 제 종류 색이다 */
+.shell { fill: none; stroke: var(--kind); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: 0.75; }
+
+/* 고른 자리. 색을 하나 더 만들지 않고 흰 링을 두른다 */
+.halo { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.5; opacity: 0; }
+.node[data-selected="true"] .halo { opacity: 1; }
+
+.label {
+  fill: var(--ink-2);
+  font-size: var(--t-caption);
+  paint-order: stroke;
+  stroke: rgba(14, 17, 22, 0.85);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+}
+.node[data-filled="false"] .label { fill: var(--ink-3); }
+.node[data-selected="true"] .label { fill: var(--ink); font-weight: var(--w-medium); }
+.centerLabel {
+  fill: #fff;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: -0.01em;
+}
+
+/* 아주 느린 부유. 자리는 안 움직이고 **1px 남짓 뜬다** — 살아 있다는 신호지 이동이 아니다 */
+.bob { animation: bob 7s ease-in-out infinite; }
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) { .bob { animation: none; } }
+</style>
+</head>
+
+<body>
+<script src="data.js"></script>
+<script src="common-parts.js"></script>
+<script src="orbit.js"></script>
+<script>
+chrome({ thesis: "A. 궤도는 그대로예요. 자리를 빛 받는 행성으로 그렸고, 아직 안 채운 자리는 뭉치지 않은 윤곽으로 남아요." });
+
+/* 종류별 세 색 — 밝은 면 · 본색 · 그늘. **전부 같은 색조에서 나온다** */
+var SKIN = {
+  identity: { lit: "#b9b6ff", base: "#6a63e8", dark: "#241f6b", air: "#7b7bf0" },
+  company:  { lit: "#ffc78f", base: "#d97a3c", dark: "#5c2708", air: "#e08a4a" },
+  content:  { lit: "#8ff0dc", base: "#28a892", dark: "#04443b", air: "#3fbfa8" },
+};
+
+function defs() {
+  var out = ["<defs>"];
+  Object.keys(SKIN).forEach(function (k) {
+    var s = SKIN[k];
+    /* 구면 음영. **광원을 왼쪽 위 하나로 고정한다** — 구체마다 빛이 다른 데서 오면
+     * 열다섯 개가 서로 다른 물건으로 보인다 */
+    out.push('<radialGradient id="skin-' + k + '" cx="34%" cy="27%" r="76%">' +
+      '<stop offset="0%" stop-color="' + s.lit + '"/>' +
+      '<stop offset="42%" stop-color="' + s.base + '"/>' +
+      '<stop offset="100%" stop-color="' + s.dark + '"/></radialGradient>');
+    /* 림 라이트. 그늘 쪽 가장자리를 한 겹 밝혀 구가 배경에서 떨어진다 */
+    out.push('<radialGradient id="rim-' + k + '" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="76%" stop-color="' + s.lit + '" stop-opacity="0"/>' +
+      '<stop offset="94%" stop-color="' + s.lit + '" stop-opacity="0.5"/>' +
+      '<stop offset="100%" stop-color="' + s.lit + '" stop-opacity="0"/></radialGradient>');
+    /* 대기광 */
+    out.push('<radialGradient id="air-' + k + '" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="52%" stop-color="' + s.air + '" stop-opacity="0.42"/>' +
+      '<stop offset="100%" stop-color="' + s.air + '" stop-opacity="0"/></radialGradient>');
+  });
+  /* 스페큘러 하이라이트. 하나를 모든 구체가 나눠 쓴다 */
+  out.push('<radialGradient id="spec" cx="50%" cy="50%" r="50%">' +
+    '<stop offset="0%" stop-color="#fff" stop-opacity="0.9"/>' +
+    '<stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>');
+  /* 중심의 코로나 */
+  out.push('<radialGradient id="corona" cx="50%" cy="50%" r="50%">' +
+    '<stop offset="46%" stop-color="#7b7bf0" stop-opacity="0.5"/>' +
+    '<stop offset="72%" stop-color="#7b7bf0" stop-opacity="0.16"/>' +
+    '<stop offset="100%" stop-color="#7b7bf0" stop-opacity="0"/></radialGradient>');
+  out.push("</defs>");
+  return out.join("");
+}
+
+/* 구체 하나. 겹 넷이다 — 대기광 · 본체 · 림 · 하이라이트 */
+function sphere(n) {
+  var k = n.kind, r = n.r;
+  if (!n.filled) {
+    return '<circle class="air" cx="' + n.x + '" cy="' + n.y + '" r="' + (r * 1.7) + '" fill="url(#air-' + k + ')"/>' +
+      '<circle class="shell" cx="' + n.x + '" cy="' + n.y + '" r="' + (r - 1) + '"/>';
+  }
+  return [
+    '<circle class="air" cx="' + n.x + '" cy="' + n.y + '" r="' + (r * (k === "identity" ? 2.1 : 1.85)) +
+      '" fill="url(#' + (k === "identity" ? "corona" : "air-" + k) + ')"/>',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#skin-' + k + ')"/>',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#rim-' + k + ')"/>',
+    /* 하이라이트는 광원 쪽으로 치우쳐 앉는다. 가운데에 두면 구가 아니라 단추가 된다 */
+    '<ellipse cx="' + (n.x - r * 0.3) + '" cy="' + (n.y - r * 0.36) + '" rx="' + (r * 0.34) +
+      '" ry="' + (r * 0.26) + '" fill="url(#spec)" transform="rotate(-24 ' +
+      (n.x - r * 0.3) + " " + (n.y - r * 0.36) + ')"/>',
+  ].join("");
+}
+
+/* 값이 갈린 자리 — 고리를 두른다. **색이 아니라 형태로 말한다** */
+function ring(n) {
+  var r = n.r;
+  return '<g transform="rotate(-18 ' + n.x + " " + n.y + ')">' +
+    '<ellipse cx="' + n.x + '" cy="' + n.y + '" rx="' + (r * 1.75) + '" ry="' + (r * 0.46) +
+      '" fill="none" stroke="var(--blank)" stroke-width="2.5" opacity="0.85"/>' +
+    '<ellipse cx="' + n.x + '" cy="' + n.y + '" rx="' + (r * 1.42) + '" ry="' + (r * 0.36) +
+      '" fill="none" stroke="var(--blank)" stroke-width="1" opacity="0.5"/></g>';
+}
+
+var svg = ['<svg class="svg" viewBox="0 0 ' + SIZE + ' ' + SIZE +
+  '" role="group" aria-label="사업 위키 궤도. 자리 열다섯">', defs()];
+
+ORBIT.inner.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.company, a.from, a.to) + '"/>'); });
+ORBIT.outer.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.content, a.from, a.to) + '"/>'); });
+spokes().forEach(function (s) {
+  svg.push('<line class="spoke" x1="' + s.x1 + '" y1="' + s.y1 + '" x2="' + s.x2 + '" y2="' + s.y2 + '"/>');
+});
+sectorLabels(56).forEach(function (s) {
+  svg.push('<text class="sector" x="' + s.x + '" y="' + s.y + '">' + s.label + '</text>');
+});
+
+function nodeHTML(n, inside, i) {
+  var L = inside ? { x: n.x, y: n.y + 5, anchor: "middle" } : labelAt(n, 20);
+  return '<g class="node" data-key="' + n.key + '" data-kind="' + n.kind + '" data-filled="' + n.filled +
+    '" data-selected="false" style="--kind: var(--n-' + n.kind + ')"' +
+    ' role="button" tabindex="0" aria-label="' + n.label + ' — ' + stateOf(n) + '">' +
+    '<circle class="halo" cx="' + n.x + '" cy="' + n.y + '" r="' + (n.r + 9) + '"/>' +
+    /* 부유는 구체에만 건다. 이름표까지 흔들리면 읽기가 불편하다 */
+    '<g class="bob" style="animation-delay: ' + (i * 0.42).toFixed(2) + 's">' + sphere(n) + '</g>' +
+    (n.conflicted ? ring(n) : "") +
+    '<text class="' + (inside ? "centerLabel" : "label") + '" x="' + L.x + '" y="' + L.y +
+      '" text-anchor="' + L.anchor + '">' + n.label + '</text></g>';
+}
+
+svg.push(nodeHTML(ORBIT.center, true, 0));
+ORBIT.all.forEach(function (n, i) { svg.push(nodeHTML(n, false, i + 1)); });
+svg.push("</svg>");
+document.getElementById("graph").innerHTML = svg.join("");
+
+var picked = null;
+function pick(key) {
+  picked = picked === key ? null : key;
+  document.querySelectorAll(".node").forEach(function (g) {
+    g.dataset.selected = String(g.dataset.key === picked);
+  });
+  selectNode(picked);
+}
+document.querySelectorAll(".node").forEach(function (g) {
+  g.addEventListener("click", function () { pick(g.dataset.key); });
+  g.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(g.dataset.key); }
+  });
+});
+</script>
+
+<script src="assets/harness.js"></script>
+<script src="variants.js"></script>
+<script>
+Harness.mount({
+  current: "a",
+  variants: VARIANTS,
+  controls: [
+    { kind: "color", label: "배경", name: "canvas", value: "#0e1116", cssVar: "--canvas", contrastAgainst: "--ink" },
+    { kind: "color", label: "사업 내용", name: "content", value: "#3fbfa8", cssVar: "--n-content", contrastAgainst: "--canvas" },
+    { kind: "color", label: "사업체 정보", name: "company", value: "#e08a4a", cssVar: "--n-company", contrastAgainst: "--canvas" },
+  ],
+  exportAs: { format: "css", selector: ":root" },
+  persist: true,
+});
+</script>
+</body>
+</html>

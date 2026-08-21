@@ -1,10 +1,15 @@
-/* DESIGN.md §4 토큰. **이 파일이 값의 유일한 자리다**(ADR-0025).
+/* DESIGN.md 토큰. **이 파일이 값의 유일한 자리다**(ADR-0041, ADR-0025 를 대체).
  *
  * 컴포넌트에 색 리터럴을 쓰지 않는다. plan/09 검증이 그걸 grep 으로 본다.
- * 값을 고칠 일이 생기면 DESIGN.md §4 를 먼저 고치고 여기를 맞춘다 — 저기가 정본이다. */
+ * 값을 고칠 일이 생기면 DESIGN.md 를 먼저 고치고 여기를 맞춘다 — 저기가 정본이다.
+ *
+ * 값의 출처가 둘이다. remember(리멤버) canonical 에서 받은 것과, remember 패킷이
+ * 관측하지 않아 finnect 가 그대로 들고 있는 것. 아래에 축마다 적어 둔다.
+ * **관측 밖 값을 remember 근거로 정당화하지 않는다.** */
 
 :root {
-  /* --- 간격. 4px 스케일 (§4.3 · §8.2) --- */
+  /* --- 간격. 4px 스케일 (§5) ---
+   * 4~24 는 remember spacing xs~xl 과 같다. 32~64 는 관측 밖이다. */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
@@ -14,21 +19,33 @@
   --s7: 48px;
   --s8: 64px;
 
-  /* --- 색 (§4.1) ---
+  /* --- 색 (§2) ---
    * 60-30-10. 액센트는 마감 하나뿐이다.
    * --blank 는 문서 빈칸용이라 공고 화면(S4·S5)에 나오지 않는다. */
-  --canvas: #f7f7f8;
-  --surface: #fff;
-  --quiet: #f4f5f6;
 
-  --ink: #16181b;
-  --ink-2: #5f656d;
-  --ink-3: #949aa2;
-  --ink-4: #cbd0d6;
+  /* 동작 검정. **--ink 와 다른 색이다** — remember 의 첫째 특징이 이 분리다.
+   * 주 버튼 배경에만 쓴다. 로고 마크는 동작이 아니라 --ink 다 */
+  --action: #000;
 
-  --line: #e9eaec;
-  --line-2: #dfe2e6;
+  --surface: #fff; /* remember surface */
+  --canvas: #f7f7f8; /* 관측 밖. remember 는 career 표면이 통째로 흰 field 다 */
+  --quiet: #f2f2f2; /* remember input-surface */
 
+  --ink: #222; /* remember foreground */
+  --ink-2: #5f656d; /* 관측 밖. 5.88:1 */
+  /* remember muted 는 #808080 이고 그 값은 **안 쓴다**. remember 는 흰 field 위에서
+   * 관측된 값이라 3.95:1 이고, 우리 캔버스는 #f7f7f8 회색이라 3.69:1 로 더 내려간다.
+   * `::placeholder` 가 CSS 에 하나도 없어서 이 토큰은 전부 텍스트로 쓰이고,
+   * 12·13px 도 WCAG 기준 일반 텍스트라 4.5:1 이 필요하다.
+   * #6b7280 이 흰 면 4.83:1 · 캔버스 4.52:1 로 양쪽을 넘는 가장 밝은 값이다 */
+  --ink-3: #6b7280;
+  --ink-4: #cbd0d6; /* 관측 밖. 텍스트 아님 — 비활성 표시 전용 */
+
+  --line: #d4d4d4; /* remember hairline */
+  --line-2: #dfe2e6; /* 관측 밖 */
+
+  /* 아래 상태색·노드색은 전부 관측 밖이다. remember 패킷이 오류·성공·선택·호버·
+   * 포커스·비활성 색을 확립하지 않았고, 인접 제품에서 추측해 채우지 않는다 */
   --urgent: #d92d20;
   --urgent-bg: #fff5f4;
   --urgent-line: #f7d4d0;
@@ -42,39 +59,47 @@
   --n-content: #0f766e;
   --n-company: #9a3412;
 
-  /* --- 반경. 역할별로 가른다 (§4.3) --- */
-  --r-sm: 10px; /* 조작 요소 — 버튼, 입력, 칩 */
-  --r: 16px; /* 내용 컨테이너 — 카드 */
-  --r-pill: 999px; /* 알약형 표시 */
+  /* --- 반경. 역할별로 가른다 (§4) ---
+   * remember rounded sm/md/lg 셋을 그대로 받았다. 관측된 최대가 8px 이다 */
+  --r-sm: 4px; /* 조작 요소 — 버튼, 입력, 칩 */
+  --r-md: 6px; /* 오버레이 트리거·로고 마크 */
+  --r: 8px; /* 내용 컨테이너 — 카드 */
+  --r-pill: 999px; /* 알약형 표시. 관측 밖 */
 
-  /* --- 타입. 일곱 단계 (§4.2) ---
-   * 시연의 15단계를 정리한 것이다. **14px 과 15px 이 없는 것이 요점이다** —
-   * §8.2 가 본문 16px 이상을 요구한다. */
-  --t-caption: 12px;
-  --t-small: 13px;
-  --t-body: 16px;
-  --t-lead: 19px;
-  --t-title: 24px;
-  --t-display: 32px;
-  --t-hero: 44px;
+  /* --- 타입 (§3) ---
+   * body·card-title·heading 셋만 remember 관측값이다.
+   * **14px 과 15px 이 없는 것이 요점이다** — 본문은 16px 이상이다.
+   * --t-lead 가 --t-body 와 같은 값인 것은 사고가 아니다. remember 의 카드 제목이
+   * 본문과 같은 16/400 이고, 그것이 카드를 띄우지 않는 목록 리듬을 만든다.
+   * 크기로 벌리지 말고 굵기와 위치로 가른다 */
+  --t-caption: 12px; /* 관측 밖 */
+  --t-small: 13px; /* 관측 밖 */
+  --t-body: 16px; /* remember body */
+  --t-lead: 16px; /* remember card-title */
+  --t-title: 20px; /* remember heading */
+  --t-display: 32px; /* 관측 밖 */
+  --t-hero: 44px; /* 관측 밖 */
 
   --lh-caption: 1.4;
   --lh-small: 1.5;
-  --lh-body: 1.6;
-  --lh-lead: 1.5;
-  --lh-title: 1.35;
+  --lh-body: 1.45; /* remember body */
+  --lh-lead: 1.45; /* remember card-title */
+  --lh-title: 1.3; /* remember heading */
   --lh-display: 1.25;
   --lh-hero: 1.15;
 
-  /* 굵기 셋. 시연의 500 은 600 과 구분되지 않아 뺐다 */
+  /* 400 본문 · 600 제목은 remember 관측값이다. 700 은 관측 밖이고
+   * --t-display·--t-hero 에서만 쓴다 */
   --w-normal: 400;
   --w-medium: 600;
   --w-bold: 700;
 
-  /* 24px 이상에만. 한글 본문에 넣으면 가독성이 떨어진다 */
+  /* 24px 이상에만. 한글 본문에 넣으면 가독성이 떨어진다.
+   * --t-title 이 20px 이 되면서 이제 --t-display·--t-hero 만 해당한다 */
   --tracking-title: -0.02em;
 
-  /* --- 그림자 (§4.4) ---
-   * 흐름 안의 카드는 경계선을 쓴다. **실제로 위에 뜨는 것에만** 준다. */
+  /* --- 그림자 (§6) ---
+   * 흐름 안의 카드는 경계선을 쓴다. **실제로 위에 뜨는 것에만** 준다.
+   * 관측 밖이다 — remember 는 dialog-open 에서 elevation 토큰을 승격하지 않았다 */
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.08);
 }

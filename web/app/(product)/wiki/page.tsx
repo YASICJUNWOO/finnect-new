@@ -38,7 +38,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         </p>
 
         {/* 채움 상태(F1-4-2). **막대를 만들지 않는다** — 숫자가 근거를 갖는 값이라
-          * 막대로 그리면 비율처럼 읽히고, 그러면 §6 이 막은 것과 같은 물건이 된다 */}
+          * 막대로 그리면 비율처럼 읽히고, 그러면 §7 이 막은 것과 같은 물건이 된다 */}
         <p className={styles.counts}>
           <span data-numeric>
             자리 {wiki.total}개 중 <b>{wiki.filled}개</b>가 찼어요

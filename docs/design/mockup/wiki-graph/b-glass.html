@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B — 유리</title>
+
+<!--
+  시안 B · 유리.
+
+  **궤도 구조는 현행 그대로다.** 갈리는 것은 자리를 무엇으로 그리는가 하나다.
+  여기서는 유리 구슬이다 — 속에 색이 든 알이 하나 들어 있고 겉은 맑다.
+
+  이 재질을 고른 이유가 있다. **위키의 값은 '속에 든 것'이다.** 구슬은 속을 보여 주고,
+  아직 아무것도 안 든 자리는 **구슬이 아니라 구슬이 앉을 홈**으로 남는다 —
+  판에 파인 자국이라 무엇이 빠졌는지가 형태로 보인다.
+
+  값이 갈린 자리에는 **알이 둘 들어 있다.** 색을 하나 더 만들지 않고 개수로 말한다.
+
+  하단 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="common.css">
+<style>
+:root {
+  --canvas: #f2efe9;
+  --surface: #fffefb;
+  --quiet: #f7f4ee;
+  --ink: #1d1b17;
+  --ink-2: #5e5951;
+  --ink-3: #6f695c;   /* 빈 자리 이름표가 이 색이다. #8b857a 는 3.19:1 로 미달이었다 */
+  --ink-4: #c9c3b6;
+  --line: #e3ded4;
+  --line-2: #d6d0c3;
+  --blank: #8a5a08;   /* 글자로도 쓰는 색이라 AA(4.5:1) 를 넘겨야 한다. #b0740c 는 3.42:1 이었다 */
+  --n-identity: #5b5bd6;
+  --n-company: #b4531f;
+  --n-content: #10796f;
+}
+
+body {
+  /* 구슬이 놓인 판. 위에서 오는 빛을 아주 옅게 깐다 */
+  background:
+    radial-gradient(90% 60% at 42% 12%, #fdfbf6 0%, rgba(253, 251, 246, 0) 68%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+.thesis { background: #fdfbf6; }
+
+.svg { display: block; width: 100%; max-width: 700px; height: auto; margin: 0 auto; overflow: visible; }
+
+/* 궤도 — 판에 파인 홈. 밝은 선 하나와 어두운 선 하나를 겹쳐 깊이를 낸다 */
+.groove { fill: none; stroke: rgba(29, 27, 23, 0.11); stroke-width: 1; }
+.grooveLit { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1; transform: translateY(1px); }
+.spoke { fill: none; stroke: rgba(29, 27, 23, 0.07); stroke-width: 1; }
+
+.sector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.14em;
+}
+
+.node { cursor: pointer; }
+.node:focus-visible { outline: none; }
+.node:focus-visible .halo { opacity: 1; }
+
+/* 빈 홈. **구슬이 아니라 자국이다** */
+.socket { fill: rgba(29, 27, 23, 0.03); }
+.socketEdge { fill: none; stroke: rgba(29, 27, 23, 0.2); stroke-width: 1.25; stroke-dasharray: 4 5; }
+.socketLit { fill: none; stroke: rgba(255, 255, 255, 0.9); stroke-width: 1.25; stroke-dasharray: 4 5; }
+
+.halo { fill: none; stroke: var(--ink); stroke-width: 1.5; opacity: 0; }
+.node[data-selected="true"] .halo { opacity: 1; }
+
+.label { fill: var(--ink-2); font-size: var(--t-caption); }
+.node[data-filled="false"] .label { fill: var(--ink-3); }
+.node[data-selected="true"] .label { fill: var(--ink); font-weight: var(--w-medium); }
+.centerLabel {
+  fill: var(--ink);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+/* 구슬을 살짝 들어 올리는 것은 hover 하나뿐이다. 자리는 안 움직인다 */
+.marble { transition: transform 160ms ease-out; transform-box: fill-box; transform-origin: center; }
+.node:hover .marble { transform: translateY(-2px) scale(1.04); }
+@media (prefers-reduced-motion: reduce) { .marble { transition: none; } }
+</style>
+</head>
+
+<body>
+<script src="data.js"></script>
+<script src="common-parts.js"></script>
+<script src="orbit.js"></script>
+<script>
+chrome({ thesis: "B. 자리를 유리 구슬로 그렸어요. 속에 든 알이 값이고, 아직 안 채운 자리는 구슬이 앉을 홈으로 남아요." });
+
+var CORE = { identity: "#5b5bd6", company: "#c2571d", content: "#0f8478" };
+
+function defs() {
+  var out = ["<defs>"];
+
+  /* 유리 몸통. 위쪽이 밝고 아래로 갈수록 비친다 */
+  /* **흰 기를 아낀다.** 처음에 0.95/0.34 로 깔았더니 속의 알이 통째로 씻겨
+   * 구슬이 아니라 얼룩으로 보였다(스크린샷으로 잡았다). 유리는 흰 게 아니라 맑은 것이다 */
+  out.push('<radialGradient id="glass" cx="34%" cy="24%" r="82%">' +
+    '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>' +
+    '<stop offset="30%" stop-color="#ffffff" stop-opacity="0.1"/>' +
+    '<stop offset="74%" stop-color="#ffffff" stop-opacity="0.02"/>' +
+    '<stop offset="92%" stop-color="#6d6657" stop-opacity="0.12"/>' +
+    '<stop offset="100%" stop-color="#4a4438" stop-opacity="0.4"/></radialGradient>');
+
+  /* 아래쪽에서 되비치는 빛. **이게 없으면 구슬이 아니라 물방울로 보인다** */
+  out.push('<radialGradient id="bounce" cx="62%" cy="84%" r="46%">' +
+    '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.4"/>' +
+    '<stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></radialGradient>');
+
+  out.push('<radialGradient id="spec" cx="50%" cy="50%" r="50%">' +
+    '<stop offset="0%" stop-color="#fff" stop-opacity="1"/>' +
+    '<stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>');
+
+  /* 유리 테두리. 위는 밝고 아래는 어둡다 */
+  out.push('<linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>' +
+    '<stop offset="55%" stop-color="#1d1b17" stop-opacity="0.08"/>' +
+    '<stop offset="100%" stop-color="#1d1b17" stop-opacity="0.28"/></linearGradient>');
+
+  Object.keys(CORE).forEach(function (k) {
+    /* 속에 든 알. 가운데가 진하고 가장자리로 풀린다 */
+    out.push('<radialGradient id="core-' + k + '" cx="40%" cy="34%" r="66%">' +
+      '<stop offset="0%" stop-color="' + CORE[k] + '" stop-opacity="1"/>' +
+      '<stop offset="58%" stop-color="' + CORE[k] + '" stop-opacity="0.96"/>' +
+      '<stop offset="86%" stop-color="' + CORE[k] + '" stop-opacity="0.5"/>' +
+      '<stop offset="100%" stop-color="' + CORE[k] + '" stop-opacity="0"/></radialGradient>');
+  });
+
+  /* 그림자와 알을 무르게 하는 흐림 둘. 큰 구슬과 작은 구슬이 같은 값을 쓰면
+   * 큰 쪽이 선명해 보여 재질이 달라진다 */
+  out.push('<filter id="soft-s" x="-60%" y="-60%" width="220%" height="220%">' +
+    '<feGaussianBlur stdDeviation="1.3"/></filter>');
+  out.push('<filter id="soft-l" x="-60%" y="-60%" width="220%" height="220%">' +
+    '<feGaussianBlur stdDeviation="3"/></filter>');
+  out.push("</defs>");
+  return out.join("");
+}
+
+/* 구슬 하나. 겹 여섯 — 그림자 · 초점 · 알 · 유리 · 되비침 · 하이라이트 */
+function marble(n) {
+  var r = n.r, big = n.kind === "identity", blur = big ? "soft-l" : "soft-s";
+  var core = '<circle cx="' + (n.x - r * 0.06) + '" cy="' + (n.y + r * 0.1) + '" r="' + (r * 0.72) +
+    '" fill="url(#core-' + n.kind + ')" filter="url(#' + blur + ')"/>';
+
+  /* 값이 갈린 자리 — 알이 둘이다. **색을 더 만들지 않고 개수로 말한다** */
+  if (n.conflicted) {
+    core =
+      '<circle cx="' + (n.x - r * 0.3) + '" cy="' + (n.y + r * 0.16) + '" r="' + (r * 0.42) +
+        '" fill="url(#core-' + n.kind + ')" filter="url(#' + blur + ')"/>' +
+      '<circle cx="' + (n.x + r * 0.3) + '" cy="' + (n.y - r * 0.04) + '" r="' + (r * 0.38) +
+        '" fill="var(--blank)" opacity="0.8" filter="url(#' + blur + ')"/>';
+  }
+
+  return [
+    /* 판에 지는 그림자 + 유리를 통과한 빛이 모이는 밝은 점 */
+    '<ellipse cx="' + (n.x + r * 0.16) + '" cy="' + (n.y + r * 1.02) + '" rx="' + (r * 0.92) +
+      '" ry="' + (r * 0.26) + '" fill="rgba(29,27,23,0.2)" filter="url(#' + blur + ')"/>',
+    '<ellipse cx="' + (n.x + r * 0.3) + '" cy="' + (n.y + r * 1.0) + '" rx="' + (r * 0.34) +
+      '" ry="' + (r * 0.12) + '" fill="' + CORE[n.kind] + '" opacity="0.3" filter="url(#' + blur + ')"/>',
+    '<g class="marble">',
+    core,
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#glass)"/>',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#bounce)"/>',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + (r - 0.7) + '" fill="none" stroke="url(#edge)" stroke-width="1.4"/>',
+    /* 하이라이트 둘 — 큰 것 하나와 작은 것 하나. 하나만 두면 플라스틱이 된다 */
+    '<ellipse cx="' + (n.x - r * 0.34) + '" cy="' + (n.y - r * 0.42) + '" rx="' + (r * 0.3) +
+      '" ry="' + (r * 0.2) + '" fill="url(#spec)" transform="rotate(-28 ' +
+      (n.x - r * 0.34) + " " + (n.y - r * 0.42) + ')"/>',
+    '<circle cx="' + (n.x + r * 0.42) + '" cy="' + (n.y - r * 0.5) + '" r="' + (r * 0.08) +
+      '" fill="#fff" opacity="0.85"/>',
+    '</g>',
+  ].join("");
+}
+
+/* 빈 홈. 판에 파인 자국 — 위쪽에 그늘, 아래쪽에 빛 */
+function socket(n) {
+  var r = n.r;
+  return '<circle class="socket" cx="' + n.x + '" cy="' + n.y + '" r="' + r + '"/>' +
+    '<circle class="socketLit" cx="' + n.x + '" cy="' + (n.y + 1) + '" r="' + (r - 1) + '"/>' +
+    '<circle class="socketEdge" cx="' + n.x + '" cy="' + n.y + '" r="' + (r - 1) + '"/>';
+}
+
+var svg = ['<svg class="svg" viewBox="0 0 ' + SIZE + ' ' + SIZE +
+  '" role="group" aria-label="사업 위키 궤도. 자리 열다섯">', defs()];
+
+[[ORBIT.inner.arcs, RING.company], [ORBIT.outer.arcs, RING.content]].forEach(function (pair) {
+  pair[0].forEach(function (a) {
+    var d = arcPath(pair[1], a.from, a.to);
+    svg.push('<path class="grooveLit" d="' + d + '"/><path class="groove" d="' + d + '"/>');
+  });
+});
+spokes().forEach(function (s) {
+  svg.push('<line class="spoke" x1="' + s.x1 + '" y1="' + s.y1 + '" x2="' + s.x2 + '" y2="' + s.y2 + '"/>');
+});
+sectorLabels(56).forEach(function (s) {
+  svg.push('<text class="sector" x="' + s.x + '" y="' + s.y + '">' + s.label + '</text>');
+});
+
+function nodeHTML(n, inside) {
+  var L = inside ? { x: n.x, y: n.y + 5, anchor: "middle" } : labelAt(n, 22);
+  return '<g class="node" data-key="' + n.key + '" data-kind="' + n.kind + '" data-filled="' + n.filled +
+    '" data-selected="false" role="button" tabindex="0" aria-label="' + n.label + ' — ' + stateOf(n) + '">' +
+    '<circle class="halo" cx="' + n.x + '" cy="' + n.y + '" r="' + (n.r + 9) + '"/>' +
+    (n.filled ? marble(n) : socket(n)) +
+    '<text class="' + (inside ? "centerLabel" : "label") + '" x="' + L.x + '" y="' + L.y +
+      '" text-anchor="' + L.anchor + '">' + n.label + '</text></g>';
+}
+
+svg.push(nodeHTML(ORBIT.center, true));
+ORBIT.all.forEach(function (n) { svg.push(nodeHTML(n, false)); });
+svg.push("</svg>");
+document.getElementById("graph").innerHTML = svg.join("");
+
+var picked = null;
+function pick(key) {
+  picked = picked === key ? null : key;
+  document.querySelectorAll(".node").forEach(function (g) {
+    g.dataset.selected = String(g.dataset.key === picked);
+  });
+  selectNode(picked);
+}
+document.querySelectorAll(".node").forEach(function (g) {
+  g.addEventListener("click", function () { pick(g.dataset.key); });
+  g.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(g.dataset.key); }
+  });
+});
+</script>
+
+<script src="assets/harness.js"></script>
+<script src="variants.js"></script>
+<script>
+Harness.mount({
+  current: "b",
+  variants: VARIANTS,
+  controls: [
+    { kind: "color", label: "판", name: "canvas", value: "#f2efe9", cssVar: "--canvas", contrastAgainst: "--ink" },
+    { kind: "color", label: "사업 내용", name: "content", value: "#10796f", cssVar: "--n-content", contrastAgainst: "--canvas" },
+    { kind: "color", label: "손봐야 해요", name: "blank", value: "#8a5a08", cssVar: "--blank", contrastAgainst: "--canvas" },
+  ],
+  exportAs: { format: "css", selector: ":root" },
+  persist: true,
+});
+</script>
+</body>
+</html>

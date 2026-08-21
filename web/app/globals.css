@@ -1,6 +1,6 @@
 @import "./tokens.css";
 
-/* 바탕. DESIGN.md §3-3 — 표를 다루는 시스템은 캔버스가 순백이 아니다. */
+/* 바탕. DESIGN.md §2 — 표를 다루는 시스템은 캔버스가 순백이 아니다. */
 
 *,
 *::before,
@@ -29,7 +29,7 @@ body {
   font-weight: var(--w-normal);
 }
 
-/* 금액·마감일·건수가 세로로 정렬돼야 한다 (§4.2) */
+/* 금액·마감일·건수가 세로로 정렬돼야 한다 (§3) */
 time,
 [data-numeric] {
   font-variant-numeric: tabular-nums;
@@ -47,9 +47,9 @@ a {
   color: inherit;
 }
 
-/* --- 상태 (§7) --- */
+/* --- 상태 (§14) --- */
 
-/* 1. 포커스. **표가 길어 위치를 잃는 것이 §3-9 의 이유다.**
+/* 1. 포커스. **표가 길어 위치를 잃는 것이 §7 의 이유다.**
  *    마우스 클릭에는 안 뜨고 키보드에만 뜬다. */
 :focus-visible {
   outline: 2px solid var(--ink);
@@ -64,7 +64,7 @@ a {
   cursor: not-allowed;
 }
 
-/* 모션을 끄고 싶다는 사람에게는 끈다 (§7) */
+/* 모션을 끄고 싶다는 사람에게는 끈다 (§15) */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

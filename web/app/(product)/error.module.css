@@ -2,7 +2,7 @@
   margin-top: var(--s6);
   padding: var(--s6) var(--s5);
   background: var(--surface);
-  /* 오류는 사용자가 손대야 하는 자리다 — DESIGN.md §3-5 */
+  /* 오류는 사용자가 손대야 하는 자리다 — DESIGN.md §7 */
   border: 1px solid var(--urgent-line);
   border-radius: var(--r);
 }
@@ -48,8 +48,8 @@
   min-height: 44px;
   padding: 0 var(--s4);
   color: var(--surface);
-  background: var(--ink);
-  border: 1px solid var(--ink);
+  background: var(--action);
+  border: 1px solid var(--action);
   border-radius: var(--r-sm);
   cursor: pointer;
 }

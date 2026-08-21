@@ -29,7 +29,7 @@
   line-height: var(--lh-display);
   font-weight: var(--w-bold);
   letter-spacing: var(--tracking-title);
-  /* 줄길이 62ch 이하 — DESIGN.md §8.2 */
+  /* 줄길이 62ch 이하 — DESIGN.md §5 */
   max-width: 32ch;
 }
 

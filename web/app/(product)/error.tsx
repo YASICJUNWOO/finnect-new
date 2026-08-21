@@ -16,7 +16,7 @@ import styles from "./error.module.css";
  * 가리고 `Minified React error #441` 같은 것만 남긴다 — 사용자가 읽을 것이 아니다.
  * **대신 `digest` 를 적는다.** 서버 로그에서 같은 값을 찾을 수 있는 유일한 실이다.
  *
- * 사과하지 않고 모호하게 쓰지 않는다 — DESIGN.md §8.3-4. */
+ * 사과하지 않고 모호하게 쓰지 않는다 — DESIGN.md §10. */
 export default function Error({
   error,
   reset,

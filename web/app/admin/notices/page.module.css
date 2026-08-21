@@ -8,7 +8,7 @@
   align-items: center;
 }
 
-/* 조작 요소는 --r-sm (§4.3). 터치 타깃 44px 은 안 채운다 —
+/* 조작 요소는 --r-sm (§5). 터치 타깃 44px 은 안 채운다 —
  * 마우스로 쓰는 운영 도구이고, 채우면 막대가 표를 밀어낸다. */
 .bar select,
 .bar input,
@@ -27,11 +27,11 @@
   min-width: 260px;
 }
 
-/* 주 동작은 근검정 배경에 흰 글자다 (§4.1 · §3-4). **새 색을 만들지 않는다** */
+/* 주 동작은 동작 검정 배경에 흰 글자다 (§2 · §4). **--ink 가 아니다** */
 .bar button {
-  background: var(--ink);
+  background: var(--action);
   color: var(--surface);
-  border-color: var(--ink);
+  border-color: var(--action);
   font-weight: var(--w-medium);
   cursor: pointer;
 }

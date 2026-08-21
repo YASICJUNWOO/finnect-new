@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C — 젤리</title>
+
+<!--
+  시안 C · 젤리.
+
+  **궤도 구조는 현행 그대로다.** 갈리는 것은 자리를 무엇으로 그리는가 하나다.
+  여기서는 무른 젤리다 — 광택이 크고 그림자가 제 색을 띤다.
+
+  셋 중 가장 무르고 가장 만지고 싶게 생겼다. 위키가 **아직 굳지 않은 것**이라는 말을
+  재질이 한다 — 안 채운 자리는 아직 안 굳은 젤리라 속이 비치고 흔들린다.
+
+  값이 갈린 자리에는 **방울이 하나 더 붙어 있다.** 색을 하나 더 만들지 않고 개수로 말한다.
+
+  대가는 이 재질이 색을 세게 쓴다는 것이다. `DESIGN.md` §3-7(색은 위키 그래프에만)이
+  허락하는 자리이긴 하지만, 채도를 이만큼 올리면 목록 화면과 나란히 두었을 때
+  위키만 튄다. 고르면 그 대비를 의도로 인정하는 것이다.
+
+  하단 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="common.css">
+<style>
+:root {
+  --canvas: #e9e9ef;
+  --surface: #ffffff;
+  --quiet: #f2f2f7;
+  --ink: #16161c;
+  --ink-2: #565a68;
+  --ink-3: #63687a;   /* 빈 자리 이름표가 이 색이다. #83889a 는 2.92:1 로 미달이었다 */
+  --ink-4: #c3c7d4;
+  --line: #dcdce6;
+  --line-2: #cdcedb;
+  /* **글자용과 방울용을 가른다.** 하나로 쓰면 글자는 흐리고 방울은 탁해진다 —
+   * 밝은 #e08a10 은 배경 위 글자로 2.69:1 이라 미달이었다 */
+  --blank: #8a5500;
+  --blank-lit: #f0a020;
+  --n-identity: #5b5bd6;
+  --n-company: #d1541a;
+  --n-content: #0d9488;
+}
+
+body {
+  background:
+    radial-gradient(80% 55% at 50% 8%, #f6f6fa 0%, rgba(246, 246, 250, 0) 62%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+.svg { display: block; width: 100%; max-width: 700px; height: auto; margin: 0 auto; overflow: visible; }
+
+.ring, .spoke { fill: none; stroke: rgba(22, 22, 28, 0.1); stroke-width: 1; }
+.spoke { stroke: rgba(22, 22, 28, 0.06); }
+
+.sector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.14em;
+}
+
+.node { cursor: pointer; }
+.node:focus-visible { outline: none; }
+.node:focus-visible .halo { opacity: 1; }
+
+.halo { fill: none; stroke: var(--ink); stroke-width: 1.5; opacity: 0; }
+.node[data-selected="true"] .halo { opacity: 1; }
+
+/* 안 굳은 젤리. 속이 비치고 테두리만 남는다 */
+.raw { fill: var(--kind); opacity: 0.12; }
+.rawEdge { fill: none; stroke: var(--kind); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: 0.6; }
+
+.label { fill: var(--ink-2); font-size: var(--t-caption); }
+.node[data-filled="false"] .label { fill: var(--ink-3); }
+.node[data-selected="true"] .label { fill: var(--ink); font-weight: var(--w-medium); }
+.centerLabel {
+  fill: #fff;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: -0.01em;
+}
+
+/* 무른 것은 눌리고 늘어난다. **자리는 안 움직이고 모양만 흔들린다** */
+.jelly {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: wobble 5.5s ease-in-out infinite;
+}
+@keyframes wobble {
+  0%, 100% { transform: scale(1, 1); }
+  38% { transform: scale(1.035, 0.965); }
+  62% { transform: scale(0.978, 1.022); }
+}
+.node:hover .jelly { animation: squish 420ms cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes squish {
+  0% { transform: scale(1, 1); }
+  35% { transform: scale(1.14, 0.86); }
+  100% { transform: scale(1, 1); }
+}
+.node[data-selected="true"] .jelly { animation: none; transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) {
+  .jelly, .node:hover .jelly { animation: none; }
+}
+</style>
+</head>
+
+<body>
+<script src="data.js"></script>
+<script src="common-parts.js"></script>
+<script src="orbit.js"></script>
+<script>
+chrome({ thesis: "C. 자리를 무른 젤리로 그렸어요. 아직 안 채운 자리는 안 굳은 젤리라 속이 비쳐요." });
+
+/* 종류별 세 색. 젤리는 채도가 높고 아래로 갈수록 진해진다 */
+var GEL = {
+  identity: { top: "#8e8bff", base: "#5b5bd6", deep: "#3b3499", glow: "#6f6ce6" },
+  company:  { top: "#ff9c5c", base: "#d1541a", deep: "#8a2f08", glow: "#e5722f" },
+  content:  { top: "#4fd8c2", base: "#0d9488", deep: "#04564f", glow: "#17b3a0" },
+};
+
+function defs() {
+  var out = ["<defs>"];
+  Object.keys(GEL).forEach(function (k) {
+    var g = GEL[k];
+    out.push('<radialGradient id="gel-' + k + '" cx="42%" cy="22%" r="86%">' +
+      '<stop offset="0%" stop-color="' + g.top + '"/>' +
+      '<stop offset="46%" stop-color="' + g.base + '"/>' +
+      '<stop offset="100%" stop-color="' + g.deep + '"/></radialGradient>');
+    /* 아래에서 되비치는 빛. 무른 것은 속으로 빛이 들어갔다 나온다 */
+    out.push('<radialGradient id="sss-' + k + '" cx="52%" cy="88%" r="52%">' +
+      '<stop offset="0%" stop-color="' + g.top + '" stop-opacity="0.85"/>' +
+      '<stop offset="100%" stop-color="' + g.top + '" stop-opacity="0"/></radialGradient>');
+  });
+  /* 큰 광택 하나. **젤리를 젤리로 만드는 것은 이 덩어리다** */
+  out.push('<linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="#fff" stop-opacity="0.92"/>' +
+    '<stop offset="100%" stop-color="#fff" stop-opacity="0.05"/></linearGradient>');
+  out.push('<filter id="blur-s" x="-70%" y="-70%" width="240%" height="240%">' +
+    '<feGaussianBlur stdDeviation="1.6"/></filter>');
+  out.push('<filter id="blur-l" x="-70%" y="-70%" width="240%" height="240%">' +
+    '<feGaussianBlur stdDeviation="4"/></filter>');
+  /* 그림자는 회색이 아니라 제 색이다. 회색으로 두면 재질이 딱딱해 보인다 */
+  out.push('<filter id="drop-s" x="-90%" y="-90%" width="280%" height="280%">' +
+    '<feGaussianBlur stdDeviation="4.5"/></filter>');
+  out.push('<filter id="drop-l" x="-90%" y="-90%" width="280%" height="280%">' +
+    '<feGaussianBlur stdDeviation="10"/></filter>');
+  out.push("</defs>");
+  return out.join("");
+}
+
+function jelly(n) {
+  var r = n.r, big = n.kind === "identity";
+  var g = GEL[n.kind];
+  var blur = big ? "blur-l" : "blur-s";
+  var drop = big ? "drop-l" : "drop-s";
+
+  return [
+    /* 제 색을 띤 그림자 */
+    '<ellipse cx="' + n.x + '" cy="' + (n.y + r * 0.96) + '" rx="' + (r * 0.98) +
+      '" ry="' + (r * 0.3) + '" fill="' + g.glow + '" opacity="0.42" filter="url(#' + drop + ')"/>',
+    '<g class="jelly">',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#gel-' + n.kind + ')"/>',
+    '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="url(#sss-' + n.kind + ')"/>',
+    /* 광택 — 위쪽에 눌러앉은 넓은 덩어리 하나 */
+    '<ellipse cx="' + n.x + '" cy="' + (n.y - r * 0.44) + '" rx="' + (r * 0.62) +
+      '" ry="' + (r * 0.34) + '" fill="url(#gloss)" filter="url(#' + blur + ')"/>',
+    /* 아래 가장자리의 얇은 반사. 구가 바닥에서 떨어져 보이게 한다 */
+    '<path d="M ' + (n.x - r * 0.66) + " " + (n.y + r * 0.6) +
+      ' A ' + (r * 0.88) + " " + (r * 0.88) + ' 0 0 0 ' + (n.x + r * 0.66) + " " + (n.y + r * 0.6) +
+      '" fill="none" stroke="' + g.top + '" stroke-opacity="0.75" stroke-width="' + (r * 0.09) +
+      '" stroke-linecap="round" filter="url(#' + blur + ')"/>',
+    '</g>',
+    /* 값이 갈린 자리 — 방울이 하나 더 붙는다 */
+    n.conflicted
+      ? '<g class="jelly"><circle cx="' + (n.x + r * 0.78) + '" cy="' + (n.y - r * 0.72) + '" r="' + (r * 0.34) +
+          '" fill="var(--blank-lit)"/><ellipse cx="' + (n.x + r * 0.7) + '" cy="' + (n.y - r * 0.86) +
+          '" rx="' + (r * 0.16) + '" ry="' + (r * 0.09) + '" fill="#fff" opacity="0.8"/></g>'
+      : "",
+  ].join("");
+}
+
+function raw(n) {
+  return '<circle class="raw" cx="' + n.x + '" cy="' + n.y + '" r="' + n.r + '"/>' +
+    '<circle class="rawEdge" cx="' + n.x + '" cy="' + n.y + '" r="' + (n.r - 1) + '"/>';
+}
+
+var svg = ['<svg class="svg" viewBox="0 0 ' + SIZE + ' ' + SIZE +
+  '" role="group" aria-label="사업 위키 궤도. 자리 열다섯">', defs()];
+
+ORBIT.inner.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.company, a.from, a.to) + '"/>'); });
+ORBIT.outer.arcs.forEach(function (a) { svg.push('<path class="ring" d="' + arcPath(RING.content, a.from, a.to) + '"/>'); });
+spokes().forEach(function (s) {
+  svg.push('<line class="spoke" x1="' + s.x1 + '" y1="' + s.y1 + '" x2="' + s.x2 + '" y2="' + s.y2 + '"/>');
+});
+sectorLabels(56).forEach(function (s) {
+  svg.push('<text class="sector" x="' + s.x + '" y="' + s.y + '">' + s.label + '</text>');
+});
+
+function nodeHTML(n, inside) {
+  var L = inside ? { x: n.x, y: n.y + 5, anchor: "middle" } : labelAt(n, 22);
+  return '<g class="node" data-key="' + n.key + '" data-kind="' + n.kind + '" data-filled="' + n.filled +
+    '" data-selected="false" style="--kind: var(--n-' + n.kind + ')"' +
+    ' role="button" tabindex="0" aria-label="' + n.label + ' — ' + stateOf(n) + '">' +
+    '<circle class="halo" cx="' + n.x + '" cy="' + n.y + '" r="' + (n.r + 10) + '"/>' +
+    (n.filled ? jelly(n) : raw(n)) +
+    '<text class="' + (inside ? "centerLabel" : "label") + '" x="' + L.x + '" y="' + L.y +
+      '" text-anchor="' + L.anchor + '">' + n.label + '</text></g>';
+}
+
+svg.push(nodeHTML(ORBIT.center, true));
+ORBIT.all.forEach(function (n) { svg.push(nodeHTML(n, false)); });
+svg.push("</svg>");
+document.getElementById("graph").innerHTML = svg.join("");
+
+var picked = null;
+function pick(key) {
+  picked = picked === key ? null : key;
+  document.querySelectorAll(".node").forEach(function (g) {
+    g.dataset.selected = String(g.dataset.key === picked);
+  });
+  selectNode(picked);
+}
+document.querySelectorAll(".node").forEach(function (g) {
+  g.addEventListener("click", function () { pick(g.dataset.key); });
+  g.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(g.dataset.key); }
+  });
+});
+</script>
+
+<script src="assets/harness.js"></script>
+<script src="variants.js"></script>
+<script>
+Harness.mount({
+  current: "c",
+  variants: VARIANTS,
+  controls: [
+    { kind: "color", label: "배경", name: "canvas", value: "#e9e9ef", cssVar: "--canvas", contrastAgainst: "--ink" },
+    { kind: "color", label: "사업 내용", name: "content", value: "#0d9488", cssVar: "--n-content", contrastAgainst: "--canvas" },
+    { kind: "color", label: "손봐야 해요", name: "blankLit", value: "#f0a020", cssVar: "--blank-lit", contrastAgainst: "--surface" },
+  ],
+  exportAs: { format: "css", selector: ":root" },
+  persist: true,
+});
+</script>
+</body>
+</html>

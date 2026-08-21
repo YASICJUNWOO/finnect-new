@@ -1,5 +1,8 @@
 /* 시연 `#list` 의 `.sec` · `.sh` · `.list` 를 옮긴 것이다.
- * 시연이 DESIGN.md 와 어긋나는 자리는 주석에 적었고 **문서를 따랐다**(§10.2). */
+ * 시연이 DESIGN.md 와 어긋나는 자리는 주석에 적었고 **문서를 따랐다**.
+ *
+ * 그 감사(옛 §10.2)는 ADR-0041 이 시연을 값의 출처에서 빼면서 사라졌다.
+ * 옛 번호는 DESIGN_DEPRECATED.md 의 대응표로 찾는다. */
 
 .sec {
   margin-bottom: var(--s7);
@@ -107,7 +110,7 @@
   margin-top: var(--s4);
   padding: 0 var(--s4);
   border-radius: var(--r-sm);
-  background: var(--ink);
+  background: var(--action);
   color: var(--surface);
   font-size: var(--t-body);
   font-weight: var(--w-medium);

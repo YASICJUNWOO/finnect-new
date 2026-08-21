@@ -1,0 +1,190 @@
+/* 공유 스타일 — 그래프를 뺀 전부.
+ *
+ * **토큰을 여기서 다시 정의하지 않는다.** 제품 토큰 파일을 그대로 링크한다
+ * (mockup-harness 규칙 4). 그래야 "적용"이 판단이 아니라 전사가 된다.
+ * 토큰에 없는 값이 필요하면 스케일을 고쳐야 한다는 신호지 여기 박을 이유가 아니다. */
+
+@import url("../../../../web/app/tokens.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  /* 하단 하네스 바에 가리지 않게 */
+  padding-bottom: 72px;
+}
+
+[data-num] { font-variant-numeric: tabular-nums; }
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--s7) var(--s5) 0;
+}
+
+/* ── 머리 ─────────────────────────────────────────────────────────── */
+
+.crumb {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+
+.h1 {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.sum {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.sum b { font-weight: var(--w-medium); color: var(--ink); }
+.warn { color: var(--blank); }
+.warn b { color: var(--blank); }
+
+/* ── 탭 ───────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: var(--s5);
+  margin: var(--s6) 0 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: var(--s3) 0;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.tabN {
+  margin-left: var(--s1);
+  color: var(--ink-3);
+  font-weight: var(--w-normal);
+}
+
+/* ── 무대 ─────────────────────────────────────────────────────────── */
+
+.stage { padding: var(--s6) 0 var(--s8); }
+
+/* 시안의 논지 한 줄. **목업 전용이다** — 제품 화면에는 없다 */
+.thesis {
+  margin: 0 0 var(--s5);
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  background: var(--quiet);
+}
+
+.graph {
+  position: relative;
+  margin: 0 auto;
+}
+
+/* ── 범례 ─────────────────────────────────────────────────────────── */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2) var(--s5);
+  margin: var(--s6) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-caption);
+  color: var(--ink-2);
+}
+.legend li { display: flex; align-items: center; gap: var(--s2); }
+.legend li::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-pill);
+  background: var(--kind, var(--ink-4));
+}
+.legend li[data-kind="identity"] { --kind: var(--n-identity); }
+.legend li[data-kind="company"]  { --kind: var(--n-company); }
+.legend li[data-kind="content"]  { --kind: var(--n-content); }
+.legend li[data-mark="blank"]    { --kind: var(--blank); }
+.legend li[data-mark="empty"]::before {
+  background: var(--surface);
+  border: 1.5px dashed var(--ink-4);
+}
+
+/* ── 패널 ─────────────────────────────────────────────────────────── */
+
+.panel {
+  margin: var(--s6) auto 0;
+  max-width: 620px;
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  /* 흐름 안의 카드다. **그림자를 주지 않는다**(DESIGN.md §4.4) */
+}
+
+.pSector { margin: 0 0 var(--s1); font-size: var(--t-caption); color: var(--ink-3); }
+.pTitle {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+.pState { margin: 0 0 var(--s4); font-size: var(--t-small); color: var(--ink-2); }
+.pState[data-state="blank"] { color: var(--blank); }
+.pState[data-state="empty"] { color: var(--ink-3); }
+.pState b { font-weight: var(--w-medium); }
+
+.pLines { margin: 0; padding: 0; list-style: none; }
+.pLines li {
+  padding: var(--s2) 0;
+  font-size: var(--t-small);
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+}
+.pLines li:last-child { color: var(--ink-3); }
+
+.hint {
+  margin: var(--s6) 0 0;
+  text-align: center;
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+
+/* ── 노드 종류색. 세 시안이 공유한다 ──────────────────────────────── */
+
+[data-kind="identity"] { --kind: var(--n-identity); }
+[data-kind="company"]  { --kind: var(--n-company); }
+[data-kind="content"]  { --kind: var(--n-content); }
+
+/* 움직임을 원치 않으면 전부 멈춘다(DESIGN.md §7) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

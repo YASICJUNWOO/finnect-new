@@ -1,22 +1,37 @@
 {
-  "reference_id": "team-authored",
-  "description": "finnect — 내 사업 정보로 신청 가능한 창업 지원공고를 판정하고, 그 판정을 공고가 요구하는 사업계획서 초안으로 잇는다. 대상은 초기창업자. 표 중심 업무 도구이자 긴 글을 쓰는 워크스페이스.",
-  "mode": "clone",
+  "reference_id": "remember",
+  "description": "finnect — 가진 파일을 통째로 던지면 내 사업 위키가 만들어지고, 그 위키로 맞는 지원사업 공고를 골라 주고, 들어가면 문서가 이미 써져 있다. 대상은 창업 3년 이내 사업자. 표 중심 업무 도구이고 화면 한 개의 일은 탐색이 아니라 결정이다.",
+  "mode": "inspired",
   "source": {
-    "kind": "user-supplied",
-    "origin": "팀원 작성 DESIGN.md (업로드 파일 'DESIGN _1_.md', 2026-08-16)",
-    "catalog_reference": null,
-    "note": "oh-my-design 카탈로그 440개 중 어느 레퍼런스에서도 파생되지 않았다. 본문은 업로드본과 바이트 동일하며 프론트매터와 omd:limitation 주석만 추가했다."
+    "kind": "catalog",
+    "origin": "/Users/mason/.claude/data/references/remember/DESIGN.md",
+    "catalog_reference": "remember",
+    "note": "라이브 캡쳐 없음 — assets/_reference/remember/tokens.json 이 없어 canonical(레퍼런스 DESIGN.md frontmatter)을 base 로 썼다. 이전 부트스트랩(reference_id=team-authored, 2026-08-16)을 대체한다."
   },
   "delta_set": {
     "axes": {},
-    "voiceHints": ["해요체", "니다체·명령형 금지", "잡초 제거", "강요와 공포 금지"],
-    "matchedKeywords": [],
+    "voiceHints": [
+      "해요체",
+      "니다체·명령형 금지",
+      "잡초 제거",
+      "강요와 공포 금지",
+      "대행한다고 말하지 않는다",
+      "확률을 말하지 않는다"
+    ],
+    "matchedKeywords": ["calm", "professional", "restrained", "dense", "minimal", "trustworthy"],
     "warnings": [
-      "이 DESIGN.md는 다른 프로젝트(위키 그래프 기반 제품)를 전제로 쓰였다. docs/SPEC.md와 충돌하는 항목이 다섯 있다. 상세는 DESIGN.md 상단 omd:limitation 주석 참조.",
-      "문서가 참조하는 context.md · v2/HANDOFF.md · v2/internal/ · 02_기능명세.md · 서비스_설계_개발논의용.md · Lastmile/CLAUDE.md 가 이 레포에 존재하지 않는다.",
-      "토큰 실값이 없다. 색·타입·반경 모두 '5.1에서 확정'으로 미정이라 shim에 옮길 구체 값이 없다."
+      "사용자가 §4 토큰 base 를 remember canonical 로 선택했다. delta_set.axes 가 비어 있는 것은 축 변형을 얹지 않았다는 뜻이고, 값은 레퍼런스 canonical 그대로다. 근거는 ADR-0041.",
+      "remember 패킷에 대응이 없는 축은 finnect 값을 유지했다 — --canvas, --ink-2, --ink-4, --line-2, 상태색 여섯, 노드 분류색 셋, --t-caption/--t-small/--t-display/--t-hero, --r-pill, --w-bold, --tracking-title, --shadow-raised. tokens.css 주석에 축마다 표시했다.",
+      "corporate-orange #fc5d11 과 Founders Grotesk Condensed 는 가져오지 않았다. 전자는 remember 자신이 corporate marketing 한정이라고 못 박았고 DESIGN.md §7 이 오렌지 브랜드 액센트를 금지한다. 후자는 remember 패킷에서도 출처 미해결이다.",
+      "타입 긴장이 줄었다. remember 관측 셋만 보면 16/16/20 이라 범위가 1.25배다(옛 일곱 단계는 3.7배). design-anti-slop V2 에 다시 가까워졌다 — ADR-0041 '잃은 것' 참조.",
+      "화면을 눈으로 봐야 한다. 반경 10→4 · 16→8, --t-title 24→20 은 전 화면 변화이고 lint/typecheck/build 로는 안 잡힌다.",
+      "이전 DESIGN.md 는 DESIGN_DEPRECATED.md 에 있다. 그 문서가 참조하던 context.md · v2/HANDOFF.md · v2/internal/ 은 이 레포에 없다."
     ]
   },
-  "bootstrapped_at": "2026-08-16"
+  "bootstrapped_at": "2026-08-21",
+  "supersedes": {
+    "reference_id": "team-authored",
+    "bootstrapped_at": "2026-08-16",
+    "artifact": "DESIGN_DEPRECATED.md"
+  }
 }

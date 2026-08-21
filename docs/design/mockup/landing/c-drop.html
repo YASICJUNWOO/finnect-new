@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>랜딩 · C 던지기</title>
+
+<!--
+  C 던지기 — 설득하지 않고 시켜 본다.
+
+  이 자리에 원래 `C 여백`(고대비 명조 · 단 하나 · 큰 여백)이 있었다. **에디토리얼이라 버렸다**
+  ([ADR-0040](../../../adr/0040-에디토리얼-지면형-방향을-쓰지-않는다.md) · DESIGN.md §5.1-7).
+
+  논지: 랜딩의 일은 "파일을 올릴 것인가"를 정하게 만드는 것이다(DESIGN.md §2-3).
+        그러면 말로 설득할 것이 아니라 **그 자리에서 해 보게** 하면 된다.
+        첫 화면이 통째로 드롭존이고, 던지면 「세 단계로 끝나요」가 말이 아니라 동작으로 돈다.
+        그래서 이 시안에는 `how` 절이 따로 없다 — 그 카피가 드롭존 안에서 살아 움직인다.
+  대가: 첫 화면에 설명이 가장 적다. 무엇을 하는 서비스인지 모르는 사람은 던질 이유가 없다.
+        그리고 **데모가 실제로 안 돌면 거짓말이 된다** — 코드로 옮길 때 `/wiki/files`(plan/15)의
+        진짜 진행 상태에 물려야 한다. 가짜 진행 막대를 남겨 두면 안 된다.
+        서체가 제품 것(Pretendard)이라 현행·E 와 인상이 겹친다 — **이 시안이 갈리는 축은 서체가 아니라 동작이다.**
+
+  여기서 파일을 실제로 읽지 않는다. 던지면 데모가 돌 뿐이다.
+  하단 검은 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+@import url("../../../../web/app/tokens.css");
+
+:root{
+  --canvas:#eef0f2;          /* 현행보다 한 단 어둡다. 흰 드롭존이 떠 보여야 한다 */
+  --zone-h:340px;
+  --zone-b:2.5px;            /* 점선 굵기 */
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:17px;line-height:1.65;font-weight:400;letter-spacing:-.011em;
+  word-break:keep-all;overflow-wrap:break-word;
+  padding-bottom:56px;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.wrap{max-width:1060px;margin:0 auto;padding:0 var(--s5)}
+
+/* ── 상단 ── */
+.nav{border-bottom:1px solid var(--line-2)}
+.nav .in{max-width:1060px;margin:0 auto;height:68px;padding:0 var(--s5);
+  display:flex;align-items:center;gap:var(--s5)}
+.brand{display:flex;align-items:center;gap:var(--s2);min-height:44px;font-size:18px;font-weight:700;letter-spacing:-.03em}
+.brand i{width:16px;height:16px;border-radius:5px;background:var(--ink)}
+.nav .sp{flex:1}
+.ghost{display:inline-flex;align-items:center;min-height:44px;padding:0 var(--s4);
+  border-radius:var(--r-sm);border:1.5px solid var(--line-2);background:var(--surface);
+  font-size:16px;font-weight:600;color:var(--ink-2)}
+.ghost:hover{border-color:var(--ink);color:var(--ink)}
+
+/* ── 히어로. 말은 짧고 자리는 크다 ── */
+.hero{padding:var(--s7) 0 var(--s5)}
+.hero h1{font-size:46px;line-height:1.24;font-weight:800;letter-spacing:-.042em;max-width:19ch}
+.hero h1 em{font-style:normal}
+.hero p{font-size:19px;line-height:1.7;color:var(--ink-2);margin-top:var(--s4);max-width:52ch}
+
+/* ── 드롭존. 이 화면의 주인공이다 ── */
+.zone{margin:var(--s5) 0 var(--s7);min-height:var(--zone-h);
+  background:var(--surface);border:var(--zone-b) dashed var(--line-2);border-radius:20px;
+  display:grid;place-items:center;padding:var(--s6) var(--s5);text-align:center;
+  transition:border-color 140ms ease-out,background-color 140ms ease-out}
+.zone.over{border-color:var(--ink);background:#fbfcfd}
+.zone.busy,.zone.done{border-style:solid;border-color:var(--line-2);cursor:default}
+
+.z-idle .big{font-size:24px;font-weight:700;letter-spacing:-.03em}
+.z-idle .small{font-size:16px;color:var(--ink-2);margin-top:var(--s2)}
+.z-acts{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s5);
+  flex-wrap:wrap;justify-content:center}
+.solid{display:inline-flex;align-items:center;justify-content:center;min-height:56px;
+  padding:0 var(--s6);border-radius:var(--r-sm);background:var(--ink);color:var(--surface);
+  font-size:17px;font-weight:700;letter-spacing:-.02em}
+.solid:hover{background:#2a2d31}
+.quiet{display:inline-flex;align-items:center;min-height:56px;padding:0 var(--s4);
+  border-radius:var(--r-sm);font-size:16px;font-weight:600;color:var(--ink-2);
+  text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
+.quiet:hover{color:var(--ink)}
+.sub{font-size:15px;color:var(--ink-2)}
+
+/* 도는 중 — 「세 단계로 끝나요」가 여기서 살아 움직인다 */
+.z-run{display:none;width:100%;max-width:600px;text-align:left}
+.zone.busy .z-run,.zone.done .z-run{display:block}
+.zone.busy .z-idle,.zone.done .z-idle{display:none}
+.z-run > .cap{font-size:15px;font-weight:700;color:var(--ink-2);
+  letter-spacing:.02em;margin-bottom:var(--s4);text-align:center}
+
+.stp{display:grid;grid-template-columns:26px minmax(0,1fr);gap:0 var(--s3);
+  padding:var(--s3) 0;border-top:1px solid var(--line);opacity:.38;
+  transition:opacity 260ms ease-out}
+.stp:first-of-type{border-top:0}
+.stp.on{opacity:1}
+.stp .dot{width:14px;height:14px;border-radius:50%;margin-top:7px;
+  border:2px dashed var(--ink-4);background:transparent;
+  transition:background-color 220ms ease-out,border-color 220ms ease-out}
+.stp.on .dot{border-style:solid;border-color:transparent;background:var(--c)}
+.stp h3{font-size:18px;font-weight:700;letter-spacing:-.025em}
+.stp p{font-size:16px;color:var(--ink-2);margin-top:2px;line-height:1.6}
+
+.z-done{display:none;margin-top:var(--s5);padding-top:var(--s4);
+  border-top:1px solid var(--line);text-align:center}
+.zone.done .z-done{display:block}
+.z-done .solid{margin-top:var(--s4)}
+
+/* ── 아래 절 ── */
+.sec{padding:var(--s7) 0;border-top:1px solid var(--line-2)}
+.sec h2{font-size:28px;font-weight:800;letter-spacing:-.038em;line-height:1.35;max-width:28ch}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);margin-top:var(--s5)}
+@media(max-width:860px){.two{grid-template-columns:1fr;gap:var(--s5)}}
+.two p{color:var(--ink-2);line-height:1.8}
+.two p+p{margin-top:var(--s3)}
+.two strong{color:var(--ink);font-weight:700}
+.pt{display:grid;grid-template-columns:22px minmax(0,1fr);gap:0 var(--s3);
+  padding:var(--s3) 0;border-top:1px solid var(--line)}
+.pt:first-child{border-top:0;padding-top:0}
+.pt .m{font-size:15px;font-weight:700;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;line-height:1.7}
+.pt .t{font-weight:700;letter-spacing:-.025em;font-size:18px}
+.pt .d{color:var(--ink-2);margin-top:2px;font-size:16px;line-height:1.6}
+
+.nope{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-top:var(--s5)}
+@media(max-width:860px){.nope{grid-template-columns:1fr}}
+.nope .n{background:var(--surface);border:1.5px solid var(--line-2);
+  border-radius:var(--r);padding:var(--s4) var(--s5)}
+.nope .n h3{font-size:17px;font-weight:700;letter-spacing:-.025em}
+.nope .n p{color:var(--ink-2);margin-top:4px;font-size:16px;line-height:1.6}
+
+.end{padding:var(--s7) 0 var(--s8);border-top:1px solid var(--line-2);text-align:center}
+.end h2{font-size:32px;font-weight:800;letter-spacing:-.04em}
+.end p{color:var(--ink-2);margin-top:var(--s2);font-size:17px}
+.end .z-acts{margin-top:var(--s5)}
+.foot{border-top:1px solid var(--line-2);padding:var(--s5) 0 var(--s7);
+  font-size:16px;color:var(--ink-2)}
+</style>
+</head>
+
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#"><i></i><span id="brand"></span></a>
+    <span class="sp"></span>
+    <a class="ghost" href="#" id="navcta"></a>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero" id="hero"></section>
+
+  <section class="zone" id="zone" aria-label="파일을 던지는 자리">
+    <div class="z-idle" id="zidle"></div>
+    <div class="z-run" id="zrun"></div>
+  </section>
+
+  <section class="sec" id="why"></section>
+  <section class="sec" id="nope"></section>
+  <section class="end" id="end"></section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="copy.js"></script>
+<script src="variants.js"></script>
+<script src="assets/harness.js"></script>
+<script>
+var e = COPY.esc;
+
+document.getElementById("brand").textContent = COPY.brand;
+document.getElementById("navcta").textContent = COPY.navCta;
+document.getElementById("foot").textContent = COPY.foot;
+
+document.getElementById("hero").innerHTML =
+  "<h1>" + e(COPY.hero.line1) + " <em>" + e(COPY.hero.accent) + "</em>" + e(COPY.hero.line2Tail) + "</h1>" +
+  "<p>" + e(COPY.hero.body) + "</p>";
+
+/* 드롭존 — 쉬는 얼굴 */
+document.getElementById("zidle").innerHTML =
+  '<div class="big">여기에 파일을 놓으세요</div>' +
+  '<div class="small">' + e(COPY.hero.sub) + "</div>" +
+  '<div class="z-acts">' +
+    '<button class="solid" id="go">' + e(COPY.hero.cta) + "</button>" +
+    '<button class="quiet" id="demo">예시 파일로 해 보기</button>' +
+  "</div>";
+
+/* 도는 얼굴 — 「세 단계로 끝나요」가 여기 산다. 색은 노드 분류색 셋이다(§3-7 이 허락한 자리) */
+var TONE = ["--n-identity", "--n-content", "--n-company"];
+document.getElementById("zrun").innerHTML =
+  '<div class="cap">' + e(COPY.how.h2) + "</div>" +
+  COPY.how.steps.map(function (s, i) {
+    return '<div class="stp" data-i="' + i + '" style="--c:var(' + TONE[i] + ')">' +
+           '<span class="dot"></span><div><h3>' + e(s.t) + "</h3><p>" + e(s.d) + "</p></div></div>";
+  }).join("") +
+  '<div class="z-done"><p class="sub">' + e(COPY.end.d) + "</p>" +
+  '<button class="solid" id="go2">' + e(COPY.end.cta) + "</button></div>";
+
+document.getElementById("why").innerHTML =
+  "<h2>" + e(COPY.why.h2) + "</h2>" +
+  '<div class="two"><div>' +
+    COPY.why.lead.map(function (l) { return "<p>" + COPY.leadHtml(l, "strong") + "</p>"; }).join("") +
+  "</div><div>" +
+    COPY.why.pts.map(function (p) {
+      return '<div class="pt"><span class="m">' + e(p.m) + "</span><div>" +
+             '<div class="t">' + e(p.t) + '</div><div class="d">' + e(p.d) + "</div></div></div>";
+    }).join("") +
+  "</div></div>";
+
+document.getElementById("nope").innerHTML =
+  "<h2>" + e(COPY.nope.h2) + "</h2>" +
+  '<div class="nope">' + COPY.nope.items.map(function (n) {
+    return '<div class="n"><h3>' + e(n.t) + "</h3><p>" + e(n.d) + "</p></div>";
+  }).join("") + "</div>";
+
+document.getElementById("end").innerHTML =
+  "<h2>" + e(COPY.end.h2) + "</h2><p>" + e(COPY.end.d) + "</p>" +
+  '<div class="z-acts"><a class="solid" href="#">' + e(COPY.end.cta) + "</a></div>";
+
+/* ── 던지기 ────────────────────────────────────────────────────────────────
+ * **파일을 실제로 읽지 않는다.** 목업이라 던지는 시늉만 받고 데모를 돌린다.
+ * 코드로 옮길 때는 여기가 plan/15 의 진짜 진행 상태에 물려야 한다 —
+ * 가짜 막대를 남겨 두면 화면이 거짓말을 하게 된다. */
+var zone = document.getElementById("zone");
+var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+var timers = [];
+
+function reset() {
+  timers.forEach(clearTimeout); timers = [];
+  zone.classList.remove("busy", "done", "over");
+  zone.querySelectorAll(".stp").forEach(function (s) { s.classList.remove("on"); });
+}
+
+function run() {
+  reset();
+  zone.classList.add("busy");
+  var steps = zone.querySelectorAll(".stp");
+  if (reduce) {                       // 모션을 끄면 결과만 선다
+    steps.forEach(function (s) { s.classList.add("on"); });
+    zone.classList.add("done");
+    return;
+  }
+  steps.forEach(function (s, i) {
+    timers.push(setTimeout(function () { s.classList.add("on"); }, 420 + i * 620));
+  });
+  timers.push(setTimeout(function () { zone.classList.add("done"); }, 420 + steps.length * 620));
+}
+
+["dragenter", "dragover"].forEach(function (t) {
+  zone.addEventListener(t, function (ev) {
+    ev.preventDefault();
+    if (!zone.classList.contains("busy")) zone.classList.add("over");
+  });
+});
+zone.addEventListener("dragleave", function () { zone.classList.remove("over"); });
+zone.addEventListener("drop", function (ev) { ev.preventDefault(); run(); });
+document.getElementById("go").addEventListener("click", run);
+document.getElementById("demo").addEventListener("click", run);
+
+Harness.mount({
+  current: "c",
+  variants: VARIANTS,
+  persist: true,
+  exportAs: { format: "css", selector: ":root" },
+  controls: [
+    { kind: "segment", label: "데모", name: "demo", value: "idle",
+      options: [{ v: "idle", label: "처음" }, { v: "run", label: "돌린다" }],
+      apply: function (v) { v === "run" ? run() : reset(); } },
+    { kind: "range", label: "드롭존 높이", name: "zh", value: 340, min: 200, max: 520, step: 10,
+      cssVar: "--zone-h", unit: "px" },
+    { kind: "range", label: "점선 굵기", name: "zb", value: 2.5, min: 1, max: 6, step: 0.5,
+      cssVar: "--zone-b", unit: "px" },
+    { kind: "color", label: "캔버스", name: "canvas", value: "#eef0f2",
+      cssVar: "--canvas", contrastAgainst: "--ink-2" },
+  ],
+});
+</script>
+</body>
+</html>

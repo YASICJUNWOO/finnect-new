@@ -9,10 +9,10 @@ type Search = { q?: string; source?: string; page?: string };
 
 /** S4 공고 목록. 시연 `demo_from_hwi.html#list` 를 따른다.
  *
- * 섹션 둘이다 — 추천 공고가 맨 위, 전체 공고가 아래(DESIGN.md §6.1).
+ * 섹션 둘이다 — 추천 공고가 맨 위, 전체 공고가 아래(DESIGN.md §5).
  * 추천은 적합도(F3-2)가 있어야 하는데 없어서 **카드 셋 자리를 비워 둔다.**
  *
- * **적합도 숫자도 막대도 열도 없다**(§6). 순서가 정보를 담는다.
+ * **적합도 숫자도 막대도 열도 없다**(§7). 순서가 정보를 담는다.
  *
  * 시연에서 옮기지 않은 것 셋. 전부 값이 없어서다.
  * - `.won` 금액과 `.kind` 지원 형태 — 두 출처가 안 준다. 시연 행의 제일 굵은 사실이 이것이다
@@ -80,7 +80,7 @@ export default async function NoticeListPage({
             ))}
           </ul>
         ) : (
-          /* 5. 빈 화면. **다음 동작을 권한다** — DESIGN.md §7-5 */
+          /* 5. 빈 화면. **다음 동작을 권한다** — DESIGN.md §14 */
           <div className={styles.empty}>
             <p className={styles.emptyLead}>
               {q ? `'${q}'로 찾은 공고가 없어요.` : "조건에 맞는 공고가 없어요."}

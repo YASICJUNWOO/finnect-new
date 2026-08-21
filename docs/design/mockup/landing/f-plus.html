@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>랜딩 · F 현행+</title>
+
+<!--
+  F 현행+ — 현행을 갈아엎지 않고, 검증된 것 셋만 붙인다.
+
+  피드백에서 살아남은 셋이다.
+    · C 던지기의 **드롭존과 데모 토글**
+    · E 조립의 **파일 → 노드 조립 애니메이션**
+    · E 조립의 **포인트 색**(노드 분류색 셋. §3-7 이 허락한 자리)
+
+  **셋을 따로 얹지 않았다.** 드롭존 안에서 조립이 일어난다 —
+  C 는 "던지면 된다"를 말하고 E 는 "던지면 이렇게 된다"를 말하는데, 둘을 나란히 두면
+  같은 말을 두 번 하는 화면이 된다. 하나로 묶으면 **던지는 자리가 곧 결과를 보여 주는 자리**가 된다.
+  그리고 그 동작이 아래 「세 단계로 끝나요」 카드 셋을 순서대로 켠다 —
+  카피를 한 벌 더 쓰지 않고 현행의 구조를 그대로 쓴다.
+
+  **애니메이션이 반복된다**(요청). 조립 → 머무름 → 흩어짐이 한 사이클이고 계속 돈다.
+  E 조립은 한 번만 돌고 눌러야 다시 돈다 — 거기가 다른 자리다.
+  타이머 체인이 아니라 **CSS 한 사이클(`--cycle`)로 묶었다** — 칩·노드·연결선·카드가
+  각자 setTimeout 으로 돌면 반복할수록 위상이 어긋난다.
+
+  나머지는 전부 현행이다. 회색 캔버스 · 흰 카드 · Pretendard · 1000px 폭 · 절 순서.
+  **손댄 자리는 둘이다** — 본문 14·15px 을 16px 로(§8.2, 현행이 어기던 것), 그리고 조작 요소 44px.
+
+  대가: 현행과 가장 덜 다르다. E 조립보다도 덜 다르다 — 여기는 아예 현행을 뼈대로 썼다.
+        새 방향을 고르는 자리가 아니라 **현행을 안 버리기로 했을 때의 최선**이다.
+        그리고 **끊임없이 도는 모션은 오래 보는 화면에서 피로하다** — 첫 화면에 있어서
+        스크롤해도 시야에 남는다. 고르면 몇 바퀴 뒤 멈출지를 정해야 한다.
+
+  하단 검은 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+@import url("../../../../web/app/tokens.css");
+
+:root{ --ring:92px; --zone-b:2px; --cycle:3400ms; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:16px;line-height:1.6;font-weight:400;letter-spacing:-.011em;
+  word-break:keep-all;overflow-wrap:break-word;
+  padding-bottom:56px;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+
+/* ── 상단. 현행 그대로. 브랜드 사각형에만 포인트 색이 들어간다(E) ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--line)}
+.nav .in{max-width:1000px;margin:0 auto;height:64px;display:flex;align-items:center;
+  gap:var(--s6);padding:0 var(--s5)}
+.brand{display:flex;align-items:center;gap:var(--s2);min-height:44px;
+  font-size:17px;font-weight:700;letter-spacing:-.03em}
+.brand i{width:18px;height:18px;border-radius:6px;background:var(--n-identity)}
+.nav .sp{flex:1}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+  min-height:48px;padding:0 var(--s5);border-radius:var(--r-sm);
+  font-size:16px;font-weight:700;letter-spacing:-.02em}
+.btn.fill{background:var(--ink);color:#fff}
+.btn.fill:hover{background:#2a2d31}
+.btn.line{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  min-height:44px;padding:0 var(--s4);font-size:16px;font-weight:600}
+.btn.line:hover{border-color:var(--ink-3);color:var(--ink)}
+
+.wrap{max-width:1000px;margin:0 auto;padding:0 var(--s5)}
+
+/* ── 히어로. 현행 왼쪽 + 오른쪽에 드롭존이 붙는다 ── */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:var(--s7);
+  align-items:center;padding:var(--s8) 0 var(--s7)}
+@media(max-width:940px){.hero{grid-template-columns:1fr;gap:var(--s6)}}
+.hero h1{font-size:44px;line-height:1.28;font-weight:700;letter-spacing:-.04em;max-width:16ch}
+.hero h1 em{font-style:normal;color:var(--n-identity)}   /* 포인트 색 — E 에서 가져왔다 */
+.hero p{font-size:18px;line-height:1.7;color:var(--ink-2);margin-top:var(--s5);max-width:44ch}
+.hero .act{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s6);flex-wrap:wrap}
+.hero .sub{font-size:16px;color:var(--ink-2)}   /* 현행은 14px + --ink-3(2.65:1) 이었다 */
+
+/* ── 드롭존 = 조립이 일어나는 자리 ── */
+.zone{position:relative;background:var(--surface);border:var(--zone-b) dashed var(--line-2);
+  border-radius:var(--r);padding:var(--s4) var(--s4) var(--s3);
+  transition:border-color 140ms ease-out,background-color 140ms ease-out}
+.zone.over{border-color:var(--n-identity);background:#fcfcfe}
+.zone svg{width:100%;height:auto;display:block;cursor:pointer}
+.zhint{display:block;text-align:center;font-size:13px;line-height:1.5;color:var(--ink-2);
+  padding-top:var(--s2);border-top:1px solid var(--line)}
+.zhint b{color:var(--ink);font-weight:700}
+
+.pc rect{fill:var(--quiet);stroke:var(--line-2);stroke-width:1}
+.pc text{font-size:10px;font-weight:700;fill:var(--ink-2);letter-spacing:.06em}
+.lk{stroke:var(--line-2);stroke-width:1.5;fill:none;stroke-dasharray:120}
+
+/* ── 한 사이클 ────────────────────────────────────────────────────────────────
+ * 조립(0~40%) → 머무름(40~74%) → 흩어짐(74~88%) → 되돌림(88~100%).
+ * 넷이 같은 `--cycle`(기본 3400ms)을 쓴다.
+ *
+ * **타이머로 하지 않는 이유** — 칩 여섯·노드 여섯·연결선 다섯·카드 셋이 각자 setTimeout 으로
+ * 돌면 반복할수록 위상이 어긋난다. 한 사이클에 묶으면 그 일이 없다.
+ *
+ * **처음엔 5200ms 에 머무름을 48% 로 잡았다가 줄였다.** 조립이 끝나고 다시 시작할 때까지
+ * 3.3초가 죽어 있어서 "멈춘 그림"으로 읽혔다. 지금은 머무름 1.2초 · 재시작 간격 0.5초다 —
+ * 조립이 논지인데 그 논지가 화면에 없는 시간이 길면 안 된다. */
+@keyframes fly{
+  0%,    3%   {opacity:1;transform:translate(0,0) scale(1)}
+  24%         {opacity:0;transform:translate(var(--dx),var(--dy)) scale(.28)}
+  74%         {opacity:0;transform:translate(var(--dx),var(--dy)) scale(.28)}
+  /* 안 보이는 동안 제자리로 되돌린다. 보이는 채로 되돌리면 거꾸로 날아가는 게 보인다 */
+  74.01%,92%  {opacity:0;transform:translate(0,0) scale(1)}
+  100%        {opacity:1;transform:translate(0,0) scale(1)}
+}
+@keyframes pop{
+  0%,   12%  {opacity:0;transform:scale(.3)}
+  26%,  74%  {opacity:1;transform:scale(1)}
+  86%,  100% {opacity:0;transform:scale(.3)}
+}
+@keyframes draw{
+  0%,   24%  {stroke-dashoffset:120}
+  40%,  74%  {stroke-dashoffset:0}
+  84%,  100% {stroke-dashoffset:120}
+}
+/* 카드가 켜지는 것도 같은 사이클에 있다. 카드마다 animation-delay 로 순서를 준다 */
+@keyframes lit{
+  0%,    6%  {border-color:var(--line);transform:none}
+  14%,  74%  {border-color:var(--c);transform:translateY(-2px)}
+  84%,  100% {border-color:var(--line);transform:none}
+}
+@keyframes litNum{
+  0%,    6%  {color:var(--ink-2)}
+  14%,  74%  {color:var(--c)}
+  84%,  100% {color:var(--ink-2)}
+}
+@keyframes litDot{  /* 속 빈 점선 → 찬 점. border-style 은 애니메이션이 안 돼서 둘을 겹쳐 교차시킨다 */
+  0%,    6%  {opacity:0}
+  14%,  74%  {opacity:1}
+  84%,  100% {opacity:0}
+}
+
+/* 기본은 반복이다(요청) */
+body[data-anim="loop"] .pc{animation:fly var(--cycle) linear infinite}
+body[data-anim="loop"] .nd{animation:pop var(--cycle) linear infinite}
+body[data-anim="loop"] .lk{animation:draw var(--cycle) linear infinite}
+body[data-anim="loop"] .st{animation:lit var(--cycle) linear infinite}
+body[data-anim="loop"] .st .n{animation:litNum var(--cycle) linear infinite}
+body[data-anim="loop"] .st .n::after{animation:litDot var(--cycle) linear infinite}
+
+/* 한 번만 — E 조립과 같은 거동. 비교용으로 남겨 둔다 */
+body[data-anim="once"] .pc{animation:fly var(--cycle) linear 1 forwards}
+body[data-anim="once"] .nd{animation:pop var(--cycle) linear 1 forwards}
+body[data-anim="once"] .lk{animation:draw var(--cycle) linear 1 forwards}
+body[data-anim="once"] .st{animation:lit var(--cycle) linear 1 forwards}
+body[data-anim="once"] .st .n{animation:litNum var(--cycle) linear 1 forwards}
+body[data-anim="once"] .st .n::after{animation:litDot var(--cycle) linear 1 forwards}
+
+/* 멈춤 — 조립된 상태로 선다. 논지는 못 보지만 화면은 온전하다 */
+body[data-anim="still"] .pc{display:none}
+body[data-anim="still"] .nd{opacity:1}
+body[data-anim="still"] .lk{stroke-dashoffset:0}
+body[data-anim="still"] .st{border-color:var(--c);transform:translateY(-2px)}
+body[data-anim="still"] .st .n{color:var(--c)}
+body[data-anim="still"] .st .n::after{opacity:1}
+
+.nd{opacity:0}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .pc{display:none}
+  .nd{opacity:1}
+  .lk{stroke-dashoffset:0}
+  .st{border-color:var(--c)}
+  .st .n{color:var(--c)}
+  .st .n::after{opacity:1}
+}
+
+/* ── 세 단계. 현행의 카드 셋 그대로인데, 드롭존이 이걸 순서대로 켠다 ── */
+.how{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.how h2{font-size:16px;font-weight:700;color:var(--ink-2);margin-bottom:var(--s5)}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+@media(max-width:760px){.steps{grid-template-columns:1fr}}
+.st{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s5)}
+.st .n{position:relative;display:inline-block;padding-left:17px;
+  font-size:13px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.st .n::before,.st .n::after{content:"";position:absolute;left:0;top:50%;margin-top:-5px;
+  width:9px;height:9px;border-radius:50%}
+.st .n::before{border:1.5px dashed var(--ink-4)}     /* 비어 있음 — §4.1 어법 */
+.st .n::after{background:var(--c);opacity:0}          /* 채워짐 */
+.st h3{font-size:19px;font-weight:700;letter-spacing:-.03em;margin-top:var(--s2)}
+.st p{font-size:16px;line-height:1.6;color:var(--ink-2);margin-top:var(--s2)}
+
+/* ── 왜 다른가. 현행 그대로. 배지에만 포인트 색 ── */
+.why{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.why h2{font-size:26px;font-weight:700;letter-spacing:-.035em;max-width:32ch}
+.why .body{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);margin-top:var(--s5)}
+@media(max-width:760px){.why .body{grid-template-columns:1fr}}
+.why p{font-size:16px;line-height:1.8;color:var(--ink-2)}
+.why p+p{margin-top:var(--s3)}
+.why b{color:var(--ink);font-weight:700}
+.pts{display:flex;flex-direction:column;gap:var(--s4)}
+.pt{display:flex;gap:var(--s3);align-items:flex-start}
+.pt .m{width:22px;height:22px;border-radius:50%;background:var(--n-content);color:#fff;
+  font-size:11px;font-weight:700;display:grid;place-items:center;flex:none;margin-top:3px;line-height:1}
+.pt .t{font-size:16px;font-weight:700;letter-spacing:-.02em}
+.pt .d{font-size:16px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+
+/* ── 안 하는 것. 현행 카드 + E 의 속 빈 점선 표시(§4.1 어법) ── */
+.nope{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.nope h2{font-size:16px;font-weight:700;color:var(--ink-2);margin-bottom:var(--s4)}
+.nope .list{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+@media(max-width:760px){.nope .list{grid-template-columns:1fr}}
+.nope .n{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s4);display:grid;grid-template-columns:12px minmax(0,1fr);gap:0 var(--s3)}
+.nope .n::before{content:"";width:9px;height:9px;border-radius:50%;margin-top:7px;
+  border:1.5px dashed var(--ink-3);background:transparent}
+.nope .n h3{font-size:16px;font-weight:700;letter-spacing:-.025em}
+.nope .n p{font-size:16px;line-height:1.6;color:var(--ink-2);margin-top:2px}
+
+.end{padding:var(--s7) 0 var(--s8);border-top:1px solid var(--line);text-align:center}
+.end h2{font-size:26px;font-weight:700;letter-spacing:-.035em}
+.end p{font-size:16px;color:var(--ink-2);margin-top:var(--s2)}
+.end .act{margin-top:var(--s5)}
+.foot{border-top:1px solid var(--line);padding:var(--s5) 0 var(--s7);
+  font-size:16px;color:var(--ink-2)}
+</style>
+</head>
+
+<body data-anim="loop">
+
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#"><i></i><span id="brand"></span></a>
+    <span class="sp"></span>
+    <a class="btn line" href="#" id="navcta"></a>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div id="hero"></div>
+    <div class="zone" id="zone" aria-label="파일을 던지는 자리">
+      <svg id="rig" viewBox="0 0 400 340" role="img" aria-label="파일이 사업 위키의 자리로 모이는 그림"></svg>
+      <span class="zhint" id="zhint"></span>
+    </div>
+  </section>
+
+  <section class="how" id="how"></section>
+  <section class="why" id="why"></section>
+  <section class="nope" id="nope"></section>
+  <section class="end" id="end"></section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="copy.js"></script>
+<script src="variants.js"></script>
+<script src="assets/harness.js"></script>
+<script>
+var e = COPY.esc;
+
+document.getElementById("brand").textContent = COPY.brand;
+document.getElementById("navcta").textContent = COPY.navCta;
+document.getElementById("foot").textContent = COPY.foot;
+
+document.getElementById("hero").innerHTML =
+  "<h1>" + e(COPY.hero.line1) + "<br><em>" + e(COPY.hero.accent) + "</em>" + e(COPY.hero.line2Tail) + "</h1>" +
+  "<p>" + e(COPY.hero.body) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.hero.cta) + "</a>" +
+  '<span class="sub">' + e(COPY.hero.sub) + "</span></div>";
+
+/* 드롭존 힌트. 새 카피가 아니라 조작 안내다 */
+document.getElementById("zhint").innerHTML = "<b>여기에 파일을 놓아 보세요</b>";
+
+/* 세 단계 — 현행 카드 셋 그대로. 색만 노드 분류색을 받고, 켜지는 순서는 animation-delay 가 준다 */
+var TONE = ["--n-identity", "--n-content", "--n-company"];
+/* ms. 사이클 안에서의 위상차다. **사이클(3400ms)에 견줘 작아야 한다** —
+ * 마지막 카드의 지연이 크면 그 카드만 사이클 끝까지 켜져 있어서 셋이 한 동작으로 안 읽힌다 */
+var STEP_DELAY = [100, 300, 520];
+document.getElementById("how").innerHTML =
+  "<h2>" + e(COPY.how.h2) + "</h2>" +
+  '<div class="steps">' + COPY.how.steps.map(function (s, i) {
+    return '<div class="st" style="--c:var(' + TONE[i] + ');animation-delay:' + STEP_DELAY[i] + 'ms">' +
+           '<span class="n" style="animation-delay:' + STEP_DELAY[i] + 'ms">' + e(s.n) + "</span>" +
+           "<h3>" + e(s.t) + "</h3><p>" + e(s.d) + "</p></div>";
+  }).join("") + "</div>";
+/* ::after 는 인라인 스타일로 지연을 못 준다. 카드마다 규칙을 하나씩 심는다 */
+(function () {
+  var css = STEP_DELAY.map(function (d, i) {
+    return "body[data-anim] .steps .st:nth-child(" + (i + 1) + ") .n::after{animation-delay:" + d + "ms}";
+  }).join("");
+  var st = document.createElement("style");
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+
+document.getElementById("why").innerHTML =
+  "<h2>" + e(COPY.why.h2) + "</h2>" +
+  '<div class="body"><div>' +
+    COPY.why.lead.map(function (l) { return "<p>" + COPY.leadHtml(l) + "</p>"; }).join("") +
+  '</div><div class="pts">' +
+    COPY.why.pts.map(function (p) {
+      return '<div class="pt"><span class="m">' + e(p.m) + "</span><div>" +
+             '<div class="t">' + e(p.t) + '</div><div class="d">' + e(p.d) + "</div></div></div>";
+    }).join("") +
+  "</div></div>";
+
+document.getElementById("nope").innerHTML =
+  "<h2>" + e(COPY.nope.h2) + "</h2>" +
+  '<div class="list">' + COPY.nope.items.map(function (n) {
+    return '<div class="n"><div><h3>' + e(n.t) + "</h3><p>" + e(n.d) + "</p></div></div>";
+  }).join("") + "</div>";
+
+document.getElementById("end").innerHTML =
+  "<h2>" + e(COPY.end.h2) + "</h2><p>" + e(COPY.end.d) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.end.cta) + "</a></div>";
+
+/* ── 드롭존 안의 조립 ───────────────────────────────────────────────────────
+ * 자리는 위키 궤도의 축소판이다(ADR-0017 — 중심 하나 + 고리). 각도는 고정이고 색은 종류뿐이다.
+ * 칩 글자는 포맷 이름이라 카피가 아니다. 노드에 이름표를 붙이지 않는다 —
+ * 이름표는 위키 화면(S7)의 것이고 여기서 지어내면 없는 화면을 약속하는 것이 된다.
+ *
+ * **파일을 실제로 읽지 않는다.** 던지는 시늉만 받고 데모가 돈다.
+ * 코드로 옮길 때는 plan/15 의 진짜 진행 상태에 물려야 한다 — 가짜 막대를 남기면 화면이 거짓말을 한다. */
+var CX = 200, CY = 168;
+var NODES = [
+  { k: "identity", a: null },                    // 중심
+  { k: "content",  a: -90 },
+  { k: "content",  a: -18 },
+  { k: "company",  a:  54 },
+  { k: "company",  a: 126 },
+  { k: "empty",    a: 198 },                     // 아직 안 채운 자리 — 속 빈 점선(§4.1)
+];
+var CHIPS = [
+  { t: "HWP",  x:  22, y:  26 },
+  { t: "PDF",  x: 312, y:  20 },
+  { t: "DOCX", x: 322, y: 150 },
+  { t: "XLSX", x: 300, y: 282 },
+  { t: "JPG",  x:  18, y: 276 },
+  { t: "TXT",  x:  14, y: 148 },
+];
+
+var zone = document.getElementById("zone");
+var rig = document.getElementById("rig");
+
+function build() {
+  var R = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ring")) || 92;
+  var pts = NODES.map(function (n) {
+    if (n.a === null) return { x: CX, y: CY };
+    var t = n.a * Math.PI / 180;
+    return { x: CX + R * Math.cos(t), y: CY + R * Math.sin(t) };
+  });
+  var s = "";
+
+  /* 위상차는 사이클 길이에 견줘 아주 작게 둔다(최대 400ms / 5200ms).
+   * 크게 주면 앞의 것이 흩어지는 동안 뒤의 것이 아직 모이고 있어서 한 동작으로 안 읽힌다 */
+  pts.slice(1).forEach(function (p, i) {
+    s += '<line class="lk" x1="' + CX + '" y1="' + CY + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
+         '" style="animation-delay:' + (i * 45) + 'ms"></line>';
+  });
+
+  pts.forEach(function (p, i) {
+    var n = NODES[i];
+    var r = i === 0 ? 22 : 14;
+    var fill = n.k === "empty" ? "none" : "var(--n-" + n.k + ")";
+    var stroke = n.k === "empty"
+      ? ' stroke="var(--ink-3)" stroke-width="1.6" stroke-dasharray="3 3"' : "";
+    s += '<g class="nd" style="transform-origin:' + p.x.toFixed(1) + 'px ' + p.y.toFixed(1) + 'px;' +
+         'animation-delay:' + (i * 55) + 'ms">' +
+         '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + r + '" fill="' + fill + '"' + stroke + '></circle></g>';
+  });
+
+  CHIPS.forEach(function (c, i) {
+    var p = pts[i];
+    var w = 50, h = 22;
+    s += '<g class="pc" style="--dx:' + (p.x - c.x - w / 2).toFixed(1) + 'px;' +
+         '--dy:' + (p.y - c.y - h / 2).toFixed(1) + 'px;' +
+         'transform-origin:' + (c.x + w / 2) + 'px ' + (c.y + h / 2) + 'px;' +
+         'animation-delay:' + (i * 60) + 'ms">' +
+         '<rect x="' + c.x + '" y="' + c.y + '" width="' + w + '" height="' + h + '" rx="6"></rect>' +
+         '<text x="' + (c.x + w / 2) + '" y="' + (c.y + h / 2 + 3.5) + '" text-anchor="middle">' + c.t + "</text></g>";
+  });
+
+  rig.innerHTML = s;
+}
+
+/* 사이클을 처음부터 다시 돌린다. 애니메이션을 떼었다 붙여야 리셋된다 */
+function restart() {
+  var mode = document.body.dataset.anim;
+  document.body.dataset.anim = "";
+  void document.body.offsetWidth;      // 리플로우를 강제한다
+  document.body.dataset.anim = mode;
+}
+
+function setMode(v) {
+  document.body.dataset.anim = v;
+  if (v !== "still") restart();
+}
+
+build();
+
+["dragenter", "dragover"].forEach(function (t) {
+  zone.addEventListener(t, function (ev) { ev.preventDefault(); zone.classList.add("over"); });
+});
+zone.addEventListener("dragleave", function () { zone.classList.remove("over"); });
+zone.addEventListener("drop", function (ev) { ev.preventDefault(); zone.classList.remove("over"); setMode("once"); });
+zone.addEventListener("click", restart);
+
+Harness.mount({
+  current: "f",
+  variants: VARIANTS,
+  persist: true,
+  exportAs: { format: "css", selector: ":root" },
+  controls: [
+    { kind: "segment", label: "모션", name: "anim", value: "loop",
+      options: [{ v: "loop", label: "반복" }, { v: "once", label: "한 번" }, { v: "still", label: "멈춤" }],
+      apply: setMode },
+    { kind: "range", label: "한 바퀴", name: "spin", value: 3400, min: 2000, max: 6400, step: 100,
+      cssVar: "--cycle", unit: "ms",
+      apply: function (v) {
+        document.documentElement.style.setProperty("--cycle", v + "ms");
+        restart();
+      } },
+    { kind: "range", label: "고리 반지름", name: "ring", value: 92, min: 60, max: 124, step: 2,
+      cssVar: "--ring", unit: "px",
+      apply: function (v) {
+        document.documentElement.style.setProperty("--ring", v + "px");
+        build();
+        restart();
+      } },
+    { kind: "color", label: "포인트", name: "accent", value: "#5b5bd6",
+      cssVar: "--n-identity", contrastAgainst: "--surface" },
+  ],
+});
+</script>
+</body>
+</html>

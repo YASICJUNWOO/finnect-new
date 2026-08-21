@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>랜딩 · E 조립</title>
+
+<!--
+  E 조립 — 규칙 안에서 갈 수 있는 가장 먼 곳.
+
+  논지: 히어로가 제품의 기계장치를 그대로 보여 준다. 파일 여섯이 흩어져 있다가 노드로 조립된다
+        (ADR-0014 파일 → 청크 → 사실 → 노드). 말로 "정리해 드려요"라고 하지 않는다.
+  이 시안만 제품 토큰(`web/app/tokens.css`)을 그대로 링크한다. 색은 노드 분류색 셋뿐이고
+        그 자리는 §3-7 이 허락한 곳이다. 타입은 §4.2 의 일곱 단계를 그대로 쓴다 —
+        **현행이 어긴 14px·15px 본문이 여기서는 없다**(§8.2). 카드 대신 괘선을 쓴다(§4.4).
+  대가: 여섯 중 현행과 가장 덜 다르다. 인상 변화가 작다.
+        논지가 모션이라 **정지 화면(스크린샷·인쇄)에서는 논지가 안 보인다.**
+
+  조립 그림의 칩 글자는 포맷 이름(HWP·PDF…)이라 카피가 아니다. 노드에는 이름표를 붙이지 않았다 —
+  이름표는 위키 화면(S7)의 것이고 여기서 미리 지어내면 없는 화면을 약속하는 것이 된다.
+
+  하단 검은 바는 목업 전용이다.
+-->
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+@import url("../../../../web/app/tokens.css");
+
+:root{ --ring:96px; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:var(--t-body);line-height:var(--lh-body);font-weight:var(--w-normal);
+  letter-spacing:-.011em;padding-bottom:56px;
+  word-break:keep-all;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+
+.wrap{max-width:1040px;margin:0 auto;padding:0 var(--s5)}
+
+/* ── 상단 ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--line)}
+.nav .in{max-width:1040px;margin:0 auto;height:64px;padding:0 var(--s5);
+  display:flex;align-items:center;gap:var(--s6)}
+.brand{display:flex;align-items:center;gap:var(--s2);min-height:44px;
+  font-size:var(--t-lead);font-weight:var(--w-bold);letter-spacing:var(--tracking-title)}
+.brand i{width:16px;height:16px;border-radius:5px;background:var(--n-identity)}
+.nav .sp{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+  min-height:48px;padding:0 var(--s5);border-radius:var(--r-sm);
+  font-size:var(--t-body);font-weight:var(--w-bold);letter-spacing:-.02em}
+.btn.fill{background:var(--ink);color:var(--surface)}
+.btn.fill:hover{background:#2a2d31}
+.btn.line{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  min-height:44px;padding:0 var(--s4);font-size:var(--t-body);font-weight:var(--w-medium)}
+.btn.line:hover{border-color:var(--ink-3);color:var(--ink)}
+
+/* ── 히어로. 왼쪽은 말, 오른쪽은 기계장치 ── */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:var(--s7);
+  align-items:center;padding:var(--s8) 0}
+@media(max-width:900px){.hero{grid-template-columns:1fr;gap:var(--s6);padding:var(--s7) 0}}
+.hero h1{font-size:var(--t-hero);line-height:var(--lh-hero);font-weight:var(--w-bold);
+  letter-spacing:-.04em;max-width:15ch}
+.hero h1 em{font-style:normal;color:var(--n-identity)}
+.hero p{font-size:var(--t-lead);line-height:var(--lh-body);color:var(--ink-2);
+  margin-top:var(--s5);max-width:42ch}
+.act{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s6);flex-wrap:wrap}
+.sub{font-size:var(--t-small);color:var(--ink-2)}   /* §8.2 — --ink-3 는 2.65:1 이라 안 쓴다 */
+
+.rig{position:relative}
+.rig svg{width:100%;height:auto;display:block;cursor:pointer}
+.rig .cap{display:block;text-align:center;margin-top:var(--s2);
+  font-size:var(--t-caption);line-height:var(--lh-caption);color:var(--ink-2)}
+
+/* 파일 칩 — 흩어졌다가 제 자리로 빨려 들어간다 */
+.pc{opacity:0}
+.pc rect{fill:var(--surface);stroke:var(--line-2);stroke-width:1}
+.pc text{font-size:10px;font-weight:var(--w-bold);fill:var(--ink-2);letter-spacing:.06em}
+.nd{opacity:0}
+.lk{stroke:var(--line-2);stroke-width:1.5;fill:none;stroke-dasharray:120;stroke-dashoffset:120}
+
+.go .pc{animation:fly 900ms cubic-bezier(.5,0,.2,1) forwards}
+.go .nd{animation:pop 460ms cubic-bezier(.2,.9,.3,1.3) forwards}
+.go .lk{animation:draw 620ms ease-out forwards}
+@keyframes fly{
+  0%{opacity:0;transform:translate(0,0) scale(.9)}
+  16%{opacity:1;transform:translate(0,0) scale(1)}
+  70%{opacity:1}
+  100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.28)}
+}
+@keyframes pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(1)}}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* 모션을 끄면 조립된 상태로 선다. 논지는 못 보지만 화면은 온전하다 */
+.still .pc{display:none}
+.still .nd{opacity:1;animation:none}
+.still .lk{stroke-dashoffset:0;animation:none}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .pc{display:none}
+  .nd{opacity:1}
+  .lk{stroke-dashoffset:0}
+}
+
+/* ── 절. 카드가 아니라 괘선이다(§4.4) ── */
+.sec{padding:var(--s7) 0;border-top:1px solid var(--line)}
+.sec > h2{font-size:var(--t-title);line-height:var(--lh-title);font-weight:var(--w-bold);
+  letter-spacing:var(--tracking-title);max-width:30ch}
+.lab{font-size:var(--t-caption);font-weight:var(--w-bold);color:var(--ink-2);
+  letter-spacing:.1em;display:block;margin-bottom:var(--s2)}
+
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin-top:var(--s5)}
+@media(max-width:820px){.steps{grid-template-columns:1fr}}
+.st{padding:var(--s4) var(--s5) var(--s4) 0;border-top:2px solid var(--ink)}
+.st+.st{border-top-color:var(--line-2)}
+.st .n{font-size:var(--t-small);font-weight:var(--w-bold);color:var(--ink-2);
+  font-variant-numeric:tabular-nums;letter-spacing:.08em}
+.st h3{font-size:var(--t-lead);line-height:var(--lh-lead);font-weight:var(--w-bold);
+  letter-spacing:-.03em;margin-top:var(--s2)}
+.st p{color:var(--ink-2);margin-top:var(--s2)}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);margin-top:var(--s5)}
+@media(max-width:820px){.two{grid-template-columns:1fr;gap:var(--s5)}}
+.two p{color:var(--ink-2);line-height:1.8}
+.two p+p{margin-top:var(--s3)}
+.two strong{color:var(--ink);font-weight:var(--w-bold)}
+.pt{display:grid;grid-template-columns:20px minmax(0,1fr);gap:0 var(--s3);
+  padding:var(--s3) 0;border-top:1px solid var(--line)}
+.pt:first-child{border-top:0;padding-top:0}
+.pt .m{font-size:var(--t-small);font-weight:var(--w-bold);color:var(--n-content);
+  font-variant-numeric:tabular-nums;line-height:1.7}
+.pt .t{font-weight:var(--w-bold);letter-spacing:-.02em}
+.pt .d{color:var(--ink-2);margin-top:2px;font-size:var(--t-body);line-height:var(--lh-body)}
+
+/* 안 하는 것 — 비어 있음 표시와 같은 어법을 쓴다. 속 빈 점선(§4.1) */
+.nope{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4) var(--s6);margin-top:var(--s5)}
+@media(max-width:820px){.nope{grid-template-columns:1fr}}
+.nope .n{display:grid;grid-template-columns:12px minmax(0,1fr);gap:0 var(--s3)}
+.nope .n::before{content:"";width:9px;height:9px;border-radius:50%;margin-top:7px;
+  border:1.5px dashed var(--ink-3);background:transparent}
+.nope .n h3{font-size:var(--t-body);font-weight:var(--w-bold);letter-spacing:-.025em}
+.nope .n p{color:var(--ink-2);margin-top:2px}
+
+.end{padding:var(--s7) 0 var(--s8);border-top:1px solid var(--line);text-align:center}
+.end h2{font-size:var(--t-display);line-height:var(--lh-display);
+  font-weight:var(--w-bold);letter-spacing:var(--tracking-title)}
+.end p{color:var(--ink-2);margin-top:var(--s2)}
+.end .act{justify-content:center;margin-top:var(--s5)}
+.foot{border-top:1px solid var(--line);padding:var(--s5) 0 var(--s7);
+  font-size:var(--t-body);color:var(--ink-2)}
+</style>
+</head>
+
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="brand" href="#"><i></i><span id="brand"></span></a>
+    <span class="sp"></span>
+    <a class="btn line" href="#" id="navcta"></a>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div id="hero"></div>
+    <div class="rig">
+      <svg id="rig" viewBox="0 0 420 380" role="img" aria-label="파일이 사업 위키의 자리로 모이는 그림"></svg>
+      <span class="cap" id="rigcap">눌러 보세요</span>
+    </div>
+  </section>
+
+  <section class="sec" id="how"></section>
+  <section class="sec" id="why"></section>
+  <section class="sec" id="nope"></section>
+  <section class="end" id="end"></section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="copy.js"></script>
+<script src="variants.js"></script>
+<script src="assets/harness.js"></script>
+<script>
+var e = COPY.esc;
+
+document.getElementById("brand").textContent = COPY.brand;
+document.getElementById("navcta").textContent = COPY.navCta;
+document.getElementById("foot").textContent = COPY.foot;
+
+document.getElementById("hero").innerHTML =
+  "<h1>" + e(COPY.hero.line1) + "<br><em>" + e(COPY.hero.accent) + "</em>" + e(COPY.hero.line2Tail) + "</h1>" +
+  "<p>" + e(COPY.hero.body) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.hero.cta) + "</a>" +
+  '<span class="sub">' + e(COPY.hero.sub) + "</span></div>";
+
+document.getElementById("how").innerHTML =
+  '<span class="lab">' + e(COPY.how.h2) + "</span>" +
+  '<div class="steps">' + COPY.how.steps.map(function (s) {
+    return '<div class="st"><span class="n">' + e(s.n) + "</span>" +
+           "<h3>" + e(s.t) + "</h3><p>" + e(s.d) + "</p></div>";
+  }).join("") + "</div>";
+
+document.getElementById("why").innerHTML =
+  "<h2>" + e(COPY.why.h2) + "</h2>" +
+  '<div class="two"><div>' +
+    COPY.why.lead.map(function (l) { return "<p>" + COPY.leadHtml(l, "strong") + "</p>"; }).join("") +
+  "</div><div>" +
+    COPY.why.pts.map(function (p) {
+      return '<div class="pt"><span class="m">' + e(p.m) + "</span><div>" +
+             '<div class="t">' + e(p.t) + '</div><div class="d">' + e(p.d) + "</div></div></div>";
+    }).join("") +
+  "</div></div>";
+
+document.getElementById("nope").innerHTML =
+  '<span class="lab">' + e(COPY.nope.h2) + "</span>" +
+  '<div class="nope">' + COPY.nope.items.map(function (n) {
+    return '<div class="n"><div><h3>' + e(n.t) + "</h3><p>" + e(n.d) + "</p></div></div>";
+  }).join("") + "</div>";
+
+document.getElementById("end").innerHTML =
+  "<h2>" + e(COPY.end.h2) + "</h2><p>" + e(COPY.end.d) + "</p>" +
+  '<div class="act"><a class="btn fill" href="#">' + e(COPY.end.cta) + "</a></div>";
+
+/* ── 조립 그림 ────────────────────────────────────────────────────────────────
+ * 자리는 위키 궤도의 축소판이다(ADR-0017 — 중심 하나 + 고리). 각도는 고정이고 색은 종류뿐이다.
+ * 칩 글자는 포맷 이름이라 카피가 아니다. 노드에 이름표를 붙이지 않는다. */
+var CX = 210, CY = 194;
+var NODES = [
+  { k: "identity", a: null },                    // 중심
+  { k: "content",  a: -90 },
+  { k: "content",  a: -18 },
+  { k: "company",  a:  54 },
+  { k: "company",  a: 126 },
+  { k: "empty",    a: 198 },                     // 아직 안 채운 자리 — 속 빈 점선(§4.1)
+];
+var CHIPS = [
+  { t: "HWP",  x:  30, y:  34 },
+  { t: "PDF",  x: 318, y:  28 },
+  { t: "DOCX", x: 336, y: 172 },
+  { t: "XLSX", x: 312, y: 316 },
+  { t: "JPG",  x:  26, y: 306 },
+  { t: "TXT",  x:  22, y: 168 },
+];
+
+var rig = document.getElementById("rig");
+
+function nodePos(n, R) {
+  if (n.a === null) return { x: CX, y: CY };
+  var t = n.a * Math.PI / 180;
+  return { x: CX + R * Math.cos(t), y: CY + R * Math.sin(t) };
+}
+
+function build() {
+  var R = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ring")) || 96;
+  var pts = NODES.map(function (n) { return nodePos(n, R); });
+  var s = "";
+
+  // 바큇살 — 중심에서 고리로
+  pts.slice(1).forEach(function (p, i) {
+    s += '<line class="lk" x1="' + CX + '" y1="' + CY + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
+         '" style="animation-delay:' + (980 + i * 70) + 'ms"></line>';
+  });
+
+  // 노드
+  pts.forEach(function (p, i) {
+    var n = NODES[i];
+    var r = i === 0 ? 23 : 15;
+    var fill = n.k === "empty" ? "none" : "var(--n-" + n.k + ")";
+    var stroke = n.k === "empty"
+      ? ' stroke="var(--ink-3)" stroke-width="1.6" stroke-dasharray="3 3"' : "";
+    s += '<g class="nd" style="transform-origin:' + p.x.toFixed(1) + 'px ' + p.y.toFixed(1) + 'px;' +
+         'animation-delay:' + (720 + i * 60) + 'ms">' +
+         '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + r + '" fill="' + fill + '"' + stroke + '></circle></g>';
+  });
+
+  // 파일 칩. 목적지는 제 노드다
+  CHIPS.forEach(function (c, i) {
+    var p = pts[i];
+    var w = 52, h = 24;
+    s += '<g class="pc" style="--dx:' + (p.x - c.x - w / 2).toFixed(1) + 'px;' +
+         '--dy:' + (p.y - c.y - h / 2).toFixed(1) + 'px;' +
+         'transform-origin:' + (c.x + w / 2) + 'px ' + (c.y + h / 2) + 'px;' +
+         'animation-delay:' + (i * 90) + 'ms">' +
+         '<rect x="' + c.x + '" y="' + c.y + '" width="' + w + '" height="' + h + '" rx="6"></rect>' +
+         '<text x="' + (c.x + w / 2) + '" y="' + (c.y + h / 2 + 3.5) + '" text-anchor="middle">' + c.t + "</text></g>";
+  });
+
+  rig.innerHTML = s;
+}
+
+function play() {
+  rig.classList.remove("go", "still");
+  void rig.offsetWidth;              // 리플로우를 강제해야 애니메이션이 다시 돈다
+  rig.classList.add("go");
+}
+
+build();
+if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  rig.classList.add("still");
+  document.getElementById("rigcap").textContent = "";
+} else {
+  play();
+  rig.addEventListener("click", play);
+}
+
+Harness.mount({
+  current: "e",
+  variants: VARIANTS,
+  persist: true,
+  exportAs: { format: "css", selector: ":root" },
+  controls: [
+    { kind: "segment", label: "조립", name: "motion", value: "play",
+      options: [{ v: "play", label: "돌린다" }, { v: "still", label: "멈춘다" }],
+      apply: function (v) {
+        if (v === "still") { rig.classList.remove("go"); rig.classList.add("still"); }
+        else play();
+      } },
+    { kind: "range", label: "고리 반지름", name: "ring", value: 96, min: 60, max: 130, step: 2,
+      cssVar: "--ring", unit: "px",
+      apply: function (v) {
+        document.documentElement.style.setProperty("--ring", v + "px");
+        build();
+        rig.classList.contains("still") ? rig.classList.add("still") : play();
+      } },
+    { kind: "range", label: "본문", name: "tbody", value: 16, min: 14, max: 20, step: 1,
+      cssVar: "--t-body", unit: "px" },
+    { kind: "color", label: "캔버스", name: "canvas", value: "#f7f7f8",
+      cssVar: "--canvas", contrastAgainst: "--ink-2" },
+  ],
+});
+</script>
+</body>
+</html>

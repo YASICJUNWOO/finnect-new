@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
@@ -67,6 +67,26 @@ templates.env.filters["ts"] = _ts
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse("/ingest")
+
+
+#: `web/app/tokens.css`. **사본을 만들지 않는다** — 값의 유일한 자리가 저기다(ADR-0041).
+#: 로컬 전용 앱이라 레포 트리 안에서 읽어도 된다.
+TOKENS_CSS = Path(__file__).resolve().parents[3] / "web" / "app" / "tokens.css"
+
+
+@app.get("/tokens.css", include_in_schema=False)
+def tokens_css() -> Response:
+    """제품 토큰을 그대로 낸다.
+
+    **없으면 404 가 아니라 빈 CSS 를 낸다.** 이 화면은 수집을 돌리는 자리라
+    스타일이 빠져도 열려야 하고, 404 는 콘솔에만 남아 원인을 안 알려 준다.
+    """
+    if not TOKENS_CSS.is_file():
+        return Response(
+            f"/* {TOKENS_CSS} 를 못 찾았다. 레포 밖에서 띄웠거나 경로가 바뀌었다 */",
+            media_type="text/css",
+        )
+    return FileResponse(TOKENS_CSS, media_type="text/css")
 
 
 @app.get("/ingest", response_class=HTMLResponse)

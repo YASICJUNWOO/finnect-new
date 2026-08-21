@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>위키 그래프 — 전환 뷰</title>
+
+<!--
+  하나를 실제 크기로 띄우고 갈아끼운다. 갤러리(index.html)는 축소해 나란히 놓는다 —
+  저기는 구조를 한눈에 보는 용도고 여기는 밀도·가독성 판단용이다.
+  iframe 을 전부 띄워둔 채 visibility 로만 바꾼다. display:none 을 쓰면
+  레이아웃이 0폭으로 잡혀 안쪽 미디어쿼리가 어긋난다.
+  전환 조작은 각 화면 하단의 Harness 바가 맡는다.
+-->
+
+<style>
+/* 제품 토큰이 값의 유일한 자리다(ADR-0041). **여기 값을 복사해 두면 갈린다** —
+   실제로 갈렸다. 전환 바가 옛 --ink(#16181b) 를 들고 있는데
+   프레임 안 시안은 새 --ink(#222) 를 쓰고 있었다. */
+@import url("../../../../web/app/tokens.css");
+
+:root{
+  --bar-h:34px;
+  /* 전환 바만의 것. --muted 와 --brand 는 제품 토큰의 별칭이다 */
+  --bg:var(--surface); --muted:var(--ink-2); --brand:var(--n-content);
+  --font:Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;
+  overflow:hidden;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+
+.bar{height:var(--bar-h);flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px;
+  background:var(--bg);border-bottom:1px solid var(--line)}
+.thesis{flex:1;min-width:0;font-size:12.5px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thesis b{color:var(--ink);font-weight:700}
+.right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lnk{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 9px;
+  transition:color 100ms ease-out,border-color 100ms ease-out}
+.lnk:hover{color:var(--brand);border-color:var(--brand)}
+
+.stage{position:relative;flex:1;min-height:0;background:var(--bg)}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;visibility:hidden}
+.stage iframe.on{visibility:visible}
+</style>
+</head>
+
+<body>
+
+<div class="bar">
+  <span class="thesis" id="thesis"></span>
+  <div class="right">
+    <a class="lnk" id="solo" href="#" target="_blank">단독 열기 ↗</a>
+    <a class="lnk" href="index.html">나란히 보기 ↗</a>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <iframe class="on" data-v="base" src="base.html" title="현행"></iframe>
+  <iframe data-v="a" src="a-planet.html" title="A 행성"></iframe>
+  <iframe data-v="b" src="b-glass.html" title="B 유리"></iframe>
+  <iframe data-v="c" src="c-jelly.html" title="C 젤리"></iframe>
+</div>
+
+<script>
+var NOTES = {
+  base: { file: "base.html",     label: "현행",   note: "납작한 원 열다섯. 아래 셋이 무엇을 얼마나 바꾸는지 재는 자. 도트 지름 30px 로 44px 타깃 미달." },
+  a:    { file: "a-planet.html", label: "A 행성", note: "빛을 받는 행성 + 대기광. 안 채운 자리는 뭉치지 않은 윤곽, 값이 갈린 자리는 고리. 대가 — 어두운 배경이라 목록·상세와 명도가 정반대다." },
+  b:    { file: "b-glass.html",  label: "B 유리", note: "속에 알이 든 유리 구슬. 빈 자리는 구슬이 앉을 홈. 대가 — 유리가 알을 덮어 종류색이 셋 중 가장 약하다." },
+  c:    { file: "c-jelly.html",  label: "C 젤리", note: "무르고 광택이 크다. 그림자가 제 색을 띤다. 대가 — 채도가 가장 세서 목록 화면과 나란히 두면 위키만 튄다." },
+};
+
+function show(v) {
+  if (!NOTES[v]) v = "base";
+  document.querySelectorAll(".stage iframe").forEach(function (f) {
+    f.classList.toggle("on", f.dataset.v === v);
+  });
+  document.getElementById("thesis").innerHTML = "<b>" + NOTES[v].label + "</b> · " + NOTES[v].note;
+  document.getElementById("solo").href = NOTES[v].file;
+  if (location.hash.slice(1) !== v) history.replaceState(null, "", "#" + v);
+}
+
+/* file:// 은 프레임마다 origin 이 null 이라 contentDocument 접근이 막히지만 postMessage 는 통과한다.
+ * origin 검사가 불가능하므로 payload 모양만 엄격히 본다. */
+window.addEventListener("message", function (e) {
+  var d = e.data;
+  if (!d || d.type !== "hns-switch" || !NOTES[d.to]) return;
+  show(d.to);
+});
+
+show(location.hash.slice(1));
+</script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>위키 그래프 — 시안 갤러리</title>
+
+<!--
+  나란히 보기. **구조를 한눈에 보는 용도다** — 밀도·가독성 판단은 switch.html 에서 한다.
+  숫자는 전부 `node assets/measure.mjs` 와 `contrast.mjs` 출력을 옮긴 것이다.
+  체감을 적지 않는다.
+-->
+
+<style>
+/* 제품 토큰이 값의 유일한 자리다(ADR-0041). **여기 값을 복사해 두면 갈린다** —
+   실제로 갈렸다. common.css 는 @import 라 따라왔는데 이 파일은 복사본이라
+   껍데기와 안쪽 프레임이 다른 회색을 쓰고 있었다. */
+@import url("../../../../web/app/tokens.css");
+
+:root {
+  /* 갤러리 껍데기만의 것. 제품 토큰에 대응이 없다 */
+  --bg: var(--surface); --warn: var(--urgent);
+  --font: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); }
+a { color: inherit; }
+
+.wrap { max-width: 1360px; margin: 0 auto; padding: 40px 24px 80px; }
+
+header.top { border-bottom: 2px solid var(--ink); padding-bottom: 16px; }
+h1 { margin: 0 0 8px; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.lede { margin: 0; max-width: 62ch; font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+.warnbox {
+  margin: 16px 0 0; padding: 10px 14px;
+  border-left: 3px solid var(--warn);
+  background: #fdf6f4;
+  font-size: 13px; line-height: 1.6;
+}
+
+.row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 28px; }
+@media (max-width: 1100px) { .row { grid-template-columns: repeat(2, 1fr); } }
+
+.card { border: 1px solid var(--line); display: flex; flex-direction: column; }
+.card h2 { margin: 0; padding: 12px 14px 10px; font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--line); }
+.card h2 small { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); font-weight: 400; margin-top: 3px; text-transform: uppercase; }
+
+/* 축소 프리뷰. iframe 을 통째로 띄우고 transform 으로 줄인다 —
+   스크린샷을 쓰면 고치고 다시 찍어야 해서 금방 낡는다 */
+.shot { position: relative; height: 300px; overflow: hidden; background: #f4f4f5; border-bottom: 1px solid var(--line); }
+.shot iframe { position: absolute; top: 0; left: 0; width: 1240px; height: 1500px; border: 0; transform: scale(0.26); transform-origin: 0 0; pointer-events: none; }
+
+.body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.thesis { margin: 0; font-size: 13px; line-height: 1.6; }
+.cost { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--warn); }
+.cost b { font-weight: 700; }
+
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; margin-top: auto; }
+td { padding: 3px 0; border-top: 1px solid var(--line); }
+td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+td.k { color: var(--ink-3); }
+.d { color: var(--ink-3); }
+.d.up { color: var(--warn); }
+
+.links { display: flex; gap: 8px; padding: 0 14px 14px; }
+.links a {
+  font-family: var(--mono); font-size: 11px; text-decoration: none;
+  border: 1px solid var(--line); padding: 5px 9px;
+}
+.links a:hover { border-color: var(--ink); }
+
+section.notes { margin-top: 44px; border-top: 1px solid var(--line); padding-top: 22px; }
+section.notes h3 { margin: 0 0 10px; font-size: 15px; }
+section.notes p, section.notes li { font-size: 13.5px; line-height: 1.7; color: var(--ink-2); max-width: 74ch; }
+section.notes code { font-family: var(--mono); font-size: 12px; background: #f4f4f5; padding: 1px 4px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>사업 위키 · 자리 열다섯을 무엇으로 그릴 것인가</h1>
+  <p class="lede">
+    <b>궤도 구조는 넷 다 같다.</b> 중심 하나 · 안쪽 다섯 · 바깥 아홉, 각도가 구획을 뜻하고
+    자리는 고정이다(ADR-0017). 색이 말하는 것도 그대로 종류 하나다.
+    갈리는 것은 <b>자리를 무엇으로 그리는가</b> 하나 — 납작한 원이냐, 행성이냐, 유리 구슬이냐, 젤리냐.
+    데이터도 같다: 자리 15개, 채운 것 10개, 값이 갈린 것 1개.
+  </p>
+  <p class="warnbox">
+    <b>구체를 그리려면 색이 셋 필요하다.</b> 밝은 면 · 본색 · 그늘. 지금 토큰에는 종류마다 한 색뿐이라
+    (<code>--n-identity</code> 등) 나머지 둘을 시안이 임의로 만들었다. 전부 같은 색조에서 뽑았으므로
+    <b>말하는 것은 여전히 종류 하나</b>지만, 고르면 <code>DESIGN.md</code> §4.1 에 색 셋을 정식으로 올려야 한다.
+    <code>base.html</code>(현행)만 제품 토큰을 그대로 링크한다.
+  </p>
+</header>
+
+<div class="row" id="row"></div>
+
+<section class="notes">
+  <h3>재서 알게 된 것</h3>
+  <ul>
+    <li><b>구체로 그리면 44px 타깃 문제가 같이 풀린다.</b> 현행 도트는 지름 30px(측정 44px, 이름표 포함)인데
+        구체 셋은 78 · 64 · 66px 이다. 음영이 보이려면 그 크기가 필요했고, 결과적으로
+        <code>DESIGN.md</code> §8.2 를 넘긴다. <b>궤도 반지름을 158/286 으로 넓힌 것이 그 대가다.</b></li>
+    <li><b>세로가 60px 늘어난다.</b> 넷 다 1199px 로 같다 — 껍데기가 같고 그래프 판만 640→700 으로 커졌다.</li>
+    <li><b>이름표 겹침은 넷 다 0이다.</b> 구체를 키워도 이름표는 안 부딪힌다.</li>
+    <li><b>빈 자리 이름표가 셋 다 처음에 AA 미달이었다.</b> 현행도 마찬가지다(<code>--ink-3</code> 2.65:1).
+        셋은 고쳤고 <b>현행은 아직 미달이다</b> — 시안과 무관한 기존 문제다.</li>
+    <li><b>남은 미달 다섯은 전부 구체 자체다.</b> 글자가 아니라 UI 요소라 기준이 3:1 인데(WCAG 1.4.11)
+        B 유리가 3.9 · C 젤리가 3.1 로 걸치고 있다. <b>단색 기준으로 잰 값이라 실제 구체는 그라데이션이다</b> —
+        고르면 가장 어두운 지점으로 다시 재야 한다.</li>
+    <li><b>C 젤리만 기본 애니메이션이 돈다.</b> 5.5초 주기로 아주 얕게 흔들린다.
+        <code>prefers-reduced-motion</code> 에서 멈춘다.</li>
+  </ul>
+
+  <h3>다시 재려면</h3>
+  <p>
+    <code>npm i --no-save playwright@1.62.1 &amp;&amp; npx playwright install chromium</code> 한 번 하고,
+    <code>node assets/measure.mjs</code> · <code>node assets/contrast.mjs</code> ·
+    <code>node assets/shot.mjs</code>.
+  </p>
+</section>
+
+</div>
+
+<script src="variants.js"></script>
+<script>
+/* 실측값. **`node assets/measure.mjs` 출력을 그대로 옮긴 것이다.**
+ * 여기 손으로 좋아 보이는 숫자를 적지 않는다 — 그러면 표가 근거가 아니라 주장이 된다. */
+var MEASURED = {
+  base: { pageH: 1139, spanW: 646, spanH: 565, overlap: 0, minHit: 44 },
+  a:    { pageH: 1199, spanW: 723, spanH: 641, overlap: 0, minHit: 78 },
+  b:    { pageH: 1199, spanW: 727, spanH: 645, overlap: 0, minHit: 64 },
+  c:    { pageH: 1199, spanW: 727, spanH: 645, overlap: 0, minHit: 66 },
+};
+
+var COPY = {
+  base: {
+    tag: "대조군",
+    thesis: "납작한 원 열다섯. 색이 종류를 말하고 각도가 구획을 말한다.",
+    cost: "빈 점도 점이라 무엇이 모자란지가 한눈에 안 들어온다. 도트가 지름 30px 이라 44px 타깃에 못 미친다.",
+  },
+  a: {
+    tag: "행성 · 어두운 배경",
+    thesis: "빛을 받는 행성. 대기광이 구체를 배경에서 떼어 놓고, 안 채운 자리는 아직 뭉치지 않은 윤곽으로 남는다. 값이 갈린 자리에는 고리를 두른다.",
+    cost: "어두운 배경이라 목록·상세와 명도가 정반대다. 화면을 오가면 눈이 계속 적응해야 한다. DESIGN.md §3-1(라이트로 간다)을 정면으로 뒤집는다.",
+  },
+  b: {
+    tag: "유리 · 미색 종이",
+    thesis: "속에 색이 든 알이 하나. 위키의 값이 '속에 든 것'이라는 말을 재질이 한다. 안 채운 자리는 구슬이 아니라 구슬이 앉을 홈이다.",
+    cost: "셋 중 색이 가장 약하다. 알이 유리에 가려 종류색의 채도가 떨어지고, 작은 구슬에서는 대비 3:1 선에 가깝다.",
+  },
+  c: {
+    tag: "젤리 · 서늘한 회색",
+    thesis: "무르고 광택이 크다. 그림자가 회색이 아니라 제 색을 띠어 구체가 화면에서 확실히 떠 보인다. 값이 갈린 자리에는 방울이 하나 더 붙는다.",
+    cost: "채도가 가장 세다. 목록 화면과 나란히 두면 위키만 튄다. 흔들리는 기본 애니메이션이 있어 오래 보는 화면에서는 피로할 수 있다.",
+  },
+};
+
+var base = MEASURED.base;
+function delta(key, v) {
+  var d = v - base[key];
+  if (!d) return "";
+  return ' <span class="d' + (Math.abs(d) > 100 ? " up" : "") + '">' + (d > 0 ? "+" : "") + d + "</span>";
+}
+
+document.getElementById("row").innerHTML = VARIANTS.map(function (v) {
+  var m = MEASURED[v.id], c = COPY[v.id];
+  return '<article class="card">' +
+    '<h2>' + v.label + '<small>' + c.tag + '</small></h2>' +
+    '<div class="shot"><iframe src="' + v.file + '" title="' + v.label + '" loading="lazy" scrolling="no"></iframe></div>' +
+    '<div class="body">' +
+      '<p class="thesis">' + c.thesis + '</p>' +
+      '<p class="cost"><b>대가 —</b> ' + c.cost + '</p>' +
+      '<table>' +
+        '<tr><td class="k">화면 세로</td><td>' + m.pageH + delta("pageH", m.pageH) + '</td></tr>' +
+        '<tr><td class="k">자리 범위</td><td>' + m.spanW + " × " + m.spanH + '</td></tr>' +
+        '<tr><td class="k">이름표 겹침</td><td>' + m.overlap + '</td></tr>' +
+        '<tr><td class="k">최소 타깃</td><td>' + m.minHit + "px" + (m.minHit < 44 ? " ⚠" : "") + '</td></tr>' +
+      '</table>' +
+    '</div>' +
+    '<div class="links"><a href="' + v.file + '">단독 열기</a>' +
+      '<a href="switch.html#' + v.id + '">실제 크기로</a></div>' +
+  '</article>';
+}).join("");
+</script>
+</body>
+</html>

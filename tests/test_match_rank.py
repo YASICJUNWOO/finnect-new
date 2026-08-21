@@ -27,8 +27,14 @@ NODES = (
 )
 
 
-def _j(keywords, sector_hit=False):  # noqa: ANN001, ANN202
-    return rk.judge(keywords=keywords, nodes=NODES, sector_hit=sector_hit)
+def _j(keywords, label="", cues=()):  # noqa: ANN001, ANN202
+    return rk.judge(
+        keywords=keywords, nodes=NODES, sector_label=label, sector_cues=cues
+    )
+
+
+#: ④가 걸린 모양. `roadmap` 노드의 `영업망` 이 `판로_국내` 버킷의 낱말이다
+분야걸림 = {"label": "국내 판로", "cues": ("영업망",)}
 
 
 # ─────────────────────────── 등급 ───────────────────────────
@@ -41,18 +47,17 @@ def test_겹치면_맞다() -> None:
 
 
 def test_안_겹치는데_분야가_맞으면_애매() -> None:
-    f = _j(("의료기기", "임상"), sector_hit=True)
+    f = _j(("의료기기", "임상"), **분야걸림)
     assert f.verdict is FitVerdict.MAYBE
-    assert f.reason == ""
 
 
 def test_안_겹치고_분야도_아니면_아니다() -> None:
     assert _j(("의료기기",)).verdict is FitVerdict.MISS
 
 
-def test_이유가_없으면_추천에_안_오른다() -> None:
-    """`SPEC.md` §9-2 — 템플릿이라 못 만드는 경우가 겹침 0 하나뿐이다."""
-    f = _j(("의료기기",), sector_hit=True)
+def test_분야도_안_걸리면_이유가_없다() -> None:
+    """`SPEC.md` §9-2. **⑤도 ④도 못 만들 때만 빈다** (T-0076 이후)."""
+    f = _j(("의료기기",))
     assert not f.reason
     assert not f.evidence
 
@@ -90,7 +95,7 @@ def test_긴_근거는_잘라_한_줄에_넣는다() -> None:
             "지급수수료 600 · 광고선전비 500 · 기타 500만원",
         ),
     )
-    f = rk.judge(keywords=("정부지원금",), nodes=긴것, sector_hit=False)
+    f = rk.judge(keywords=("정부지원금",), nodes=긴것)
     assert "…" in f.reason
     assert len(f.reason) < 100
 
@@ -126,7 +131,7 @@ def test_한_글자는_안_센다() -> None:
 
 
 def test_키워드가_전부_걸러지면_겹침_0_이다() -> None:
-    f = _j(("지원", "모집", "선정"), sector_hit=True)
+    f = _j(("지원", "모집", "선정"), **분야걸림)
     assert f.verdict is FitVerdict.MAYBE
 
 
@@ -182,7 +187,7 @@ def test_짧은_problem_보다_긴_identity_를_근거로_고른다() -> None:
     21명(70%)이 재고를 수기로 관리하고 있었다". 그건 **시장 조사 결과이지 우리가
     맞는 이유가 아니다.**
     """
-    f = rk.judge(keywords=("소상공인",), nodes=실물, sector_hit=True)
+    f = rk.judge(keywords=("소상공인",), nodes=실물)
     assert "재고관리 소프트웨어" in f.reason
     assert "21명" not in f.reason
     # 근거 링크는 둘 다 남는다 — 낡음 계산이 전부를 읽는다
@@ -191,7 +196,7 @@ def test_짧은_problem_보다_긴_identity_를_근거로_고른다() -> None:
 
 def test_겹침_수가_노드_종류보다_앞이다() -> None:
     """종류는 동점을 가르는 것이다. 겹침이 더 많으면 `problem` 도 이긴다."""
-    f = rk.judge(keywords=("소상공인", "재고", "수기"), nodes=실물, sector_hit=True)
+    f = rk.judge(keywords=("소상공인", "재고", "수기"), nodes=실물)
     assert "21명" in f.reason  # problem 이 셋 다 맞았다
 
 
@@ -200,7 +205,7 @@ def test_표에_없는_노드는_맨_뒤다() -> None:
         NodeFact(3, "새로생긴노드", "소상공인 관련 새 자리"),
         NodeFact(4, "identity", "소상공인용 재고관리 소프트웨어"),
     )
-    f = rk.judge(keywords=("소상공인",), nodes=낯선것, sector_hit=False)
+    f = rk.judge(keywords=("소상공인",), nodes=낯선것)
     assert "재고관리" in f.reason
 
 
@@ -209,3 +214,111 @@ def test_모든_서술_노드가_표에_있다() -> None:
     from finnect.wiki import topics
 
     assert set(rk.NODE_RANK) == set(topics.NODES)
+
+
+# ─────────────── ④ 분야가 만드는 이유 (T-0076) ───────────────
+#
+# **실측이 만든 자리다.** 층0 542건 · 정규화 100건에서 자격을 넘은 8건 중 5건이
+# `애매` 였고, 다섯 다 눈으로 보면 합리적인데 ⑤ 교집합이 0 이라 이유가 없었다.
+
+
+def test_분야가_걸리면_그_노드로_이유를_만든다() -> None:
+    f = _j(("의료기기", "임상"), **분야걸림)
+    assert f.verdict is FitVerdict.MAYBE
+    assert f.reason.startswith("국내 판로 분야예요.")
+    # 근거가 `영업망` 이 실제로 든 노드다
+    assert f.evidence == (8822,)
+    assert "영업망" in f.reason
+
+
+def test_분야_이유의_근거는_need_노드에서만_나온다() -> None:
+    """④가 본 것이 `need_text()` 라 **그 밖의 노드를 근거로 들면 거짓말이다.**
+
+    `identity` 노드에도 `소상공인` 이 있지만 ④는 그것을 안 봤다.
+    """
+    f = _j(("의료기기",), label="사업화", cues=("소상공인",))
+    assert f.verdict is FitVerdict.MAYBE
+    assert not f.reason  # need 노드(roadmap)에 `소상공인` 이 없다
+    assert not f.evidence
+
+
+def test_이름_없는_버킷은_이유를_안_만든다() -> None:
+    """`정보` 버킷은 표시 이름이 없다. **지어내지 않는다.**"""
+    f = _j(("의료기기",), label="", cues=("영업망",))
+    assert f.verdict is FitVerdict.MAYBE
+    assert not f.reason
+
+
+def test_취지가_겹치면_분야_이유를_안_쓴다() -> None:
+    """⑤가 먼저다. **`맞다` 의 이유를 `애매` 의 이유가 덮지 않는다.**"""
+    f = _j(("소상공인",), **분야걸림)
+    assert f.verdict is FitVerdict.MATCH
+    assert "주제예요" in f.reason
+
+
+def test_분야_이유도_한_줄로_자른다() -> None:
+    긴것 = (NodeFact(1, "roadmap", "영업망 " + "가" * 200),)
+    f = rk.judge(
+        keywords=("의료기기",), nodes=긴것, sector_label="국내 판로", sector_cues=("영업망",)
+    )
+    assert len(f.reason) < 100
+    assert f.reason.endswith("…")
+
+
+# ─────────── 표 부스러기를 인용하지 않는다 (실측 · 2026-08-21) ───────────
+#
+# 진짜 추출기로 갈아 넣은 첫 추천에 이것이 나갔다 —
+#   "사업화 분야예요. 통합 9만 9천원\t연동 + 다점포 통합 관리\t2027년 출시"
+
+표부스러기 = "통합 9만 9천원\t연동 + 다점포 통합 관리\t2027년 출시"
+
+
+def test_탭이_든_노드는_인용하지_않는다() -> None:
+    nodes = (NodeFact(1, "roadmap", "영업망 " + 표부스러기),)
+    f = rk.judge(
+        keywords=("의료기기",), nodes=nodes, sector_label="국내 판로", sector_cues=("영업망",)
+    )
+    assert not f.reason
+    assert f.evidence == (1,)  # **근거 링크는 남는다**
+
+
+def test_인용할_수_있는_노드가_있으면_그것을_고른다() -> None:
+    """더 좋은 자리에 있어도 **인용이 안 되면 밀린다.**"""
+    nodes = (
+        NodeFact(1, "solution", "특허 " + 표부스러기),          # NODE_RANK 가 앞
+        NodeFact(2, "roadmap", "특허 출원을 마치고 프로토타입을 돌리고 있어요"),
+    )
+    f = rk.judge(
+        keywords=("의료기기",), nodes=nodes, sector_label="기술 개발", sector_cues=("특허",)
+    )
+    assert f.reason == "기술 개발 분야예요. 특허 출원을 마치고 프로토타입을 돌리고 있어요"
+    assert f.evidence == (1, 2)  # 둘 다 근거다
+
+
+def test_취지_이유도_표_부스러기를_피한다() -> None:
+    nodes = (
+        NodeFact(1, "identity", "소상공인 " + 표부스러기),
+        NodeFact(2, "market", "소상공인 재고관리 시장을 보고 있어요"),
+    )
+    f = rk.judge(keywords=("소상공인",), nodes=nodes)
+    assert f.verdict is FitVerdict.MATCH
+    assert f.reason.endswith("소상공인 재고관리 시장을 보고 있어요")
+
+
+def test_전부_표_부스러기면_이유가_비고_근거는_남는다() -> None:
+    nodes = (NodeFact(1, "identity", "소상공인 " + 표부스러기),)
+    f = rk.judge(keywords=("소상공인",), nodes=nodes)
+    assert f.verdict is FitVerdict.MATCH
+    assert not f.reason
+    assert f.evidence == (1,)
+
+
+def test_줄바꿈이_든_노드도_인용하지_않는다() -> None:
+    """탭을 막았더니 이번엔 줄이 셋인 목록이 나갔다 (같은 실측)."""
+    여러줄 = "2027 상반기\n다점포 통합 관리 출시\n프랜차이즈 본부 영업 착수"
+    nodes = (NodeFact(1, "roadmap", "출시 " + 여러줄),)
+    f = rk.judge(
+        keywords=("의료기기",), nodes=nodes, sector_label="사업화", sector_cues=("출시",)
+    )
+    assert not f.reason
+    assert f.evidence == (1,)

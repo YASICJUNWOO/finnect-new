@@ -138,6 +138,10 @@ def recommendations(
     오는데 `requirements.txt` 에 httpx 가 없어 **배포본만 죽는다**(CLAUDE.md 함정).
 
     마감이 지난 것은 낸 뒤에 뺀다 — 판정은 어제 돌았어도 오늘 마감일 수 있다.
+
+    **등급이 아니라 이유로 거른다**(T-0076). `애매` 도 이유가 있으면 올린다 — ④ 분야가
+    살린 것이라 근거가 `wiki_fact` 에 실제로 있다. `match/service.py` 의 `rep.top` 과
+    같은 규칙이어야 한다: **CLI 가 셋을 찍는데 화면이 비면 안 된다.**
     """
     today = today or dt.date.today()
 
@@ -145,7 +149,6 @@ def recommendations(
         s.scalars(
             select(NoticeFit).where(
                 NoticeFit.company_id == company_id,
-                NoticeFit.verdict == str(FitVerdict.MATCH),
                 NoticeFit.reason != "",
             )
         )
@@ -184,9 +187,10 @@ def recommendations(
             or rows[(f.source, f.external_id)].apply_end >= today
         )
     ]
-    # **분야 일치 → 겹침 수 → 마감 임박.** `match/rank.py` 의 정렬과 같은 규칙이다
+    # **등급 → 분야 일치 → 겹침 수 → 마감 임박.** `match/rank.py` 의 정렬과 같다
     live.sort(
         key=lambda t: (
+            0 if t[0].verdict == str(FitVerdict.MATCH) else 1,
             0 if t[0].sector_hit else 1,
             -len(t[0].matched or []),
             _days_left(t[1].apply_end, today) or 10_000,

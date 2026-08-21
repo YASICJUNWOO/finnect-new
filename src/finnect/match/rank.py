@@ -31,7 +31,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from finnect.match.profile import NodeFact
+from finnect.match.profile import NEED_NODES, NodeFact
 from finnect.models import FitVerdict
 
 #: 겹침으로 세지 않는 낱말. **어느 위키에나 있어서 신호가 0 이다**
@@ -108,23 +108,96 @@ def josa(word: str, with_jong: str, without: str) -> str:
     return with_jong if (ord(c) - 0xAC00) % 28 else without
 
 
+def quotable(text: str) -> bool:
+    """이 노드를 이유 문장에 **그대로 인용해도 되나.**
+
+    **실측으로 만들었다**(2026-08-21 · 진짜 추출기로 갈아 넣은 뒤 첫 추천).
+    화면에 이런 것이 나갔다 —
+
+        사업화 분야예요. 통합 9만 9천원\t연동 + 다점포 통합 관리\t2027년 출시
+
+    표 한 줄이 노드가 된 것이다. 추출 스키마가 `text` 를 "사람이 읽는 문장" 이라고
+    적었는데 지켜지지 않은 것이라 **뿌리는 추출 쪽에 있다**(plan/12). 다만 이유는
+    화면 카피라 여기서도 막는다 — 근거 링크로는 남기고 **인용만 안 한다.**
+
+    **줄바꿈도 같다.** 같은 실측에서 탭을 막았더니 이번엔 줄이 셋인 목록이 나갔다 —
+    이유는 카드 한 줄이라 여러 줄이 들어가면 자리가 깨진다.
+
+    고쳐 쓰지 않는 이유는 `document_item` 과 같다. 탭을 공백으로 바꾸면 읽히긴 하지만
+    원문에 없는 문장이 되고, 그러면 근거를 대조할 수가 없다.
+    """
+    # **일반 공백만 허용한다.** 탭·줄바꿈은 문장이 아니라 표나 목록이라는 신호다
+    return not any(c.isspace() and c != " " for c in (text or ""))
+
+
 def _clip(s: str) -> str:
     t = (s or "").strip()
     return t if len(t) <= _CLIP else t[: _CLIP - 1].rstrip(" ,·") + "…"
+
+
+def _sector_fit(
+    nodes: tuple[NodeFact, ...], label: str, cues: tuple[str, ...]
+) -> Fit:
+    """④ 분야가 걸렸는데 ⑤ 키워드는 안 겹칠 때의 이유 (T-0076).
+
+    **실측으로 만든 자리다**(2026-08-20 · 층0 542건 · 정규화 100건). 자격을 넘은
+    8건 중 5건이 여기였다 — ④가 살렸는데 ⑤ 교집합이 0 이라 이유가 없었고, 이유가
+    없으면 추천에 못 올라간다. 눈으로 보면 5/5 가 합리적인 공고들이었다.
+
+    **④가 어느 낱말에 걸렸는지 이미 안다**(`sectors.Match.cues`). 그 낱말이 든
+    노드를 찾으면 근거가 나온다 — 임베딩보다 먼저 할 일이 이것이었다.
+
+    등급은 `애매` 그대로다. **`맞다` 로 올리지 않는다** — 분야가 맞는 것과 취지가
+    맞는 것은 다른 주장이고, 둘을 같은 등급에 넣으면 순서가 뜻을 잃는다
+    ([ADR-0013](../../../docs/adr/0013-판정-두-층.md)).
+    """
+    if not label:
+        # 이름 없는 버킷(`정보`)이거나 표 밖이다. **지어내지 않는다**
+        return Fit(FitVerdict.MAYBE, "", (), (), True)
+
+    # 낱말이 걸린 자리는 `need_text()` 안이다 — 그걸 만든 노드에서만 찾는다.
+    # 전체 노드에서 찾으면 ④가 안 본 자리를 근거로 들게 된다
+    scored = [
+        (NODE_RANK.get(n.place, _RANK_TAIL), len(n.text), n)
+        for n in nodes
+        if n.place in NEED_NODES and any(c in n.text for c in cues)
+    ]
+    if not scored:
+        # `need_text()` 는 노드를 이어 붙인 글이라 **낱말이 이음매에 걸릴 수 있다.**
+        # 그러면 어느 노드의 것도 아니라 근거가 없다 — 이유를 만들지 않는다
+        return Fit(FitVerdict.MAYBE, "", (), (), True)
+
+    scored.sort(key=lambda x: (x[0], x[1]))
+    evidence = tuple(x[2].fact_id for x in scored)
+    best = next((x[2] for x in scored if quotable(x[2].text)), None)
+    if best is None:
+        return Fit(FitVerdict.MAYBE, "", cues, evidence, True)
+    return Fit(
+        FitVerdict.MAYBE,
+        f"{label} 분야예요. {_clip(best.text)}",
+        cues,
+        evidence,
+        True,
+    )
 
 
 def judge(
     *,
     keywords: tuple[str, ...],
     nodes: tuple[NodeFact, ...],
-    sector_hit: bool,
+    sector_label: str = "",
+    sector_cues: tuple[str, ...] = (),
 ) -> Fit:
     """취지 키워드와 사업 내용 노드를 대조한다.
 
     `nodes` 는 서술 노드 전부다. **④와 달리 로드맵만 보지 않는다** — 취지는 사업
     내용 어디와도 맞물릴 수 있다.
+
+    **`sector_hit` 을 따로 받지 않는다.** `sectors.Match` 가 `hit=bool(cues)` 로
+    만들어서 둘이 같은 값인데, 나눠 받으면 어긋난 채로 부를 수 있다.
     """
     live = tuple(k for k in keywords if _usable(k))
+    sector_hit = bool(sector_cues)
 
     # 노드마다 몇 개의 키워드가 걸렸나. 겹침이 많은 것이 좋은 근거다
     scored: list[tuple[int, int, int, NodeFact, tuple[str, ...]]] = []
@@ -145,14 +218,19 @@ def judge(
 
     if not scored:
         # 겹친 것이 없다. **분야가 맞으면 `애매`, 그것도 아니면 `아니다`**
-        verdict = FitVerdict.MAYBE if sector_hit else FitVerdict.MISS
-        return Fit(verdict, "", (), (), sector_hit)
+        if not sector_hit:
+            return Fit(FitVerdict.MISS, "", (), (), False)
+        return _sector_fit(nodes, sector_label, sector_cues)
 
     scored.sort(key=lambda t: (t[0], t[1], t[2]))
-    best = scored[0][3]
     # 근거는 겹친 노드 전부를 든다. **문장에 쓰는 것은 하나지만 링크는 다 남긴다** —
     # 그 사실이 갱신될 때 어느 추천이 낡았는지 계산되어야 한다
     evidence = tuple(t[3].fact_id for t in scored)
+
+    best = next((t[3] for t in scored if quotable(t[3].text)), None)
+    if best is None:
+        # 겹치기는 했는데 인용할 문장이 없다. **근거는 남기고 이유만 비운다**
+        return Fit(FitVerdict.MATCH, "", tuple(matched), evidence, sector_hit)
 
     head = "·".join(matched[:3])
     reason = f"{head}{josa(head, '이', '가')} 주제예요. {_clip(best.text)}"

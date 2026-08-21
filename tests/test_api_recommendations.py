@@ -127,13 +127,39 @@ def test_판정을_안_돌리면_computed_가_거짓이다(s) -> None:  # noqa: 
     assert out.items == [] and out.computed is False
 
 
-def test_애매는_추천에_안_오른다(s) -> None:  # noqa: ANN001
+def test_이유가_있으면_애매도_오른다(s) -> None:  # noqa: ANN001
+    """**등급이 아니라 이유로 거른다** (T-0076).
+
+    ④ 분야가 살린 `애매` 도 근거가 `wiki_fact` 에 실제로 있다. `match/service.py` 의
+    `rep.top` 과 같은 규칙이어야 한다 — **CLI 가 셋을 찍는데 화면이 비면 안 된다.**
+    """
     for f in s.scalars(__import__("sqlalchemy").select(NoticeFit)):
         f.verdict = str(FitVerdict.MAYBE)
     s.commit()
     out = service.recommendations(s, COMPANY, today=TODAY)
-    assert out.items == []
+    assert len(out.items) == 3
     assert out.computed is True
+
+
+def test_이유가_없으면_등급과_무관하게_안_오른다(s) -> None:  # noqa: ANN001
+    for f in s.scalars(__import__("sqlalchemy").select(NoticeFit)):
+        f.reason = ""
+    s.commit()
+    out = service.recommendations(s, COMPANY, today=TODAY)
+    assert out.items == []
+    assert out.computed is True  # 돌긴 돌았다
+
+
+def test_맞다가_애매보다_앞이다(s) -> None:  # noqa: ANN001
+    """등급이 정렬의 맨 앞이다. **분야 일치보다 앞이다.**"""
+    by = {f.external_id: f for f in s.scalars(__import__("sqlalchemy").select(NoticeFit))}
+    for ext, f in by.items():
+        # `D` 는 살아 있는 넷 중 원래 셋째다 (분야는 맞지만 겹침 하나 · 마감일 없음)
+        f.verdict = str(FitVerdict.MATCH if ext == "D" else FitVerdict.MAYBE)
+    s.commit()
+    out = service.recommendations(s, COMPANY, today=TODAY)
+    assert out.items[0].external_id == "D"
+    assert [i.external_id for i in out.items] == ["D", "A", "B"]
 
 
 def test_회사가_섞이지_않는다(s) -> None:  # noqa: ANN001

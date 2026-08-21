@@ -124,6 +124,27 @@ KSTARTUP: dict[str, str] = {
 
 TABLES: dict[str, dict[str, str]] = {"bizinfo": BIZINFO, "kstartup": KSTARTUP}
 
+#: 버킷 이름을 화면 카피로. **버킷 키를 그대로 내보내지 않는다** — `판로_국내` 는
+#: 코드의 이름이지 사람이 읽는 말이 아니다(`DESIGN.md` §8.3-1).
+#: 여기 없는 버킷은 이유를 만들지 않는다 — 이름을 지어내느니 안 쓰는 편이 낫다
+LABELS: dict[str, str] = {
+    "투자": "투자 유치",
+    "사업화": "사업화",
+    "기술": "기술 개발",
+    "판로_국내": "국내 판로",
+    "판로_해외": "해외 판로",
+    "공간": "공간",
+    "인력": "채용",
+    "융자": "융자",
+    "배움": "멘토링·교육",
+    "정보": "",
+}
+
+
+def label(bucket: str) -> str:
+    """버킷의 화면 이름. 모르는 버킷이면 빈 문자열."""
+    return LABELS.get(bucket, "")
+
 _WS = re.compile(r"\s+")
 
 

@@ -403,7 +403,10 @@ def run(
 
             # ⑤ 순서와 이유
             fit = rk.judge(
-                keywords=tuple(np.keywords or ()), nodes=me.nodes, sector_hit=m.hit
+                keywords=tuple(np.keywords or ()),
+                nodes=me.nodes,
+                sector_label=sc.label(m.bucket),
+                sector_cues=m.cues,
             )
             if fit.verdict is FitVerdict.MATCH:
                 rep.match += 1
@@ -422,10 +425,11 @@ def run(
             )
 
         scored.sort(key=lambda t: t[0])
+        # **등급이 아니라 이유로 거른다.** `애매` 도 이유가 있으면 올린다 —
+        # ④ 분야가 살린 것이라 근거가 `wiki_fact` 에 실제로 있다(T-0076).
+        # `아니다` 와 `확인 필요` 는 이유가 만들어지지 않아 자동으로 빠진다
         rep.top = [
-            (c.source, c.title, f.reason)
-            for _k, c, f in scored
-            if f.verdict is FitVerdict.MATCH
+            (c.source, c.title, f.reason) for _k, c, f in scored if f.reason
         ][:TOP_N]
 
         if save:

@@ -6,7 +6,7 @@
     "kind": "catalog",
     "origin": "/Users/mason/.claude/data/references/remember/DESIGN.md",
     "catalog_reference": "remember",
-    "note": "라이브 캡쳐 없음 — assets/_reference/remember/tokens.json 이 없어 canonical(레퍼런스 DESIGN.md frontmatter)을 base 로 썼다. 이전 부트스트랩(reference_id=team-authored, 2026-08-16)을 대체한다."
+    "note": "라이브 캡쳐 없음 — assets/_reference/remember/tokens.json 이 없어 canonical(레퍼런스 DESIGN.md frontmatter)을 base 로 썼다."
   },
   "delta_set": {
     "axes": {},
@@ -20,18 +20,21 @@
     ],
     "matchedKeywords": ["calm", "professional", "restrained", "dense", "minimal", "trustworthy"],
     "warnings": [
-      "사용자가 §4 토큰 base 를 remember canonical 로 선택했다. delta_set.axes 가 비어 있는 것은 축 변형을 얹지 않았다는 뜻이고, 값은 레퍼런스 canonical 그대로다. 근거는 ADR-0041.",
-      "remember 패킷에 대응이 없는 축은 finnect 값을 유지했다 — --canvas, --ink-2, --ink-4, --line-2, 상태색 여섯, 노드 분류색 셋, --t-caption/--t-small/--t-display/--t-hero, --r-pill, --w-bold, --tracking-title, --shadow-raised. tokens.css 주석에 축마다 표시했다.",
-      "corporate-orange #fc5d11 과 Founders Grotesk Condensed 는 가져오지 않았다. 전자는 remember 자신이 corporate marketing 한정이라고 못 박았고 DESIGN.md §7 이 오렌지 브랜드 액센트를 금지한다. 후자는 remember 패킷에서도 출처 미해결이다.",
-      "타입 긴장이 줄었다. remember 관측 셋만 보면 16/16/20 이라 범위가 1.25배다(옛 일곱 단계는 3.7배). design-anti-slop V2 에 다시 가까워졌다 — ADR-0041 '잃은 것' 참조.",
-      "화면을 눈으로 봐야 한다. 반경 10→4 · 16→8, --t-title 24→20 은 전 화면 변화이고 lint/typecheck/build 로는 안 잡힌다.",
-      "이전 DESIGN.md 는 DESIGN_DEPRECATED.md 에 있다. 그 문서가 참조하던 context.md · v2/HANDOFF.md · v2/internal/ 은 이 레포에 없다."
+      "clean-slate 재부트스트랩이다. 사용자가 '이전 design 관련 다 무시하고 처음 /omd:init 하는 것처럼' 을 명시했다. 이전 판의 누적 손질(§5 하위절 넷, §10.1·10.2 감사, §11 참고표, §12 설치와 좁은 화면)을 하나도 이월하지 않았다.",
+      "절 구조를 레퍼런스에 맞춰 되돌렸다. §2·§4·§5 의 하위절 개수와 순서가 remember 와 같다 — 제품 표면/위키 그래프 표면/Boundary · 주 동작/입력과 필터/목록 · 제품 라우트/운영 라우트.",
+      "이전 판 §5 에 있던 finnect 고유 레이아웃 규칙 셋이 빠졌다 — '쓰지 않는 구성 다섯'(사이드바·표·체크박스·툴바·반복 버튼), '목록 화면의 구조'(추천 3건 + 전체, 자격 미달 숨김), '신청 현황'(4열 칸반). 레퍼런스에 대응 하위절이 없어서다. 되살리려면 SPEC 이나 새 ADR 이 근거를 대야 한다.",
+      "delta_set.axes 가 비어 있다 — 축 변형을 얹지 않았고 §4 토큰은 remember canonical 그대로다.",
+      "레퍼런스가 관측하지 않은 tokens.css 토큰 20여 개를 §2 Boundary 에 표로 명시했다. 코드에서 빼라는 뜻이 아니라 remember 근거로 정당화하지 말라는 뜻이다.",
+      "--ink-3 만 canonical(#808080)과 다르다(#6b7280). 레퍼런스가 그 값을 흰 field 위 '입력 글자'에서 관측했고 finnect 는 회색 캔버스 위 본문 보조 글자로 쓴다 — 관측 조건이 달라 값을 그대로 옮기면 오히려 레퍼런스를 어긴다. 근거는 대비 측정이고 ADR-0041 이 기록한다.",
+      "corporate-orange #fc5d11 과 Founders Grotesk Condensed 는 가져오지 않았다. 전자는 remember 자신이 corporate marketing 한정이라고 못 박았고 §7 이 오렌지 브랜드 액센트를 금지한다. 후자는 remember 패킷에서도 출처 미해결이다.",
+      "코드는 하나도 안 건드렸다. web/app/tokens.css · 컴포넌트 · CSS Modules 전부 그대로다. 이 회차의 산출물은 문서뿐이다.",
+      "이 파일을 쓰기 직전 DESIGN.md 가 머지 충돌(UU) 상태였다. 13:11 에 해소된 판을 .omd/DESIGN.conflicted-2026-08-21.md.bak 으로 백업해 뒀다. 충돌의 origin/master 쪽에만 있던 §12 '설치와 좁은 화면'(앱 마크 궤도 · 좁은 화면 3축 · 안전영역 · 설치 권유)은 이 문서에 없다 — git show origin/master:DESIGN.md 로 꺼낼 수 있고, 살리려면 ADR 로 근거를 대고 다시 넣는다."
     ]
   },
   "bootstrapped_at": "2026-08-21",
   "supersedes": {
-    "reference_id": "team-authored",
-    "bootstrapped_at": "2026-08-16",
-    "artifact": "DESIGN_DEPRECATED.md"
+    "reference_id": "remember",
+    "bootstrapped_at": "2026-08-21",
+    "artifact": ".omd/DESIGN.conflicted-2026-08-21.md.bak"
   }
 }

@@ -9,8 +9,9 @@
                   │  서버 컴포넌트와 라우트 핸들러가 부른다.
                   │  **브라우저는 API 주소를 모른다** — 그래서 HTTPS 화면이
                   │  HTTP API 를 불러도 mixed content 가 아니다
-                  ▼  FINNECT_API + X-Finnect-Token
-             Caddy :80  (이 서버 · Docker · 호스트 네트워크)
+                  ▼  https://49.247.203.210 + X-Finnect-Token
+             Caddy :443 (이 서버 · Docker · 호스트 네트워크)
+                  │  Let's Encrypt IP 인증서. :80 은 308 로 넘긴다
                   ▼
              uvicorn 127.0.0.1:8101  (systemd --user · 워커 1)
                   ▼
@@ -23,12 +24,13 @@
 | 어디 | 무엇 | 포트 |
 |---|---|---|
 | Vercel `finnect-web` | 제품 화면 · 운영 조회 화면 넷 | 443 |
-| 이 서버 Caddy | 바깥 문. 토큰 검사는 API 가 한다 | **80** |
+| 이 서버 Caddy | 바깥 문. 토큰 검사는 API 가 한다 | **443** (80 은 리다이렉트) |
 | 이 서버 uvicorn | 제품 API + 운영 API + 올리기 | 8101 |
 | 이 서버 uvicorn (개발) | **배포와 별개다.** 손으로 띄운다 | 8100 |
 | 이 서버 PostgreSQL | 유일한 DB | 55433 (로컬만) |
 
-**포트 80 을 OpenStack 보안 그룹에서 열어야 한다.** 이 저장소 밖의 일이다.
+**80·443 은 이미 열려 있다.** Let's Encrypt 가 둘 다로 검증에 성공한 것이 증거다
+([ADR-0036](adr/0036-도메인-없이-ip-인증서로-https-를-세운다.md)).
 
 ---
 
@@ -91,26 +93,50 @@ loginctl show-user "$USER" -p Linger    # Linger=yes
 
 ```bash
 docker compose up -d db proxy
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/healthz     # 200
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/api/notices  # 401
 ```
 
-**401 이 나와야 정상이다.** 200 이 나오면 토큰이 안 켜진 것이고, 그 상태로 포트를 열면
-`POST /api/wiki/{company_id}/files` 가 인터넷에 열린 업로드 창구가 된다.
+### **자기 공인 IP 로 서버 안에서 접속하면 안 된다**
+
+헤어핀 NAT 라 `000` 이 난다. **멀쩡한 서비스를 죽은 것으로 오진하는 자리다.**
+루프백으로 붙이되 IP 사이트로 말을 건다.
 
 ```bash
+C="--connect-to 49.247.203.210:443:127.0.0.1:443"
 TOKEN=$(grep '^API_TOKEN=' ~/.config/finnect/api.env | cut -d= -f2-)
-curl -s -o /dev/null -w "%{http_code}\n" -H "x-finnect-token: $TOKEN" \
-  http://127.0.0.1/api/notices    # 200
+
+curl -s -o /dev/null -w "%{http_code}\n" $C https://49.247.203.210/healthz      # 200
+curl -s -o /dev/null -w "%{http_code}\n" $C https://49.247.203.210/api/notices  # 401
+curl -s -o /dev/null -w "%{http_code}\n" $C -H "x-finnect-token: $TOKEN" \
+  https://49.247.203.210/api/notices                                            # 200
+curl -s -o /dev/null -w "%{ssl_verify_result}\n" $C https://49.247.203.210/healthz  # 0
 ```
+
+**401 이 나와야 정상이다.** 200 이 나오면 토큰이 안 켜진 것이고, 그러면
+`POST /api/wiki/{company_id}/files` 가 인터넷에 열린 업로드 창구다.
+
+**`ssl_verify_result` 가 0 이어야 한다.** 공인 CA 로 검증됐다는 뜻이고, 그래야 Vercel 의
+Node 가 붙는다.
+
+### 인증서 (ADR-0036)
+
+```
+issuer  Let's Encrypt CN=YE2 · SAN  IP Address:49.247.203.210 · 유효 약 6.7일
+```
+
+**`default_sni` 가 전역 옵션으로 있어야 한다.** IP 에는 SNI 가 안 실려서, 없으면
+인증서를 정상 발급받고도 **아무도 못 붙는다**(`tlsv1 alert internal error`).
+`tls` 블록 안에 쓰면 `unknown subdirective` 로 기동이 죽고 재시작 루프에 빠진다.
 
 **Caddy 가 호스트 네트워크로 돈다.** uvicorn 이 `127.0.0.1` 에만 붙어 있어서 다리
 네트워크의 `host.docker.internal`(172.17.0.1)로는 안 닿는다 — 502 가 난다.
 
 ### A-4. 도메인이 생기면
 
-`deploy/Caddyfile` 의 `:80` 을 도메인 이름으로 바꾸는 것이 전부다. Caddy 가 인증서를
-받고 갱신한다. **그러기 전까지 Vercel 과 이 서버 사이가 평문이라 실제 개인정보를 올리지 않는다.**
+`deploy/Caddyfile` 의 IP 를 도메인 이름으로 바꾸고 `profile shortlived` 를 뺀다
+(도메인은 90일 인증서다). `default_sni` 도 같이 뺄 수 있다.
+
+**평문 구간은 이미 없어졌다**([ADR-0036](adr/0036-도메인-없이-ip-인증서로-https-를-세운다.md)).
+도메인은 주소가 예뻐지는 것이지 보안 요건이 아니다.
 
 ---
 
@@ -228,7 +254,7 @@ curl -s '<배포 URL>/api/notices?page=1' | head -c 200
 ```bash
 cd web
 vercel link          # 프로젝트 이름 finnect-web
-vercel env add FINNECT_API production        # http://49.247.203.210
+vercel env add FINNECT_API production        # https://49.247.203.210
 vercel env add FINNECT_API_TOKEN production  # ~/.config/finnect/api.env 의 값
 vercel deploy
 ```
@@ -236,7 +262,7 @@ vercel deploy
 ### 값 둘 (2026-08-18 · [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md))
 
 ```
-FINNECT_API        = http://49.247.203.210
+FINNECT_API        = https://49.247.203.210
 FINNECT_API_TOKEN  = <~/.config/finnect/api.env 의 API_TOKEN 과 같은 값>
 ```
 
@@ -253,8 +279,9 @@ FINNECT_API_TOKEN  = <~/.config/finnect/api.env 의 API_TOKEN 과 같은 값>
 API 가 없어졌다. 지워도 되고 둬도 무해하다 — `authHeaders()` 가 값이 있으면 헤더를
 붙이지만 받는 쪽이 무시한다.
 
-**http 다.** 도메인이 없어 인증서를 못 받는다. 브라우저가 API 를 직접 안 부르므로
-mixed content 는 안 걸린다 — 부르는 것은 Vercel 의 서버 쪽이다.
+**https 다.** 도메인 없이 Let's Encrypt IP 인증서를 받았다
+([ADR-0036](adr/0036-도메인-없이-ip-인증서로-https-를-세운다.md)). `http://` 를 넣으면
+308 로 넘어가긴 하지만 리다이렉트를 한 번 더 타므로 `https://` 로 적는다.
 
 ### `FINNECT_API` 에 **Vercel 배포 URL을 넣지 않는다** (옛 함정)
 
@@ -313,6 +340,14 @@ Error: No Output Directory named "public" found after the Build completed.
 **그래서 `framework` 키를 뺐다.** 두 프로젝트 다 프리셋을 Vercel 프로젝트 설정에서 받는다 — 웹은 `nextjs`, API 는 없음이다. `buildCommand`·`outputDirectory` 의 `null` 은 "자동"이라 남겨 뒀다.
 
 **루트 `vercel.json` 에 프런트 관련 최상위 키를 새로 넣지 않는다.** 넣으면 웹 빌드가 같이 끌려간다.
+
+#### 2026-08-21 부터 이 실패가 **조용해졌다**
+
+위 오류 메시지가 나온 이유는 **`web/public/` 이 없었기 때문이다.** [plan/18](plan/18-설치되는-앱.md)이 앱 아이콘을 넣으면서 그 디렉터리를 만들었다 — 이 레포의 첫 정적 자산 자리다.
+
+그래서 지금 `framework` 키를 다시 넣으면 **빌드가 죽지 않고 성공한다.** Vercel 이 `web/public/` 을 산출물로 보고 **PNG 두 장을 사이트 전체로 배포한다.** 화면이 안 뜨는데 배포는 초록이다.
+
+**증상으로 알아채는 법**: 배포 URL 이 404 나 디렉터리 목록을 주고, `/icon-192.png` 만 열린다.
 
 ### 안 바뀐 것은 안 빌드한다
 

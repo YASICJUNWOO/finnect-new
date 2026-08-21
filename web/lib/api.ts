@@ -135,6 +135,18 @@ export async function getNotice(source: string, id: string): Promise<NoticeDetai
   }
 }
 
+/** 작성 항목 하나. **트리다** — 글로 쓰는 양식이 `2` 아래로 `2-1`·`2-2` 를 낳는다.
+ *
+ * 이름을 붙인 이유가 그것이다 — 익명 타입으로는 `children` 이 자기를 못 가리킨다. */
+export type ApiFormItem = {
+  number: string | null;
+  title: string;
+  instruction: string | null;
+  limit_text: string | null;
+  input_kind: string;
+  children: ApiFormItem[];
+};
+
 /** 공고가 요구하는 서류. 계약은 `docs/api-contract.md`, 정본은 `api/schemas.py` 다. */
 export type NoticeDocuments = {
   source: string;
@@ -148,13 +160,7 @@ export type NoticeDocuments = {
     decided_by: string;
     filename: string;
     url: string | null;
-    items: {
-      number: string | null;
-      title: string;
-      instruction: string | null;
-      limit_text: string | null;
-      input_kind: string;
-    }[];
+    items: ApiFormItem[];
   }[];
   /** 양식이 없을 때 공고문이 서류에 대해 말한 줄. 원문 그대로다. */
   submit_hint: string[];

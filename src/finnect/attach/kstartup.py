@@ -67,6 +67,7 @@ class ScrapeReport:
     with_files: int = 0
     empty: int = 0  # 페이지는 떴는데 첨부가 없다
     shell: int = 0  # 껍데기가 왔다. 첨부가 없는 것과 다르다
+    recovered: int = 0  # 껍데기가 와서 반대쪽 주소로 되짚어 살린 건
     failed: int = 0
     attachments: int = 0
     seconds: float = 0.0
@@ -81,6 +82,7 @@ class ScrapeReport:
             f"  첨부 있음   {self.with_files}건 · {self.attachments}개",
             f"  첨부 없음   {self.empty}건",
             f"  껍데기      {self.shell}건",
+            f"  되짚어 살림 {self.recovered}건",
             f"  실패        {self.failed}건",
         ]
         if self.ext:
@@ -95,6 +97,17 @@ class ScrapeReport:
 def detail_url(url: str, rcrt_prgs_yn: str | None) -> str:
     """마감이면 주소를 바꾼다. **모집중은 그대로 둔다** — 그쪽은 ongoing 이 정상이다."""
     return url if rcrt_prgs_yn == "Y" else url.replace(ONGOING, DEADLINE)
+
+
+def flip_url(url: str) -> str:
+    """ongoing ↔ deadline. **`rcrt_prgs_yn` 이 낡아서 껍데기가 왔을 때 한 번 더 간다.**
+
+    적재 시점의 값이라 그 뒤에 마감된 공고는 `Y` 인 채로 남는다. 2026-08-19 실측에서
+    모집중 50건 중 7건이 그랬고(`178876` 은 접수마감이 `20260817` 이다), 일곱 전부
+    deadline 에서 제대로 렌더됐다. **상태를 고쳐 쓰지 않고 주소만 한 번 더 본다** —
+    공고 상태는 수집이 정하는 값이지 첨부 긁기가 정할 값이 아니다.
+    """
+    return url.replace(ONGOING, DEADLINE) if ONGOING in url else url.replace(DEADLINE, ONGOING)
 
 
 def parse_attachments(html: str) -> list[tuple[str, str]]:
@@ -139,18 +152,24 @@ def scrape(
         with httpx.Client(
             headers=HEADERS, follow_redirects=True, timeout=settings.request_timeout_sec
         ) as client:
-            for i, (sn, url, prgs) in enumerate(targets, 1):
+            def get(u: str) -> httpx.Response:
+                """한 번 가져오고 걸린 시간과 예의 지연을 보고에 반영한다."""
                 started = time.monotonic()
                 try:
-                    r = client.get(detail_url(url, prgs))
+                    return client.get(u)
+                finally:
+                    report.seconds += time.monotonic() - started
+                    time.sleep(settings.request_delay_sec)
+
+            for i, (sn, url, prgs) in enumerate(targets, 1):
+                first = detail_url(url, prgs)
+                try:
+                    r = get(first)
                     html = r.text
                 except Exception as e:  # noqa: BLE001 — 이 공고만 실패시킨다
                     report.failed += 1
                     report.problems.append((sn, f"{type(e).__name__}: {e}"))
                     continue
-                finally:
-                    report.seconds += time.monotonic() - started
-                    time.sleep(settings.request_delay_sec)
 
                 report.done += 1
                 if r.status_code != 200:
@@ -159,6 +178,18 @@ def scrape(
                     continue
 
                 pairs = parse_attachments(html)
+                if not pairs and len(html) < MIN_RENDERED:
+                    # **껍데기다. 상태가 낡았을 수 있으니 반대쪽을 한 번 더 본다.**
+                    try:
+                        r2 = get(flip_url(first))
+                    except Exception as e:  # noqa: BLE001 — 되짚기 실패는 껍데기로 남긴다
+                        report.problems.append((sn, f"되짚기 {type(e).__name__}: {e}"))
+                    else:
+                        if r2.status_code == 200 and len(r2.text) >= MIN_RENDERED:
+                            html = r2.text
+                            pairs = parse_attachments(html)
+                            report.recovered += 1
+
                 if not pairs:
                     # **껍데기와 '첨부 없음'을 구분한다.** 껍데기는 우리가 주소를 잘못
                     # 고른 것이고, 첨부 없음은 그 공고의 사실이다.

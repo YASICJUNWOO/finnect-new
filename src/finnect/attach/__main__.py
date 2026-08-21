@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 
 from finnect.attach import kstartup, service
@@ -39,6 +40,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="K-Startup 상세 페이지에서 첨부 목록을 긁는다(plan/13). **파일은 안 받는다**",
     )
+    p.add_argument(
+        "--only",
+        metavar="파일",
+        help="받을 URL 을 한 줄에 하나씩 적은 파일. **누가 골랐는지 여기서 모른다** "
+        "— 고르는 규칙은 notice-filter/ 에 따로 산다",
+    )
     p.add_argument("--report", action="store_true", help="집계만 찍는다")
     args = p.parse_args(argv)
 
@@ -65,6 +72,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    only = None
+    if args.only:
+        only = {ln.strip() for ln in pathlib.Path(args.only).read_text().splitlines() if ln.strip()}
+        print(f"[목록] {args.only} 에서 URL {len(only):,}개")
+
     if args.ocr:
         r = service.ocr_pass(
             limit=args.limit,
@@ -78,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         print(r.render())
         print()
     elif not args.report:
-        report = service.run(limit=args.limit, redo=args.redo, source=args.source)
+        report = service.run(limit=args.limit, redo=args.redo, source=args.source, only=only)
         print(report.render())
         print()
 

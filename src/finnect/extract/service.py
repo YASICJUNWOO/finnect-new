@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from finnect.attach import store
 from finnect.db import engine
+from finnect.extract import classify as cl
 from finnect.extract import fields as fx
+from finnect.extract import outline as ol
 from finnect.extract import segment as sg
 from finnect.models import AttachmentFile, Document, DocumentItem, DocumentKind, ParseStatus
 
@@ -139,3 +141,208 @@ def _classify(text: str) -> DocumentKind:
     if fx.is_fields(text):
         return DocumentKind.FIELDS
     return DocumentKind.UNKNOWN
+
+
+# ─────────────────────────────────────────────────────────────────
+# 양식 구간 판별 (plan/11 T-0036)
+#
+# **분할과 따로 돈다.** `run()` 은 규칙이고 결정론이라 언제 다시 돌려도 같은
+# 경계가 나온다. 판정은 LLM 이라 돈이 들고 답이 매번 같지 않다. 붙여 두면
+# 파서를 한 줄 고칠 때마다 7,717번을 다시 물어야 한다.
+# ─────────────────────────────────────────────────────────────────
+
+
+@dataclass(slots=True)
+class ClassifyReport:
+    asked: int = 0
+    changed: int = 0
+    items: int = 0
+    unreadable: int = 0
+    #: 표지 한 줄만 남은 구간. **안 물어본다** (classify.MIN_BODY_CHARS)
+    too_short: int = 0
+    #: 모델이 스스로 "판단할 내용이 없다" 고 답한 것
+    declined: int = 0
+    kinds: dict[str, int] = field(default_factory=dict)
+    #: 판정기가 되돌린 것. **조용히 넘기지 않는다**
+    dropped: list[tuple[str, str]] = field(default_factory=list)
+    #: 비용. 지어내지 않고 센다
+    usage: str = ""
+
+    def line(self) -> str:
+        k = " · ".join(f"{v} {n}" for n, v in sorted(self.kinds.items(), key=lambda x: -x[1]))
+        out = [
+            f"물어봄 {self.asked:,} · 바뀜 {self.changed:,} · 칸 {self.items:,} · "
+            f"못 읽음 {self.unreadable:,} · 너무 짧아 안 물어봄 {self.too_short:,} · "
+            f"모른다고 답함 {self.declined:,}",
+            f"판정: {k or '없음'}",
+        ]
+        if self.dropped:
+            out.append(f"되돌림 {len(self.dropped):,}건 — {self.dropped[:3]}")
+        if self.usage:
+            out.append(self.usage)
+        return "\n".join(out)
+
+
+def classify_unknown(
+    *,
+    limit: int | None = None,
+    redo: bool = False,
+    dry: bool = False,
+    title_like: str | None = None,
+) -> ClassifyReport:
+    """`unknown` 구간에 종류를 붙인다.
+
+    `dry` 면 **아무것도 안 쓴다.** 손 분류와 대조할 때 쓴다 — 40건을 눈으로 보고
+    나서 저장할지 정한다(plan/11 T-0036 완료 조건).
+
+    `title_like` 는 **표본 고르기다. 판정 규칙이 아니다.**
+
+    `--limit N` 만 주면 sha256 순서로 앞에서 N개를 집는데, 그러면 파일 몇 개에
+    몰린다(실측: 40건이 5~6개 파일에서 나왔고 서술형이 2건뿐이었다). 서술형 양식을
+    보고 싶을 때 `계획` 으로 좁히면 160개 후보가 나온다.
+
+    **제목으로 종류를 정하는 것이 아니다** — 그건 네 번 실패한 규칙이다. 여기서
+    제목은 **어느 구간을 물어볼지**만 고르고, 판정은 LLM 이 원문을 읽고 한다.
+    """
+    clf = cl.get_classifier()
+    report = ClassifyReport()
+
+    with Session(engine) as s:
+        q = select(Document).where(Document.kind == str(DocumentKind.UNKNOWN))
+        if redo:
+            q = select(Document).where(
+                or_(
+                    Document.kind == str(DocumentKind.UNKNOWN),
+                    Document.decided_by.startswith("llm/"),
+                )
+            )
+        if title_like:
+            q = q.where(Document.title.ilike(f"%{title_like}%"))
+        docs = s.scalars(q.order_by(Document.sha256, Document.seq)).all()
+
+        texts: dict[str, str | None] = {}
+        for doc in docs:
+            if limit is not None and report.asked >= limit:
+                break
+
+            if doc.sha256 not in texts:
+                texts[doc.sha256] = _text_of(s, doc.sha256)
+            whole = texts[doc.sha256]
+            if whole is None:
+                report.unreadable += 1
+                continue
+
+            body = whole[doc.char_start : doc.char_end]
+            if not body.strip():
+                report.unreadable += 1
+                continue
+            if len(body.strip()) < cl.MIN_BODY_CHARS:
+                # **표지 한 줄만 남은 구간이다.** 물으면 셋 중 하나를 강제하게 되고
+                # 모델이 `reason` 에 "제목만 있다" 고 적으면서 답을 낸다(실측 40건 중 6)
+                report.too_short += 1
+                continue
+
+            verdict = clf.classify(cl.SegmentView(title=doc.title, text=body))
+            report.asked += 1
+            report.kinds[str(verdict.kind)] = report.kinds.get(str(verdict.kind), 0) + 1
+
+            if dry:
+                print(f"  {str(verdict.kind):<10} {doc.title[:44]:<46} {verdict.reason[:70]}")
+                continue
+            if verdict.kind is DocumentKind.UNKNOWN:
+                continue  # 판정기가 모른다고 했다. **`none` 으로 밀지 않는다**
+
+            doc.kind = str(verdict.kind)
+            doc.decided_by = clf.name
+            report.changed += 1
+
+            # **항목을 안 뽑으면 그 구간은 종류만 있고 속이 빈 채로 남고,
+            # 화면이 빈 서류를 그린다.** 서술형은 여기서 처음 생긴다(T-0037).
+            report.items += _add_items(s, doc, body, verdict.kind)
+
+        report.dropped = list(getattr(clf, "dropped", []))
+        report.declined += len(getattr(clf, "declined", []))
+        report.usage = _usage_line(clf)
+        if dry:
+            s.rollback()
+        else:
+            s.commit()
+    return report
+
+
+def _text_of(s: Session, sha: str) -> str | None:
+    """그 파일의 해독 텍스트. **오프셋이 어긋나지 않게 `run()` 과 같이 읽는다.**"""
+    path = s.scalar(
+        select(AttachmentFile.text_path)
+        .where(AttachmentFile.sha256 == sha, AttachmentFile.text_path.is_not(None))
+        .limit(1)
+    )
+    if not path:
+        return None
+    try:
+        return store.abs_path(path).read_text(errors="ignore").replace("\x00", " ")
+    except FileNotFoundError:
+        return None
+
+
+def _add_items(s: Session, doc: Document, body: str, kind: DocumentKind) -> int:
+    """판정된 종류에 맞는 항목을 깐다. **이미 있으면 안 만든다** — `--redo` 로 두 번
+    돌 때 항목이 두 벌이 된다."""
+    if s.scalar(
+        select(func.count()).select_from(DocumentItem).where(DocumentItem.document_id == doc.id)
+    ):
+        return 0
+    if kind is DocumentKind.FIELDS:
+        return _add_fields(s, doc, body)
+    if kind is DocumentKind.NARRATIVE:
+        return _add_outline(s, doc, body)
+    return 0
+
+
+def _add_fields(s: Session, doc: Document, body: str) -> int:
+    n = 0
+    for i, label in enumerate(fx.labels(body)):
+        s.add(
+            DocumentItem(
+                document_id=doc.id, ordinal=i, number=None,
+                title=label, instruction=None, input_kind="field",
+            )
+        )
+        n += 1
+    return n
+
+
+def _add_outline(s: Session, doc: Document, body: str) -> int:
+    """서술형 항목 트리 (T-0037).
+
+    **오프셋에 구간 시작을 더한다.** `outline` 은 넘겨받은 텍스트 기준으로 세는데
+    화면은 파일 원문에서 잘라 보여 준다 — 안 더하면 엉뚱한 데가 열린다.
+
+    부모를 걸려면 자식보다 먼저 `id` 가 있어야 해서 **한 줄씩 flush 한다.**
+    항목이 수십 개라 감당된다(최악이 102개).
+    """
+    ids: list[int] = []
+    for i, it in enumerate(ol.items(body)):
+        row = DocumentItem(
+            document_id=doc.id,
+            parent_id=ids[it.parent] if it.parent is not None else None,
+            ordinal=i,
+            number=it.number,
+            title=it.title[:300],
+            instruction=it.instruction,
+            limit_text=it.limit_text,
+            input_kind="narrative",
+            char_start=doc.char_start + it.start,
+            char_end=doc.char_start + it.end,
+        )
+        s.add(row)
+        s.flush()
+        ids.append(row.id)
+    return len(ids)
+
+
+def _usage_line(clf: object) -> str:
+    """LLM 을 실제로 부른 판정기만 집계를 들고 있다."""
+    c = getattr(clf, "client", None)
+    usage = getattr(c, "usage", None)
+    return usage.line() if usage is not None and getattr(usage, "calls", 0) else ""

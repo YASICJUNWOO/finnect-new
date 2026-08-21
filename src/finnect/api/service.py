@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
+from collections.abc import Sequence
 
 from sqlalchemy import func, or_, select, tuple_
 from sqlalchemy.orm import Session
@@ -20,6 +21,8 @@ from finnect.api.schemas import (
     NoticeDocumentsOut,
     NoticeListOut,
     NoticeOut,
+    RecommendationOut,
+    RecommendationsOut,
 )
 from finnect.api.text import to_text
 from finnect.attach import store
@@ -29,6 +32,9 @@ from finnect.models import (
     Document,
     DocumentItem,
     DocumentKind,
+    FitVerdict,
+    NoticeFit,
+    NoticeFitEvidence,
     Source,
 )
 from finnect.views import Notice
@@ -114,6 +120,97 @@ def _to_out(row: Notice, today: dt.date, attachment_count: int) -> NoticeOut:
         days_left=_days_left(row.apply_end, today),
         detail_url=row.detail_url,
         attachment_count=attachment_count,
+    )
+
+
+#: 화면에 세우는 추천 건수. `SPEC.md` F4-1 — "적합도순 **3건.** 전체를 늘어놓지 않는다"
+TOP_N = 3
+
+
+def recommendations(
+    s: Session, company_id: str, *, today: dt.date | None = None
+) -> RecommendationsOut:
+    """추천 세 건 (plan/17 T-0075).
+
+    **`notice_fit` 을 읽기만 한다.** 판정은 `python -m finnect.match` 가 미리
+    돌린다 — 화면 요청 경로에서 LLM 을 부르지 않는 것(F6-1 과 같은 원칙)이고,
+    `match.service` 를 임포트하지 않는 이유도 그것이다: 저쪽이 `llm` 을 끌고
+    오는데 `requirements.txt` 에 httpx 가 없어 **배포본만 죽는다**(CLAUDE.md 함정).
+
+    마감이 지난 것은 낸 뒤에 뺀다 — 판정은 어제 돌았어도 오늘 마감일 수 있다.
+
+    **등급이 아니라 이유로 거른다**(T-0076). `애매` 도 이유가 있으면 올린다 — ④ 분야가
+    살린 것이라 근거가 `wiki_fact` 에 실제로 있다. `match/service.py` 의 `rep.top` 과
+    같은 규칙이어야 한다: **CLI 가 셋을 찍는데 화면이 비면 안 된다.**
+    """
+    today = today or dt.date.today()
+
+    fits = list(
+        s.scalars(
+            select(NoticeFit).where(
+                NoticeFit.company_id == company_id,
+                NoticeFit.reason != "",
+            )
+        )
+    )
+    if not fits:
+        # 행이 하나도 없으면 **아직 안 돌린 것**이다. `맞다` 가 0건인 것과 다르다
+        any_row = s.scalar(
+            select(func.count())
+            .select_from(NoticeFit)
+            .where(NoticeFit.company_id == company_id)
+        )
+        return RecommendationsOut(items=[], computed=bool(any_row))
+
+    keys = [(f.source, f.external_id) for f in fits]
+    rows = {
+        (r.source, r.external_id): r
+        for r in s.scalars(
+            select(Notice).where(tuple_(Notice.source, Notice.external_id).in_(keys))
+        )
+    }
+    ev = {
+        fid: n
+        for fid, n in s.execute(
+            select(NoticeFitEvidence.fit_id, func.count())
+            .where(NoticeFitEvidence.fit_id.in_([f.id for f in fits]))
+            .group_by(NoticeFitEvidence.fit_id)
+        ).all()
+    }
+
+    live = [
+        (f, rows[(f.source, f.external_id)])
+        for f in fits
+        if (f.source, f.external_id) in rows
+        and (
+            rows[(f.source, f.external_id)].apply_end is None
+            or rows[(f.source, f.external_id)].apply_end >= today
+        )
+    ]
+    # **등급 → 분야 일치 → 겹침 수 → 마감 임박.** `match/rank.py` 의 정렬과 같다
+    live.sort(
+        key=lambda t: (
+            0 if t[0].verdict == str(FitVerdict.MATCH) else 1,
+            0 if t[0].sector_hit else 1,
+            -len(t[0].matched or []),
+            _days_left(t[1].apply_end, today) or 10_000,
+            t[0].source,
+            t[0].external_id,
+        )
+    )
+    live = live[:TOP_N]
+    counts = _counts(s, [r for _f, r in live])
+
+    return RecommendationsOut(
+        items=[
+            RecommendationOut(
+                **_to_out(r, today, counts.get((r.source, r.external_id), 0)).model_dump(),
+                reason=f.reason,
+                evidence_count=ev.get(f.id, 0),
+            )
+            for f, r in live
+        ],
+        computed=True,
     )
 
 
@@ -240,7 +337,7 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
 
         items = s.scalars(
             select(DocumentItem)
-            .where(DocumentItem.document_id == doc.id, DocumentItem.parent_id.is_(None))
+            .where(DocumentItem.document_id == doc.id)
             .order_by(DocumentItem.ordinal)
         ).all()
         docs.append(
@@ -251,17 +348,7 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
                 decided_by=doc.decided_by,
                 filename=att.filename,
                 url=att.url,
-                items=[
-                    DocumentItemOut(
-                        number=i.number,
-                        title=i.title,
-                        instruction=i.instruction,
-                        limit_text=i.limit_text,
-                        input_kind=i.input_kind,
-                        children=[],
-                    )
-                    for i in items
-                ],
+                items=_tree(items),
             )
         )
 
@@ -272,6 +359,43 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
         submit_hint=_hints(s, source, external_id) if not docs else [],
         undecided=undecided,
     )
+
+
+def _tree(rows: Sequence[DocumentItem]) -> list[DocumentItemOut]:
+    """`parent_id` 로 트리를 세운다(plan/11 T-0037).
+
+    **한 번에 다 받아서 메모리에서 잇는다.** 단마다 질의를 날리면 항목 199개짜리
+    양식이 199번을 부른다.
+
+    **가지에 쓰는 칸이 붙으면 안 된다.** 화면이 잎만 쓰는 자리로 세는데
+    (`FormFill` 의 `leafKeys`) 자식을 안 내보내면 `2 추진배경 및 목표` 가 잎이 되고,
+    거기 붙은 칸에 쓴 글은 어느 항목의 것도 아니게 된다.
+
+    순서는 `ordinal` 이다 — 문서 안에서 한 번만 매겨지므로 형제끼리도 이 순서다.
+    """
+    kids: dict[int | None, list[DocumentItem]] = {}
+    for r in rows:
+        kids.setdefault(r.parent_id, []).append(r)
+
+    def build(parent: int | None, depth: int) -> list[DocumentItemOut]:
+        # 부모는 항상 자식보다 먼저 들어가므로(`extract/service.py` `_add_outline`)
+        # 고리가 생길 수 없다. 그래도 막아 두는 이유는 여기가 API 라서다 — 고리
+        # 하나가 응답을 못 끝내면 공고 상세가 통째로 안 뜬다.
+        if depth > 10:
+            return []
+        return [
+            DocumentItemOut(
+                number=i.number,
+                title=i.title,
+                instruction=i.instruction,
+                limit_text=i.limit_text,
+                input_kind=i.input_kind,
+                children=build(i.id, depth + 1),
+            )
+            for i in kids.get(parent, [])
+        ]
+
+    return build(None, 1)
 
 
 def _hints(s: Session, source: str, external_id: str) -> list[str]:

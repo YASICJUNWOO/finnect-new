@@ -80,6 +80,68 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 ---
 
+## `GET /api/companies/{company_id}/recommendations`
+
+**추천 세 건.** `DESIGN.md` §6.1 의 두 섹션 중 위쪽이고, 아래쪽(전체 공고 · 마감 임박순)은 `GET /api/notices` 가 그대로 낸다. 경로를 나눈 이유는 **위키가 없어도 그쪽이 떠야** 하기 때문이다.
+
+계획은 [plan/17](plan/17-맞는-공고를-고른다.md), 결정은 [ADR-0013](adr/0013-판정-두-층.md) 이다.
+
+### 응답
+
+```json
+{
+  "items": [
+    {
+      "source": "bizinfo",
+      "external_id": "PBLN_000000000125473",
+      "title": "…",
+      "apply_end": "2026-09-30",
+      "days_left": 41,
+      "reason": "소상공인·판로가 주제예요. 바코드와 QR로 입출고 기록을 자동으로 남겨…",
+      "evidence_count": 2
+    }
+  ],
+  "computed": true
+}
+```
+
+`NoticeOut` 의 필드 전부에 둘이 붙는다.
+
+| 필드 | 무엇 |
+|---|---|
+| `reason` | 왜 맞는지 한 줄. **템플릿이 만든다** — LLM 이 아니다 |
+| `evidence_count` | 이 이유가 위키의 몇 개 사실에서 나왔나. 화면이 "근거 2" 로 쓴다 |
+| `computed` | 판정을 돌렸나. **빈 목록과 다르다** |
+
+### 적합도 숫자가 없다
+
+`verdict` · `matched` · `sector_hit` 가 응답에 **없다.** 목록이 이미 적합도순이라 순서가 정보를 담고, 92 와 74 의 차이를 설명할 눈금이 없다(`DESIGN.md` §6). `tests/test_api_recommendations.py` 가 응답 JSON 에 그 이름들이 없는지 검사한다.
+
+### `computed` 가 왜 따로 있는가
+
+```
+{"items": [], "computed": false}   아직 판정을 안 돌렸다
+{"items": [], "computed": true}    돌렸는데 맞는 것이 없다
+```
+
+**404 를 내지 않는다.** 화면이 "파일을 올리면 맞는 공고를 골라 드려요"(빈 화면)와 "맞는 것이 없어요"를 다르게 말해야 하고, 그 둘은 다음 동작이 다르다(`DESIGN.md` §7-5).
+
+### 세 건까지다
+
+`SPEC.md` F4-1 — *"적합도순 **3건.** 전체를 늘어놓지 않는다."* 상한은 `api/service.TOP_N` 에 있다.
+
+### LLM 을 부르지 않는다
+
+`notice_fit` 을 **읽기만 한다.** 판정은 `uv run python -m finnect.match --company <id>` 가 미리 돌린다 — 화면 요청 경로에서 모델을 부르지 않는 것(F6-1 과 같은 원칙)이고, 페이지 열 때마다 열린 공고 1,790건을 정규식으로 훑지 않는 이유도 그것이다.
+
+그래서 **`api/service.py` 가 `match.service` 를 임포트하지 않는다.** 저쪽이 `llm` 을 끌고 오는데 `requirements.txt` 에 httpx 가 없다 — 임포트하면 로컬은 통과하고 배포본만 죽는다.
+
+### 마감이 지난 것은 낸 뒤에 뺀다
+
+판정은 어제 돌았어도 오늘 마감일 수 있다. 정렬은 `match/rank.py` 와 같은 규칙이다 — **분야 일치 → 겹침 수 → 마감 임박.**
+
+---
+
 ## `GET /api/notices/{source}/{external_id}`
 
 목록 한 줄에 `summary` 와 `attachments` 가 붙는다. 없으면 **404**. 모르는 출처도 404.
@@ -145,7 +207,22 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
       "url": "https://www.bizinfo.go.kr/…",
       "items": [
         {"number": null, "title": "업 체 명", "instruction": null,
-         "limit_text": null, "input_kind": "field"}
+         "limit_text": null, "input_kind": "field", "children": []}
+      ]
+    },
+    {
+      "id": 4706,
+      "title": "서식 3 사업계획서",
+      "kind": "narrative",
+      "decided_by": "llm/gpt-5.6-luna",
+      "filename": "신청서류_….hwp",
+      "url": "https://www.bizinfo.go.kr/…",
+      "items": [
+        {"number": "1", "title": "신청기업 현황", "instruction": null,
+         "limit_text": null, "input_kind": "narrative", "children": [
+           {"number": "1-1", "title": "일반현황", "instruction": null,
+            "limit_text": null, "input_kind": "narrative", "children": []}
+         ]}
       ]
     }
   ],
@@ -154,12 +231,25 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 }
 ```
 
+### `items` 는 트리다
+
+**`children` 을 버리면 화면이 틀린 곳에 칸을 만든다.** 쓰는 자리는 **잎**이고 가지는
+양식의 묶음이라, `1 신청기업 현황` 의 자식을 안 주면 그것이 잎이 되어 **거기 쓰는 칸이
+붙는다** — 그 칸에 쓴 글은 어느 항목의 것도 아니다. 화면이 잎을 세는 곳은
+`web/components/FormFill.tsx` 의 `leafKeys` 한 곳이다.
+
+깊이는 실측 3단까지다(plan/11 T-0039). `fields` 는 평평하다 — 라벨이 서로 부모가 아니고,
+트리를 만들면 칸 199개짜리 서식이 접힌다.
+
+**항목이 0개인 문서가 있다.** 양식으로는 갈렸는데 목차가 안 나온 것이고(서술형 25건 중
+6건 · 2026-08-20), 화면은 그렇게 말한다 — "이 양식에서 항목을 못 뽑았어요".
+
 ### `kind` 가 넷인데 둘만 나간다
 
 | 값 | 뜻 | 응답에 나오나 |
 |---|---|---|
 | `fields` | 칸만 채우는 서식 | **나온다** |
-| `narrative` | 글로 쓰는 양식 | 나온다. **아직 하나도 없다** — T-0036 이 채운다 |
+| `narrative` | 글로 쓰는 양식 | 나온다. **2026-08-20 현재 25건** — T-0036 을 예산 안에서 일부만 돌렸다 |
 | `none` | 채울 것이 없다 | 안 나온다 |
 | `unknown` | 아직 안 갈랐다 | **안 나온다.** `undecided` 로만 센다 |
 
@@ -182,6 +272,61 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 양식 파일이 첨부에 있어야 나온다. 양식이 없다고 빈손으로 보내지 않는다(DESIGN.md §7-5).
 
 ---
+
+## `GET /api/notices/{source}/{external_id}/draft?company={id}`
+
+이 회사가 이 공고에 대해 쓴 초안([plan/16](plan/16-항목마다-초안을-쓴다.md) · F6).
+
+**읽기만 한다. 여기서 초안을 만들지 않는다.** 만드는 것은 `finnect.draft` CLI 이고, 그 모듈은 `llm` 을 끌고 와서 배포본에 없는 `httpx` 가 딸려 온다. 백그라운드 실행은 화면이 붙는 슬라이스에서 [plan/15](plan/15-파일-올리기와-진행-표시.md) 의 202 + 락 패턴을 복사한다.
+
+**없으면 빈 목록이고 404 가 아니다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이 같은 자리에서 말해야 하고, 404 는 원인을 안 남긴다.
+
+```
+company_id · source · external_id
+pending_documents   서술형 양식은 있는데 초안이 아직 없는 수
+documents[]
+  document_id · title · filename
+  allotted_by       llm/<모델> · none(다툰 것이 없어 안 불렀다)
+  items[]           **트리다.** children 으로 접혀 있다
+    document_item_id · number · title · instruction
+    status          아래 표
+    paragraphs[]    ordinal · text · evidence[]
+      evidence[]    fact_id · place · place_label · text · chunk_id · quote · source_type
+    missing[]       place · place_label · required
+    missing_optional[]
+    length          verdict · limit_text · measured · note
+    yielded_to[]    그 재료를 맡은 항목 번호들
+    error           이 항목만 실패했다
+```
+
+### `status` 가 여섯이고 **물어볼 자리는 하나다**
+
+| 값 | 뜻 | 화면이 할 일 |
+|---|---|---|
+| `drafted` | 문서 근거로 썼다 | 본문 + 문단별 근거 |
+| `answered` | 사용자 답변이 들어간 문단이 있다 | 근거 줄에서 **글자로** 가른다. 색을 새로 주지 않는다 |
+| `blank` | **위키에 없어서 못 썼다** | **여기만 묻는다.** `missing[]` 이 무엇을 물을지 말한다 (F6-6) |
+| `no_needs` | 쓸 자리가 아니다 — 상위 묶음이거나 사업 내용을 안 쓰는 자리 | 제목만. **초안 자리로 그리지 않는다** |
+| `yielded` | 위키에는 있는데 **다른 항목이 그 재료를 맡았다** | `yielded_to` 로 **"그 얘기는 6번에 썼어요"** |
+| `unwritten` | 재료는 받았는데 글이 안 나왔다 | **집필 실패다.** 다시 쓰기를 권한다 |
+| `stale` | 근거가 된 사실이 바뀌었다 | 낡았다고 표시만. **자동으로 안 고친다**(F1-5-5) |
+
+**여섯을 섞으면 화면이 사용자에게 이미 아는 것을 묻는다.** 실측에서 항목 16개 중 `못 채움` 이 7개로 보였는데, 갈라 보니 상위 묶음 3 · 배분에서 못 받음 4 였고 **진짜 물어볼 자리는 0개**였다.
+
+### `place_label` 을 API 가 붙이는 이유
+
+`place` 는 `problem` 같은 영문 키다. 사람이 읽는 이름은 `wiki/topics.py` 가 정본이고, **화면이 한국어를 지으면 갈린다** — `topics.display()` 가 단위를 한 자리에서 붙이는 것과 같은 규율이다.
+
+### `length` 를 저장하지 않는다
+
+`limit_text` 는 `document_item` 에, 본문은 `draft_item` 에 있다. 둘로 계산되는 값이라 읽을 때마다 만드는 **뷰**다 — 위키 마크다운과 같은 이유다.
+
+**`verdict` 가 `unmeasurable` 인 경우가 둘이다.** 쪽 수 제한(`50페이지 내외`)은 글자로 환산하지 않고, `내외` 는 초과 판정을 안 한다. 환산율의 근거가 없다 — **틀린 숫자를 내는 것보다 못 잰다고 말하는 것이 낫다.**
+
+### `yielded_to` 를 저장하지 않는다
+
+`draft.allotment` 와 `item_need` 로 계산된다. 못 받은 항목의 배분은 비어 있으니 **이 항목이 원했던 자리에서 출발해 그 자리의 사실을 누가 받았는지 거꾸로 찾는다.**
+
 
 ## 운영 경로 — `/api/admin/*`
 

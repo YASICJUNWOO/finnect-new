@@ -58,6 +58,7 @@ def run(
     limit: int | None = None,
     redo: bool = False,
     source: str | None = None,
+    only: set[str] | None = None,
     on_progress: Callable[[AttachReport], None] | None = None,
 ) -> AttachReport:
     """첨부를 받아서 읽는다. 이미 끝난 것은 건너뛴다.
@@ -65,12 +66,19 @@ def run(
     redo 는 파서를 고쳤을 때 쓴다. **디스크에 있는 파일은 다시 안 받고 해독만 다시 한다.**
     콘텐츠 주소로 저장해 둔 덕에 되는 일이다. 지난번에 **받기가 실패한 것은 다시 받는다** —
     그쪽은 고칠 파서가 없고 다시 해보는 것 말고 할 게 없다.
+
+    only 는 받을 URL 을 그 집합으로 좁힌다. **누가 그 목록을 만들었는지 여기서 모른다** —
+    K-Startup 전량이 55GB 인데 디스크가 24GB 라 골라 받아야 하고, 고르는 규칙은
+    `notice-filter/` 에 따로 산다. 이 인자는 목록을 받을 뿐이라 규칙이 바뀌거나
+    사라져도 이 코드는 안 바뀐다.
     """
     report = AttachReport()
     settings.attachment_dir.mkdir(parents=True, exist_ok=True)
 
     with SessionFactory() as s:
         targets = _targets(s, source=source)
+        if only is not None:
+            targets = [t for t in targets if t[0] in only]
         report.total = len(targets)
         if limit is not None:
             targets = targets[:limit]

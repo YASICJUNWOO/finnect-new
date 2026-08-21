@@ -1,0 +1,403 @@
+/* 신청서 쓰기. SPEC §5.2 S4 · F6.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0025).
+ * 흐름 안의 카드라 그림자 대신 경계선을 쓴다(DESIGN.md §4.4).
+ *
+ * **액센트가 한 군데도 없다.** 문서 빈칸용 --blank 를 빈 입력칸에 바르면 처음 들어온
+ * 사람 화면이 통째로 액센트가 된다 — §8.2 의 10% 를 정면으로 넘는다. 그리고 지금 칸이
+ * 빈 것은 초안이 없어서지 위키가 비어서가 아니라, F6-6 의 자리가 아직 아니다. */
+
+.section {
+  margin-top: var(--s6);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+/* --- 완성도 (F6-5) --- */
+
+.progress {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.pct {
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+/* --- 아직 없는 것 --- */
+
+.notice {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+/* --- 문서 --- */
+
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-top: var(--s4);
+}
+
+.doc {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s4) var(--s5);
+}
+
+.docHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px; /* 터치 타깃 (§8.2) */
+  padding: var(--s2) 0;
+}
+
+.docHead::-webkit-details-marker {
+  display: none;
+}
+
+.docTitle {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.docMeta {
+  flex: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.source {
+  margin: var(--s2) 0 var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  word-break: break-all;
+}
+
+.link {
+  color: var(--ink-2);
+}
+
+/* --- 항목 트리 --- */
+
+.items,
+.children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.children {
+  margin-top: var(--s4);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line);
+}
+
+.item + .item {
+  margin-top: var(--s5);
+}
+
+.itemHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.number {
+  flex: none;
+  min-width: 2.5em;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+/* 잎에서는 이게 <label> 이다. 누르면 칸에 커서가 간다 */
+.itemTitle {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+.limit {
+  flex: none;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-2);
+  background: var(--quiet);
+  border-radius: var(--r-pill);
+  padding: 0 var(--s2);
+}
+
+/* 지시문은 양식이 쓴 그대로다. 우리 카피와 섞이지 않게 한 단 낮춘다 */
+.instr {
+  margin: var(--s1) 0 0;
+  padding-left: calc(2.5em + var(--s2));
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.instrBox {
+  margin: var(--s1) 0 0;
+}
+
+.instrSummary {
+  list-style: none;
+  cursor: pointer;
+  padding-left: calc(2.5em + var(--s2));
+}
+
+.instrSummary::-webkit-details-marker {
+  display: none;
+}
+
+/* 2,031자짜리가 있다. 접힌 동안은 두 줄까지만 */
+.instrClamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.fold {
+  display: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.instrBox[open] .instrClamp {
+  display: none;
+}
+
+.instrBox[open] .fold {
+  display: inline;
+}
+
+.instrBox[open] .instrSummary {
+  order: 2;
+  margin-top: var(--s1);
+}
+
+/* --- 쓰는 칸 --- */
+
+.write {
+  margin-top: var(--s2);
+  padding-left: calc(2.5em + var(--s2));
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  max-width: 62ch; /* 줄길이 (§8.2) */
+  min-height: 6lh;
+  field-sizing: content; /* 되는 브라우저에서는 내용만큼 자란다 */
+  padding: var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.textarea:hover {
+  border-color: var(--ink-4);
+}
+
+/* F6-14 분량. 양식이 제한을 안 줬으니 쓴 만큼만 말한다 */
+.chars {
+  margin: var(--s1) 0 0;
+  max-width: 62ch;
+  text-align: right;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+/* --- 칸 채우기 --- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s3);
+  margin-top: var(--s2);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.cellLabel {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.input {
+  min-height: 44px; /* 터치 타깃 (§8.2) */
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.input:hover {
+  border-color: var(--ink-4);
+}
+
+.more {
+  margin-top: var(--s4);
+}
+
+/* **flex 를 쓰지 않는다.** 텍스트 노드가 익명 플렉스 아이템이 되면서
+ * `나머지 179개` 사이 공백이 사라진다. 터치 타깃은 padding 으로 만든다 */
+.moreSummary {
+  cursor: pointer;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  min-height: 44px;
+  padding: var(--s3) 0;
+}
+
+/* --- 양식이 없을 때. 공고 셋 중 하나가 여기다 --- */
+
+.empty {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s5);
+  margin-top: var(--s3);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.emptyBody {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.quotes {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* 공고문 원문이다. 우리 말과 구분되게 둔다 */
+.quote {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  background: var(--quiet);
+  border-left: 2px solid var(--line-2);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: var(--s2) var(--s3);
+  max-width: 62ch;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: var(--s4);
+  min-height: 44px;
+  line-height: 44px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+}
+
+.undecided {
+  margin: var(--s4) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+/* 좁은 화면에서는 들여쓰기를 버린다. 2단까지 들어가면 칸이 손바닥만 해진다 */
+@media (max-width: 640px) {
+  .doc {
+    padding: var(--s4);
+  }
+
+  .instr,
+  .instrSummary,
+  .write {
+    padding-left: 0;
+  }
+
+  .children {
+    padding-left: var(--s3);
+  }
+}
+
+/* 양식은 갈랐는데 항목이 안 나온 자리. 상태색을 쓰지 않는다 —
+ * 사용자가 손댈 자리가 아니라 우리가 못 읽은 자리다(§4.1 액센트는 마감 하나). */
+.none {
+  margin: var(--s2) 0 var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  max-width: 62ch;
+}

@@ -40,3 +40,6 @@ spike/data/
 
 # Next.js 증분 빌드 산출물
 *.tsbuildinfo
+
+# Claude Code 로컬 설정. 켠 플러그인과 MCP 서버라 사람마다 다르다.
+.claude/

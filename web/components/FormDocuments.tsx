@@ -105,7 +105,13 @@ function Document({ doc, open }: { doc: FormDocument; open: boolean }) {
         </p>
       )}
 
-      {doc.kind === "narrative" ? (
+      {/* 양식은 갈랐는데 항목이 안 나온 것. **"항목 0개"로 끝내지 않는다**
+          (DESIGN.md §7-5). 쓰기 화면(`FormFill`)이 같은 말을 한다. */
+      doc.items.length === 0 ? (
+        <p className={styles.none}>
+          이 양식에서 항목을 못 뽑았어요. 원본 파일을 열어서 확인해 주세요.
+        </p>
+      ) : doc.kind === "narrative" ? (
         <ol className={styles.items}>
           {doc.items.map((it) => (
             <Item key={(it.number ?? "") + it.title} item={it} />

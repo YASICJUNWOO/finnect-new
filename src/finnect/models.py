@@ -27,6 +27,7 @@ import datetime as dt
 import enum
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     Date,
@@ -45,6 +46,13 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
     pass
+
+
+#: JSONB 를 SQLite 에서만 낮춘다. **Postgres DDL 은 그대로라 마이그레이션이 안 바뀐다.**
+#:
+#: 있는 이유는 테스트다. 위키 테스트 · 초안 테스트가 **DB 없이 돌아야 하는데**
+#: SQLite 가 JSONB 를 못 만들어서, 그 표 하나 때문에 전체를 못 세운다.
+_JSON = JSONB().with_variant(JSON, "sqlite")
 
 
 class Source(enum.StrEnum):
@@ -137,7 +145,10 @@ class _NoticeMixin:
     """출처 테이블 공통 부가 컬럼. API 필드가 아니라 우리가 붙이는 것이다."""
 
     # API 에 없던 필드가 오면 여기 담고 건수를 보고한다. 조용히 사라지지 않게.
-    extra: Mapped[dict] = mapped_column(JSONB, default=dict)
+    #: `_JSON` 을 쓰는 이유는 테스트다 — plan/17 대조 테스트가 이 표를 SQLite 에
+    #: 세워야 한다(지원분야 중분류가 뷰에 없어 출처별 표에서 읽는다).
+    #: **Postgres DDL 은 그대로라 마이그레이션이 안 바뀐다**
+    extra: Mapped[dict] = mapped_column(_JSON, default=dict)
 
     # 파생 값. API 가 준 값과 섞지 않으려고 접두사를 단다.
     derived_apply_start: Mapped[dt.date | None] = mapped_column(Date)
@@ -326,7 +337,7 @@ class AttachmentFile(Base):
     text_path: Mapped[str | None] = mapped_column(Text)
     parse_error: Mapped[str | None] = mapped_column(Text)
     #: ZIP 안의 파일 목록. 풀지는 않는다. 166건 안에 무엇이 있는지 보려고 남긴다.
-    contents: Mapped[dict] = mapped_column(JSONB, default=dict)
+    contents: Mapped[dict] = mapped_column(_JSON, default=dict)
 
 
 class IngestRun(Base):
@@ -493,6 +504,14 @@ class DocumentItem(Base):
     char_start: Mapped[int | None] = mapped_column(Integer)
     char_end: Mapped[int | None] = mapped_column(Integer)
 
+    # --- 양식 읽기 (plan/16 T-0063). **NULL 이면 아직 안 물어봤다** ---
+
+    #: 다른 항목을 압축하는 자리인가. `요약` · `사업 개요` 가 그렇다.
+    #: **중복 점검이 이걸 안 보면 정상 항목을 때린다**(T-0067)
+    summary_of_others: Mapped[bool | None] = mapped_column(Boolean)
+    #: 무엇이 읽었나. `llm/<모델>`. 다시 읽을 때 무엇이 바뀌었는지 본다
+    needs_decided_by: Mapped[str | None] = mapped_column(String(32))
+
 
 # ─────────────────────────────────────────────────────────────────
 # 사업 위키 (plan/12 · F1)
@@ -508,6 +527,7 @@ class DocumentItem(Base):
 #: 두고** SQLite 에서만 INTEGER 로 낮춘다. 위키 테스트가 DB 없이 돌아야 해서다 —
 #: 나머지 128건이 전부 DB 를 안 쓰는데 여기서 그 성질을 깨지 않는다.
 _PK = BigInteger().with_variant(Integer, "sqlite")
+
 
 
 class UserFileStatus(enum.StrEnum):
@@ -715,3 +735,344 @@ class WikiEvidence(Base):
     user_file_id: Mapped[int] = mapped_column(_PK, ForeignKey("user_file.id", ondelete="CASCADE"))
     #: 청크 안에서 근거가 된 조각. 청크 전문을 보여 주기 전에 이걸 먼저 보여 준다
     quote: Mapped[str] = mapped_column(Text)
+
+
+# ─────────────────────────────────────────────────────────────────
+# 초안 집필 (plan/16 · F6 · G 계층)
+#
+# **양식 쪽과 위키 쪽을 잇는 자리다.** ADR-0028 이 결과 절에 "이 매핑은 아직
+# 없다 … 둘을 잇는 일은 아직 계획이 없다" 고 적어 둔 그것이다.
+# ─────────────────────────────────────────────────────────────────
+
+
+class ItemNeed(Base):
+    """이 항목을 쓰려면 위키의 **어느 자리**가 필요한가 (plan/16 T-0063).
+
+    **회사와 무관하다.** `document` 가 콘텐츠 주소(sha256)라 한 번 계산하면 그 양식을
+    쓰는 **모든 공고·모든 회사가 쓴다.** 그래서 `company_id` 가 없다 — 넣으면 같은
+    양식을 회사 수만큼 다시 물어야 한다.
+
+    여기서 F6-6(못 채운 곳)이 계산된다. `place` 중에 위키가 못 채운 것이 곧
+    "이 항목에 필요한데 없는 것" 이다.
+    """
+
+    __tablename__ = "item_need"
+    __table_args__ = (
+        UniqueConstraint("document_item_id", "place", name="uq_item_need_item_place"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    document_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document_item.id", ondelete="CASCADE"), index=True
+    )
+    #: `wiki/topics.py` 의 슬롯 이름 또는 노드 이름. **그 표 밖의 값을 넣지 않는다**
+    place: Mapped[str] = mapped_column(String(32))
+    #: `slot` 또는 `node`. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
+    place_kind: Mapped[str] = mapped_column(String(16))
+    #: 없으면 이 항목을 아예 못 쓰는가. 있으면 좋은 것과 가른다
+    required: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ItemOverlap(Base):
+    """같은 이야기를 부를 항목 쌍 (plan/16 T-0063).
+
+    포항시 양식의 `2-1 사업수행 배경 및 목적`과 `2-2 지원필요성`이 그 예다 —
+    **두 지시문에 "필요성" 이 둘 다 있다.** 항목을 독립으로 쓰면 같은 문단이 두 번 나온다.
+
+    **금지 대상은 사실 공유가 아니라 서사 재사용이다.** 그래서 "쓰지 마라" 가 아니라
+    "겹칠 수 있다" 만 적어 두고, 무엇을 누가 맡을지는 회사 사실을 보고 T-0064 가 정한다.
+    """
+
+    __tablename__ = "item_overlap"
+    __table_args__ = (UniqueConstraint("a_item_id", "b_item_id", name="uq_item_overlap_pair"),)
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+    #: **항상 작은 id 가 a 다.** 안 그러면 같은 쌍이 두 줄로 들어온다
+    a_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document_item.id", ondelete="CASCADE")
+    )
+    b_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document_item.id", ondelete="CASCADE")
+    )
+    #: 무엇이 겹치나. 사람이 읽고 판단하는 자리다
+    note: Mapped[str] = mapped_column(Text)
+
+
+class Draft(Base):
+    """한 회사가 공고 하나에 대해 쓴 초안 한 벌 (plan/16 T-0065).
+
+    **배분 결과를 여기 든다.** 안 들면 항목 하나를 재작성할 때 배분을 잊고 다시
+    겹친다(T-0064). `allotment` 는 `{항목 id: [사실 id]}` 이고, **사람이 읽을 것이
+    아니라 재작성이 읽을 것**이라 JSON 으로 둔다.
+
+    공고와 문서를 둘 다 든다. 문서(양식)는 콘텐츠 주소라 여러 공고에 붙고, 초안은
+    **공고 하나에 대한 것**이다 — 같은 양식이라도 공고가 다르면 넣을 금액과 마감이
+    다르다.
+    """
+
+    __tablename__ = "draft"
+    __table_args__ = (
+        UniqueConstraint("company_id", "notice_id", "document_id", name="uq_draft_target"),
+        Index("ix_draft_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    company_id: Mapped[str] = mapped_column(String(64), index=True)
+    #: `notice` 뷰의 공고 식별자. **뷰라서 FK 를 못 건다**
+    notice_id: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16))
+    document_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+
+    #: `{항목 id: [사실 id]}`. **재작성이 읽는다**
+    allotment: Mapped[dict] = mapped_column(_JSON, default=dict)
+    #: 무엇이 배분했나. `llm/<모델>` · `none`(다툰 것이 없어 안 불렀다)
+    allotted_by: Mapped[str | None] = mapped_column(String(32))
+
+    started_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DraftItemStatus(enum.StrEnum):
+    """항목 하나의 상태. **넷이다**(ADR-0028 결과 절 · plan/16).
+
+    `STALE` 이 이 표의 요점이다. 답변 하나가 여러 항목을 낡게 만드는데, 물어본
+    항목만 고치면 나머지에 `[확인 필요]` 가 남아 모순이 되고, 전부 자동으로 고치면
+    F1-5-5("자동으로 고치지 않는다")를 어긴다. **낡았다고 표시만 하고 제안한다.**
+    """
+
+    #: 위키에 재료가 없어 못 썼다. **F6-6 이 가리키는 자리** — 여기만 물어본다
+    BLANK = "blank"
+    #: 쓸 자리가 아니다. 상위 묶음이거나 사업 내용을 안 쓰는 자리다 —
+    #: T-0063 이 필요한 자리를 0개로 읽었다. **`blank` 와 섞으면 화면이 묶음을
+    #: 가리키며 "알려주세요" 라고 한다**(실측: 못 채움 7 중 3이 이것이었다)
+    NO_NEEDS = "no_needs"
+    #: 위키에는 있는데 **다른 항목이 그 사실을 맡았다**(T-0064 배분).
+    #: 물어볼 자리가 아니다 — "그 얘기는 6번에 썼어요" 라고 말할 자리다
+    YIELDED = "yielded"
+    #: **재료는 받았는데 글이 안 나왔다.** 모델이 빈 답을 냈거나, 낸 문단이
+    #: 전부 버려졌다(근거를 안 적었거나 재료 밖 값만 있었다).
+    #: 물어볼 자리가 아니다 — **집필이 실패한 자리다.** `blank` 와 섞으면
+    #: 사용자에게 이미 준 정보를 또 달라고 한다
+    UNWRITTEN = "unwritten"
+    #: 문서 근거로 썼다
+    DRAFTED = "drafted"
+    #: 사용자 답변(`user_stated`)이 들어간 문단이 있다
+    ANSWERED = "answered"
+    #: 근거가 된 사실이 바뀌었다. **자동으로 안 고친다**
+    STALE = "stale"
+
+
+class DraftItem(Base):
+    """항목 하나의 초안 (plan/16 T-0065).
+
+    **`wiki_fact` 와 같은 자리다.** 재작성·실패·질문의 단위가 전부 항목이라
+    (ADR-0028 3번 · ADR-0015 결과 절) 문서 단위로 들면 셋 다 안 된다.
+
+    `body` 가 비어 있어도 행을 만든다. **`blank` 인 항목이 화면에서 사라지면
+    적립 루프의 입구가 없어진다** — 못 쓴 자리를 보여 주는 것이 F6-6 이다.
+    """
+
+    __tablename__ = "draft_item"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "document_item_id", name="uq_draft_item_target"),
+        Index("ix_draft_item_status", "draft_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    draft_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("draft.id", ondelete="CASCADE"), index=True
+    )
+    document_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("document_item.id", ondelete="CASCADE")
+    )
+    ordinal: Mapped[int] = mapped_column(Integer)
+
+    status: Mapped[str] = mapped_column(String(16), default=str(DraftItemStatus.BLANK))
+    #: 문단을 `\n\n` 으로 이은 본문. **비어 있어도 행은 남는다**
+    body: Mapped[str] = mapped_column(Text, default="")
+
+    #: 필요한데 위키에 없는 자리. **F6-6 이 이걸 읽는다**
+    missing: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 있으면 좋은데 없는 자리. 물어볼 목록의 뒷줄
+    missing_optional: Mapped[list] = mapped_column(_JSON, default=list)
+
+    #: `llm/<모델>`. 무엇이 썼나
+    written_by: Mapped[str | None] = mapped_column(String(32))
+    #: 이 항목만 실패했다. **나머지는 남는다**(ADR-0015)
+    error: Mapped[str | None] = mapped_column(Text)
+    written_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DraftEvidence(Base):
+    """문단 하나가 어디서 나왔나 (plan/16 T-0065 · F6-13).
+
+    **`wiki_evidence` 를 그대로 베꼈다.** 이름만 다르다.
+
+    `fact_id` 를 드는 것이 요점이다. 그 사실이 갱신될 때 **어느 항목이 낡았는지
+    계산된다** — [ADR-0028](../../docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)
+    4번의 파급 관리가 이 컬럼 하나에 달려 있다. **나중에 붙일 수 없다**(ADR-0014).
+
+    `chunk_id` 는 [T-0067](../draft/dedupe.py) 이 읽는다. 두 항목이 같은 청크를
+    근거로 들면 **코드가 중복을 안다** — 검사기를 따로 안 만드는 이유다.
+    """
+
+    __tablename__ = "draft_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "draft_item_id", "paragraph", "fact_id", name="uq_draft_evidence_para_fact"
+        ),
+        Index("ix_draft_evidence_chunk", "chunk_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    draft_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("draft_item.id", ondelete="CASCADE"), index=True
+    )
+    #: 몇 번째 문단인가. 0부터
+    paragraph: Mapped[int] = mapped_column(Integer)
+
+    fact_id: Mapped[int] = mapped_column(_PK, ForeignKey("wiki_fact.id", ondelete="CASCADE"))
+    #: 그 사실의 근거 청크. **없을 수 있다** — 사용자 답변(`user_stated`)은 청크가 없다
+    chunk_id: Mapped[int | None] = mapped_column(
+        _PK, ForeignKey("chunk.id", ondelete="CASCADE")
+    )
+    #: `document` · `user_stated`. 화면이 근거 줄에서 **글자로** 가른다(ADR-0028 결과 절)
+    source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
+
+
+# ─────────────────────────────────────────────────────────────────
+# 맞는 공고 고르기 (plan/17 · F3 · M 계층)
+#
+# **LLM 이 회사 쪽을 안 본다.** `notice_profile` 에 `company_id` 가 없는 것이
+# 이 세 표의 전부다 — 공고를 한 번 읽으면 회사 수와 무관하게 모두가 쓴다.
+# ─────────────────────────────────────────────────────────────────
+
+
+class NoticeProfile(Base):
+    """공고 하나가 **누구를 찾나** (plan/17 T-0070).
+
+    **회사와 무관하다.** `item_need` 가 `company_id` 를 안 드는 것과 같은 이유고,
+    그래서 LLM 호출이 회사 수와 무관해진다 — 회사가 1,000개여도 709회다.
+
+    ## 캐시 키가 `content_hash` 가 아니다
+
+    기업마당은 조회수(`inqireCo`)가 `content_hash` 재료라 **재수집마다 1,538건
+    전부가 '변경'** 이다. 거기 걸면 매번 전량을 다시 뽑는다. `body_hash` 는
+    **판정에 실제로 쓰는 본문만** 해싱한 값이라 조회수가 올라도 안 바뀐다.
+
+    ## 제목의 지역 태그를 안 담는다
+
+    실측으로 틀렸다 — `[경기]` 46건 중 성남시가 **2건**이고 나머지는 김포·화성·
+    안양·시흥·안산·용인이다. 그리고 태그 없는 205건 안에 수성알파시티(대구)와
+    제주형 그린바이오가 섞여 있다. **광역 태그는 시·군 사업을 가리고, 태그 없음은
+    전국을 뜻하지 않는다.** 그래서 지역을 본문에서 뽑는다.
+    """
+
+    __tablename__ = "notice_profile"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_notice_profile_notice"),
+        Index("ix_notice_profile_body", "body_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+    #: 판정에 쓰는 본문만의 해시. **`content_hash` 가 아니다** — 위 docstring 참고
+    body_hash: Mapped[str] = mapped_column(String(64))
+
+    #: 신청 가능한 지역. **시·군까지.** 빈 배열이면 제한 없음(전국)
+    regions: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 요구하는 업종. 빈 배열이면 무관
+    industries: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 그 밖의 요구. `만 39세 이하` · `프로토타입 필요` · `기수혜 제외`
+    conditions: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 취지 키워드. **⑤ 가 사업 내용 노드와 겹쳐 본다**
+    keywords: Mapped[list] = mapped_column(_JSON, default=list)
+    #: 하려는 일 한 문장. 이유 템플릿의 앞부분이 된다
+    purpose: Mapped[str] = mapped_column(Text, default="")
+
+    #: `llm/<모델>`. 무엇이 뽑았나 — 바꿔 돌릴 때 차이를 본다
+    decided_by: Mapped[str] = mapped_column(String(32))
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class FitVerdict(enum.StrEnum):
+    """적합도 등급. **셋뿐이고 점수가 없다.**
+
+    연속값을 만들면 화면에 안 내도 **설명할 눈금이 없는 순서**가 된다.
+    `Fact` 에 `confidence` 를 안 넣은 것과 같은 이유다(plan/12 구상도와의 차이).
+    """
+
+    #: 취지 키워드가 사업 내용 노드와 겹쳤다
+    MATCH = "맞다"
+    #: 분야는 맞는데 취지가 안 겹쳤다
+    MAYBE = "애매"
+    #: 겹친 것이 없다. **추천에 안 올린다**
+    MISS = "아니다"
+    #: `notice_profile` 이 없어 판정하지 않았다. **`아니다` 와 섞으면 안 된다** —
+    #: 저쪽은 봤는데 안 맞는 것이고 이쪽은 아직 안 본 것이다(`SPEC.md` F3-1-5)
+    UNKNOWN = "확인 필요"
+
+
+class NoticeFit(Base):
+    """이 회사에게 이 공고가 맞나 (plan/17 T-0074).
+
+    **자격(M1)은 여기 없다.** 못 넘은 공고는 행을 만들지 않는다 — 재계산이
+    29,789건에 0.36초라 저장이 손해다. 여기 앉는 것은 **이유 문장과 근거 링크**뿐이다.
+    """
+
+    __tablename__ = "notice_fit"
+    __table_args__ = (
+        UniqueConstraint("company_id", "source", "external_id", name="uq_notice_fit_target"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    #: **유니크 제약의 첫 열이라 인덱스를 따로 안 만든다.** 회사로 훑는 질의가
+    #: 그 제약의 앞부분만 써도 인덱스를 탄다
+    company_id: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+
+    verdict: Mapped[str] = mapped_column(String(16))
+    #: 화면에 나가는 한 줄. **템플릿이 만든다**(T-0074). 비면 추천에 안 올린다
+    reason: Mapped[str] = mapped_column(Text, default="")
+    #: ④ 분야 대조가 맞았나. 같은 등급 안의 순서를 이걸로 먼저 가른다
+    sector_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: 겹친 취지 키워드. **화면에 안 쓴다** — 왜 그 순서인지 되짚을 때 읽는다
+    matched: Mapped[list] = mapped_column(_JSON, default=list)
+
+    computed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class NoticeFitEvidence(Base):
+    """그 이유가 어느 사실에서 나왔나 (plan/17 T-0074).
+
+    **`fact_id` 를 드는 것이 요점이다.** 그 사실이 갱신될 때 어느 추천이 낡았는지
+    계산된다 — `draft_evidence` 와 같은 자리고 **나중에 붙일 수 없다**(ADR-0014).
+    """
+
+    __tablename__ = "notice_fit_evidence"
+    __table_args__ = (
+        UniqueConstraint("fit_id", "fact_id", name="uq_notice_fit_evidence_fact"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    fit_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("notice_fit.id", ondelete="CASCADE"), index=True
+    )
+    fact_id: Mapped[int] = mapped_column(_PK, ForeignKey("wiki_fact.id", ondelete="CASCADE"))

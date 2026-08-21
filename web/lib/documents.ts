@@ -44,6 +44,32 @@ export type NoticeDocuments = {
   undecided?: number;
 };
 
+/** API 가 주는 항목. `api.ts` 의 `ApiFormItem` 과 구조가 같다.
+ *
+ * 여기 다시 적는 이유는 이 파일이 `api.ts` 를 안 부르기 때문이다 — 매핑 함수가
+ * 전송 계층을 임포트하면 픽스처로 화면을 세울 때도 그것이 따라온다. */
+type ApiItem = {
+  number: string | null;
+  title: string;
+  instruction: string | null;
+  limit_text: string | null;
+  input_kind: string;
+  children: ApiItem[];
+};
+
+/** 항목 하나. **트리째 내려간다** — 자식을 버리면 `2 추진배경 및 목표` 가 잎이 되고,
+ * 쓰는 칸이 가지에 붙는다(`FormFill` 의 `leafKeys`). */
+function toItem(i: ApiItem): FormItem {
+  return {
+    number: i.number,
+    title: i.title,
+    instruction: i.instruction,
+    limitText: i.limit_text,
+    inputKind: (i.input_kind as InputKind) ?? "field",
+    children: (i.children ?? []).map(toItem),
+  };
+}
+
 /** API 응답을 화면 모양으로. **매핑은 여기 한 곳에만 둔다.**
  *
  * 계약이 snake_case 고 화면은 camelCase 라 어디선가 한 번은 바뀐다. 그 자리를
@@ -56,13 +82,7 @@ export function fromApi(
       kind: string;
       filename: string;
       url: string | null;
-      items: {
-        number: string | null;
-        title: string;
-        instruction: string | null;
-        limit_text: string | null;
-        input_kind: string;
-      }[];
+      items: ApiItem[];
     }[];
     submit_hint: string[];
     undecided: number;
@@ -76,14 +96,7 @@ export function fromApi(
       title: d.title,
       kind: d.kind === "fields" ? "fields" : "narrative",
       attachment: { filename: d.filename, url: d.url },
-      items: d.items.map((i) => ({
-        number: i.number,
-        title: i.title,
-        instruction: i.instruction,
-        limitText: i.limit_text,
-        inputKind: (i.input_kind as InputKind) ?? "field",
-        children: [],
-      })),
+      items: d.items.map(toItem),
     })),
     submitHint: api.submit_hint.length > 0 ? api.submit_hint : null,
     undecided: api.undecided,

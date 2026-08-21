@@ -1,3 +1,8 @@
+/* 첨부 해독 상태. S5 상세에만 쓴다.
+ *
+ * 2026-08-21 보조 글자가 `--t-small`(13px 고정)에서 `--t-aux`(넓으면 13 · 좁으면 16)로
+ * 갔다(ADR-0044). **폰에서 13px 산문이 나가던 자리 중 하나다.** */
+
 .section {
   padding: var(--s5);
   background: var(--surface);
@@ -20,12 +25,12 @@
 }
 
 .summary {
-  font-size: var(--t-small);
+  font-size: var(--t-aux);
   color: var(--ink-2);
 }
 
 .none {
-  font-size: var(--t-small);
+  font-size: var(--t-aux);
   color: var(--ink-3);
 }
 
@@ -47,8 +52,8 @@
 
 .name {
   min-width: 0;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   overflow-wrap: anywhere;
 }
 

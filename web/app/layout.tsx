@@ -1,5 +1,26 @@
 import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Sans_KR } from "next/font/google";
 import "./globals.css";
+
+/** 제품 서체(ADR-0043). **CDN 을 부르지 않는다** — 빌드 때 받아 같은 도메인에서
+ * 내보내므로 Google Fonts 가 죽어도 화면이 시스템 고딕으로 안 튄다.
+ *
+ * 굵기 셋만 받는다 — 400 본문 · **500 목록 제목**(ADR-0045) · 600 섹션 제목.
+ * 700 은 `--w-bold` 가 쓰지만 받지 않는다. 없는 굵기는 브라우저가 합성하고,
+ * 한글에서 합성 굵기는 획이 뭉개진다 — **700 을 쓰는 자리를 줄이는 것이 답이지
+ * 굵기를 하나 더 받는 것이 답이 아니다.**
+ *
+ * `subsets` 에 `korean` 을 넣지 않는다. Google 이 한글을 unicode-range 로 100 조각
+ * 넘게 잘라 주는데, 넣으면 그 전부에 preload 가 붙어 첫 화면이 느려진다.
+ * 조각들의 `@font-face` 는 어차피 CSS 에 다 들어오므로 **글자는 그대로 나온다.**
+ *
+ * 값은 `--font-plex` 로 나가고 스택은 `tokens.css` 의 `--font-sans` 가 만든다. */
+const plex = IBM_Plex_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-plex",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "라스트마일 — 지원사업",
@@ -45,7 +66,7 @@ export const viewport: Viewport = {
  * 루트 레이아웃이 html·body 와 토큰만 갖고, 헤더와 `main` 은 각 층이 가진다. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={plex.variable}>
       <body>{children}</body>
     </html>
   );

@@ -1,21 +1,56 @@
-/* 상단 내비. 시연의 `.nav` 를 옮긴 것이고 어긴 곳은 아래 주석에 적었다.
+/* 제품 껍데기. **폭에 따라 3축의 자리가 바뀐다**
+ * (ADR-0042 좌측 레일 · ADR-0047 브레이크포인트 · DESIGN.md §5).
  *
- * 막대는 화면 끝까지 가고 안쪽만 900px 로 묶는다. 흰 면과 아래 선 하나뿐이고
- * 그림자를 주지 않는다 — 흐르는 요소라 §6 가 경계선을 쓰라고 한다. */
+ * **모바일 우선이다.** 좁은 쪽이 기본 규칙이고 넓은 쪽이 아래에서 `min-width` 로
+ * 얹힌다. 반대로 쓰면 브레이크포인트 밖 화면에서 조밀한 쪽이 새고, 그쪽이 더 위험하다.
+ *
+ * **좁은 화면 규칙(`max-width`)을 기본 규칙 뒤에 둔다.** 앞에 두면 뒤에 오는
+ * shorthand 가 덮는다 — `@media` 안의 `padding-left` 를 뒤의 `padding: 24px 24px 64px`
+ * 이 지운다. 시안을 만들면서 실제로 밟은 함정이다.
+ *
+ * **회색 캔버스 + 흰 카드를 그대로 둔다.** 시안은 본문을 희게 하고 크롬을 회색으로
+ * 뒤집지만, 그것은 APPLY.md 가 옮기라고 한 여섯에 없고 ADR 도 없다. 뒤집으면
+ * `/wiki` · `/documents` 의 흰 카드가 흰 바탕에 묻힌다 — 이 작업이 안 본 화면들이다. */
+
+/* ── 껍데기 ─────────────────────────────────────────── */
+
+/* 좁은 화면에서는 그리드가 아니다. 레일이 없으니 칸도 없다 */
+.app {
+  display: block;
+}
+
+/* 레일은 넓은 화면에서만 뜬다. **기본이 꺼짐이다** */
+.rail {
+  display: none;
+}
+
+.col {
+  /* 그리드 자식은 `min-width: auto` 라 긴 내용이 칸을 밀어낸다.
+   * 넓은 화면에서만 그리드지만 여기 적어 둔다 — 저기서만 적으면 못 보고 지나친다 */
+  min-width: 0;
+}
+
+/* ── 상단 막대 ──────────────────────────────────────── */
 
 .bar {
   background: var(--surface);
   border-bottom: 1px solid var(--line);
+  /* 흐르는 요소라 그림자 대신 아래 선 하나다(§6) */
+  position: sticky;
+  top: 0;
+  /* 하단 탭 바(10)보다 낮다. 겹치는 일은 없지만 순서를 못 박아 둔다 */
+  z-index: 5;
   /* 설치본에서 상태 막대 밑으로 들어가지 않게. **흰 면이 위로 늘어난다** —
    * 막대에 주는 것이 맞고 `.inner` 에 주면 아래 선까지 같이 내려간다.
-   * 브라우저에서는 이 값이 0 이라 아무 일도 안 일어난다 (layout.tsx `viewportFit`) */
+   * 브라우저에서는 이 값이 0 이라 아무 일도 안 일어난다 (app/layout.tsx `viewportFit`) */
   padding-top: env(safe-area-inset-top);
 }
 
+/* 첫째 단. 브랜드 · 3축(중간 폭에서만) · 운영 도구 */
 .inner {
-  max-width: 900px;
+  max-width: 1040px;
   margin: 0 auto;
-  height: 64px;
+  height: 56px;
   padding-left: max(var(--s5), env(safe-area-inset-left));
   padding-right: max(var(--s5), env(safe-area-inset-right));
   display: flex;
@@ -23,7 +58,12 @@
   gap: var(--s6);
 }
 
-/* 시연은 17px / -.03em 이다. 스케일에 17 이 없어서 --t-lead(19px) 로 올렸다.
+/* 둘째 단. **넓은 화면에서만 뜬다** — 축이 레일로 내려가 첫째 단이 비어서다 */
+.tier2 {
+  display: none;
+}
+
+/* 시연은 17px / -.03em 이다. 스케일에 17 이 없어서 --t-lead(16px) 를 쓴다.
  * 자간은 로고타입이라 24px 미만에도 준다 — §3 의 본문 규칙과 다른 물건이다 */
 .brand {
   display: flex;
@@ -50,15 +90,14 @@
   background: var(--ink);
 }
 
+/* 3축이 상단에 있는 폭은 641~1023px 하나뿐이다.
+ * 위로는 레일이, 아래로는 탭 바가 맡는다 */
 .menu {
   display: flex;
   gap: var(--s5);
   min-width: 0;
 }
 
-/* 시연은 15px / 500 이다. 둘 다 스케일에 없어서 16px / 400 이 됐다 —
- * 옛 §10.2 가 '옮기지 않는다'고 적은 위반 둘이 바로 그것이다 —
- * 그 감사는 ADR-0041 이 시연을 값의 출처에서 빼면서 사라졌다 */
 .menu > a,
 .menu > span {
   font-size: var(--t-body);
@@ -86,6 +125,7 @@
  * --ink-3 에 opacity .45 를 겹치면 안 보이는 회색이 되고,
  * 흐리기 없이 --ink-3 로 두면 **누를 수 있는 항목과 구분이 안 된다.** */
 .menu > .soon,
+.rail > .railNav > .soon,
 .tabs > .soon {
   color: var(--ink-4);
   opacity: 1;
@@ -99,8 +139,9 @@
  * 색은 --ink-3 과 --line-2 뿐이다 — UI 크롬에 색을 쓰지 않는다(§7).
  * 13px 은 제품 내비(16px)보다 작다. 사용자 것이 아니라는 뜻이다.
  *
- * `admin/layout.module.css` 의 `.back` 이 같은 모양이다. 반대 방향으로 나가는 문이라
- * 짝이 맞아야 한다 — 토큰이 같으니 값이 갈리지 않는다. */
+ * **--t-aux 를 안 쓴다.** 이 13px 은 폭이 좁아서 작은 게 아니라 사용자 것이
+ * 아니라서 작은 것이다. 넓은 화면에서 제품 글자가 13px 로 내려가면 이 대비가
+ * 사라지므로 아래 min-width 블록에서 12px 로 한 칸 더 내린다. */
 .admin {
   margin-left: auto;
   flex: none;
@@ -119,29 +160,40 @@
   border-color: var(--ink-4);
 }
 
+/* ── 본문 ──────────────────────────────────────────── */
+
 .main {
-  max-width: 900px;
+  max-width: 1040px;
+  /* **`width: 100%` 를 같이 준다.** 넓은 화면에서 이 요소가 그리드 칸 안에 있고,
+   * `margin: 0 auto` 가 `justify-self: stretch` 를 덮으면 shrink-to-fit 이 되어
+   * `max-width` 가 아예 안 걸린다 — 1,369px 칸에서 713px 로 쪼그라든다 */
+  width: 100%;
   margin: 0 auto;
-  padding: var(--s7) max(var(--s5), env(safe-area-inset-left)) var(--s8)
+  padding: var(--s5) max(var(--s5), env(safe-area-inset-left)) var(--s8)
     max(var(--s5), env(safe-area-inset-right));
 }
 
-/* 하단 탭 바. **넓은 화면에는 없다** — 아래 미디어 쿼리가 켠다.
+/* ── 하단 탭 바 ─────────────────────────────────────── */
+
+/* **넓은 화면에는 없다** — 아래 미디어 쿼리가 켠다.
  *
  * 상단의 `.menu` 와 같은 배열을 그리고 같은 토큰을 쓴다. 활성 표시도 같다 —
- * 색과 굶기뿐이고 밑줄이나 표시선을 새로 만들지 않는다. 표시 방법이 위아래에서
+ * 색과 굵기뿐이고 밑줄이나 표시선을 새로 만들지 않는다. 표시 방법이 자리마다
  * 다르면 같은 메뉴로 안 읽힌다. */
 .tabs {
   display: none;
 }
 
-/* 폰. **기준이 뷰포트 폭 하나다** — standalone 을 따로 보지 않는다.
+/* ── ≤640px 폰 ─────────────────────────────────────── */
+
+/* **기준이 뷰포트 폭 하나다** — standalone 을 따로 보지 않는다.
  *
  * `(display-mode: standalone)` 을 같이 걸면 데스크톱에 설치한 창에도 하단 바가 깔린다.
  * 아래로 내리는 이유가 '엄지가 안 닿는다'인데 1,200px 창에는 그 이유가 없다.
  * 폰은 설치했든 안 했든 어차피 640 아래다.
  *
- * 640px 은 이 레포가 이미 쓰는 경계다 — `NoticeRow` · `WikiBoard` · `FormFill` 등 아홉 곳. */
+ * 640px 은 이 레포가 이미 쓰는 경계다 — `NoticeRow` · `WikiBoard` · `FormFill` 등
+ * 아홉 곳. 근거는 2026-08-21 ADR-0047 이 붙였다. */
 @media (max-width: 640px) {
   /* 탭 바 높이와 포커스 링 여백. **두 곳이 읽어야 해서 변수로 둔다** —
    * `.tabs` 가 높이를 정하고 `.main` 이 그만큼 아래를 비운다. 리터럴을 양쪽에 적으면
@@ -150,8 +202,7 @@
    * `--tabbar-pad` 가 8px 을 바닥으로 두는 이유는 안전영역이 아니라 **포커스 링**이다.
    * `globals.css` 의 링이 테두리에서 5px(2px 선 + 3px 오프셋) 밖으로 나가는데,
    * 막대가 뷰포트 맨 아래에 붙어 있어서 그만큼이 안 그려진다. 안전영역이 0인 기기
-   * (안드로이드 전부 · 노치 없는 폰 · 640px 데스크톱 창)가 전부 여기 해당한다.
-   * 링이 반만 보이면 §3-9 가 막으려던 그 상황이다. */
+   * (안드로이드 전부 · 노치 없는 폰 · 640px 데스크톱 창)가 전부 여기 해당한다. */
   :global(:root) {
     --tabbar-h: 56px;
     --tabbar-pad: max(var(--s2), env(safe-area-inset-bottom));
@@ -162,13 +213,20 @@
     display: none;
   }
 
-  /* 3축이 내려가면 위에 남는 조작 요소가 이 둘뿐이다(§12.2 표). **둘 다 28px 였다** —
-   * §8.2 가 44px 이상을 요구한다. 글자 크기는 그대로 두고 높이만 준다 */
+  /* 3축이 내려가면 위에 남는 조작 요소가 이 둘뿐이다. **둘 다 28px 였다** —
+   * §5 가 44px 이상을 요구한다. 글자 크기는 그대로 두고 높이만 준다 */
   .brand,
   .admin {
     min-height: 44px;
     display: flex;
     align-items: center;
+  }
+
+  /* 폰에서는 양옆을 16px 로 줄인다. 24px 은 390px 화면에서 본문의 12% 다 */
+  .inner {
+    padding-left: max(var(--s4), env(safe-area-inset-left));
+    padding-right: max(var(--s4), env(safe-area-inset-right));
+    gap: var(--s4);
   }
 
   .tabs {
@@ -179,7 +237,7 @@
     left: 0;
     z-index: 10;
     background: var(--surface);
-    /* §4.4 — 흐름 밖이지만 막대다. 그림자 대신 선 하나 */
+    /* §4 — 흐름 밖이지만 막대다. 그림자 대신 선 하나 */
     border-top: 1px solid var(--line);
     /* 홈 인디케이터에 깔리지 않게, 그리고 포커스 링이 그려질 자리를 남긴다.
      * 안쪽 여백이라 **흰 면이 아래로 늘어난다** */
@@ -194,7 +252,7 @@
   .tabs > a,
   .tabs > span {
     flex: 1;
-    /* §8.2 터치 타깃 44px 이상. 56 은 그 위다 */
+    /* §5 터치 타깃 44px 이상. 56 은 그 위다 */
     min-height: var(--tabbar-h);
     display: flex;
     align-items: center;
@@ -208,7 +266,7 @@
   }
 
   /* 640px 짜리 데스크톱 창에는 마우스가 있다. **위 막대에만 호버가 있으면
-   * 641px 에서 되던 것이 640px 에서 안 된다** — §12.2 가 표시를 위와 같이 하라고 했다 */
+   * 641px 에서 되던 것이 640px 에서 안 된다** */
   .tabs > a:hover {
     color: var(--ink-2);
   }
@@ -220,9 +278,132 @@
     font-weight: var(--w-bold);
   }
 
-  /* 탭 바가 본문 끝을 가린다. **`--s8` 위에 막대 높이와 안전영역을 더한다** —
-   * 이게 없으면 마지막 줄이 막대 밑에 영원히 남는다 */
+  /* 폰에서는 양옆을 16px 로 줄이고, 탭 바가 본문 끝을 가리는 만큼 아래를 비운다.
+   * **`--s8` 위에 막대 높이와 안전영역을 더한다** — 이게 없으면 마지막 줄이
+   * 막대 밑에 영원히 남는다 */
   .main {
+    padding-left: max(var(--s4), env(safe-area-inset-left));
+    padding-right: max(var(--s4), env(safe-area-inset-right));
     padding-bottom: calc(var(--s8) + var(--tabbar-h) + var(--tabbar-pad));
+  }
+}
+
+/* ── ≥1024px 좌측 레일 + 상단 2단 ────────────────────── */
+
+/* 1024 는 관측 밖 값이다. 근거는 산수뿐 — 레일 60 + 콘텐츠 992 = 1052 가 들어갈
+ * 최소 폭(ADR-0047). 여기서 껍데기·행 구조·글자 크기가 한꺼번에 바뀐다. */
+@media (min-width: 1024px) {
+  .app {
+    display: grid;
+    /* 안전영역을 칸 폭에 더한다. 노치 있는 태블릿을 가로로 두면 왼쪽이 잘린다 */
+    grid-template-columns: calc(60px + env(safe-area-inset-left)) 1fr;
+    min-height: 100vh;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+    padding: var(--s3) 0;
+    padding-left: env(safe-area-inset-left);
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    /* 목록이 길어도 축은 따라온다. 그리드 칸이 전체 높이라 그 안에서 붙는다 */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .railMark {
+    display: block;
+    margin-bottom: var(--s4);
+  }
+
+  .railNav {
+    display: contents;
+  }
+
+  /* 44px 은 터치 타깃 하한이다(§5). 60px 레일에서 글자가 쓸 수 있는 폭은
+   * 좌우 4px 을 뺀 52px 이다.
+   *
+   * **`word-break: keep-all` 이 요점이다.** 없으면 한글이 아무 글자에서나 접혀
+   * '지원사' / '업' 이 된다. 걸어 두면 띄어쓰기에서만 접히므로 '신청 현황' 은
+   * '신청' / '현황' 두 줄이 되고 '지원사업' 은 한 줄로 남는다.
+   *
+   * 12px 은 시안의 11px 을 한 칸 올린 값이다. 11px 은 타입 스케일에 없는 단계이고,
+   * 그 단계를 쓰는 자리가 이 레일 하나뿐이라 만들지 않았다(ADR-0042). */
+  .rail > .railNav > a,
+  .rail > .railNav > span {
+    width: 100%;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0 var(--s1);
+    border-radius: var(--r-md);
+    font-size: var(--t-caption);
+    line-height: var(--lh-caption);
+    font-weight: var(--w-normal);
+    color: var(--ink-3);
+    text-align: center;
+    text-decoration: none;
+    word-break: keep-all;
+  }
+
+  .rail > .railNav > a:hover {
+    color: var(--ink-2);
+    background: var(--canvas);
+  }
+
+  /* 활성. `.menu` · `.tabs` 와 같은 표시 방법이다 — 색과 굵기뿐이다.
+   * 배경을 얹지 않는다. **그건 동작 버튼으로 읽히고 §4 의 "화면당 하나" 와
+   * 같은 자에 잡힌다** — 내비 상태이지 동작이 아니다 */
+  .rail > .railNav > a.on,
+  .rail > .railNav > a.on:hover {
+    color: var(--ink);
+    font-weight: var(--w-bold);
+    background: none;
+  }
+
+  /* 3축이 레일로 내려갔다. **상단에서 반드시 꺼진다** */
+  .menu {
+    display: none;
+  }
+
+  /* 두 단 다 화면 끝까지 간다. `main` 만 1040px 로 묶인다 —
+   * 막대는 크롬이고 본문은 읽는 것이라 같은 자를 안 댄다 */
+  .inner {
+    max-width: none;
+    height: 44px;
+  }
+
+  .tier2 {
+    display: flex;
+    align-items: center;
+    gap: var(--s4);
+    height: 44px;
+    padding-left: max(var(--s5), env(safe-area-inset-left));
+    padding-right: max(var(--s5), env(safe-area-inset-right));
+    border-top: 1px solid var(--line);
+    font-size: var(--t-aux);
+    line-height: var(--lh-aux);
+    color: var(--ink-2);
+  }
+
+  .crumb b {
+    color: var(--ink);
+    font-weight: var(--w-medium);
+  }
+
+  .sep {
+    margin: 0 var(--s2);
+    color: var(--ink-4);
+  }
+
+  /* 제품 글자가 13px 로 내려간 폭이다. 운영 도구가 같은 13px 이면
+   * "사용자 것이 아니다" 를 말하던 크기 대비가 사라진다 */
+  .admin {
+    font-size: var(--t-caption);
+    line-height: var(--lh-caption);
   }
 }

@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>R 적응 — 공고 목록·상세</title>
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      /* R 적응 — **넓으면 E, 좁으면 A.** 하나의 화면이 폭에 따라 다르게 선다.
+       *
+       * A 와 E 를 지우지 않고 새로 만든 이유: **양 끝이 있어야 중간을 판단할 수 있다.**
+       * R 이 좋으면 A·E 를 지우면 되고, R 이 어중간하면 R 을 지우면 된다.
+       *
+       * ── 1024px 위 (PC) : E 관제 ──────────────────────────────
+       *   좌측 아이콘 레일 60px + 상단 2단(글로벌 / 컨텍스트)
+       *   콘텐츠 992px · 4열 그리드 행 · 행 높이 39px · 보조 글자 13px
+       *
+       * ── 1024px 아래 (모바일·태블릿) : A 규범 ─────────────────
+       *   상단 1단(레일이 접혀 올라온다) · 콘텐츠 100%
+       *   크롬 없는 세로 스택 행 · 보조 글자까지 전부 16px
+       *
+       * **바뀌는 것이 껍데기만이 아니다.** 행 구조와 글자 크기가 같이 간다 —
+       * 좁은 화면에서 4열 그리드는 설 자리가 없고 13px 은 손가락으로 읽기에 작다.
+       *
+       * ── 대가 넷 ─────────────────────────────────────────────
+       *  1. **본문 최소 크기가 폭에 따라 달라진다**(13px ↔ 16px). §3 의 "본문은 16px
+       *     이상" 위반이 **넓은 화면에서만 켜진다** — 같은 제품이 폭에 따라 규칙을
+       *     지켰다 안 지켰다 한다. 이걸 없애려면 넓은 화면도 16px 로 올려야 하고,
+       *     그러면 E 의 조밀함(39px 행)이 사라진다.
+       *  2. **유지보수가 두 벌이다.** 행 마크업 하나를 두 가지로 그리므로 고칠 때마다
+       *     양쪽을 본다. 지금 이 파일의 CSS 가 A·E 를 합친 것보다 짧은 것은
+       *     `data.js` 를 공유하기 때문이지 구조가 단순해서가 아니다.
+       *  3. **브레이크포인트에서 인상이 튄다.** 1024px 을 넘나들면 레일이 나타났다
+       *     사라지고 행이 접혔다 펴진다. 창을 줄이는 사람에게는 다른 제품으로 보인다.
+       *  4. 1024px 은 **관측 밖 값이다.** §5 가 정한 간격은 4·8·12·16·24 이고
+       *     브레이크포인트를 정한 적이 없다. 이 숫자의 근거는 "레일 60 + 콘텐츠 992 =
+       *     1052 가 들어갈 최소 폭" 이라는 산수뿐이다.
+       *
+       * 제품 UI(리스트/격자)와 하네스 노브(제목 굵기)는 A·E 와 같다. */
+      :root {
+        --bg: #fff;
+        --bg-2: #f7f8fa;
+        --ink: #1f2328;
+        --muted: #6b7280;
+        --line: #e1e4e8;
+        --action: #000;
+        --urgent: #d92d20;
+        --r-sm: 4px;
+        --r-md: 6px;
+        --r: 8px;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          400 16px/1.45 "IBM Plex Sans KR",
+          Pretendard,
+          sans-serif;
+      }
+      [data-numeric],
+      .mono {
+        font-family: "IBM Plex Mono", monospace;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ══ 좁은 화면이 기본이다 (A 규범) ══════════════════════
+       * 모바일 우선으로 쓴다 — 좁은 쪽이 기본이고 넓은 쪽이 얹힌다.
+       * 반대로 쓰면 브레이크포인트 밖 화면에서 조밀한 쪽이 새는데,
+       * 그쪽이 더 위험하다(13px 이 폰에 나가는 것). */
+      .rail {
+        display: none;
+      }
+      .bar {
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        z-index: 2;
+      }
+      .tier1 {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 24px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        font-weight: 600;
+      }
+      /* 좁은 화면에서는 컨텍스트 줄을 접는다 — 수집 시각은 지금 결정에 안 쓰인다 */
+      .tier2 {
+        display: none;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+      }
+      .mark {
+        width: 18px;
+        height: 18px;
+        border-radius: var(--r-md);
+        background: var(--ink);
+      }
+      .menu {
+        display: flex;
+        gap: 16px;
+        font-weight: 400;
+      }
+      .menu a,
+      .menu span {
+        text-decoration: none;
+        color: var(--muted);
+      }
+      .menu .on {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .menu .soon {
+        color: #c2c8d0;
+      }
+      .admin {
+        margin-left: auto;
+        color: var(--muted);
+        text-decoration: none;
+        font-weight: 400;
+      }
+      main {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+      }
+      main {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 24px 24px 64px;
+      }
+      /* 좁은 화면에서는 숫자 밴드를 접는다 — 세 숫자가 세로로 쌓이면 첫 화면을 다 먹는다 */
+      .band {
+        display: none;
+      }
+
+      .sec + .sec {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .title {
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 1.3;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .n {
+        font-size: 16px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .sub {
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .hole {
+        margin-top: 12px;
+        color: var(--muted);
+      }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 12px;
+        padding: 0 20px;
+        background: var(--action);
+        color: #fff;
+        border-radius: var(--r-sm);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .filters {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 10px 16px;
+        color: var(--ink);
+      }
+      .chip[aria-pressed="true"] {
+        border-color: var(--ink);
+        font-weight: 600;
+      }
+      .search {
+        flex: 1 1 200px;
+        background: var(--bg-2);
+        border: 1px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 10px 16px;
+        font: inherit;
+        color: var(--ink);
+      }
+      .search::placeholder {
+        color: var(--muted);
+      }
+      .viewToggle {
+        margin-left: auto;
+        display: flex;
+      }
+      .vt {
+        width: 44px;
+        min-height: 44px;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .vt:first-child {
+        border-radius: var(--r-sm) 0 0 var(--r-sm);
+      }
+      .vt:last-child {
+        border-radius: 0 var(--r-sm) var(--r-sm) 0;
+        margin-left: -1px;
+      }
+      .vt[aria-pressed="true"] {
+        border-color: var(--ink);
+        color: var(--ink);
+        position: relative;
+        z-index: 1;
+      }
+      .vt svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      /* 행 — 좁은 화면: 세로 스택, 전부 16px
+       *
+       * **마크업 하나를 두 구조로 그린다.** 넓은 화면의 4열 그리드와 같은 자식 넷
+       * (마감 · 제목 · 기관 · 서류)을 여기서는 `flex-wrap` + `order` 로 다시 눕힌다.
+       * 마감이 한 줄, 제목이 한 줄, 기관과 서류가 한 줄을 나눠 쓴다.
+       *
+       * **처음엔 이 규칙 없이 그냥 flex 로 뒀다가 행 높이가 279px 로 터졌다** —
+       * 자식 넷이 390px 안에서 서로 밀며 접혔다. 좁은 화면은 넓은 화면 CSS 를
+       * 안 쓰면 되는 게 아니라 **제 규칙을 따로 가져야 한다.** */
+      .list {
+        margin-top: 16px;
+      }
+      .item {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        column-gap: 12px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .item:first-child {
+        border-top: 0;
+      }
+      .dl {
+        order: 1;
+        flex: 1 1 100%;
+      }
+      .body {
+        order: 2;
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .org {
+        order: 3;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .docs {
+        order: 4;
+      }
+      .dl {
+        color: var(--muted);
+      }
+      .dl.u {
+        color: var(--urgent);
+        font-weight: 600;
+      }
+      .itemTitle {
+        font-size: 16px;
+        font-weight: 400;
+      }
+      .itemTitle a {
+        text-decoration: none;
+      }
+      .itemTitle a:hover {
+        text-decoration: underline;
+      }
+      .org {
+        color: var(--muted);
+      }
+      .src {
+        display: none; /* 좁은 화면에서는 출처를 기관 줄에 합친다 */
+      }
+      .docs {
+        flex: none;
+        margin-left: auto;
+        text-align: right;
+        color: var(--muted);
+      }
+      .pager {
+        margin-top: 24px;
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        color: var(--muted);
+      }
+      .pager b {
+        color: var(--ink);
+      }
+
+      /* 격자 — A·E 와 같은 어법. 카드 채움·그림자·행마다 버튼은 없다 */
+      body[data-view="grid"] .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      body[data-view="grid"] .item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+      }
+      body[data-view="grid"] .body {
+        flex: none;
+      }
+      body[data-view="grid"] .docs {
+        width: auto;
+        text-align: left;
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      /* 아주 좁은 화면(폰)에서 상단 바가 두 줄로 터지는 것을 막는다.
+       *
+       * 390px 에 브랜드(106) + 3축(208) + 운영 도구(56) 가 다 안 들어가서
+       * **넷이 전부 두 줄로 접혔다.** 셋을 정리한다 —
+       *  · `운영 도구` 를 숨긴다. 제품 화면이 아니라 `SPEC.md` §6 밖의 도구다.
+       *  · 전부 `nowrap`. 이름이 접히면 무슨 축인지 못 읽는다.
+       *  · 그래도 넘치면 3축을 가로로 스크롤시킨다 — **잘라 버리지 않는다.**
+       *
+       * 640px 은 관측 밖 값이다. 근거는 위 1024px 과 같은 산수뿐이다. */
+      @media (max-width: 640px) {
+        .tier1 {
+          gap: 16px;
+          padding: 0 16px;
+        }
+        .tier1 > * {
+          white-space: nowrap;
+        }
+        .menu {
+          gap: 14px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .menu::-webkit-scrollbar {
+          display: none;
+        }
+        .tier1 .admin {
+          display: none;
+        }
+  
+      /* ══ 1024px 위 — E 관제로 갈아탄다 ═══════════════════════
+       * 1024 는 관측 밖 값이다. 근거는 산수뿐 — 레일 60 + 콘텐츠 992 = 1052 가
+       * 들어갈 최소 폭. 여기서 껍데기·행 구조·글자 크기가 한꺼번에 바뀐다. */
+      @media (min-width: 1024px) {
+        .app {
+          display: grid;
+          grid-template-columns: 60px 1fr;
+          min-height: 100vh;
+        }
+        .rail {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding: 12px 0;
+          border-right: 1px solid var(--line);
+          background: var(--bg-2);
+          position: sticky;
+          top: 0;
+          height: 100vh;
+        }
+        .rail .mark {
+          display: block;
+          margin-bottom: 16px;
+        }
+        .rail a,
+        .rail span {
+          display: grid;
+          place-items: center;
+          width: 44px;
+          height: 44px;
+          border-radius: var(--r-md);
+          color: var(--muted);
+          text-decoration: none;
+          font-size: 11px;
+          line-height: 1.15;
+          text-align: center;
+        }
+        .rail .on {
+          background: var(--bg-2);
+          color: var(--ink);
+          font-weight: 600;
+        }
+        .rail .soon {
+          color: #c2c8d0;
+        }
+
+        /* 상단이 2단이 되고 3축은 레일로 내려간다 — 같은 메뉴가 두 곳에 있으면 안 된다 */
+        .bar {
+          background: var(--bg-2);
+        }
+        .tier1 {
+          height: 44px;
+          max-width: none;
+        }
+        .tier1 .menu {
+          display: none;
+        }
+        .tier2 {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 0 24px;
+          height: 44px;
+          border-top: 1px solid var(--line);
+          color: var(--muted);
+          font-size: 13px;
+        }
+        .crumb b {
+          color: var(--ink);
+          font-weight: 600;
+        }
+        .sep {
+          color: #c2c8d0;
+        }
+        main {
+          max-width: 1040px;
+        }
+        .band {
+          display: flex;
+          gap: 40px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid var(--line);
+        }
+        .stat b {
+          display: block;
+          font-size: 32px;
+          font-weight: 500;
+          line-height: 1.2;
+        }
+        .stat span {
+          color: var(--muted);
+          font-size: 13px;
+        }
+        .stat.u b {
+          color: var(--urgent);
+        }
+        .sub {
+          font-size: 13px;
+        }
+
+        /* 행이 4열 그리드로 접힌다. 보조 글자가 13px 로 내려간다 */
+        .list {
+          margin-top: 12px;
+        }
+        .item {
+          display: grid;
+          grid-template-columns: 128px 1fr 92px 64px;
+          gap: 16px;
+          align-items: baseline;
+          padding: 8px 0;
+        }
+        /* 좁은 화면에서 준 order·flex 를 되돌린다.
+         * **안 되돌리면 그리드가 소스 순서를 안 따라 열이 어긋난다** */
+        .dl,
+        .body,
+        .org,
+        .docs {
+          order: 0;
+          flex: initial;
+          margin-left: 0;
+        }
+        /* `.body` 래퍼를 그리드에서 지운다 — `display: contents` 로 자식(제목)이
+         * 직접 칸이 된다.
+         *
+         * **이걸 안 하면 E 와 행 높이가 다르다.** 래퍼가 남으면 그리드 자식이
+         * blockify 되면서 baseline 정렬이 한 겹 더 생겨 **행이 39px 이 아니라 57px** 이
+         * 된다 — 46% 두꺼워지고 E 의 조밀함이 그만큼 사라진다. 좁은 화면에서는
+         * 그 래퍼가 "제목이 한 줄을 통째로 쓴다" 를 만드는 데 필요하므로 지울 수 없고,
+         * 그래서 폭마다 다르게 다룬다. */
+        .body {
+          display: contents;
+        }
+        .item:hover {
+          background: var(--bg-2);
+        }
+        .dl,
+        .org,
+        .src,
+        .docs {
+          font-size: 13px;
+        }
+        .src {
+          display: inline;
+        }
+        /* **제목만이 아니라 기관 줄도 잘라야 한다.** `.org` 칸이 92px 인데 거기
+         * "성남산업진흥원 · 기업마당" 이 들어가면 두 줄로 접히고, 그 한 줄이
+         * **행 높이를 39px 에서 57px 로 46% 밀어 올린다.** 좁은 화면에서는 접히는 게
+         * 맞으므로 이 규칙은 넓은 화면에만 건다. */
+        .itemTitle,
+        .org {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .docs {
+          width: auto;
+        }
+        .chip {
+          padding: 8px 14px;
+          color: var(--muted);
+        }
+        .chip[aria-pressed="true"] {
+          color: var(--ink);
+          font-weight: 400;
+        }
+        .search {
+          padding: 8px 14px;
+        }
+        .vt {
+          width: 38px;
+          min-height: 37px;
+        }
+        .vt svg {
+          width: 17px;
+          height: 17px;
+        }
+
+        body[data-view="grid"] .list {
+          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          gap: 8px;
+        }
+        body[data-view="grid"] .item {
+          gap: 2px;
+          padding: 12px;
+          border-radius: var(--r-sm);
+        }
+        body[data-view="grid"] .itemTitle {
+          overflow: visible;
+          text-overflow: clip;
+          white-space: normal;
+        }
+        body[data-view="grid"] .docs {
+          padding-top: 8px;
+        }
+      }
+
+      /* --- 상세 --- */
+      .back {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .h1 {
+        margin-top: 4px;
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .meta {
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .dlist {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 8px 16px;
+      }
+      .dlist dt {
+        color: var(--muted);
+      }
+      .sec2 {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .sTitle {
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .prose {
+        margin-top: 12px;
+        max-width: 62ch;
+      }
+      .prose p + p {
+        margin-top: 12px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .row:first-of-type {
+        border-top: 0;
+      }
+      .row em {
+        font-style: normal;
+        color: var(--muted);
+      }
+      .write {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 16px;
+        padding: 0 20px;
+        background: var(--action);
+        color: #fff;
+        border-radius: var(--r-sm);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .gap {
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .gapT {
+        font-weight: 600;
+      }
+      .gapW {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body data-screen="list" data-view="list" data-weight="500">
+    <div class="app">
+      <aside class="rail">
+        <a href="#" aria-label="라스트마일 홈"><i class="mark" aria-hidden="true"></i></a>
+        <nav aria-label="주요 메뉴 (넓은 화면)" style="display: contents">
+          <a class="on" href="#" aria-current="page">지원<br />사업</a>
+          <a href="#">내<br />사업</a>
+          <span class="soon" aria-disabled="true">신청<br />현황<span class="srOnly"> — 아직 없어요</span></span>
+        </nav>
+      </aside>
+
+      <div class="col">
+        <header class="bar">
+          <div class="tier1">
+            <a class="brand" href="#"><i class="mark" aria-hidden="true"></i>라스트마일</a>
+            <!-- 3축. 좁은 화면에서만 뜨고 넓은 화면에서는 레일이 맡는다.
+                 같은 메뉴가 두 곳에 있으면 안 되므로 한쪽은 반드시 꺼진다 -->
+            <nav class="menu" aria-label="주요 메뉴">
+              <a class="on" href="#" aria-current="page">지원사업</a>
+              <a href="#">내 사업</a>
+              <span class="soon" aria-disabled="true">신청 현황<span class="srOnly"> — 아직 없어요</span></span>
+            </nav>
+            <a class="admin" href="#">운영 도구</a>
+          </div>
+          <div class="tier2">
+            <span class="crumb">지원사업 <span class="sep">›</span> <b>전체 공고</b></span>
+            <span class="sep">|</span>
+            <span data-numeric>기업마당 1,538 · K-Startup 29,789</span>
+            <span class="admin" data-numeric>마지막 수집 2026-08-21 04:12</span>
+          </div>
+        </header>
+
+        <main>
+          <section class="screen s-list" id="list"></section>
+          <section class="screen s-detail" id="detail"></section>
+        </main>
+      </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      (function () {
+        var D = window.NOTICE_DATA,
+          c = D.copy,
+          t = D.detail;
+
+        var ICON = {
+          list:
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+            'stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+          grid:
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+            'aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/>' +
+            '<rect x="13" y="4" width="7" height="7" rx="1.5"/>' +
+            '<rect x="4" y="13" width="7" height="7" rx="1.5"/>' +
+            '<rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+        };
+
+        var soon = D.rows.filter(function (r) {
+          return D.urgent(r.d);
+        }).length;
+
+        document.getElementById("list").innerHTML =
+          '<h1 class="srOnly">지원사업</h1>' +
+          '<div class="band"><div class="stat"><b data-numeric>' +
+          D.n(c.total) +
+          "</b><span>열린 공고</span></div>" +
+          '<div class="stat u"><b data-numeric>' +
+          soon +
+          "</b><span>이번 주 마감</span></div>" +
+          '<div class="stat"><b data-numeric>2,827</b><span>글자를 읽은 첨부</span></div>' +
+          '<div class="stat"><b data-numeric>0</b><span>나에게 맞는 공고</span></div></div>' +
+          '<section class="sec"><h2 class="title">' +
+          c.recTitle +
+          '</h2><p class="sub">' +
+          c.recSub +
+          '</p><p class="hole">' +
+          c.recHole +
+          '</p><a class="cta" href="#">' +
+          c.upload +
+          "</a></section>" +
+          '<section class="sec"><h2 class="title">' +
+          c.allTitle +
+          '<span class="n" data-numeric>' +
+          D.n(c.total) +
+          '건</span></h2><p class="sub">' +
+          c.allSub +
+          '</p><div class="filters"><input class="search" placeholder="공고 이름으로 찾기" />' +
+          '<button class="chip" aria-pressed="true">전체</button>' +
+          '<button class="chip" aria-pressed="false">기업마당</button>' +
+          '<button class="chip" aria-pressed="false">K-Startup</button>' +
+          '<div class="viewToggle" role="group" aria-label="목록 형태">' +
+          '<button class="vt" data-v="list" aria-pressed="true" aria-label="리스트로 보기">' + ICON.list + "</button>" +
+          '<button class="vt" data-v="grid" aria-pressed="false" aria-label="격자로 보기">' + ICON.grid + "</button></div></div>" +
+          '<ul class="list">' +
+          D.rows
+            .map(function (r) {
+              return (
+                '<li class="item"><span class="dl' +
+                (D.urgent(r.d) ? " u" : "") +
+                '" data-numeric>' +
+                D.deadlineText(r.d) +
+                '</span><span class="body"><h3 class="itemTitle"><a href="#">' +
+                r.title +
+                '</a></h3></span><span class="org">' +
+                r.org +
+                /* 구분점을 `.src` **안에** 둔다. 밖에 두면 좁은 화면에서 출처를
+                   숨겼을 때 "성남산업진흥원 ·" 처럼 점만 남는다 */
+                '<span class="src"> · ' +
+                D.SRC[r.src] +
+                '</span></span><span class="docs" data-numeric>' +
+                (r.docs > 0 ? "서류 " + r.docs : "없음") +
+                "</span></li>"
+              );
+            })
+            .join("") +
+          '</ul><nav class="pager"><span>← 이전</span><b>1</b><span>2</span><span>3</span><span>다음 →</span></nav></section>';
+
+        function rowsOf(arr, right) {
+          return arr
+            .map(function (x) {
+              return '<div class="row"><span>' + x.name + "</span><em>" + right(x) + "</em></div>";
+            })
+            .join("");
+        }
+
+        document.getElementById("detail").innerHTML =
+          '<a class="back" href="#">' +
+          c.back +
+          '</a><p class="dl u" data-numeric style="margin-top:16px">' +
+          D.deadlineText(t.d) +
+          '</p><h1 class="h1">' +
+          t.title +
+          '</h1><p class="meta">' +
+          t.org +
+          " · " +
+          t.supervisor +
+          " · " +
+          t.cat +
+          " · " +
+          D.SRC[t.src] +
+          "</p>" +
+          '<dl class="dlist"><dt>' +
+          c.periodLabel +
+          '</dt><dd data-numeric>' +
+          t.period +
+          "</dd><dt>" +
+          c.srcLabel +
+          '</dt><dd><a href="#">' +
+          c.srcLink +
+          "</a></dd></dl>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.summaryTitle +
+          '</h2><div class="prose">' +
+          t.summary
+            .map(function (p) {
+              return "<p>" + p + "</p>";
+            })
+            .join("") +
+          "</div></section>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.docsTitle +
+          '</h2><div style="margin-top:12px">' +
+          rowsOf(t.docs, function (d) {
+            return d.form ? "작성 항목 " + d.items + "개" : "그대로 첨부";
+          }) +
+          '</div><a class="write" href="#">' +
+          c.writeCta +
+          "</a></section>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.filesTitle +
+          '</h2><div style="margin-top:12px">' +
+          rowsOf(t.files, function (f) {
+            return f.ok ? "글자를 읽었어요" : "글자가 안 나왔어요";
+          }) +
+          "</div></section>" +
+          '<section class="sec2">' +
+          t.gaps
+            .map(function (g) {
+              return (
+                '<div class="gap"><p class="gapT">' + g.t + '</p><p class="gapW">' + g.w + "</p></div>"
+              );
+            })
+            .join("") +
+          "</section>";
+
+        document.querySelectorAll(".vt").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var v = b.dataset.v;
+            document.body.dataset.view = v;
+            document.querySelectorAll(".vt").forEach(function (x) {
+              x.setAttribute("aria-pressed", String(x.dataset.v === v));
+            });
+          });
+        });
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script>
+      Harness.mount({
+        current: "r",
+        variants: window.VARIANTS,
+        controls: [window.SCREEN_CONTROL, window.WEIGHT_CONTROL],
+        exportAs: { format: "css", selector: ":root" },
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

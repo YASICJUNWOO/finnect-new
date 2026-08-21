@@ -1,7 +1,14 @@
 /* 내야 할 서류. plan/11 T-0039.
  *
- * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0025).
- * 흐름 안의 카드라 그림자 대신 경계선을 쓴다(DESIGN.md §4.4). */
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041 이 ADR-0025 를 대체).
+ * 흐름 안의 카드라 그림자 대신 경계선을 쓴다(DESIGN.md §6).
+ *
+ * 2026-08-21 보조 글자가 `--t-small`(13px 고정)에서 `--t-aux`(넓으면 13 · 좁으면 16)로
+ * 갔다(ADR-0044). **원문 지시문이 여기 있어서 넘어갈 수 없었다** — 그게 산문이라
+ * §3 의 "본문 16px 이상" 이 폰에서 그대로 걸린다.
+ *
+ * **이 파일은 `/documents/<표본>` 도 쓴다.** 그 화면은 이번 재설계의 범위 밖이지만
+ * 같은 토큰을 받는다 — 한 컴포넌트가 화면마다 다른 크기를 갖게 만들지 않는다. */
 
 .section {
   margin-top: var(--s6);
@@ -26,8 +33,8 @@
 /* 숫자는 사실까지만. 준비도·완성도 같은 척도를 만들지 않는다(DESIGN.md §6) */
 .count {
   margin: 0;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
@@ -69,15 +76,15 @@
 
 .docMeta {
   flex: none;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
 .source {
   margin: 0 0 var(--s4);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-3);
   word-break: break-all;
 }
@@ -114,8 +121,8 @@
 .number {
   flex: none;
   min-width: 2.5em;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-3);
 }
 
@@ -139,8 +146,8 @@
 .instr {
   margin: var(--s1) 0 0;
   padding-left: calc(2.5em + var(--s2));
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
   max-width: 62ch; /* DESIGN.md §8.2 */
 }
@@ -165,8 +172,8 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
   max-width: 62ch;
 }
@@ -175,8 +182,8 @@
  * 클램프 글자만 '접기' 로 바꾼다. */
 .fold {
   display: none;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
@@ -205,8 +212,8 @@
 }
 
 .chip {
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
   background: var(--quiet);
   border-radius: var(--r-sm);
@@ -219,8 +226,8 @@
 
 .moreSummary {
   cursor: pointer;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
   padding: var(--s2) 0;
 }
@@ -248,8 +255,8 @@
 
 .emptyBody {
   margin: var(--s2) 0 0;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
@@ -264,8 +271,8 @@
 
 /* 공고문 원문이다. 우리 말과 구분되게 둔다 */
 .quote {
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
   background: var(--quiet);
   border-left: 2px solid var(--line-2);
@@ -283,7 +290,7 @@
   border-radius: var(--r-sm);
   background: var(--ink);
   color: var(--surface);
-  font-size: var(--t-small);
+  font-size: var(--t-aux);
   font-weight: var(--w-medium);
   text-decoration: none;
 }
@@ -291,8 +298,8 @@
 /* 아직 안 갈라 낸 구간. **못 본 것을 안 본 척하지 않는다** */
 .undecided {
   margin: var(--s3) 0 0;
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-3);
   max-width: 62ch;
 }
@@ -300,8 +307,8 @@
 /* 양식은 갈랐는데 항목이 안 나온 자리. `FormFill.module.css` 의 짝이다. */
 .none {
   margin: var(--s2) 0 var(--s2);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-3);
   max-width: 62ch;
 }

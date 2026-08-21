@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공고 목록·상세 — 시안 넷 나란히</title>
+
+<!--
+  나란히 보는 자리. 축소 프리뷰 + 논지 + 대가 + 실측 한 줄.
+  실제 크기로 갈아끼우려면 switch.html.
+
+  프리뷰는 1440px 로 렌더한 것을 0.26 배로 줄인 것이다 — 글자를 읽는 용도가 아니라
+  **구조와 밀도를 한눈에 보는 용도**다. 판단은 switch.html 에서 한다.
+-->
+
+<style>
+:root{
+  --bg:#fff; --canvas:#f7f7f8; --line:#e2e8f0; --ink:#0f172a; --muted:#64748b;
+  --warn:#b45309; --font:system-ui,-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif;
+  --pw:1440px; --scale:.26;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5}
+a{color:inherit}
+header{background:var(--bg);border-bottom:1px solid var(--line);padding:20px 24px}
+.wrap{max-width:1400px;margin:0 auto}
+h1{margin:0;font-size:20px}
+.lede{margin:6px 0 0;color:var(--muted);max-width:80ch}
+.lede b{color:var(--ink)}
+.tools{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.tools a{font-size:13px;border:1px solid var(--line);border-radius:6px;padding:5px 10px;background:var(--bg);text-decoration:none}
+
+.grid{max-width:1400px;margin:0 auto;padding:24px;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.shot{position:relative;height:280px;overflow:hidden;background:var(--canvas);border-bottom:1px solid var(--line)}
+.shot iframe{position:absolute;top:0;left:0;width:var(--pw);height:calc(280px / var(--scale));border:0;
+  transform:scale(var(--scale));transform-origin:0 0;pointer-events:none}
+.meta{padding:14px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.h b{font-size:15px}
+.tag{font-size:11px;border-radius:999px;padding:2px 8px;background:#f1f5f9;color:var(--muted)}
+.tag.spec{background:#ecfdf5;color:#047857}
+.tag.free{background:#eff6ff;color:#1d4ed8}
+.tag.warn{background:#fffbeb;color:var(--warn)}
+.shell{margin:0;font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid var(--line);
+  border-radius:6px;padding:5px 8px}
+.shell b{color:var(--ink);font-weight:600}
+.claim{margin:0;font-size:13px}
+.cost{margin:0;font-size:13px;color:var(--muted)}
+.cost b{color:var(--warn);font-weight:600}
+.nums{margin:0;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;
+  border-top:1px dashed var(--line);padding-top:8px}
+.nums b{color:var(--ink);font-weight:600}
+.go{margin-top:auto;padding-top:8px;display:flex;gap:8px}
+.go a{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px 9px;text-decoration:none;color:var(--muted)}
+.go a:hover{color:var(--ink);border-color:var(--ink)}
+footer{max-width:1400px;margin:0 auto;padding:0 24px 48px;color:var(--muted);font-size:13px}
+footer table{border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums}
+footer th,footer td{border:1px solid var(--line);padding:5px 9px;text-align:right;background:var(--bg)}
+footer th:first-child,footer td:first-child{text-align:left}
+footer thead th{background:var(--canvas);color:var(--ink)}
+.bad{color:#b42318;font-weight:600}
+</style>
+</head>
+<body>
+
+<header><div class="wrap">
+  <h1>공고 목록(S4)·상세(S5) — 시안 넷</h1>
+  <p class="lede">육안 검토 다섯 회차를 거쳐 <b>여덟에서 셋으로 줄었다가, 폭에 따라 갈리는 R 이 하나 붙었다.</b>
+    카피·데이터·행 수는 <b>넷이 모두 같다</b>(<code>data.js</code> 한 곳) — 갈리는 것은 <b>앱 껍데기</b>다.
+    상단 1단 · 좌측 레일 + 상단 2단 <b>두 가지</b>.
+    <b>목록은 셋 다 목록이고 상세는 셋 다 별도 전체 화면이다</b> — 탭·드로어·레인처럼 그 둘을 바꾸는 안은 뺐다.
+    <b>격자와 글씨체는 시안이 아니다</b> — G 격자와 F 세그먼트를 빼고 거기서 얻을 것을 옮겼다.
+    <b>리스트/격자는 제품 UI</b>(필터 줄 오른쪽 끝 토글)이고 <b>제목 굵기·헤더 면은 하네스 노브</b>다.
+    <b>글씨체는 IBM Plex Sans KR 로 확정</b>해 노브에서 뺐다 — Pretendard·Wanted Sans 는 예비로 기록만 남겼다.
+    <b>제목 굵기는 500 으로 정했다</b>(잠정) — §3 관측 밖 값이라 400·600 도 노브에 남겨 뒀다.
+    프리뷰는 1440px 기준이라 <b>R 은 넓은 화면 얼굴만 보인다</b> — 좁은 쪽은 단독으로 열어 창을 줄여야 한다.</p>
+  <div class="tools">
+    <a href="switch.html">실제 크기로 갈아끼우기 ↗</a>
+    <a href="README.md">읽는 법과 실측 ↗</a>
+  </div>
+</div></header>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  <p><b>실측</b> — 1440×1000, Pretendard 로드 후. 하네스 바는 뺐다. 목록 화면 기준이고 최장 줄만 상세도 같이 적는다.</p>
+  <div id="table"></div>
+  <p style="margin-top:12px">기준 — 본문 <b>16px 이상</b>(§3) · 최장 줄 <b>62ch 이하</b>(§5) · 채운 버튼은 <b>화면당 하나</b>(§4) · 그림자는 <b>위에 뜨는 것만</b>(§6).
+    <br><b>“채운 버튼” 에 껍데기의 활성 축이 같이 잡힌다</b> — E 레일의 켜진 칸이 배경을 갖기 때문이다.
+    그건 동작 버튼이 아니라 내비 상태라 §4 의 “화면당 하나” 와 같은 자를 대면 안 된다. <b>셋 다 행마다 붙은 버튼은 0 개다.</b>
+    <br><b>“뜬 그림자” 는 inset 을 뺀 값이다</b> — 활성 축 밑줄이 inset 그림자라 안 빼면 셋이 전부 1 로 나온다.
+    <br><b>격자로 켠 값은 이 표에 없다</b> — A 는 2열·칸 94→167px·세로 1,750→1,654px, E 는 4열·칸 39→143px·세로 1,192→<b>1,179px</b> 이다.
+    <b>조밀한 리스트일수록 격자의 이득이 작다</b> — A 가 96px 줄고 E 는 13px 줄었다.
+    <br><b>이 표는 확정 서체(IBM Plex Sans KR) 기준이다</b> — 예비 서체(Pretendard 370.45px · Wanted Sans 370.66px)는 Plex(378.82px)보다 <b>2.2% 좁아서</b>
+    예비로 갈면 밀도를 다시 재야 한다. 예비 둘 사이는 0.06% 라 서로 갈아도 안 밀린다.
+    <br><b>「제목 굵기」 는 크기를 16 에 고정하고 굵기만 400 ↔ 600 을 오간다</b> — 500 은 §3 관측 밖이라 안 넣었다.</p>
+</footer>
+
+<script>
+var V = [
+  { id:"base", file:"base.html", label:"현행", tag:"", tagCls:"",
+    shell:"상단 바 1단 — 브랜드 + 3축 + 운영 도구",
+    claim:"회색 캔버스 위에 흰 카드. 목록이 카드 하나 안에서 줄로 갈린다.",
+    cost:"기준선이라 대가를 적지 않는다. 다만 <b>본문 13px</b> 과 <b>상세 74ch</b> 는 지금 DESIGN.md 를 어긴다.",
+    nums:[832,13,46,74,0,0,6,102,1827] },
+  { id:"a", file:"a-spec.html", label:"A 규범", tag:"정합 · 서체 제외", tagCls:"spec",
+    shell:"상단 바 1단 · 하네스 노브 — 헤더 면(흰·잠잠·먹) · <b>제목 굵기</b> / 제품 UI — <b>리스트·격자 토글</b>",
+    claim:"문서를 글자 그대로. 캔버스와 카드 상자를 빼고, 제목을 본문과 같은 16/400 으로, 13px 보조 글자를 16px 로 올렸다. <b>셋 중 유일하게 좁다</b>(672px) — 좁은 폭에서 좋은 것을 하나 남겨야 넓힌 쪽을 잴 자가 생긴다. 필터 줄의 <b>격자를 누르면 2열 · 칸 94→167px · 세로 1,750→1,654px</b>(96px 이득).",
+    cost:"흰 면이면 헤더 경계가 선 하나뿐이라 스크롤 중에 목록 구분선과 섞인다. <b>먹 면은 그걸 없애는 대신</b> §7 「UI 크롬에 색을 쓰지 않는다」의 경계로 가고, 마크를 흰색으로 뒤집어야 해서 §4 의 '로고는 --ink' 가 그 상태에서만 안 보인다.",
+    nums:[672,16,46,55,1,0,6,95,1750] },
+  { id:"r", file:"r-adaptive.html", label:"R 적응", tag:"§3 이 폭 따라 켜짐", tagCls:"warn",
+    shell:"<b>1024px 위 = E · 아래 = A</b> — 하나가 폭에 따라 다르게 선다",
+    claim:"넓으면 레일 + 상단 2단 + 4열 39px 행, 좁으면 상단 1단 + 세로 스택 117px 행. <b>껍데기만이 아니라 행 구조와 글자 크기가 같이 바뀐다</b> — 넓은 화면에서 E 와 행 높이가 39px 로 일치하고 좁은 화면에서 보조 글자가 16px 로 올라간다.",
+    cost:"<b>본문 최소가 13px ↔ 16px 로 갈린다</b> — §3 위반이 넓은 화면에서만 켜진다. 유지보수가 두 벌이고, 1024·640px 둘 다 <b>관측 밖 값</b>이다(§5 가 브레이크포인트를 정한 적이 없다). 창을 줄이면 레일이 사라지고 행이 접혀 <b>다른 제품으로 보인다.</b>",
+    nums:[992,13,46,55,2,0,12,39,1187] },
+  { id:"e", file:"e-console.html", label:"E 관제", tag:"DESIGN.md 밖", tagCls:"warn",
+    shell:"<b>좌측 레일 + 상단 2단</b> — 크롬 세 겹 · 하네스 노브 <b>제목 굵기</b> / 제품 UI — <b>리스트·격자 토글</b>",
+    claim:"IBM Plex + 등폭 숫자 + 조밀한 4열. 행 높이 40px 로 <b>첫 화면에 12행 전부</b>가 들어간다 — 현행의 2배다. 아이콘 레일만 있던 B 장부를 여기로 합쳤다. 필터 줄의 <b>격자를 누르면 4열인데 세로가 13px 밖에 안 준다</b> — 리스트가 이미 39px 행이라 카드로 만들면 칸이 3.7배가 되고 4열로 번 것을 도로 먹는다.",
+    cost:"<b>다크를 버리고 라이트로 돌렸다</b> — §7 의 다크·파랑 위반 둘이 사라지고 비Pretendard·13px 본문 둘만 남았다. 크롬 세 겹은 그대로라 §1 의 '크롬이 적은 정보 설계'와 반대편이고, 사용자는 관제 요원이 아니다(§13).",
+    nums:[992,13,46,53,2,0,12,40,1192] },
+];
+
+var COLS = ["목록폭","본문최소","최장줄 목록","최장줄 상세","채운버튼","뜬 그림자","첫화면 행","행높이","목록세로"];
+var UNIT = ["px","px","ch","ch","","","","px","px"];
+
+document.getElementById("grid").innerHTML = V.map(function (v) {
+  return '<article class="card">' +
+    '<div class="shot"><iframe src="' + v.file + '" title="' + v.label + '" loading="lazy" scrolling="no"></iframe></div>' +
+    '<div class="meta"><div class="h"><b>' + v.label + '</b>' +
+    (v.tag ? '<span class="tag ' + v.tagCls + '">' + v.tag + '</span>' : '') + '</div>' +
+    '<p class="shell">껍데기 · ' + v.shell + '</p>' +
+    '<p class="claim">' + v.claim + '</p>' +
+    '<p class="cost">대가 · ' + v.cost + '</p>' +
+    '<p class="nums">폭 <b>' + v.nums[0] + 'px</b> · 본문 <b>' + v.nums[1] + 'px</b> · 첫 화면 <b>' + v.nums[6] +
+    '행</b> · 행 <b>' + v.nums[7] + 'px</b> · 채운 버튼 <b>' + v.nums[4] + '</b></p>' +
+    '<div class="go"><a href="' + v.file + '" target="_blank">단독 ↗</a>' +
+    '<a href="switch.html#' + v.id + '">실제 크기 ↗</a></div></div></article>';
+}).join("");
+
+document.getElementById("table").innerHTML =
+  '<table><thead><tr><th>시안</th>' + COLS.map(function (c) { return '<th>' + c + '</th>'; }).join('') +
+  '</tr></thead><tbody>' + V.map(function (v) {
+    return '<tr><td>' + v.label + '</td>' + v.nums.map(function (n, i) {
+      var bad = (i === 1 && n < 16) || ((i === 2 || i === 3) && n > 62);
+      var d = v.id === "base" ? "" : (function () {
+        var b = V[0].nums[i], x = n - b;
+        return x === 0 ? "" : ' <span style="opacity:.55">' + (x > 0 ? "+" + x : x) + "</span>";
+      })();
+      return '<td' + (bad ? ' class="bad"' : '') + '>' + n + UNIT[i] + d + '</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody></table>';
+</script>
+</body>
+</html>

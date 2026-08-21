@@ -8,15 +8,15 @@
 }
 
 .title {
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   font-weight: var(--w-medium);
   color: var(--ink-2);
   margin-bottom: var(--s1);
 }
 
 .why {
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-3);
 }

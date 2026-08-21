@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A 규범 — 공고 목록·상세</title>
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      /* A 규범 — **DESIGN.md 를 글자 그대로 따른 것이다.** 해석을 얹지 않았다.
+       *
+       * 현행과 갈리는 곳 넷, 전부 문서에 근거가 있다.
+       *  1. 회색 캔버스를 뺐다. §2 Boundary 가 `--canvas` 에 "레퍼런스 대응 없음"
+       *     이라고 적었고 remember 는 표면이 통째로 흰 field 다.
+       *  2. 카드 상자를 뺐다. §4 목록이 "카드 테두리·채움·그림자가 하나도
+       *     관측되지 않았다", §6 이 "크롬 없는 항목에 그림자나 채움을 더하지 않는다".
+       *  3. 제목을 16/400 으로 내렸다. §3 "카드 제목이 본문과 같은 16/400 인 것은
+       *     사고가 아니다 — 크기로 벌리지 말고 굵기와 위치로 가른다."
+       *  4. 13px 보조 글자를 16px 로 올렸다. §3 "14px 과 15px 이 없는 것이 이 표의
+       *     요점이다. 본문은 16px 이상이다." 12·13 은 관측 밖 값이다.
+       *
+       * 값은 §4 토큰 그대로다. 새로 만든 색이 없다. */
+      :root {
+        --surface: #fff;
+        --ink: #222;
+        --muted: #6b7280; /* §2 표: canonical #808080 은 입력 글자 자리라 대비가 안 선다 */
+        --line: #d4d4d4;
+        --quiet: #f2f2f2;
+        --action: #000;
+        --urgent: #d92d20;
+        --r-sm: 4px;
+        --r-md: 6px;
+        --r: 8px; /* §4 가 관측한 최대 반경. 격자 칸이 이걸 쓴다 */
+      }
+
+      /* **기본 서체가 IBM Plex Sans KR 이다**(2026-08-21 확정). Pretendard 와
+       * Wanted Sans 는 **예비 서체**로 남았고 하단 바에서 갈아 볼 수 있다.
+       *
+       * **그래서 A 는 더 이상 §3 을 다 지키지 않는다.** §3 이 "Pretendard 한 벌.
+       * 제목용 서체를 따로 들이지 않는다" 라고 적었고 §7 이 "시스템 대체 서체를 쓰면서
+       * Pretendard 라고 적지 않는다" 라고 적었다 — 앞의 것이 깨진다.
+       * 이 시안의 나머지(색·크기·반경·간격·목록 크롬)는 그대로 정합이다. */
+      body {
+        background: var(--surface);
+        color: var(--ink);
+        font:
+          400 16px/1.45 "IBM Plex Sans KR",
+          Pretendard,
+          sans-serif;
+      }
+
+      /* --- 헤더 면. **하단 바에서 골라 본다** ---
+       *
+       * D 면 헤더를 따로 두었다가 여기로 흡수했다 — A 와 헤더 면 말고 다른 게 없어서
+       * 시안을 하나 더 쓸 이유가 없었다. 값을 고르는 문제이지 구조를 고르는 문제가 아니다.
+       *
+       * 셋의 성격이 다르다.
+       *  · **흰 면** — 경계가 `#d4d4d4` 선 하나다. 스크롤 중에 목록 구분선과 섞인다.
+       *  · **잠잠한 면**(`#f2f2f2`) — 선 없이 명도만으로 가른다. §2 의 입력면 값이라
+       *    관측 안이지만, remember 는 그 값을 **입력 채움**에서 봤지 헤더에서 본 것이 아니다.
+       *  · **먹 면**(`--ink`) — 한 번도 흐려지지 않는다. 대신 §7 「UI 크롬에 색을 쓰지
+       *    않는다」의 경계이고, **마크를 흰색으로 뒤집어야 해서** §4 의 "로고는 `--ink`" 가
+       *    이 상태에서만 안 보인다. 그 대가를 눈으로 보라고 넣었다. */
+      .bar {
+        border-bottom: 1px solid var(--line);
+      }
+      body[data-hdr="quiet"] .bar {
+        background: var(--quiet);
+        border-bottom-color: transparent;
+      }
+      body[data-hdr="ink"] .bar {
+        background: var(--ink);
+        color: #fff;
+        border-bottom-color: transparent;
+      }
+      body[data-hdr="ink"] .mark {
+        background: #fff;
+      }
+      body[data-hdr="ink"] .menu a,
+      body[data-hdr="ink"] .menu span,
+      body[data-hdr="ink"] .admin {
+        color: rgba(255, 255, 255, 0.66);
+      }
+      body[data-hdr="ink"] .menu .on {
+        color: #fff;
+      }
+      body[data-hdr="ink"] .menu span {
+        color: rgba(255, 255, 255, 0.36);
+      }
+      /* 어두운 면에서는 포커스 링도 뒤집어야 보인다 */
+      body[data-hdr="ink"] .bar :focus-visible {
+        outline-color: #fff;
+      }
+      .barIn,
+      main {
+        /* 720px — 62ch 에서 온 값이다. **다섯 중 여기만 좁고 그게 의도다.**
+         *
+         * 육안 검토에서 "PC 는 950~1030px 대가 좋고 A 는 모바일 폭" 이 나왔고,
+         * 한 번 1000px 로 넓혔다가 되돌렸다 — **좁은 폭에서 좋은 것도 하나 남겨야**
+         * 넓힌 쪽이 무엇을 얻고 잃는지 잴 자가 생긴다. 나머지 넷이 952~1032px 다.
+         *
+         * 다만 §5 의 "줄길이 62ch 이하" 가 이 폭의 근거는 **아니다.** 그 규칙이 재는 것은
+         * 산문의 줄길이이지 컨테이너 폭이고, 목록 행은 산문이 아니라 안 걸린다.
+         * 62ch 는 아래 `.prose` 에 따로 건다. */
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      .barIn {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .mark {
+        width: 18px;
+        height: 18px;
+        border-radius: var(--r-md);
+        background: var(--ink);
+      }
+      .menu {
+        display: flex;
+        gap: 16px;
+      }
+      .menu a,
+      .menu span {
+        text-decoration: none;
+        color: var(--muted);
+      }
+      .menu .on {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .menu span {
+        color: #cbd0d6;
+      }
+      .admin {
+        margin-left: auto;
+        color: var(--muted);
+        text-decoration: none;
+      }
+      main {
+        padding-top: 24px;
+        padding-bottom: 64px;
+      }
+
+      .sec + .sec {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .title {
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 1.3;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .n {
+        font-size: 16px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .sub {
+        margin-top: 4px;
+        color: var(--muted);
+      }
+
+      /* 빈 자리. §14 "첫 동작을 안내하고 '데이터 없음' 으로 끝내지 않는다."
+       * 상자를 두르지 않는다 — 상자를 두르면 비어 있음이 카드가 된다 */
+      .hole {
+        margin-top: 16px;
+        color: var(--muted);
+      }
+      .holeCta {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 12px;
+        padding: 0 20px;
+        background: var(--action);
+        color: #fff;
+        border-radius: var(--r-sm);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .filters {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 10px 16px;
+        color: var(--ink);
+      }
+      .chip[aria-pressed="true"] {
+        border-color: var(--ink);
+        font-weight: 600;
+      }
+      .search {
+        flex: 1 1 200px;
+        background: var(--quiet);
+        border: 0;
+        border-radius: var(--r-sm);
+        padding: 10px 16px;
+        font: inherit;
+      }
+      .search::placeholder {
+        color: #808080;
+      }
+
+      /* --- 리스트/격자 토글. **제품 UI 다. 하네스 노브가 아니다** ---
+       *
+       * 처음엔 하단 바 노브로 만들었다가 필터 줄로 올렸다 — 목록 형태는 우리가 고르고
+       * 끝낼 값이 아니라 **사용자가 화면에서 매번 고르는 것**이라 조작 요소가 화면에
+       * 있어야 한다. 코드로 옮길 때 이 부분은 같이 간다.
+       *
+       * 필터 칩과 같은 어법이다 — 투명 바탕, 1px 테두리, 4px 반경(§4 «필터 칩»).
+       * 둘을 붙여 세그먼트로 만들되 **켜진 쪽을 채우지 않는다.** 채우면 화면에 채운
+       * 조작 요소가 둘이 되고(주 버튼 + 이것) §4 의 "화면당 하나" 가 깨진다.
+       * 테두리 색과 글자 색만 진해진다.
+       *
+       * 아이콘은 선으로 그리고 색은 글자 색을 따라간다(§8). 44px 타깃을 지킨다(§5). */
+      .viewToggle {
+        margin-left: auto;
+        display: flex;
+      }
+      .vt {
+        width: 44px;
+        min-height: 44px;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .vt:first-child {
+        border-radius: var(--r-sm) 0 0 var(--r-sm);
+      }
+      .vt:last-child {
+        border-radius: 0 var(--r-sm) var(--r-sm) 0;
+        margin-left: -1px;
+      }
+      .vt[aria-pressed="true"] {
+        border-color: var(--ink);
+        color: var(--ink);
+        position: relative;
+        z-index: 1;
+      }
+      .vt svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      /* 목록. **반경 0 · 안여백 0 · 상자 없음** — §4 «목록» 그대로다.
+       * 행을 가르는 것은 선 하나뿐이고 그 선도 항목 사이에만 있다 */
+      .list {
+        margin-top: 16px;
+      }
+      .item {
+        display: flex;
+        gap: 16px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .item:first-child {
+        border-top: 0;
+      }
+      .body {
+        flex: 1;
+        min-width: 0;
+      }
+      /* 마감이 유일한 액센트다. 급하지 않으면 색을 안 쓴다 */
+      .dl {
+        color: var(--muted);
+      }
+      .dl.u {
+        color: var(--urgent);
+        font-weight: 600;
+      }
+      /* 제목이 본문과 같은 16/400 이다. 위치로 가른다 */
+      .itemTitle {
+        font-size: 16px;
+        font-weight: 400;
+      }
+      .itemTitle a {
+        text-decoration: none;
+      }
+      .itemTitle a:hover {
+        text-decoration: underline;
+      }
+      .facts {
+        color: var(--muted);
+      }
+      .docs {
+        flex: none;
+        width: 96px;
+        text-align: right;
+        color: var(--muted);
+      }
+      .pager {
+        margin-top: 24px;
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        color: var(--muted);
+      }
+      .pager b {
+        color: var(--ink);
+      }
+
+      /* --- 격자. **비교 축이 아니라 제품 기능이다** ---
+       *
+       * G 격자를 시안으로 두었다가 뺐다 — 거기서 얻을 것이 격자 하나뿐이었고,
+       * 그건 시안이 정할 일이 아니라 사용자가 화면에서 고를 일이라서다.
+       *
+       * 처음엔 **선만으로** 격자를 그렸다가 다시 만들었다 — 육안에서 "격자로 안 보인다"
+       * 가 걸렸다. 칸이 테두리를 안 가지면 열이 늘어난 리스트로 읽힌다.
+       *
+       * **그래서 이 격자는 §4 를 어긴다.** 「크롬 없는 목록 항목에 그림자나 카드 채움을
+       * 더하지 않는다」와 §4 «목록» 의 "카드 테두리·채움·그림자가 하나도 관측되지 않았다" —
+       * 테두리를 두르는 순간 둘째가 깨진다. **그것이 격자를 켜는 대가이고 피할 수 없다.**
+       * 크롬 없이 격자를 만들면 격자로 안 보이고, 격자로 보이게 하면 §4 를 어긴다.
+       *
+       * G 에서 **가져오지 않은 것 넷**: 카드 채움(면색) · 그림자 · 12px 반경 · 행마다
+       * 반복되는 채운 버튼. 테두리 하나와 8px 반경만 가져왔다 — 8px 은 §4 가 관측한
+       * 최대값(`--r` lg)이고 12px 은 관측 밖이다.
+       *
+       * **실측(1440×1000):** 2열 · 칸 높이 94→167px · 첫 화면 6→8행 · 세로 1,750→1,654px.
+       * 칸이 1.8배 커졌는데 2열로 접히면서 세로가 96px 줄었다 — **이득이 작다.**
+       * A 는 폭이 672px 이라 두 열밖에 안 서기 때문이다. E(992px)는 4열이 서는데
+       * 거기서는 오히려 이득이 더 작다 — 아래 E 주석 참조. */
+      body[data-view="grid"] .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      body[data-view="grid"] .item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+      }
+      body[data-view="grid"] .body {
+        flex: none;
+      }
+      /* 낼 서류 수가 오른쪽 고정폭에서 칸 바닥으로 내려간다.
+       * 좁은 칸에서 오른쪽 96px 을 떼면 제목이 세 줄로 접힌다 */
+      body[data-view="grid"] .docs {
+        width: auto;
+        text-align: left;
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      /* --- 상세 --- */
+      .back {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .head {
+        margin-top: 16px;
+      }
+      .h1 {
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .meta {
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .dlist {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 8px 16px;
+      }
+      .dlist dt {
+        color: var(--muted);
+      }
+      .sec2 {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .sTitle {
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      /* 산문에만 62ch 를 건다 — §5 가 재는 것이 이 자리다.
+       * **720px 컨테이너에서도 이 값이 걸린다** — 캡을 걸기 전 상세 최장 줄이 61ch 였고
+       * 걸고 나서 55ch 가 됐다. `ch` 는 '0' 의 폭이라 62ch 가 552px 이고, 컨테이너
+       * 안여백을 뺀 672px 보다 좁다. 폭을 720 에서 1000 으로 넓혀도 이 값은 안 변한다. */
+      .prose {
+        margin-top: 12px;
+        max-width: 62ch;
+      }
+      .prose p + p {
+        margin-top: 12px;
+      }
+      .rowList {
+        margin-top: 12px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .row:first-child {
+        border-top: 0;
+      }
+      .row em {
+        font-style: normal;
+        color: var(--muted);
+      }
+      /* 주 버튼은 화면당 하나다. 상세에서는 이것이다 */
+      .write {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 16px;
+        padding: 0 20px;
+        background: var(--action);
+        color: #fff;
+        border-radius: var(--r-sm);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .gap {
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .gapT {
+        font-weight: 600;
+      }
+      .gapW {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body data-screen="list" data-hdr="white" data-view="list" data-weight="500">
+    <header class="bar">
+      <div class="barIn">
+        <a class="brand" href="#"><i class="mark" aria-hidden="true"></i>라스트마일</a>
+        <nav class="menu" aria-label="주요 메뉴">
+          <a class="on" href="#" aria-current="page">지원사업</a>
+          <a href="#">내 사업</a>
+          <span aria-disabled="true">신청 현황</span>
+        </nav>
+        <a class="admin" href="#">운영 도구</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="screen s-list" id="list"></section>
+      <section class="screen s-detail" id="detail"></section>
+    </main>
+
+    <script src="data.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      (function () {
+        var D = window.NOTICE_DATA,
+          c = D.copy,
+          t = D.detail;
+
+        /* 선으로 그린 아이콘. 색은 글자 색을 따라간다 — 아이콘 자체에 색을 안 넣는다(§8) */
+        var ICON = {
+          list:
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+            'stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+          grid:
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+            'aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/>' +
+            '<rect x="13" y="4" width="7" height="7" rx="1.5"/>' +
+            '<rect x="4" y="13" width="7" height="7" rx="1.5"/>' +
+            '<rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+        };
+
+        var rows = D.rows
+          .map(function (r) {
+            return (
+              '<li class="item"><div class="body">' +
+              '<p class="dl' +
+              (D.urgent(r.d) ? " u" : "") +
+              '" data-numeric>' +
+              D.deadlineText(r.d) +
+              '</p><h3 class="itemTitle"><a href="#">' +
+              r.title +
+              '</a></h3><p class="facts">' +
+              r.org +
+              " · " +
+              r.cat +
+              " · " +
+              D.SRC[r.src] +
+              '</p></div><div class="docs" data-numeric>' +
+              (r.docs > 0 ? "낼 서류 " + r.docs : "서류 없음") +
+              "</div></li>"
+            );
+          })
+          .join("");
+
+        document.getElementById("list").innerHTML =
+          '<h1 class="srOnly">지원사업</h1>' +
+          '<section class="sec"><h2 class="title">' +
+          c.recTitle +
+          '</h2><p class="sub">' +
+          c.recSub +
+          '</p><p class="hole">' +
+          c.recHole +
+          '</p><a class="holeCta" href="#">' +
+          c.upload +
+          "</a></section>" +
+          '<section class="sec"><h2 class="title">' +
+          c.allTitle +
+          '<span class="n" data-numeric>' +
+          D.n(c.total) +
+          '건</span></h2><p class="sub">' +
+          c.allSub +
+          '</p><div class="filters"><input class="search" placeholder="공고 이름으로 찾기" />' +
+          '<button class="chip" aria-pressed="true">전체</button>' +
+          '<button class="chip" aria-pressed="false">기업마당</button>' +
+          '<button class="chip" aria-pressed="false">K-Startup</button>' +
+          '<div class="viewToggle" role="group" aria-label="목록 형태">' +
+          '<button class="vt" data-v="list" aria-pressed="true" aria-label="리스트로 보기">' + ICON.list + '</button>' +
+          '<button class="vt" data-v="grid" aria-pressed="false" aria-label="격자로 보기">' + ICON.grid + '</button></div></div>' +
+          '<ul class="list">' +
+          rows +
+          '</ul><nav class="pager"><span>← 이전</span><b>1</b><span>2</span><span>3</span><span>다음 →</span></nav></section>';
+
+        function rowsOf(arr, right) {
+          return (
+            '<div class="rowList">' +
+            arr
+              .map(function (x) {
+                return (
+                  '<div class="row"><span>' + x.name + "</span><em>" + right(x) + "</em></div>"
+                );
+              })
+              .join("") +
+            "</div>"
+          );
+        }
+
+        document.getElementById("detail").innerHTML =
+          '<a class="back" href="#">' +
+          c.back +
+          '</a><header class="head"><p class="dl u" data-numeric>' +
+          D.deadlineText(t.d) +
+          '</p><h1 class="h1">' +
+          t.title +
+          '</h1><p class="meta">' +
+          t.org +
+          " · " +
+          t.supervisor +
+          " · " +
+          t.cat +
+          " · " +
+          D.SRC[t.src] +
+          "</p></header>" +
+          '<dl class="dlist"><dt>' +
+          c.periodLabel +
+          '</dt><dd data-numeric>' +
+          t.period +
+          "</dd><dt>" +
+          c.srcLabel +
+          '</dt><dd><a href="#">' +
+          c.srcLink +
+          "</a></dd></dl>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.summaryTitle +
+          '</h2><div class="prose">' +
+          t.summary
+            .map(function (p) {
+              return "<p>" + p + "</p>";
+            })
+            .join("") +
+          "</div></section>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.docsTitle +
+          "</h2>" +
+          rowsOf(t.docs, function (d) {
+            return d.form ? "작성 항목 " + d.items + "개" : "그대로 첨부";
+          }) +
+          '<a class="write" href="#">' +
+          c.writeCta +
+          "</a></section>" +
+          '<section class="sec2"><h2 class="sTitle">' +
+          c.filesTitle +
+          "</h2>" +
+          rowsOf(t.files, function (f) {
+            return f.ok ? "글자를 읽었어요" : "글자가 안 나왔어요";
+          }) +
+          "</section>" +
+          '<section class="sec2">' +
+          t.gaps
+            .map(function (g) {
+              return (
+                '<div class="gap"><p class="gapT">' +
+                g.t +
+                '</p><p class="gapW">' +
+                g.w +
+                "</p></div>"
+              );
+            })
+            .join("") +
+          "</section>";
+
+        /* 토글 배선. **하네스가 아니라 화면이 하는 일이다** */
+        document.querySelectorAll(".vt").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var v = b.dataset.v;
+            document.body.dataset.view = v;
+            document.querySelectorAll(".vt").forEach(function (x) {
+              x.setAttribute("aria-pressed", String(x.dataset.v === v));
+            });
+          });
+        });
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script>
+      Harness.mount({
+        current: "a",
+        variants: window.VARIANTS,
+        controls: [
+          window.SCREEN_CONTROL,
+          window.WEIGHT_CONTROL,
+          /* 헤더 면. 값을 고르는 자리이지 구조를 고르는 자리가 아니라 시안이 아니라 노브다 */
+          {
+            kind: "segment",
+            label: "헤더 면",
+            name: "hdr",
+            value: "white",
+            options: [
+              { v: "white", label: "흰 면" },
+              { v: "quiet", label: "잠잠한 면" },
+              { v: "ink", label: "먹 면" },
+            ],
+            apply: function (v) {
+              document.body.dataset.hdr = v;
+            },
+          },
+        ],
+        exportAs: { format: "css", selector: ":root" },
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

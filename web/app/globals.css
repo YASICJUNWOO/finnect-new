@@ -16,14 +16,9 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--ink);
-  font-family:
-    Pretendard,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Apple SD Gothic Neo",
-    "Malgun Gothic",
-    system-ui,
-    sans-serif;
+  /* 스택의 자리는 tokens.css 다. 여기에 서체 이름을 적지 않는다 — 두 곳에 적으면
+   * 한쪽만 고쳐지는 날이 오고, 그날 admin 과 제품이 다른 서체로 뜬다 */
+  font-family: var(--font-sans);
   font-size: var(--t-body);
   line-height: var(--lh-body);
   font-weight: var(--w-normal);

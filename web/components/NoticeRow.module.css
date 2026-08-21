@@ -1,11 +1,23 @@
-/* 시연 `.item` — 카드가 아니라 **카드 안의 한 줄**이다.
- * 배경도 테두리도 반경도 없다. 그건 감싸는 `.list` 가 갖는다(page.module.css). */
+/* 목록 한 줄. **카드가 아니라 카드 안의 한 줄이다** — 배경도 테두리도 반경도
+ * 감싸는 `.list`(page.module.css) 가 갖는다. 격자로 볼 때만 칸이 테두리를 갖는다.
+ *
+ * **모바일 우선이다.** 아래 기본 규칙이 좁은 화면(세로 스택)이고 넓은 화면의
+ * 4열 그리드가 `min-width: 1024px` 로 얹힌다(ADR-0047). */
 
+/* ── 좁은 화면 — 세로 스택 ──────────────────────────── */
+
+/* **처음엔 이 규칙 없이 그냥 flex 로 뒀다가 행 높이가 279px 로 터졌다** —
+ * 자식 넷이 390px 안에서 서로 밀며 접혔다. 좁은 화면은 넓은 화면 CSS 를
+ * "안 쓰면 되는" 게 아니라 **제 규칙을 따로 가져야 한다.**
+ *
+ * 마감이 한 줄, 제목이 한 줄, 기관과 서류가 한 줄을 나눠 쓴다. 그 셋을 만드는 것이
+ * 아래의 `flex-wrap` 과 `flex-basis` 다. */
 .item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--s3);
-  padding: var(--s4) var(--s5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--s3);
+  padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);
 }
 
@@ -13,23 +25,56 @@
   border-bottom: 0;
 }
 
-/* 2. 호버. 줄 전체가 밝아지고 **누르는 것은 제목 링크다**.
- * 시연은 #fbfbfc 를 쓰는데 토큰이 아니라 --canvas 로 갔다. 흰 면 위의 한 단 아래다 */
+/* 줄 전체가 밝아지고 **누르는 것은 제목 링크다** */
 .item:hover {
   background: var(--canvas);
 }
 
+.dl {
+  flex: 1 1 100%;
+}
+
 .body {
+  flex: 1 1 100%;
   min-width: 0;
 }
 
-/* 시연은 17px / -.03em 이다. 스케일의 --t-lead(19) 로 올렸고
- * **자간은 안 준다** — §4.2 가 24px 미만에 넣지 말라고 한다(한글 가독성) */
+.org {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 출처. **좁은 화면에서는 숨는다** — 기관과 서류가 한 줄을 나눠 쓰는데
+ * 390px 에 "성남산업진흥원 · 기업마당" 과 "낼 서류 4" 가 같이 안 들어간다 */
+.src {
+  display: none;
+}
+
+.dot {
+  color: var(--ink-4);
+}
+
+.docs {
+  flex: none;
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* 목록 제목. **16px / 굵기 500 이다**(ADR-0045).
+ *
+ * 크기를 안 올린다 — §3 이 "크기로 벌리지 말고 굵기와 위치로 가른다" 고 적었다.
+ * 600 을 안 쓰는 이유는 그것이 20px 섹션 제목의 굵기라서다. */
 .title {
-  margin-top: var(--s1);
   font-size: var(--t-lead);
   line-height: var(--lh-lead);
-  font-weight: var(--w-bold);
+  font-weight: var(--w-mid);
 }
 
 .link {
@@ -42,36 +87,8 @@
   text-decoration-thickness: 1.5px;
 }
 
-/* 시연 `.facts` 의 `.org` 는 15px / --ink-3 이다.
- * 15 가 스케일에 없어서 --t-small(13), 색은 --ink-2 다 — --ink-3 은 2.6:1 이라 못 읽는다 */
-.facts {
-  margin-top: var(--s2);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
-  color: var(--ink-2);
-}
-
-.dot {
-  margin: 0 var(--s1);
-  color: var(--ink-4);
-}
-
-.source {
-  color: var(--ink-3);
-}
-
-/* 시연이 `.star` 를 두는 자리. 값이 있는 것을 놓는다 */
-.docs {
-  align-self: start;
-  margin-top: var(--s1);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
 .count {
-  font-weight: var(--w-bold);
+  font-weight: var(--w-medium);
   color: var(--ink);
 }
 
@@ -79,8 +96,105 @@
   color: var(--ink-3);
 }
 
-@media (max-width: 640px) {
+/* ── 격자 칸 ────────────────────────────────────────── */
+
+/* **§4 «목록» 의 유일한 예외다**(ADR-0046). 테두리 하나만 어기고
+ * 채움·그림자·행마다 반복되는 버튼 셋은 안 따라온다.
+ *
+ * 크롬 없이 만들면 격자로 안 보이고(육안에서 "그냥 열이 늘어난 리스트" 로 읽혔다),
+ * 격자로 보이게 하면 §4 를 어긴다. 양쪽을 다 지킬 수 없다. */
+.card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s1);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  /* 8px 은 §4 가 관측한 최대값이다. 12px 은 관측 밖이라 안 쓴다 */
+  border-radius: var(--r);
+}
+
+.card:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.card .dl,
+.card .body,
+.card .org {
+  flex: none;
+}
+
+/* 서류 수를 칸 바닥에 붙이고 선 하나로 가른다. 제목 길이가 달라도 아래가 맞는다 */
+.card .docs {
+  margin-top: auto;
+  margin-left: 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+/* ── ≥1024px — 4열 그리드 ───────────────────────────── */
+
+@media (min-width: 1024px) {
+  /* 128px 1fr 92px 64px. 안여백 8px 에 제목 줄높이 23.2px 을 더해 행이 39px 이다 */
   .item {
-    padding: var(--s4);
+    display: grid;
+    grid-template-columns: 128px minmax(0, 1fr) 92px 64px;
+    gap: var(--s4);
+    align-items: baseline;
+    padding: var(--s2) var(--s5);
+  }
+
+  /* **`.body` 래퍼를 그리드에서 지운다** — 자식(제목)이 직접 칸이 된다.
+   * 남기면 baseline 정렬이 한 겹 더 생겨 행이 39px 이 아니라 57px 이 된다(+46%) */
+  .body {
+    display: contents;
+  }
+
+  /* **제목만이 아니라 기관 줄도 잘라야 한다.** `.org` 칸이 92px 인데 거기
+   * "성남산업진흥원 · 기업마당" 이 들어가면 두 줄로 접히고, 그 한 줄이 행 높이를
+   * 39px 에서 57px 로 46% 밀어 올린다. **좁은 화면에서는 접히는 게 맞으므로
+   * 이 규칙은 넓은 화면에만 건다.** */
+  .title,
+  .org {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 넓은 화면에서는 출처가 기관 옆에 붙는다 */
+  .src {
+    display: inline;
+  }
+
+  /* 그리드 칸이라 `margin-left: auto` 가 칸 안에서 밀어낸다. 정렬은 text-align 이 한다 */
+  .docs {
+    margin-left: 0;
+  }
+
+  /* 격자 칸은 넓은 화면에서 반경이 한 칸 작다. 칸이 작아지면 8px 이 과해진다.
+   *
+   * **`align-items` 를 여기서 다시 준다.** 위 `.item` 이 같은 미디어 쿼리 안에서
+   * `baseline` 을 주는데, 바깥에 있는 `.card` 의 `stretch` 는 명시도가 같고(0,1,0)
+   * 소스 순서가 앞이라 **진다.** 그러면 칸 안의 기관 줄과 서류 줄이 내용 폭으로
+   * 쪼그라들고 서류 위 구분선이 48px 짜리 토막으로 남는다 — 실제로 그렇게 나왔다. */
+  .card {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    padding: var(--s3);
+    border-radius: var(--r-sm);
+  }
+
+  /* 칸 안에서는 제목이 접혀야 한다 — 세로 카드라 가로로 잘릴 이유가 없다 */
+  .card .title,
+  .card .org {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .card .docs {
+    padding-top: var(--s2);
   }
 }

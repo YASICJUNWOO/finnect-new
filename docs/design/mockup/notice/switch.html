@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공고 목록·상세 — 시안 전환</title>
+
+<!--
+  갤러리(index.html)는 넷을 축소해 나란히 놓는다 — 구조를 한눈에 보는 용도.
+  여기는 반대다. 하나를 **실제 크기**로 띄우고 갈아끼운다 — 밀도·가독성 판단용.
+
+  iframe 을 전부 띄워둔 채 보이기만 바꾼다. 문서가 각자라 CSS·id 충돌이 없고,
+  숨은 동안에도 스크롤 위치와 목록/상세 토글이 남는다.
+  숨김에 display:none 을 쓰지 않는다 — 레이아웃이 0폭으로 잡혀 안쪽 미디어쿼리가 어긋난다.
+
+  시안 전환과 목록/상세 전환은 각 화면 하단의 Harness 바가 맡는다.
+  여기 상단은 논지 한 줄과 링크만.
+-->
+
+<style>
+:root{
+  --bar-h:34px;
+  --bg:#FFFFFF; --line:#E2E8F0; --ink:#0F172A; --muted:#64748B; --brand:#6366F1;
+  --font:system-ui,-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;
+  overflow:hidden;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+
+.bar{
+  height:var(--bar-h);flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px;
+  background:var(--bg);border-bottom:1px solid var(--line);
+}
+.thesis{flex:1;min-width:0;font-size:12.5px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thesis b{color:var(--ink);font-weight:700}
+.thesis .flag{color:#B45309;font-weight:700}
+.right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lnk{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 9px;
+  transition:color 100ms ease-out,border-color 100ms ease-out}
+.lnk:hover{color:var(--brand);border-color:var(--brand)}
+
+.stage{position:relative;flex:1;min-height:0;background:var(--bg)}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;visibility:hidden}
+.stage iframe.on{visibility:visible}
+</style>
+</head>
+
+<body>
+
+<div class="bar">
+  <span class="thesis" id="thesis"></span>
+  <div class="right">
+    <a class="lnk" id="solo" href="#" target="_blank">단독 열기 ↗</a>
+    <a class="lnk" href="index.html">나란히 보기 ↗</a>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <iframe class="on" data-v="base" src="base.html" title="현행"></iframe>
+  <iframe data-v="a" src="a-spec.html" title="A 규범"></iframe>
+  <iframe data-v="e" src="e-console.html" title="E 관제"></iframe>
+  <iframe data-v="r" src="r-adaptive.html" title="R 적응"></iframe>
+</div>
+
+<script>
+/* note 는 상단에 뜨는 한 줄 논지. `flag` 가 붙은 것은 DESIGN.md 를 벗어난 시안이다. */
+var VARIANTS = {
+  base: { file: "base.html", label: "현행",
+          note: "[상단 1단] 회색 캔버스 + 흰 카드. 나머지 일곱이 무엇을 얼마나 바꾸는지 재는 자." },
+  a:    { file: "a-spec.html", label: "A 규범",
+          note: "[상단 1단] DESIGN.md 를 글자 그대로. 캔버스·카드 상자를 빼고 제목을 16/400 으로, 13px 을 16px 로." },
+  e:    { file: "e-console.html", label: "E 관제",
+          note: "[좌측 레일 + 상단 2단 · 라이트] 크롬 세 겹이지만 첫 화면에 12행 전부. 노브 둘 — 리스트/격자 · 글씨체.",
+          flag: "DESIGN.md 밖" },
+  r:    { file: "r-adaptive.html", label: "R 적응",
+          note: "[1024px 위 = E · 아래 = A] 하나가 폭에 따라 다르게 선다. 껍데기만이 아니라 행 구조와 글자 크기가 같이 바뀐다 — 본문 최소가 13px↔16px 다.",
+          flag: "§3 이 폭에 따라 켜졌다 꺼진다" },
+};
+
+function show(v) {
+  if (!VARIANTS[v]) v = Object.keys(VARIANTS)[0];
+  document.querySelectorAll(".stage iframe").forEach(function (f) {
+    f.classList.toggle("on", f.dataset.v === v);
+  });
+  var m = VARIANTS[v];
+  document.getElementById("thesis").innerHTML =
+    "<b>" + m.label + "</b> · " + m.note +
+    (m.flag ? ' <span class="flag">[' + m.flag + "]</span>" : "");
+  document.getElementById("solo").href = m.file;
+  if (location.hash.slice(1) !== v) history.replaceState(null, "", "#" + v);
+}
+
+/* 각 시안 하단 바가 보내는 전환 요청.
+ * file:// 은 프레임마다 origin 이 null 이라 contentDocument 직접 접근은 막히지만
+ * postMessage 는 통과한다. origin 검사가 불가능하므로 payload 모양만 엄격히 본다. */
+window.addEventListener("message", function (e) {
+  var d = e.data;
+  if (!d || d.type !== "hns-switch" || !VARIANTS[d.to]) return;
+  show(d.to);
+});
+
+show(location.hash.slice(1));
+</script>
+</body>
+</html>

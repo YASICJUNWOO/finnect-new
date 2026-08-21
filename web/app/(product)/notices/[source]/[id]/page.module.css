@@ -1,3 +1,14 @@
+/* S5 공고 상세.
+ *
+ * 2026-08-21 보조 글자가 `--t-aux` 로 갔다(ADR-0044) — 넓으면 13px, 좁으면 16px.
+ * **폰에서 13px 산문이 나가던 자리들이다.**
+ *
+ * 그리고 **줄길이 62ch 을 산문마다 건다**(§5). 폭이 900px 에서 1040px 로 넓어졌으므로
+ * 상한이 없는 산문은 그만큼 길어진다 — 개요 본문만 막아 두면 나머지가 샌다. */
+
+/* **`.page` 에 62ch 를 걸지 않는다.** §5 가 재는 것은 산문의 줄길이이지 화면 폭이다 —
+ * 페이지를 통째로 묶으면 첨부 목록과 작성 항목 트리(둘 다 산문이 아니다)까지 595px 로
+ * 쪼그라든다. **상한은 산문에만 건다** — 아래 `.body` 와 `.meta` 다. */
 .page {
   display: flex;
   flex-direction: column;
@@ -6,7 +17,7 @@
 
 .back {
   align-self: flex-start;
-  font-size: var(--t-small);
+  font-size: var(--t-aux);
   color: var(--ink-2);
   text-decoration: none;
 }
@@ -33,9 +44,12 @@
   max-width: 32ch;
 }
 
+/* 기관 · 주관 · 분야 · 출처 한 줄. **넷을 이으면 산문 길이가 된다** —
+ * 상한이 없으면 1,040px 를 그대로 쓰고 13px 에서 76ch 까지 간다(§5 는 62ch 이하) */
 .meta {
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  max-width: 62ch;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
@@ -56,8 +70,8 @@
   padding: var(--s4) var(--s5);
   background: var(--quiet);
   border-radius: var(--r);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
 }
 
 .facts dt {
@@ -103,7 +117,7 @@
 }
 
 .noBody {
-  font-size: var(--t-small);
+  font-size: var(--t-aux);
   color: var(--ink-3);
 }
 

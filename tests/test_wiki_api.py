@@ -60,10 +60,16 @@ def test_마크다운과_라우팅이_순수_파이썬이다():
         assert not any(m.startswith("finnect.attach") for m in got), name
 
 
-def test_모든_topic_이_카테고리_안으로_간다():
-    """**표에 구멍이 있으면 사실이 통째로 검토 대기에 쌓인다.** 여기서 잡는다."""
-    for topic, path in tree.EVENT_PATH.items():
-        assert tree.category_of(path) in tree.CATEGORIES, topic
+def test_목적지_표가_트리에_없다():
+    """**T-0126 이 지운 것이다.** 이제 추출기가 경로를 직접 낸다(ADR-0056 결정 2).
+
+    되살리면 「자리를 미리 안 세운다」가 깨진다 — 고정 표가 돌아오면 사업이 표를
+    앞지를 때마다 빈 자리가 다시 생긴다(ADR-0056 맥락 ①).
+
+    픽스처의 옛 어휘를 옮기는 표는 `extract_nodes.FIXTURE_PATH` 로 살아 있고,
+    그 표에 구멍이 없는지는 `tests/test_wiki_merge.py` 가 본다.
+    """
+    assert not hasattr(tree, "EVENT_PATH")
 
 
 def test_고정된_것이_둘뿐이다():

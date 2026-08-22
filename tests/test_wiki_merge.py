@@ -15,8 +15,9 @@ import datetime as dt
 
 import pytest
 
-from finnect.wiki import merge, profile, tree
-from finnect.wiki.extract import Fact
+from finnect.wiki import extract_nodes, extract_profile, merge, profile, tree
+from finnect.wiki.extract_nodes import NodeFact
+from finnect.wiki.extract_profile import ProfileFact
 from finnect.wiki.merge import Claim, Status
 
 D = dt.date
@@ -87,7 +88,10 @@ def test_시점_없는_값은_시점_있는_값을_밀어내지_못한다():
 
 
 # ─────────────────────────────────────────────────────────────────
-# 라우팅
+# 픽스처 번역 — **라우팅이 여기로 옮겨 왔다**(T-0126)
+#
+# 2026-08-22 까지 `merge.place` 가 `topic` 을 표에서 찾아 자리를 정했다. 이제 추출기가
+# 자리를 알고 나오고, 옛 어휘를 옮기는 것은 스텁의 일이다.
 # ─────────────────────────────────────────────────────────────────
 
 
@@ -105,33 +109,42 @@ def test_업태와_종목은_다른_슬롯이다():
 
 def test_모르는_이름은_버리지_않고_검토_대기로_간다():
     """`업력` 은 슬롯이 없다. 문서에 박힌 업력은 기준일이 달라 그대로 믿으면 틀린다."""
-    spot = merge.place(
-        Fact(topic="company_profile", kind="value", text="업력 1년 6개월", anchor="업력",
-             key="업력", value="1년 6개월")
-    )
-    assert spot.path == tree.REVIEW_PATH
-    assert "업력" in spot.why
+    d = {"kind": "value", "topic": "company_profile", "key": "업력",
+         "value": "1년 6개월", "text": "업력 1년 6개월", "anchor": "업력"}
+    #: 트랙 B 는 안 받는다 — 열넷 밖이다
+    assert extract_profile.from_fixture(d) is None
+    #: 트랙 A 가 **값으로** 받는다. 버리지 않는다
+    got = extract_nodes.from_fixture(d)
+    assert got is not None
+    assert (got.path, got.kind) == (tree.REVIEW_PATH, "value")
+    assert "업력" in got.why
 
 
 def test_서술_노드가_없는_topic_은_검토_대기로_간다():
-    """`company_profile` 은 정형 슬롯의 재료라 서술 노드가 없다."""
-    spot = merge.place(
-        Fact(topic="company_profile", kind="event", text="회사 개요", anchor="회사 개요")
+    """`company_profile` 은 매칭 정보의 재료라 노드 자리가 없다."""
+    got = extract_nodes.from_fixture(
+        {"kind": "event", "topic": "company_profile", "text": "회사 개요", "anchor": "회사 개요"}
     )
-    assert spot.path == tree.REVIEW_PATH
+    assert got.path == tree.REVIEW_PATH
 
 
-def test_모든_topic_이_갈_노드가_있다():
+def test_트랙이_갈리고_한_사실이_양쪽에_안_간다():
+    """**같은 픽스처 줄을 둘 다 받으면 사실이 두 번 선다.** `key_of` 하나가 가른다."""
+    d = {"kind": "value", "topic": "company_profile", "key": "상시 근로자",
+         "value": "15", "text": "상시 근로자 15명", "anchor": "상시 근로자 15명"}
+    assert extract_profile.from_fixture(d).key == "headcount"
+    assert extract_nodes.from_fixture(d) is None
+
+
+def test_모든_픽스처_topic_이_갈_노드가_있다():
     """**표에 구멍이 있으면 사실이 통째로 검토 대기에 쌓인다.** 여기서 잡는다.
 
     `company_profile` 과 `application_history` 는 일부러 없다 — 매칭 정보의 재료라
     노드 자리가 없고, 서술로 오면 `Custom/검토 대기` 로 간다.
     """
-    from finnect.wiki import extract
-
     value_only = {"company_profile", "application_history"}
-    for topic in extract.TOPICS - value_only:
-        path = tree.EVENT_PATH.get(topic)
+    for topic in extract_nodes.FIXTURE_TOPICS - value_only:
+        path = extract_nodes.FIXTURE_PATH.get(topic)
         assert path, topic
         #: **카테고리가 표 안에 있어야 한다.** 밖이면 화면이 그 자리를 잃는다
         assert tree.category_of(path) in tree.CATEGORIES, path
@@ -147,30 +160,58 @@ def test_별칭이_가리키는_슬롯이_전부_실재한다():
 # ─────────────────────────────────────────────────────────────────
 
 
+def _pf(**kw) -> ProfileFact:
+    base = {"key": "industry_item", "value": "", "anchor": "", "text": ""}
+    return ProfileFact(**{**base, **kw})
+
+
 def test_띄어쓰기만_다른_값은_하나로_모인다():
     """OCR 이 `응용 소프트웨어개발및공급업` 을 낸다. 안 모으면 노이즈가 전부 충돌이 된다."""
-    a = Fact(topic="company_profile", kind="value", text="", anchor="", key="종목",
-             value="응용 소프트웨어 개발 및 공급업", as_of=D(2024, 3, 11))
-    b = Fact(topic="company_profile", kind="value", text="", anchor="", key="종목",
-             value="응용 소프트웨어개발및공급업", as_of=D(2024, 3, 11))
-    assert merge.dedupe_key(a, merge.place(a)) == merge.dedupe_key(b, merge.place(b))
+    a = _pf(value="응용 소프트웨어 개발 및 공급업", as_of=D(2024, 3, 11))
+    b = _pf(value="응용 소프트웨어개발및공급업", as_of=D(2024, 3, 11))
+    assert merge.value_key(a) == merge.value_key(b)
 
 
 def test_시점_없는_슬롯은_시점이_와도_떨어진다():
     """사업자등록번호에 발급일이 붙어 오면 자리가 갈려 충돌이 안 잡힌다."""
-    f = Fact(topic="company_profile", kind="value", text="", anchor="", key="사업자등록번호",
-             value="501-86-33271", as_of=D(2024, 3, 11))
+    f = _pf(key="business_no", value="501-86-33271", as_of=D(2024, 3, 11))
     assert profile.as_of_for("business_no", f.as_of) is None
-    assert merge.dedupe_key(f, merge.place(f)).endswith("||501-86-33271")
+    assert merge.value_key(f).endswith("||501-86-33271")
 
 
-def test_fact_key_가_같으면_문장이_달라도_한_사실이다():
-    """재구매율이 네 문서에 다른 문장으로 있다. **사실 넷이 되면 틀렸다.**"""
-    a = Fact(topic="customer_evidence", kind="event", anchor="",
-             text="월 재구매율이 34%에서 51%로 올랐습니다", fact_key="pilot_retention_34_51")
-    b = Fact(topic="customer_evidence", kind="event", anchor="",
-             text="34% → 51%", fact_key="pilot_retention_34_51")
-    assert merge.dedupe_key(a, merge.place(a)) == merge.dedupe_key(b, merge.place(b))
+def test_key_가_같으면_문장이_달라도_한_사실이다():
+    """재구매율이 네 문서에 다른 문장으로 있다. **사실 넷이 되면 틀렸다.**
+
+    `key` 가 **라벨이자 병합 열쇠다**(ADR-0056 결정 3). 옛 `fact_key` 가 이 자리다.
+    """
+    a = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
+                 text="월 재구매율이 34%에서 51%로 올랐습니다")
+    b = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
+                 text="34% → 51%")
+    assert merge.node_key(a) == merge.node_key(b)
+
+
+def test_노드가_다르면_같은_key_라도_다른_자리다():
+    """`Company/팀` 의 `직원 수` 와 `Financial/매출` 의 `직원 수` 는 다른 자리다.
+
+    노드를 병합 키에서 빼면 트리 어디에 있든 이름만 같으면 하나로 접힌다.
+    """
+    a = NodeFact(path="Company/팀", key="직원 수", kind="event", anchor="", text="x")
+    b = NodeFact(path="Financial/매출", key="직원 수", kind="event", anchor="", text="x")
+    assert merge.node_key(a) != merge.node_key(b)
+
+
+def test_노드_값도_값이_키에_들어간다():
+    """시점이 같은데 값이 다르면 **행이 둘이 되고 그게 곧 충돌이다.**"""
+    a = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
+                 value="300000000", as_of=D(2025, 9, 30))
+    b = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
+                 value="280000000", as_of=D(2025, 9, 30))
+    assert merge.node_key(a) != merge.node_key(b)
+    #: 공백만 다른 값은 하나다 — 트랙 B 와 같은 규칙이어야 한다
+    c = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
+                 value="300 000 000", as_of=D(2025, 9, 30))
+    assert merge.node_key(a) == merge.node_key(c)
 
 
 def test_공백_지운_항목_이름도_슬롯을_찾는다():

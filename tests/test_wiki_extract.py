@@ -19,8 +19,10 @@ import pytest
 from finnect.attach import extract as attach_extract
 from finnect.attach import ocr
 from finnect.config import settings
-from finnect.wiki import extract, profile
-from finnect.wiki.extract import FileView, StubExtractor, UnknownFile, get_extractor
+from finnect.wiki import extract_nodes, extract_profile, profile
+from finnect.wiki.extract_nodes import FIXTURE_TOPICS, StubNodes
+from finnect.wiki.extract_profile import StubProfile
+from finnect.wiki.port import FileView, UnknownFile
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
 FACTS = FIXTURES / "facts.json"
@@ -68,7 +70,7 @@ def test_모든_topic_이_온톨로지_안에_있다(table: dict):
     """**자유 생성 금지**(구상도 ④). 밖의 라벨이 있으면 통째로 검토 대기에 쌓인다."""
     for e in _entries(table):
         for f in e["facts"]:
-            assert f["topic"] in extract.TOPICS, f"{e['filename']}: {f['topic']}"
+            assert f["topic"] in FIXTURE_TOPICS, f"{e['filename']}: {f['topic']}"
 
 
 def test_정형_사실의_항목_이름이_전부_별칭_표에_있다(table: dict):
@@ -126,22 +128,29 @@ def test_픽스처가_심어_둔_함정이_표에_들어_있다(table: dict):
 # ─────────────────────────────────────────────────────────────────
 
 
-def test_픽스처_밖의_파일은_거부한다():
+#: 트랙이 둘이라 스텁도 둘이다(ADR-0056 결정 1). **규율은 둘 다 같아야 한다** —
+#: 한쪽만 막으면 모르는 파일에서 반쪽 위키가 선다.
+STUBS = [StubNodes, StubProfile]
+
+
+@pytest.mark.parametrize("stub_cls", STUBS)
+def test_픽스처_밖의_파일은_거부한다(stub_cls):
     """**조용히 비면 진짜 사용자 파일에 가짜가 섞이거나 아무것도 안 나온 게 정상처럼 보인다.**"""
-    stub = StubExtractor()
-    view = FileView(sha256="0" * 64, filename="남의_사업계획서.hwp", chunks=(( 0, "무엇이든"),))
+    view = FileView(sha256="0" * 64, filename="남의_사업계획서.hwp", chunks=((0, "무엇이든"),))
     with pytest.raises(UnknownFile, match="스텁이 모르는 파일"):
-        stub.extract(view)
+        stub_cls().extract(view)
 
 
-def test_표가_없으면_아예_안_돈다(tmp_path: Path):
+@pytest.mark.parametrize("stub_cls", STUBS)
+def test_표가_없으면_아예_안_돈다(stub_cls, tmp_path: Path):
     """레포 밖(배포본)에는 이 표가 없다. 없는 채로 도는 것보다 멈추는 편이 낫다."""
-    stub = StubExtractor(facts_path=tmp_path / "없음.json")
+    stub = stub_cls(facts_path=tmp_path / "없음.json")
     with pytest.raises(UnknownFile, match="스텁 사실 표가 없어요"):
         stub.extract(FileView(sha256="0" * 64, filename="x", chunks=()))
 
 
-def test_모르는_추출기를_고르면_막는다(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("mod", [extract_nodes, extract_profile])
+def test_모르는_추출기를_고르면_막는다(mod, monkeypatch: pytest.MonkeyPatch):
     """**없는 것을 있는 척하지 않는다.**
 
     2026-08-19 이 테스트가 `llm` 을 막고 있었는데 ADR-0037 이 제공자를 정해서
@@ -150,12 +159,29 @@ def test_모르는_추출기를_고르면_막는다(monkeypatch: pytest.MonkeyPa
     """
     monkeypatch.setattr(settings, "wiki_extractor", "claude")
     with pytest.raises(NotImplementedError, match="stub"):
-        get_extractor()
+        mod.get_extractor()
 
 
-def test_아는_파일은_사실을_돌려준다(table: dict):
-    stub = StubExtractor()
+def test_아는_파일은_트랙_둘로_갈려_나온다(table: dict):
+    """**둘을 합치면 픽스처 줄 수와 같다.** 한 줄이 양쪽에 가거나 어느 쪽에도 안 가면 어긋난다."""
     entry = next(e for e in _entries(table) if e["filename"].endswith(".docx"))
-    facts = stub.extract(FileView(sha256=entry["sha256"], filename=entry["filename"], chunks=()))
-    assert len(facts) == len(entry["facts"])
-    assert all(f.anchor for f in facts)
+    view = FileView(sha256=entry["sha256"], filename=entry["filename"], chunks=())
+
+    nodes = StubNodes().extract(view)
+    values = StubProfile().extract(view)
+    assert len(nodes) + len(values) == len(entry["facts"])
+    assert all(f.anchor for f in nodes)
+    assert all(f.anchor for f in values)
+    #: 트랙 B 는 **고정 열넷 안에만** 있다
+    assert {f.key for f in values} <= set(profile.PROFILE_KEYS)
+
+
+def test_픽스처_전체가_트랙_둘로_한_번씩만_간다(table: dict):
+    """한 줄이 양쪽에 가면 **사실이 두 번 서고**, 어느 쪽에도 안 가면 조용히 사라진다."""
+    for e in _entries(table):
+        both = [
+            d for d in e["facts"]
+            if (extract_nodes.from_fixture(d) is not None)
+            == (extract_profile.from_fixture(d) is not None)
+        ]
+        assert not both, f"{e['filename']}: {both}"

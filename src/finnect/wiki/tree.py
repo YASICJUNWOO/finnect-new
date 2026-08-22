@@ -16,7 +16,13 @@
 
 `norm()` 이 공백과 구두점을 지운다. `기 능` 과 `기능` 은 같은 자리이고, `기능` 과
 `주요기능` 은 **다른 자리다.** 유사도를 쓰면 같은 문서를 두 번 올릴 때 다른 자리로 가서
-비결정론이 된다(ADR-0056 결정 6).
+비결정론이 된다(ADR-0056 결정 6). 그 그물이 실제로 걸리는 자리는 `port.Roster` 다.
+
+## 목적지 표가 여기 없다
+
+2026-08-22 까지 `EVENT_PATH`(topic 스물셋 → 경로)가 여기 있었고 `merge.place` 가 그걸
+봐서 자리를 정했다. **T-0126 이 그 표를 지웠다** — 이제 추출기가 경로를 직접 내고,
+표는 픽스처의 옛 어휘를 옮기는 데만 쓴다(`extract_nodes.FIXTURE_PATH`).
 """
 
 from __future__ import annotations
@@ -47,38 +53,6 @@ CATEGORIES: dict[str, str] = {
 #: 아홉에 안 맞는 것이 가는 곳. **버리지 않는다**
 FALLBACK = "Custom"
 
-
-#: topic → 노드 경로. **임시 표다.**
-#:
-#: 추출기가 아직 `topic` 을 낸다(옛 스물셋). 동적 경로를 LLM 이 직접 내게 하는 것은
-#: [plan/22](../../../docs/plan/22-동적-노드-트리와-매칭-정보.md) T-0126 이고, 그때 이
-#: 표가 통째로 지워진다. 그때까지는 마이그레이션 `c7f2a91b4d38` 이 쓴 것과 **같은 표**를
-#: 들고 있어야 한다 — 갈리면 새로 세운 위키와 옮겨진 위키가 다른 자리에 앉는다.
-EVENT_PATH: dict[str, str] = {
-    "vision": "Company/비전",
-    "team": "Company/팀",
-    "region_link": "Company/지역관계",
-    "service_overview": "Product/소개",
-    "service_feature": "Product/기능",
-    "service_differentiator": "Product/차별점",
-    "development_status": "Product/개발현황",
-    "market_size": "Market/시장규모",
-    "market_trend": "Market/트렌드",
-    "competitor": "Competitor/경쟁사",
-    "target_customer": "Customer/타깃고객",
-    "customer_problem": "Customer/고객문제",
-    "customer_evidence": "Customer/검증",
-    "revenue_model": "BusinessModel/수익모델",
-    "pricing": "BusinessModel/가격정책",
-    "go_to_market": "BusinessModel/판매전략",
-    "revenue": "Financial/매출",
-    "cost": "Financial/비용",
-    "funding": "Financial/자금계획",
-    "patent": "Custom/특허",
-    "certification": "Custom/인증",
-    "technology": "Custom/기술",
-    "roadmap": "Plan/일정",
-}
 
 #: 갈 자리를 못 찾은 사실이 가는 노드. **검토 대기가 자리로 산다** —
 #: 옛 `uncategorized` 는 트리에 자리가 없어서 화면 어디에도 안 나왔다.

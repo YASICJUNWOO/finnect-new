@@ -2,11 +2,25 @@
 
 `service.py` 가 파일 → 청크까지 하고, 여기가 그 뒤를 받는다. 순서는 이렇다.
 
-    청크  →  추출(포트)  →  라우팅(표)  →  근거 연결  →  병합·충돌
-             ↑ LLM 자리      ↑ 결정론      ↑ 결정론      ↑ 결정론
+    청크  →  추출 A(노드)   →  근거 연결  →  병합·충돌
+          ↘  추출 B(매칭 정보)  ↗
+             ↑ LLM 자리 둘        ↑ 결정론    ↑ 결정론
 
-**LLM 은 첫 칸 하나뿐이고 지금은 스텁이다**(ADR-0031). 나머지 셋에 모델이 안 들어가는
-것이 요점이다 — 그래야 같은 파일을 두 번 넣어도 같은 배치가 나온다.
+**LLM 은 첫 칸뿐이고 나머지에 모델이 안 들어간다** — 그래야 같은 파일을 두 번 넣어도
+같은 배치가 나온다.
+
+## 호출이 파일마다 둘이다
+
+트랙을 가른 것이 ADR-0056 결정 1 이고 **호출을 나눈 것이 그 결정의 값이다.** A 는 넓게
+뽑아야 하고 B 는 빠뜨리면 안 된다 — 튜닝 방향이 반대라 한 프롬프트에 섞으면 둘 다
+어중간해진다. 대가는 파일당 호출 하나가 더 나가는 것이고, 얻는 것은 **B 만 정확도를
+잴 수 있다**는 성질이다(열넷 중 몇 칸).
+
+## 라우팅 단계가 없어졌다
+
+2026-08-22 까지 `merge.place` 가 `topic` 을 표에서 찾아 자리를 정했다. 이제 **추출기가
+자리를 알고 나온다**(T-0126) — 트랙 A 는 노드 경로를, B 는 고정 key 를. 그 표를 우리가
+안 들고 있는 것이 이 결정의 요점이라, 여기서는 받은 자리에 앉히기만 한다.
 
 ## 파일별로 독립이다
 
@@ -42,8 +56,36 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import markdown, merge, profile, tree
-from finnect.wiki.extract import FactExtractor, FileView, UnknownFile, get_extractor
+from finnect.wiki import extract_nodes, extract_profile, markdown, merge, profile, tree
+from finnect.wiki.extract_nodes import NodeExtractor
+from finnect.wiki.extract_profile import ProfileExtractor
+from finnect.wiki.port import FileView, Known, UnknownFile
+
+
+@dataclass(frozen=True, slots=True)
+class Extractors:
+    """추출기 한 벌. **트랙이 둘이라 둘이다**(ADR-0056 결정 1).
+
+    한 인자로 묶는 이유는 부르는 쪽이 **둘 중 하나만 갈아 끼우는 일이 없어서**다 —
+    스텁이면 둘 다 스텁이고 LLM 이면 둘 다 LLM 이다(설정 하나가 정한다).
+    """
+
+    nodes: NodeExtractor
+    values: ProfileExtractor
+
+    @classmethod
+    def default(cls) -> Extractors:
+        return cls(nodes=extract_nodes.get_extractor(), values=extract_profile.get_extractor())
+
+    @property
+    def name(self) -> str:
+        """행에 남는 이름. **둘이 갈리면 둘 다 적는다** — 무엇이 뽑았는지가 흐려지면 안 된다.
+
+        `extractor` 컬럼이 32자라 자른다. 설정 하나가 둘을 고르므로 실제로 갈리는 것은
+        테스트에서 한쪽만 갈아 끼울 때뿐이다.
+        """
+        a, b = self.nodes.name, self.values.name
+        return (a if a == b else f"{a}+{b}")[:32]
 
 
 @dataclass(slots=True)
@@ -124,7 +166,7 @@ def build_company(
     session: Session,
     company_id: str,
     *,
-    extractor: FactExtractor | None = None,
+    extractor: Extractors | None = None,
 ) -> BuildReport:
     """한 회사의 위키를 세운다. **파일별로 독립이고 마지막에 한 번 상태를 매긴다.**
 
@@ -132,7 +174,7 @@ def build_company(
     늦은지는 파일 하나만 봐서는 모른다.
     """
     _hold(session, company_id)
-    ex = extractor or get_extractor()
+    ex = extractor or Extractors.default()
     report = BuildReport(company_id=company_id)
 
     # **`done` 을 다시 읽지 않는다.** 2026-08-21 실측 — `--build` 한 번에 `c_dasiro` 의
@@ -211,8 +253,41 @@ def _shelve(uf: UserFile, report: BuildReport, why: str) -> None:
     report.problems.append((uf.filename, why))
 
 
+def known_names(session: Session, company_id: str) -> Known:
+    """지금 있는 노드·key·한정어. **프롬프트에 번호와 함께 실린다**(ADR-0056 결정 6).
+
+    **파일마다 새로 읽는다.** 앞 파일이 만든 노드를 다음 파일이 봐야 거기 붙는다 —
+    한 번만 읽고 재사용하면 같은 빌드 안에서 이름이 갈린다.
+
+    한정어는 트랙 둘이 같이 쓴다. 트랙 A 의 값(`Financial/매출` 의 `시드`)과 트랙 B 의
+    `funding` 한정어가 같은 말이라, 나눠서 주면 한쪽이 다른 표기를 만든다.
+    """
+    nodes = session.scalars(
+        select(WikiNode.path).where(WikiNode.company_id == company_id).order_by(WikiNode.path)
+    ).all()
+    keys = session.scalars(
+        select(WikiFact.key)
+        .where(WikiFact.company_id == company_id)
+        .distinct()
+        .order_by(WikiFact.key)
+    ).all()
+    quals = [
+        *session.scalars(
+            select(WikiFact.qualifier)
+            .where(WikiFact.company_id == company_id, WikiFact.qualifier.is_not(None))
+            .distinct()
+        ).all(),
+        *session.scalars(
+            select(CompanyValue.qualifier)
+            .where(CompanyValue.company_id == company_id, CompanyValue.qualifier.is_not(None))
+            .distinct()
+        ).all(),
+    ]
+    return Known.of(nodes=nodes, keys=keys, qualifiers=sorted(set(quals)))
+
+
 def _build_file(
-    session: Session, ex: FactExtractor, uf: UserFile, report: BuildReport
+    session: Session, ex: Extractors, uf: UserFile, report: BuildReport
 ) -> None:
     chunks = session.scalars(
         select(Chunk).where(Chunk.user_file_id == uf.id).order_by(Chunk.ordinal)
@@ -226,7 +301,11 @@ def _build_file(
         filename=uf.filename,
         chunks=tuple((c.ordinal, c.text) for c in chunks),
     )
-    facts = ex.extract(view)
+    known = known_names(session, uf.company_id)
+    #: **트랙 A 를 먼저 부른다.** 순서가 결과를 바꾸지는 않지만, A 가 터지면 B 호출값을
+    #: 안 쓰고 버리게 되므로 비싼 쪽을 먼저 실패시킨다
+    node_facts = ex.nodes.extract(view, known)
+    value_facts = ex.values.extract(view, known)
 
     # 앵커로 청크를 찾는다. **청크 번호를 사실에 박지 않는 이유가 이것이다** —
     # `--rechunk` 로 경계가 바뀌어도 앵커는 그대로다.
@@ -234,9 +313,42 @@ def _build_file(
     uf.status = UserFileStatus.LINKING
 
     missing = 0
-    for fact in facts:
-        needle = _squash(fact.anchor)
-        hit = next((c for c, body in squashed if needle and needle in body), None)
+    for fact in value_facts:
+        hit = _chunk_of(squashed, fact.anchor)
+        if hit is None:
+            missing += 1
+            report.problems.append(
+                (uf.filename, f"근거를 못 찾아 버렸어요 — {fact.anchor[:40]!r}")
+            )
+            continue
+        #: 트랙 B — 회사 정보 표로 간다. **트리에 안 앉는다**(ADR-0056 결정 1)
+        key = merge.value_key(fact)
+        row = session.scalar(
+            select(CompanyValue).where(
+                CompanyValue.company_id == uf.company_id, CompanyValue.dedupe_key == key
+            )
+        )
+        if row is None:
+            row = CompanyValue(
+                company_id=uf.company_id,
+                key=fact.key,
+                value=fact.value,
+                qualifier=fact.qualifier,
+                as_of=profile.as_of_for(fact.key, fact.as_of),
+                status=merge.Status.CURRENT,
+                dedupe_key=key,
+                source_type=str(SourceType.DOCUMENT),
+                extractor=ex.values.name,
+            )
+            session.add(row)
+            session.flush()
+            report.facts += 1
+        else:
+            report.merged += 1
+        _attach(session, ValueEvidence, "value_id", row.id, uf, hit, fact, report)
+
+    for fact in node_facts:
+        hit = _chunk_of(squashed, fact.anchor)
         if hit is None:
             missing += 1
             report.problems.append(
@@ -244,52 +356,27 @@ def _build_file(
             )
             continue
 
-        spot = merge.place(fact)
-        key = merge.dedupe_key(fact, spot)
-
-        if spot.kind == "value":
-            #: 트랙 B — 회사 정보 표로 샌다. **트리에 안 앉는다**(ADR-0056 결정 1)
-            row = session.scalar(
-                select(CompanyValue).where(
-                    CompanyValue.company_id == uf.company_id, CompanyValue.dedupe_key == key
-                )
-            )
-            if row is None:
-                row = CompanyValue(
-                    company_id=uf.company_id,
-                    key=spot.key,
-                    value=fact.value or "",
-                    qualifier=fact.qualifier,
-                    as_of=profile.as_of_for(spot.key, fact.as_of),
-                    status=merge.Status.CURRENT,
-                    dedupe_key=key,
-                    source_type=str(SourceType.DOCUMENT),
-                    extractor=ex.name,
-                )
-                session.add(row)
-                session.flush()
-                report.facts += 1
-            else:
-                report.merged += 1
-            _attach(session, ValueEvidence, "value_id", row.id, uf, hit, fact, report)
-            continue
-
         #: 트랙 A — 노드에 앉는다. **조상까지 만든다**
-        node = _ensure_node(session, uf.company_id, spot.path, report)
+        node = _ensure_node(session, uf.company_id, fact.path, report)
+        key = merge.node_key(fact)
         row = session.scalar(
             select(WikiFact).where(WikiFact.company_id == uf.company_id, WikiFact.dedupe_key == key)
         )
         if row is None:
+            is_value = fact.kind == "value"
             row = WikiFact(
                 company_id=uf.company_id,
                 node_id=node.id,
-                kind=str(FactKind.EVENT),
-                key=spot.key,
-                norm_key=tree.norm(spot.key),
+                kind=str(FactKind.VALUE if is_value else FactKind.EVENT),
+                key=fact.key,
+                norm_key=tree.norm(fact.key),
                 dedupe_key=key,
-                text=fact.text if not spot.why else f"{fact.text}  [{spot.why}]",
+                text=fact.text if not fact.why else f"{fact.text}  [{fact.why}]",
+                value=fact.value if is_value else None,
+                qualifier=fact.qualifier if is_value else None,
+                as_of=fact.as_of if is_value else None,
                 source_type=str(SourceType.DOCUMENT),
-                extractor=ex.name,
+                extractor=ex.nodes.name,
             )
             session.add(row)
             session.flush()
@@ -304,6 +391,12 @@ def _build_file(
     #: 계속 말한다 — `_shelve` 가 상태를 되돌려 주는 것과 짝이다
     uf.extract_error = None
     report.built += 1
+
+
+def _chunk_of(squashed: list[tuple[Chunk, str]], anchor: str) -> Chunk | None:
+    """앵커를 담은 첫 청크. **못 찾으면 그 사실은 안 선다**(ADR-0014)."""
+    needle = _squash(anchor)
+    return next((c for c, body in squashed if needle and needle in body), None)
 
 
 def _attach(session, model, col, row_id, uf, chunk, fact, report):  # noqa: ANN001, ANN201, PLR0913
@@ -359,16 +452,53 @@ def _ensure_node(session: Session, company_id: str, path: str, report: BuildRepo
 
 
 def restate(session: Session, company_id: str) -> int:
-    """매칭 정보에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
+    """값에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
 
     돌려주는 값은 충돌 건수다. 부분만 보고 매기면 틀린다 — 어느 시점이 가장 늦은지는
     전체를 봐야 안다.
+
+    **트랙 둘을 따로 매긴다.** 자리가 다르기 때문이다 — 트랙 B 의 `headcount` 와 트랙 A
+    의 `Company/팀 · 직원 수` 는 같은 말을 담을 수 있어도 병합 자리가 아니다. 한 통에
+    넣으면 호출 둘이 낸 값이 서로를 `superseded` 로 밀어낸다(ADR-0056 「포기하는 것 ②」
+    가 이미 인정한 어긋남을 여기서 충돌로 둔갑시키게 된다).
     """
+    return _restate_values(session, company_id) + _restate_node_values(session, company_id)
+
+
+def _restate_values(session: Session, company_id: str) -> int:
+    """트랙 B. 자리가 `key` 하나다."""
     rows = session.scalars(
         select(CompanyValue).where(CompanyValue.company_id == company_id)
     ).all()
     claims = [
         merge.Claim(key=r.key, qualifier=r.qualifier, as_of=r.as_of, value=r.value or "")
+        for r in rows
+    ]
+    verdict = merge.decide(claims)
+    conflicts = 0
+    for row, claim in zip(rows, claims, strict=True):
+        row.status = verdict[claim]
+        conflicts += row.status == merge.Status.CONFLICT
+    return conflicts
+
+
+def _restate_node_values(session: Session, company_id: str) -> int:
+    """트랙 A 의 값. **자리에 노드가 하나 더 붙는다.**
+
+    `Company/팀` 의 `직원 수` 와 `Financial/매출` 의 `직원 수` 는 다른 자리다. 노드를
+    안 끼우면 트리 어디에 있든 같은 이름이면 서로를 밀어낸다.
+
+    `event` 사실은 안 건드린다 — 상태가 NULL 인 것이 그 종류의 정의다.
+    """
+    rows = session.scalars(
+        select(WikiFact).where(
+            WikiFact.company_id == company_id, WikiFact.kind == str(FactKind.VALUE)
+        )
+    ).all()
+    claims = [
+        merge.Claim(
+            key=f"{r.node_id}|{r.key}", qualifier=r.qualifier, as_of=r.as_of, value=r.value or ""
+        )
         for r in rows
     ]
     verdict = merge.decide(claims)

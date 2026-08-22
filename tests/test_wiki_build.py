@@ -27,8 +27,8 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import build, merge, profile, service, tree
-from finnect.wiki.extract import Fact
+from finnect.wiki import build, extract_nodes, merge, profile, service, tree
+from finnect.wiki.extract_nodes import NodeFact
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
 COMPANY = "c_build"
@@ -140,7 +140,7 @@ def test_서술_노드가_전부_찬다(built):  # noqa: ANN001
         filled = {n.category for n in build.read_nodes(s, COMPANY) if n.filled}
     #: **카테고리로 본다.** 경로가 잘아져서(23자리) 코퍼스 하나가 전부를 못 채운다 —
     #: 「자리가 비었다」와 「그 갈래를 아예 못 읽었다」는 다른 말이고, 여기서 보려는 것은 뒤다
-    want = {tree.category_of(p) for p in tree.EVENT_PATH.values()}
+    want = {tree.category_of(p) for p in extract_nodes.FIXTURE_PATH.values()}
     assert want - filled == set(), f"통째로 빈 갈래: {want - filled}"
 
 
@@ -354,17 +354,31 @@ class _Drifting:
     def __init__(self) -> None:
         self.calls = 0
 
-    def extract(self, view):  # noqa: ANN001, ANN201
+    def extract(self, view, known=None):  # noqa: ANN001, ANN201
         self.calls += 1
         anchor = view.chunks[0][1][:6]
         return [
-            Fact(
-                topic="team",
+            NodeFact(
+                path="Company/팀",
+                key=f"{self.calls}번째",
                 kind="event",
                 text=f"{anchor} 를 {self.calls}번째로 읽은 문장이다.",
                 anchor=anchor,
             )
         ]
+
+
+class _NoValues:
+    """트랙 B 자리. **여기서 재는 것은 트랙 A 의 흔들림이라** 값은 안 낸다."""
+
+    name = "drift/v1"
+
+    def extract(self, view, known=None):  # noqa: ANN001, ANN201
+        return []
+
+
+def _drift(ex: _Drifting) -> build.Extractors:
+    return build.Extractors(nodes=ex, values=_NoValues())
 
 
 def test_build_를_두_번_돌려도_사실이_안_늘어난다(built):  # noqa: ANN001
@@ -378,13 +392,13 @@ def test_build_를_두_번_돌려도_사실이_안_늘어난다(built):  # noqa:
     ex = _Drifting()
 
     with factory() as s:
-        build.build_company(s, COMPANY, extractor=ex)
+        build.build_company(s, COMPANY, extractor=_drift(ex))
         s.commit()
     after_first = sorted(f.dedupe_key for f in _facts(factory))
     calls_first = ex.calls
 
     with factory() as s:
-        build.build_company(s, COMPANY, extractor=ex)
+        build.build_company(s, COMPANY, extractor=_drift(ex))
         s.commit()
 
     assert sorted(f.dedupe_key for f in _facts(factory)) == after_first
@@ -464,7 +478,7 @@ def test_못_뽑은_이유가_행에_남는다(built):  # noqa: ANN001
 
     # 추출기를 바꿔 성공하면 **지난 이유를 지운다.** 안 지우면 화면이 옛 말을 계속 한다
     with factory() as s:
-        build.build_company(s, COMPANY, extractor=_Drifting())
+        build.build_company(s, COMPANY, extractor=_drift(_Drifting()))
         s.commit()
     with factory() as s:
         uf = s.scalars(select(UserFile).where(UserFile.sha256 == "e" * 64)).one()

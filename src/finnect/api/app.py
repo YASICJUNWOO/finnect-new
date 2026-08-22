@@ -263,9 +263,21 @@ def _build(company_id: str, file_ids: list[int]) -> None:
 
     # 사실 추출과 병합은 **전체를 봐야** 정해진다(`build.build_company`). 파일마다 돌리면
     # 어느 시점이 가장 늦은지 알 수 없어 충돌 판정이 깨진다.
-    with SessionFactory() as s:
-        build.build_company(s, company_id)
-        s.commit()
+    #
+    # **다른 프로세스가 같은 회사를 세우고 있으면 거절된다**(plan/12 T-0094). 해독은 이미
+    # 끝났고 파일이 `chunked` 로 남아 있으므로 **다음 올리기나 `--build` 가 이어받는다** —
+    # 스레드 밖으로 던지면 `jobs.launch` 가 트레이스백만 찍고 사용자는 이유를 못 본다.
+    try:
+        with SessionFactory() as s:
+            build.build_company(s, company_id)
+            s.commit()
+    except build.BuildBusy as e:
+        for fid in file_ids:
+            with SessionFactory() as s:
+                uf = s.get(UserFile, fid)
+                if uf is not None and uf.status == UserFileStatus.CHUNKED:
+                    uf.extract_error = str(e)
+                    s.commit()
 
 
 @app.post("/api/wiki/{company_id}/files", response_model=UploadOut, status_code=202)

@@ -446,3 +446,25 @@ def test_못_뽑은_이유가_행에_남는다(built):  # noqa: ANN001
         uf = s.scalars(select(UserFile).where(UserFile.sha256 == "e" * 64)).one()
     assert uf.status == UserFileStatus.DONE
     assert uf.extract_error is None
+
+
+def test_락_키가_프로세스를_건너_같다():
+    """**`hash()` 를 쓰면 안 된다**(plan/12 T-0094). `PYTHONHASHSEED` 가 프로세스마다
+    달라서 CLI 와 서비스가 다른 키를 잡고 **둘 다 통과한다** — 막으려는 것이 그것이다.
+
+    값을 박아 둔다. 계산이 바뀌면 이미 돌고 있는 프로세스와 새 프로세스가 다른 키를
+    잡으므로 **버전을 건너서도 같아야 한다.**
+    """
+    assert build._lock_key("c_narin") == -7587798155975909967
+    assert build._lock_key("c_dasiro") != build._lock_key("c_narin")
+    #: 값이 bigint 범위 안이다. 넘으면 Postgres 가 거절한다
+    assert -(2**63) <= build._lock_key("c_dasiro") < 2**63
+
+
+def test_sqlite_에서는_락을_안_건다(built):  # noqa: ANN001
+    """테스트는 인메모리로 돌고 **거기는 프로세스가 하나다.** 거절하면 전부 죽는다."""
+    factory, _ = built
+    with factory() as s:
+        build._hold(s, COMPANY)
+        build._hold(s, COMPANY)  # 두 번 불러도 안 터진다
+        assert build.build_company(s, COMPANY) is not None

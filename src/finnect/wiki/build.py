@@ -23,11 +23,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from collections import Counter
 from dataclasses import dataclass, field
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finnect.models import (
@@ -73,6 +74,45 @@ def _squash(s: str) -> str:
     return "".join(s.split())
 
 
+class BuildBusy(RuntimeError):
+    """다른 프로세스가 같은 회사를 세우고 있다(plan/12 T-0094)."""
+
+
+def _lock_key(company_id: str) -> int:
+    """회사 하나를 어드바이저리 락 키(bigint)로. **프로세스를 건너 같아야 한다.**
+
+    파이썬 `hash()` 를 쓰면 안 된다 — `PYTHONHASHSEED` 가 프로세스마다 달라서 CLI 와
+    서비스가 **다른 키를 잡고 둘 다 통과한다.** 막으려는 것이 정확히 그것이다.
+    """
+    digest = hashlib.sha256(f"finnect.wiki.build:{company_id}".encode()).digest()
+    return int.from_bytes(digest[:8], "big", signed=True)
+
+
+def _hold(session: Session, company_id: str) -> None:
+    """이 회사를 이 트랜잭션 동안 붙잡는다. 못 잡으면 거절한다(plan/12 T-0094).
+
+    `ingest/jobs.py` 의 락은 `threading.Lock` 이라 **한 프로세스 안에서만 산다.**
+    2026-08-21 CLI `--build` 가 도는 중에 화면에서 올린 파일이 `chunked` 로 되돌려졌다 —
+    둘이 같은 `wiki_fact` 에 쓰면서 부딪혔다. 그 락은 그대로 두고(같은 프로세스 안의
+    버튼 두 번을 막는 것은 여전히 그쪽 일이다) 여기서 프로세스 사이를 막는다.
+
+    **트랜잭션 락(`_xact_`)이다.** 커밋·롤백에 저절로 풀려서 새는 자리가 없다 — 세션
+    수준 락은 프로세스가 죽으면 연결이 끊길 때까지 남는다.
+
+    **거절이 기본값이다**(`jobs.launch` 와 같은 규칙). 큐에 쌓으면 두 번 도는 것을
+    아무도 못 본다.
+
+    SQLite 에서는 아무것도 안 한다 — 테스트가 인메모리로 돌고, 거기는 프로세스가 하나다.
+    """
+    if session.bind is None or session.bind.dialect.name != "postgresql":
+        return
+    if not session.scalar(select(func.pg_try_advisory_xact_lock(_lock_key(company_id)))):
+        raise BuildBusy(
+            f"{company_id}: 지금 다른 곳에서 위키를 세우고 있어요. "
+            "끝나고 다시 해 주세요 — 화면에서 올리는 중에 CLI 를 돌리면 이렇게 됩니다"
+        )
+
+
 def build_company(
     session: Session,
     company_id: str,
@@ -84,6 +124,7 @@ def build_company(
     상태(current/superseded/conflict)는 **전체를 봐야** 정해진다. 어느 시점이 가장
     늦은지는 파일 하나만 봐서는 모른다.
     """
+    _hold(session, company_id)
     ex = extractor or get_extractor()
     report = BuildReport(company_id=company_id)
 

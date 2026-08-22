@@ -244,7 +244,51 @@ def test_첨부_목록은_그림을_안_받는다(tmp_path: Path) -> None:
     got = extract.parse(f, "스캔본.tiff", allowed=settings.formats, use_ocr=False)
 
     assert got.status is ParseStatus.UNSUPPORTED
-    assert got.error is None  # 문전에서 잘렸다. 그림 분기까지 안 갔다
+    assert got.ext == "tiff"  # 무엇인지는 알아봤다. 안 받기로 한 것뿐이다
+
+
+def test_미지원_넷이_저마다_이유를_남긴다(tmp_path: Path, monkeypatch) -> None:
+    """**`unsupported` 하나에 사실이 넷 들어 있다**(T-0098).
+
+    사용자가 할 일이 넷 다 다르다 — 목록 밖은 우리가 늘려야 하고, 모르는 확장자는
+    파일이 깨졌거나 우리 표에 없는 것이고, 그림은 OCR 이 붙어야 하고, 파서 없음은
+    **설정을 잘못 넣은 것이라 사용자 잘못이 아니다.**
+
+    이유가 비면 화면이 아무 말도 못 한다. `detail` 이 `parse_error` 에서 오고
+    거기가 `Parsed.error` 라(`api/wiki_service.py`) **여기가 비면 끝까지 빈다.**
+    """
+    from finnect.config import settings
+
+    # 1. 목록 밖. 무엇인지는 알아봤다
+    a = tmp_path / "스캔본.tiff"
+    a.write_bytes(b"II*\x00" + b"\x00" * 64)
+    got_a = extract.parse(a, "스캔본.tiff", allowed=frozenset({"pdf"}))
+
+    # 2. 확장자를 못 알아봤다. 이름도 안 도와준다
+    b = tmp_path / "무명"
+    b.write_bytes(b"\x01\x02\x03\x04\x05\x06\x07\x08")
+    got_b = extract.parse(b, "무명", allowed=frozenset({"pdf"}))
+
+    # 3. 그림인데 OCR 이 꺼져 있다
+    c = tmp_path / "사업자등록증.png"
+    c.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+    got_c = extract.parse(c, "사업자등록증.png", allowed=settings.wiki_formats, use_ocr=False)
+
+    # 4. 목록에는 있는데 파서가 없다. **설정을 잘못 넣은 것이다**
+    d = tmp_path / "메모.txt"
+    d.write_bytes(b"hello")
+    got_d = extract.parse(d, "메모.txt", allowed=frozenset({"txt"}))
+
+    assert got_a.ext == "tiff"
+    assert got_b.ext is None
+    assert got_c.ext == "png"
+    assert got_d.ext == "txt"
+
+    got = (got_a, got_b, got_c, got_d)
+    assert all(g.status is ParseStatus.UNSUPPORTED for g in got)
+    # **넷 다 이유가 있고 넷이 서로 다르다.** 같으면 화면이 못 가른다
+    assert all(g.error for g in got)
+    assert len({g.error for g in got}) == 4
 
 
 def test_깨진_pdf는_실패로_남는다(tmp_path: Path) -> None:

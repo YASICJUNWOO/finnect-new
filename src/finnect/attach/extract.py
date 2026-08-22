@@ -73,9 +73,13 @@ def parse(
     ext = formats.detect(path, filename)
     allowed = allowed if allowed is not None else formats.supported()
 
-    if ext is None or ext not in allowed:
-        # 안 해봤다. 해봤는데 안 된 것과 다르다.
-        return Parsed(ParseStatus.UNSUPPORTED, ext)
+    if ext is None:
+        # 안 해봤다. 해봤는데 안 된 것과 다르다. **둘을 가르는 것이 이 표의 존재 이유다.**
+        return Parsed(ParseStatus.UNSUPPORTED, ext, error="확장자를 못 알아봤다")
+
+    if ext not in allowed:
+        # 무엇인지는 알아봤다. **안 받기로 한 것뿐이다** — 목록을 늘리면 읽힌다.
+        return Parsed(ParseStatus.UNSUPPORTED, ext, error=f"지원 목록에 없는 포맷이다({ext})")
 
     if ext in ocr.IMAGE_EXTS:
         if not use_ocr:

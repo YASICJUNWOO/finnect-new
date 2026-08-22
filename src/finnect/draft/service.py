@@ -18,13 +18,14 @@ from finnect.config import settings
 from finnect.db import engine
 from finnect.draft import allot as al
 from finnect.draft import dedupe as dd
-from finnect.draft import limits
+from finnect.draft import limits, refs
 from finnect.draft import needs as nd
 from finnect.draft import write as wr
 from finnect.llm import Usage
 from finnect.models import (
     Attachment,
     AttachmentFile,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
@@ -32,14 +33,17 @@ from finnect.models import (
     DraftEvidence,
     DraftItem,
     DraftItemStatus,
+    DraftValueEvidence,
     ItemNeed,
     ItemOverlap,
     SourceType,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
     WikiNode,
 )
 from finnect.views import Notice
+from finnect.wiki import profile
 
 #: 공고 본문을 재료에 넣을 때의 상한. **지원금액이 값으로 오는 필드가 없어서
 #: 본문에서만 나온다** — 너무 짧게 자르면 금액이 잘리고, 길면 프롬프트가 커진다
@@ -547,8 +551,20 @@ def _notice_material(s: Session, source: str, external_id: str) -> tuple[tuple[s
 
 
 def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
-    """위키 사실과 그 근거. **근거 없는 사실은 애초에 없다**(ADR-0014)."""
+    """집필이 쓸 재료 전부. **트랙 둘을 여기서 합친다**(plan/22 T-0134).
+
+    트랙 A(노드에 앉은 사실)와 트랙 B(매칭 정보 열넷)가 표가 다르고 근거 표도 다르다.
+    합치는 자리가 여기 하나인 이유는 **아래가 전부 재료 id 하나로 도는** 배관이라서다 —
+    배분·집필·중복 점검이 정수 하나만 본다(`refs.py`).
+
+    **트랙 B 를 안 읽으면 조용히 틀린다.** `item_need.place` 가 `headcount` 를 가리킬 수
+    있는데(`needs.PLACES`) 재료에 그 자리가 영영 안 나와서 **위키에 값이 있는데도**
+    「못 채웠어요」가 된다. 오류가 아니라 빈칸으로 나오는 종류다.
+
+    **근거 없는 사실은 애초에 없다**(ADR-0014).
+    """
     out: dict[int, wr.FactMaterial] = {}
+
     rows = s.execute(
         select(WikiFact, WikiNode.path)
         .join(WikiNode, WikiNode.id == WikiFact.node_id)
@@ -569,7 +585,46 @@ def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
             chunk_ids=tuple(c for c, _ in ev),
             source_type=f.source_type,
         )
+
+    #: 트랙 B. **`place` 가 경로가 아니라 key 다** — `item_need.place` 가 그 이름으로
+    #: 가리키고 `allot._index` 가 마디 하나짜리 경로로 받는다.
+    #:
+    #: **`superseded` 만 뺀다.** 트랙 A 와 같은 규칙이라 `conflict` 는 둘 다 재료로
+    #: 간다 — 어느 쪽이 맞는지는 집필이 정할 일이 아니고, 화면이 충돌로 물어볼 자리다
+    #: (T-0131). 여기서 하나를 고르면 **고른 근거가 어디에도 안 남는다.**
+    values = s.scalars(
+        select(CompanyValue).where(
+            CompanyValue.company_id == company_id,
+            CompanyValue.status != "superseded",
+        )
+    ).all()
+    for v in values:
+        ev = s.execute(
+            select(ValueEvidence.chunk_id, ValueEvidence.quote).where(
+                ValueEvidence.value_id == v.id
+            )
+        ).all()
+        out[refs.value_ref(v.id)] = wr.FactMaterial(
+            id=refs.value_ref(v.id),
+            place=v.key,
+            #: **라벨을 붙여서 넣는다.** 저장값(`120000000`)만 주면 집필이 단위를
+            #: 지어낸다. 단위를 붙이는 자리는 `profile.display()` 하나다
+            text=_value_text(v),
+            quotes=tuple(q for _, q in ev),
+            chunk_ids=tuple(c for c, _ in ev),
+            source_type=v.source_type,
+        )
     return out
+
+
+def _value_text(v: CompanyValue) -> str:
+    """매칭 정보 한 칸을 집필이 읽는 문장으로. **저장값은 안 건드린다.**"""
+    spec = profile.PROFILE_KEYS.get(v.key)
+    label = spec.label if spec else v.key
+    body = f"{label} {profile.display(v.key, v.value)}"
+    if v.qualifier:
+        body = f"{body} ({v.qualifier})"
+    return f"{body} — {v.as_of.isoformat()} 기준" if v.as_of else body
 
 
 def _store_items(  # noqa: PLR0913
@@ -652,13 +707,21 @@ def _store_items(  # noqa: PLR0913
             for fid in p.fact_ids:
                 f = facts[fid]
                 chunks.extend(f.chunk_ids)
-                s.add(
-                    DraftEvidence(
-                        draft_item_id=item.id, paragraph=n, fact_id=fid,
-                        chunk_id=f.chunk_ids[0] if f.chunk_ids else None,
+                #: **트랙마다 표가 다르다**(T-0134). 부호가 어느 표인지 말한다
+                cid = f.chunk_ids[0] if f.chunk_ids else None
+                row = (
+                    DraftValueEvidence(
+                        draft_item_id=item.id, paragraph=n,
+                        value_id=refs.value_id(fid), chunk_id=cid,
                         source_type=f.source_type,
                     )
+                    if refs.is_value(fid)
+                    else DraftEvidence(
+                        draft_item_id=item.id, paragraph=n, fact_id=fid,
+                        chunk_id=cid, source_type=f.source_type,
+                    )
                 )
+                s.add(row)
             out.append(
                 dd.ParaView(
                     item_index=index, paragraph=n, text=p.text,

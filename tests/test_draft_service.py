@@ -37,6 +37,7 @@ from finnect.models import (
     DraftEvidence,
     DraftItem,
     DraftItemStatus,
+    DraftValueEvidence,
     ItemNeed,
     ItemOverlap,
     ParseStatus,
@@ -70,7 +71,7 @@ SHA = "d" * 64
 NOTICE = "PBLN-000"
 TABLES = [
     Attachment, AttachmentFile, Document, DocumentItem, ItemNeed, ItemOverlap,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode,
+    Draft, DraftItem, DraftEvidence, DraftValueEvidence, WikiFact, WikiNode,
     CompanyValue, ValueEvidence, WikiEvidence, Chunk, UserFile,
     # Postgres 에서는 뷰지만 매핑된 클래스라 SQLite 에서는 표로 만든다.
     # **구멍 1 이 이 표를 읽는다** — 없으면 공고 데이터가 재료에 안 들어간다
@@ -91,16 +92,21 @@ class 가짜클라이언트:
 
 
 class 받은대로쓰는집필기(가짜클라이언트):
-    """**받은 사실을 그대로 인용한다.** 고정 응답을 쓰면 항목마다 배분이 다른데
+    r"""**받은 사실을 그대로 인용한다.** 고정 응답을 쓰면 항목마다 배분이 다른데
     답이 같아서, `근거 없는 문단` 으로 전부 버려진다 — 배관을 못 본다.
 
     자리 이름에 `[^\]]+` 를 쓰는 이유는 **노드 경로에 `/` 가 들어가서다**(ADR-0056).
     `\w+` 로 두면 `#1 [Customer/고객문제]` 가 안 잡히고 전부 안 쓴 것이 된다.
+
+    id 에 `-?` 를 쓰는 이유는 **매칭 정보가 음수 id 로 온다**는 것이다(`draft/refs.py` ·
+    T-0134). `\d+` 로 두면 트랙 B 재료만 통째로 안 잡혀서 **값을 요구한 항목이 전부
+    `unwritten` 이 된다** — 위키에 값이 있는데 못 채운 것처럼 보이는, 고치려던 바로 그
+    증상이다.
     """
 
     def json(self, **kw) -> dict:  # noqa: ANN003
         self.calls.append(kw)
-        got = re.findall(r"^#(\d+) \[[^\]]+\](?: \([^)]*\))? (.+)$", kw["user"], re.M)
+        got = re.findall(r"^#(-?\d+) \[[^\]]+\](?: \([^)]*\))? (.+)$", kw["user"], re.M)
         return {"paragraphs": [{"text": f"{t}.", "facts": [int(i)]} for i, t in got]}
 
 
@@ -498,3 +504,94 @@ class Test분량:
 
         assert report.over_limit == 0
         assert report.unmeasured == 1
+
+
+class Test매칭_정보:
+    """**트랙 B 를 집필이 읽는다** (plan/22 T-0134).
+
+    이 결함은 테스트 150개가 전부 통과하는 채로 살아 있었다 — 위 픽스처가 노드 경로만
+    쓰고 `item_need.place` 가 매칭 정보 열넷을 가리키는 길을 **한 번도 안 밟아서**다.
+    그래서 여기는 `wikifix.value()` 로 트랙 B 에만 값을 넣고 시작한다.
+    """
+
+    #: 3번 항목이 `Company` 대신 `headcount` 를 요구한다. 나머지는 위와 같다
+    READING_VALUE = {
+        "items": [
+            {"index": 0, "summary_of_others": False,
+             "needs": [{"place": "Customer", "required": True}]},
+            {"index": 1, "summary_of_others": False,
+             "needs": [{"place": "Customer", "required": True}]},
+            {"index": 2, "summary_of_others": False,
+             "needs": [{"place": "headcount", "required": True}]},
+        ],
+        "overlaps": [],
+    }
+
+    def _seed(self, factory) -> None:  # noqa: ANN001
+        with factory() as s:
+            f = s.scalars(select(UserFile)).first()
+            c = s.scalars(select(Chunk)).first()
+            v = wikifix.value(s, COMPANY, "headcount", "15")
+            s.add(ValueEvidence(company_id=COMPANY, value_id=v.id, chunk_id=c.id,
+                                user_file_id=f.id, quote="상시 근로자 15명"))
+            s.commit()
+
+    def _run(self, db):  # noqa: ANN001, ANN202
+        _read(db, self.READING_VALUE)
+        return service.build_draft(
+            COMPANY, "bizinfo", NOTICE, workers=1,
+            allotter=al.Allotter(client=가짜클라이언트({"assign": []})),
+            writers=lambda: wr.LlmWriter(client=받은대로쓰는집필기({})),
+            checker=dd.LlmChecker(client=가짜클라이언트({"clashes": []})),
+        )
+
+    def test_값이_재료에_들어간다(self, db) -> None:  # noqa: ANN001
+        """**`headcount` 는 `wiki_fact` 에 없다.** `company_value` 에만 있다."""
+        factory, _ = db
+        self._seed(factory)
+
+        with factory() as s:
+            mats = service._company_facts(s, COMPANY)
+        got = [m for m in mats.values() if m.place == "headcount"]
+
+        assert len(got) == 1
+        #: **저장값이 아니라 라벨 붙은 문장이다.** `15` 만 주면 집필이 단위를 지어낸다
+        assert got[0].text == "직원 수 15명"
+        assert got[0].quotes == ("상시 근로자 15명",)
+
+    def test_못_채움이_아니다(self, db) -> None:  # noqa: ANN001
+        """**이 한 줄이 T-0134 다.** 위키에 값이 있는데 「없어요」가 뜨던 자리."""
+        factory, _ = db
+        self._seed(factory)
+        report = self._run(db)
+
+        assert "headcount" not in report.missing
+        with factory() as s:
+            item = s.scalars(
+                select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
+            ).one()
+            assert item.missing == []
+            assert item.status == str(DraftItemStatus.DRAFTED)
+
+    def test_값을_인용한_문단에_근거가_붙는다(self, db) -> None:  # noqa: ANN001
+        """**표가 갈려 있다**(ADR-0056 과 같은 이유). `draft_evidence` 에 안 앉는다."""
+        factory, _ = db
+        self._seed(factory)
+        self._run(db)
+
+        with factory() as s:
+            ev = s.scalars(select(DraftValueEvidence)).all()
+            assert ev
+            assert all(e.value_id and e.chunk_id for e in ev)
+
+    def test_값이_없으면_그때는_못_채움이다(self, db) -> None:  # noqa: ANN001
+        """**반대쪽도 잠근다.** 안 그러면 「항상 채워짐」으로 고쳐도 통과한다."""
+        factory, _ = db
+        report = self._run(db)
+
+        assert report.missing == {"headcount": 1}
+        with factory() as s:
+            item = s.scalars(
+                select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
+            ).one()
+            assert item.status == str(DraftItemStatus.BLANK)

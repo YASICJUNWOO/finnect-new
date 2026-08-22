@@ -37,17 +37,20 @@ from finnect.api.schemas import (
     MissingOut,
     ParagraphOut,
 )
-from finnect.draft import limits
+from finnect.draft import limits, refs
 from finnect.models import (
     Attachment,
     AttachmentFile,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
     Draft,
     DraftEvidence,
     DraftItem,
+    DraftValueEvidence,
     ItemNeed,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
     WikiNode,
@@ -238,16 +241,42 @@ def _missing(place: str, required: bool) -> MissingOut:  # noqa: FBT001
     return MissingOut(place=place, place_label=_label(place), required=required)
 
 
+#: 자리 이름을 못 찾았을 때 화면에 낼 말. **영어 키를 그대로 내보내지 않는다.**
+#:
+#: 여기 떨어지는 것은 `item_need.place` 가 어느 표에도 없는 이름일 때뿐이고, 그건
+#: **우리 배관이 어긋났다는 뜻이지 사용자가 알 일이 아니다**(T-0135 전에는 「solution」이
+#: 한국어 라벨 자리에 떴다). 자리를 못 부르면 물어볼 수도 없으므로 **못 채운 자리로도
+#: 안 센다** — `_missing` 이 이 값을 쓰는 쪽에서 그것까지 판단하지 않는다.
+UNKNOWN_PLACE = "분류 안 된 자리"
+
+
 def _label(place: str) -> str:
-    """`wiki/profile.py` 와 `wiki/tree.py` 가 정본이다. **화면이 한국어를 짓지 않는다.**"""
+    """`wiki/profile.py` 와 `wiki/tree.py` 가 정본이다. **화면이 한국어를 짓지 않는다.**
+
+    들어오는 것이 셋이다 — 매칭 정보 key(`headcount`) · 카테고리(`Customer`) ·
+    **노드 경로**(`Financial/매출`). 앞의 둘은 표에서 꺼내고 경로는 **그대로 낸다**:
+    마디 이름을 추출기가 한국어로 짓고, 경로가 곧 사용자가 위키에서 보는 자리 이름이다
+    (`Spot.path` 와 같은 문자열 — 두 화면이 다르게 부르면 다른 자리로 읽힌다).
+
+    **못 찾은 것만 폴백이다.** 이 함수의 요점이 「우리가 한국어를 짓지 않는다」인데
+    폴백이 영어 키를 내면 그 문장이 거짓이 된다 — T-0135 전에는 「solution」이 한국어
+    라벨 자리에 떴다.
+    """
     spec = profile.PROFILE_KEYS.get(place)
     if spec is not None:
         return spec.label
-    return tree.CATEGORIES.get(place, place)
+    if "/" in place:
+        return place
+    return tree.CATEGORIES.get(place) or UNKNOWN_PLACE
 
 
 def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, EvidenceOut]]]:
-    """문단별 근거. **`fact_id` 로 위키까지 잇는다**(F6-13)."""
+    """문단별 근거. **`fact_id` 로 위키까지 잇는다**(F6-13).
+
+    **트랙 둘을 합친다**(plan/22 T-0134). 표가 둘이라 질의도 둘이고, 화면에서는
+    한 줄로 섞여 나온다 — 사용자에게 「이건 노드고 저건 매칭 정보다」는 뜻이 없다.
+    `fact_id` 는 **재료 공간 id** 라 값이면 음수다(`draft/refs.py`).
+    """
     if not item_ids:
         return {}
     rows = s.execute(
@@ -267,6 +296,24 @@ def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, Evidenc
         .order_by(DraftEvidence.paragraph, DraftEvidence.id)
     ).all()
 
+    value_rows = s.execute(
+        select(
+            DraftValueEvidence.draft_item_id, DraftValueEvidence.paragraph,
+            DraftValueEvidence.value_id, DraftValueEvidence.chunk_id,
+            DraftValueEvidence.source_type,
+            CompanyValue.key, CompanyValue.value, CompanyValue.qualifier,
+            CompanyValue.as_of, ValueEvidence.quote,
+        )
+        .join(CompanyValue, CompanyValue.id == DraftValueEvidence.value_id)
+        .outerjoin(
+            ValueEvidence,
+            (ValueEvidence.value_id == DraftValueEvidence.value_id)
+            & (ValueEvidence.chunk_id == DraftValueEvidence.chunk_id),
+        )
+        .where(DraftValueEvidence.draft_item_id.in_(item_ids))
+        .order_by(DraftValueEvidence.paragraph, DraftValueEvidence.id)
+    ).all()
+
     out: dict[int, list[tuple[int, EvidenceOut]]] = {}
     for iid, para, fid, cid, stype, place, text, quote in rows:
         out.setdefault(iid, []).append((
@@ -276,7 +323,33 @@ def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, Evidenc
                 chunk_id=cid, quote=quote, source_type=stype,
             ),
         ))
+    for iid, para, vid, cid, stype, key, value, qual, as_of, quote in value_rows:
+        out.setdefault(iid, []).append((
+            para,
+            EvidenceOut(
+                fact_id=refs.value_ref(vid), place=key, place_label=_label(key),
+                text=_value_text(key, value, qual, as_of),
+                chunk_id=cid, quote=quote, source_type=stype,
+            ),
+        ))
+    #: **문단 순서로 다시 세운다.** 표 둘을 이어 붙이면 트랙 A 가 전부 앞에 선다
+    for iid in out:
+        out[iid].sort(key=lambda pair: pair[0])
     return out
+
+
+def _value_text(key: str, value: str, qualifier: str | None, as_of: dt.date | None) -> str:
+    """매칭 정보 한 칸을 근거 줄에 쓸 글자로.
+
+    **`draft/service.py` `_value_text` 와 같은 모양이어야 한다** — 집필이 읽은 문장과
+    화면이 보여 주는 문장이 다르면 근거 대조가 눈으로 안 된다.
+    """
+    spec = profile.PROFILE_KEYS.get(key)
+    label = spec.label if spec else key
+    body = f"{label} {profile.display(key, value)}"
+    if qualifier:
+        body = f"{body} ({qualifier})"
+    return f"{body} — {as_of.isoformat()} 기준" if as_of else body
 
 
 def _needs(s: Session, item_ids: list[int]) -> dict[int, dict[str, bool]]:
@@ -313,13 +386,22 @@ def _who_took(
     if not fact_ids:
         return {}
 
-    place_of = dict(
+    #: **재료 공간 id 라 값이면 음수다**(`draft/refs.py`). 표가 둘이라 여기서 가른다
+    node_ids, value_ids = refs.split(fact_ids)
+    place_of: dict[int, str] = dict(
         s.execute(
             select(WikiFact.id, WikiNode.path)
             .join(WikiNode, WikiNode.id == WikiFact.node_id)
-            .where(WikiFact.id.in_(fact_ids))
+            .where(WikiFact.id.in_(node_ids))
         ).all()
-    )
+    ) if node_ids else {}
+    if value_ids:
+        place_of.update({
+            refs.value_ref(vid): key
+            for vid, key in s.execute(
+                select(CompanyValue.id, CompanyValue.key).where(CompanyValue.id.in_(value_ids))
+            ).all()
+        })
     #: 자리 → 그 자리의 사실을 받은 항목들.
     #:
     #: **경로를 조상 전부에 걸어 둔다**(ADR-0056). `item_need.place` 는 카테고리를

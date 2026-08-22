@@ -307,6 +307,9 @@ documents[]
     status          아래 표
     paragraphs[]    ordinal · text · evidence[]
       evidence[]    fact_id · place · place_label · text · chunk_id · quote · source_type
+                    **fact_id 가 음수면 매칭 정보다**(트랙 B · plan/22 T-0134).
+                    양수는 wiki_fact.id · 음수는 -company_value.id 이고
+                    place 도 노드 경로 대신 key 열넷 중 하나가 온다
     missing[]       place · place_label · required
     missing_optional[]
     length          verdict · limit_text · measured · note

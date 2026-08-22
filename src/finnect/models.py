@@ -907,9 +907,16 @@ class ItemNeed(Base):
     document_item_id: Mapped[int] = mapped_column(
         _PK, ForeignKey("document_item.id", ondelete="CASCADE"), index=True
     )
-    #: `wiki/topics.py` 의 슬롯 이름 또는 노드 이름. **그 표 밖의 값을 넣지 않는다**
+    #: 매칭 정보 key 열넷(`wiki/profile.py`) 또는 카테고리 열(`wiki/tree.py`).
+    #: **그 둘 밖의 값을 넣지 않는다** — `draft/needs.py` `PLACES` 가 정본이다.
+    #:
+    #: **동적 노드 경로가 여기 안 온다**(ADR-0056). 이 표에 `company_id` 가 없어서 —
+    #: 양식을 한 번 읽으면 그 양식을 쓰는 모든 회사가 쓴다. 회사마다 다른 경로를
+    #: 가리키면 그 성질이 깨진다. 카테고리 열은 회사와 무관하게 존재가 보장된다.
     place: Mapped[str] = mapped_column(String(32))
-    #: `slot` 또는 `node`. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
+    #: `value` 또는 `event`(마이그레이션 `a1e0c7d4f2b9` 가 `slot`·`node` 에서 옮겼다).
+    #: 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말하라고 둔 칸인데
+    #: **아직 아무도 안 읽는다** — 쓰는 곳이 `draft/service.py` 하나다.
     place_kind: Mapped[str] = mapped_column(String(16))
     #: 없으면 이 항목을 아예 못 쓰는가. 있으면 좋은 것과 가른다
     required: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -1101,6 +1108,49 @@ class DraftEvidence(Base):
         _PK, ForeignKey("chunk.id", ondelete="CASCADE")
     )
     #: `document` · `user_stated`. 화면이 근거 줄에서 **글자로** 가른다(ADR-0028 결과 절)
+    source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
+
+
+class DraftValueEvidence(Base):
+    """문단 하나가 어느 **매칭 정보 칸**에서 나왔나 (plan/22 T-0134).
+
+    **`draft_evidence` 를 그대로 베꼈다.** `fact_id` 자리에 `value_id` 가 온다.
+
+    표를 나눈 이유는 ADR-0056 이 `wiki_evidence`/`value_evidence` 를 나눌 때 적은 것과
+    같다 — **한 표에 nullable 두
+    개로 두면 모든 조인이 「둘 중 어느 쪽인가」를 물어야 한다.** 트랙이 갈린 것이 그
+    ADR 의 결정이고, 표도 거기 맞춘다.
+
+    **이 표가 없으면 값을 인용한 문단에 근거를 못 단다.** `draft_evidence.fact_id` 가
+    `wiki_fact.id` 를 NOT NULL 로 들어서 `company_value` 를 가리킬 자리가 없었고, 그
+    상태로는 [ADR-0028](../../docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)
+    4번의 파급 계산이 **값 쪽에서만 안 돈다** — 직원 수가 갱신돼도 그것을 쓴 항목이
+    낡았다는 것을 아무도 모른다. **나중에 붙일 수 없다**(ADR-0014).
+    """
+
+    __tablename__ = "draft_value_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "draft_item_id", "paragraph", "value_id", name="uq_draft_value_evidence_para_value"
+        ),
+        Index("ix_draft_value_evidence_chunk", "chunk_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    draft_item_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("draft_item.id", ondelete="CASCADE"), index=True
+    )
+    #: 몇 번째 문단인가. 0부터
+    paragraph: Mapped[int] = mapped_column(Integer)
+
+    value_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("company_value.id", ondelete="CASCADE")
+    )
+    #: 그 값의 근거 청크. **없을 수 있다** — 사용자 답변은 청크가 없다
+    chunk_id: Mapped[int | None] = mapped_column(
+        _PK, ForeignKey("chunk.id", ondelete="CASCADE")
+    )
+    #: `document` · `user_stated`
     source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
 
 

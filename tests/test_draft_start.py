@@ -41,6 +41,7 @@ from finnect.models import (
     DraftEvidence,
     DraftItem,
     DraftItemStatus,
+    DraftValueEvidence,
     ItemNeed,
     ParseStatus,
     ValueEvidence,
@@ -58,7 +59,8 @@ ITEM = 1
 
 TABLES = [
     Notice, Attachment, AttachmentFile, Document, DocumentItem, ItemNeed,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode, CompanyValue, ValueEvidence, WikiEvidence,
+    Draft, DraftItem, DraftEvidence, DraftValueEvidence, WikiFact, WikiNode,
+    CompanyValue, ValueEvidence, WikiEvidence,
 ]
 
 

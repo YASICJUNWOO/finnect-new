@@ -37,6 +37,7 @@ from finnect.models import (
     DraftEvidence,
     DraftItem,
     DraftItemStatus,
+    DraftValueEvidence,
     ItemNeed,
     ParseStatus,
     UserFile,
@@ -56,7 +57,7 @@ BLANK = 4
 
 TABLES = [
     Attachment, AttachmentFile, Document, DocumentItem, ItemNeed,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode,
+    Draft, DraftItem, DraftEvidence, DraftValueEvidence, WikiFact, WikiNode,
     CompanyValue, ValueEvidence, WikiEvidence, Chunk, UserFile,
 ]
 

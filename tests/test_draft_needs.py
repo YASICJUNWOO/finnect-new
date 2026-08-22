@@ -10,14 +10,14 @@
 3. 문서 **하나에 호출 하나다.** 항목마다 부르면 항목들 사이 관계를 못 본다 —
    그게 이 작업의 전부다
 4. 겹침 쌍은 **작은 쪽이 `a`** 다. 안 그러면 같은 쌍이 두 줄로 들어온다
-5. 자리 목록이 `wiki/topics.py` 와 **같아야 한다.** 갈리면 여기서 통과한 자리가
+5. 자리 목록이 `wiki/profile.py`·`wiki/tree.py` 와 **같아야 한다.** 갈리면 여기서 통과한 자리가
    위키에 없다
 """
 
 from __future__ import annotations
 
 from finnect.draft import needs as nd
-from finnect.wiki import topics
+from finnect.wiki import profile, tree
 
 
 class 가짜클라이언트:
@@ -54,20 +54,20 @@ def _item(index: int, places: list[str], summary: bool = False) -> dict:
 
 class Test자리:
     def test_항목마다_필요한_자리를_낸다(self) -> None:
-        _, reading = _read({"items": [_item(0, ["problem", "identity"])], "overlaps": []})
+        _, reading = _read({"items": [_item(0, ["Customer", "Company"])], "overlaps": []})
 
-        assert [n.place for n in reading.items[0].needs] == ["problem", "identity"]
+        assert [n.place for n in reading.items[0].needs] == ["Customer", "Company"]
 
     def test_슬롯과_노드를_가른다(self) -> None:
         """화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다."""
         assert nd.PLACE_KIND["revenue"] == "value"
-        assert nd.PLACE_KIND["problem"] == "event"
+        assert nd.PLACE_KIND["Customer"] == "event"
 
     def test_목록_밖의_이름은_버리고_센다(self) -> None:
         """**지어낸 자리를 요구하면 그 항목은 영원히 "못 채움" 이다.**"""
-        r, reading = _read({"items": [_item(0, ["problem", "우리회사강점"])], "overlaps": []})
+        r, reading = _read({"items": [_item(0, ["Customer", "우리회사강점"])], "overlaps": []})
 
-        assert [n.place for n in reading.items[0].needs] == ["problem"]
+        assert [n.place for n in reading.items[0].needs] == ["Customer"]
         assert r.dropped == [("place", "우리회사강점")]
 
     def test_같은_자리가_두_번_오면_센_쪽을_남긴다(self) -> None:
@@ -75,8 +75,8 @@ class Test자리:
             "items": [{
                 "index": 0, "summary_of_others": False,
                 "needs": [
-                    {"place": "problem", "required": False},
-                    {"place": "problem", "required": True},
+                    {"place": "Customer", "required": False},
+                    {"place": "Customer", "required": True},
                 ],
             }],
             "overlaps": [],
@@ -94,14 +94,14 @@ class Test자리:
 
     def test_자리_목록이_위키와_같다(self) -> None:
         """**갈리면 여기서 통과한 자리가 위키에 없다.**"""
-        assert set(nd.PLACES) == set(topics.VALUE_SPECS) | set(topics.EVENT_ORBITS)
+        assert set(nd.PLACES) == set(profile.PROFILE_KEYS) | set(tree.CATEGORIES)
         assert len(nd.PLACES) == 24
 
 
 class Test요약_항목:
     def test_일부러_되풀이하는_자리를_표시한다(self) -> None:
         """**중복 점검이 이걸 안 보면 정상 항목을 때린다**(T-0067)."""
-        _, reading = _read({"items": [_item(2, ["identity"], summary=True)], "overlaps": []})
+        _, reading = _read({"items": [_item(2, ["Company"], summary=True)], "overlaps": []})
 
         assert reading.items[0].summary_of_others is True
 
@@ -138,7 +138,7 @@ class Test겹침_쌍:
 
 class Test범위:
     def test_index_가_밖이면_버린다(self) -> None:
-        r, reading = _read({"items": [_item(9, ["problem"])], "overlaps": []})
+        r, reading = _read({"items": [_item(9, ["Customer"])], "overlaps": []})
 
         assert reading.items == ()
         assert r.dropped == [("index", "9")]
@@ -178,7 +178,7 @@ class Test호출:
     def test_고를_수_있는_자리를_프롬프트에_적는다(self) -> None:
         r, _ = _read({"items": [], "overlaps": []})
 
-        assert "`problem` 문제 인식" in r.client.calls[0]["system"]
+        assert "`Customer` 고객" in r.client.calls[0]["system"]
         assert "`revenue` 매출액" in r.client.calls[0]["system"]
 
 

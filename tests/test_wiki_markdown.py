@@ -4,17 +4,18 @@
 "저장된 글이 맞나"가 아니라 **"같은 DB 에서 항상 같은 글이 나오나"** 다. 시각이 들어가면
 그 성질이 깨지고, 깨지면 바이트로 비교할 수 없다.
 
-**장 한 장을 만드는 것은 이제 `export.py` 다**(ADR-0052). 여기 남은 것은 어느 뷰든 쓰는
-조각 셋이고, 장 단위 검증은 `test_wiki_export.py` 에 있다.
+**장 한 장을 만드는 것은 `export.py` 다**(ADR-0056). 여기 남은 것은 사실 블록과 근거
+목록이고, 값 블록은 트랙 B(`company_value`)로 나갔다.
 
 DB 도 파일도 안 쓴다 — 값과 사실을 손으로 만들어 넣는다.
 """
 
 from __future__ import annotations
 
-from finnect.wiki import markdown, topics
-from finnect.wiki.markdown import Evidence, Statement, Value
-from finnect.wiki.merge import Status
+import datetime as dt
+
+from finnect.wiki import markdown, profile, tree
+from finnect.wiki.markdown import Evidence, Statement
 
 E1 = Evidence("사업계획서.docx", None, "시드 투자 3억원")
 E2 = Evidence("재무제표.xlsx", None, "자본잉여금 3억원은 2025.09 시드 라운드 유치액입니다")
@@ -30,71 +31,17 @@ def _lines(parts: list[str]) -> str:
 # ─────────────────────────────────────────────────────────────────
 
 
-def test_충돌은_둘_다_적고_말로_알린다():
-    """**다수결로 안 푼다.** 3억이 근거 둘이어도 2.8억을 지우지 않는다."""
-    out = _lines(
-        markdown.render_values(
-            [
-                Value(
-                    "funding",
-                    "조달액",
-                    "300000000",
-                    "시드",
-                    "2025-09-30",
-                    Status.CONFLICT,
-                    (E1, E2),
-                ),
-                Value(
-                    "funding", "조달액", "280000000", "시드", "2025-09-30", Status.CONFLICT, (E3,)
-                ),
-            ]
-        )
-    )
-    assert markdown.CONFLICT_NOTE in out
-    assert "**300,000,000원**" in out
-    assert "**280,000,000원**" in out
-
-
-def test_이전_값은_접어서_아래_적는다():
-    """지우지 않는다(F1-1-7). 현재값이 먼저 오고 이력이 뒤에 온다."""
-    out = _lines(
-        markdown.render_values(
-            [
-                Value("headcount", "직원 수", "7", None, "2025-08-22", Status.SUPERSEDED, (E1,)),
-                Value("headcount", "직원 수", "15", None, "2026-08-31", Status.CURRENT, (E3,)),
-            ]
-        )
-    )
-    assert out.index("**15명**") < out.index("이전 값")
-    assert "- 7명 · 2025-08-22" in out
-
-
-def test_한정어가_제목에_붙는다():
-    """시드와 정책자금은 같은 슬롯이지만 다른 것이다."""
-    out = _lines(
-        markdown.render_values(
-            [
-                Value(
-                    "funding", "조달액", "300000000", "시드", "2025-09-30", Status.CURRENT, (E1,)
-                ),
-                Value(
-                    "funding", "조달액", "50000000", "정책자금", "2025-04-30", Status.CURRENT, (E2,)
-                ),
-            ]
-        )
-    )
-    assert "## 조달액 [시드]" in out
-    assert "## 조달액 [정책자금]" in out
-
-
 def test_단위가_붙는다():
-    """`120000000` 을 그대로 두면 1억 2천만과 1천 2백만이 눈으로 구분되지 않는다."""
-    assert topics.display("capital", "120000000") == "120,000,000원"
-    assert topics.display("headcount", "15") == "15명"
+    """`120000000` 을 그대로 두면 1억 2천만과 1천 2백만이 눈으로 구분되지 않는다.
+
+    **값은 트랙 B 로 갔다**(ADR-0056). 단위를 붙이는 자리는 `wiki/profile.py` 하나다.
+    """
+    assert profile.display("capital", "120000000") == "120,000,000원"
+    assert profile.display("headcount", "15") == "15명"
     #: 저장값이 숫자가 아니면 손대지 않는다. **추출기가 못 고친 값을 여기서 꾸미지 않는다**
-    assert topics.display("capital", "1억 2천") == "1억 2천"
+    assert profile.display("capital", "1억 2천") == "1억 2천"
     #: 시점·이름은 단위가 없다
-    assert topics.display("founded_on", "2024-03-11") == "2024-03-11"
+    assert profile.display("founded_on", "2024-03-11") == "2024-03-11"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -133,31 +80,58 @@ def test_근거에_sha256_이_따라온다():
 
 
 # ─────────────────────────────────────────────────────────────────
-# 어휘 — ADR-0048 · ADR-0052
+# 어휘 — ADR-0056
 # ─────────────────────────────────────────────────────────────────
 
 
-def test_topic_한국어_이름이_event_topic_전부에_있다():
-    """**하나라도 없으면 화면에 영문 키가 나간다.**"""
-    assert topics.EVENT_TOPICS - set(topics.TOPIC_LABELS) == set()
+def test_카테고리가_열이고_경로의_첫_마디다():
+    """**고정은 이것뿐이다.** 나머지는 문서가 정한다."""
+    assert len(tree.CATEGORIES) == 10
+    assert tree.FALLBACK in tree.CATEGORIES
+    assert tree.category_of("Custom/특허/등록-10-2025-0114882") == "Custom"
 
 
-def test_topic_이름이_orbit_이름과_안_겹친다():
-    """겹치면 `# X` 밑에 `## X` 가 서서 DESIGN.md §10 을 어긴다."""
-    assert set(topics.TOPIC_LABELS.values()) & {o.label for o in topics.ORBIT.values()} == set()
+def test_경로가_마디마다_정규화된다():
+    """통째로 지우면 `A/BC` 와 `AB/C` 가 같아진다 — **다른 자리인데 하나로 묶인다.**"""
+    assert tree.norm_path("Company/기 능") == tree.norm_path("Company/기능")
+    assert tree.norm_path("A/BC") != tree.norm_path("AB/C")
+    #: 유사도가 아니다. 다른 말은 다른 자리다
+    assert tree.norm_path("Product/기능") != tree.norm_path("Product/주요기능")
 
 
-def test_event_어휘가_orbit_과_한_벌이다():
-    """**event topic 이름은 orbit 키와 같다.** ADR-0048 결정 3 이 마이그레이션을 안 하는 근거다."""
-    assert set(topics.EVENT_ORBITS) == {k for k, o in topics.ORBIT.items() if o.event}
-    assert all(topics.EVENT_ORBITS[k] == topics.ORBIT[k].label for k in topics.EVENT_ORBITS)
-    assert all(o.event == k for k, o in topics.ORBIT.items() if o.event)
+def test_조상을_얕은_것부터_전부_준다():
+    """**뼈대가 없으면 트리가 안 선다** — 노드를 만들 때 이 목록을 다 만든다."""
+    assert tree.ancestors("Custom/특허/등록-1") == ["Custom", "Custom/특허", "Custom/특허/등록-1"]
 
 
-def test_sector_어휘가_없어졌다():
-    """**ADR-0052 결정 3.** 구획은 각도의 이름이었고 궤도 그래프와 같이 사라졌다.
+def test_카테고리_밖의_경로는_Custom_밑으로_민다():
+    """LLM 이 enum 을 어겨도 **사실이 안 사라진다.**"""
+    assert tree.clean("모르는것/어디") == "Custom/모르는것/어디"
+    assert tree.clean("") == tree.REVIEW_PATH
 
-    되살리려는 코드가 생기면 여기서 걸린다 — `Orbital` 에 자리가 없다.
-    """
-    assert not hasattr(topics, "SECTORS")
-    assert "sector" not in topics.Orbital.__slots__
+
+def test_매칭_정보가_열넷이고_별칭이_그리로_모인다():
+    assert len(profile.PROFILE_KEYS) == 14
+    for name in ("상시 근로자", "종업원 수", "구성원", "임직원", "직원 수", "상시근로자", "직원수"):
+        assert profile.key_of(name) == "headcount", name
+    #: 표에 없으면 **추측하지 않는다**
+    assert profile.key_of("업력") is None
+
+
+def test_시점을_안_갖는_key_는_시점을_뗀다():
+    """**병합 규칙이다.** 안 떼면 같은 사업자등록번호가 문서 수만큼 행이 된다."""
+    day = dt.date(2026, 8, 31)
+    assert profile.as_of_for("headcount", day) == day
+    assert profile.as_of_for("business_no", day) is None
+
+
+def test_sector_와_topics_가_없어졌다():
+    """**ADR-0056.** 되살리려는 코드가 생기면 여기서 걸린다."""
+    import importlib
+
+    for name in ("finnect.wiki.topics",):
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError:
+            continue
+        raise AssertionError(f"{name} 이 되살아났다")

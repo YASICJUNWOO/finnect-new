@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import sessionmaker
 
+import wikifix
 from finnect.draft import allot as al
 from finnect.draft import dedupe as dd
 from finnect.draft import needs as nd
@@ -28,6 +29,7 @@ from finnect.models import (
     AttachmentFile,
     Base,
     Chunk,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
@@ -39,17 +41,37 @@ from finnect.models import (
     ItemOverlap,
     ParseStatus,
     UserFile,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
 from finnect.views import Notice
+
+#: 옛 orbit 이름 → 노드 경로. **테스트가 쓰는 자리만 적는다**
+#: 옛 orbit 이름 → 노드 경로. **`item_need.place` 는 카테고리를 가리키고**
+#: 사실은 그 아래 경로에 앉는다 — `_index` 가 조상으로 이어 준다(ADR-0056)
+_PATH = {
+    "problem": "Customer/고객문제",
+    "solution": "Product/기능",
+    "team": "Company/팀",
+    "roadmap": "Plan/일정",
+    "finance": "Financial/자금계획",
+    "identity": "Company/비전",
+    "Customer": "Customer/고객문제",
+    "Company": "Company/팀",
+    "Product": "Product/기능",
+    "Plan": "Plan/일정",
+    "Financial": "Financial/자금계획",
+}
 
 COMPANY = "c_draft"
 SHA = "d" * 64
 NOTICE = "PBLN-000"
 TABLES = [
     Attachment, AttachmentFile, Document, DocumentItem, ItemNeed, ItemOverlap,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiEvidence, Chunk, UserFile,
+    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode,
+    CompanyValue, ValueEvidence, WikiEvidence, Chunk, UserFile,
     # Postgres 에서는 뷰지만 매핑된 클래스라 SQLite 에서는 표로 만든다.
     # **구멍 1 이 이 표를 읽는다** — 없으면 공고 데이터가 재료에 안 들어간다
     Notice,
@@ -70,11 +92,15 @@ class 가짜클라이언트:
 
 class 받은대로쓰는집필기(가짜클라이언트):
     """**받은 사실을 그대로 인용한다.** 고정 응답을 쓰면 항목마다 배분이 다른데
-    답이 같아서, `근거 없는 문단` 으로 전부 버려진다 — 배관을 못 본다."""
+    답이 같아서, `근거 없는 문단` 으로 전부 버려진다 — 배관을 못 본다.
+
+    자리 이름에 `[^\]]+` 를 쓰는 이유는 **노드 경로에 `/` 가 들어가서다**(ADR-0056).
+    `\w+` 로 두면 `#1 [Customer/고객문제]` 가 안 잡히고 전부 안 쓴 것이 된다.
+    """
 
     def json(self, **kw) -> dict:  # noqa: ANN003
         self.calls.append(kw)
-        got = re.findall(r"^#(\d+) \[\w+\](?: \([^)]*\))? (.+)$", kw["user"], re.M)
+        got = re.findall(r"^#(\d+) \[[^\]]+\](?: \([^)]*\))? (.+)$", kw["user"], re.M)
         return {"paragraphs": [{"text": f"{t}.", "facts": [int(i)]} for i, t in got]}
 
 
@@ -123,13 +149,11 @@ def db(monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
                   text="철강 경기로 수주가 끊겼다", chars=13, char_start=0, char_end=13)
         s.add(c)
         s.flush()
-        for text, place in [("철강 경기로 수주가 끊겼다", "problem"),
-                            ("설비 노후로 불량률이 올랐다", "problem")]:
-            fact = WikiFact(company_id=COMPANY, place_kind="event", place=place,
-                            dedupe_key=text, topic="customer_problem", text=text,
-                            extractor="stub/v1")
-            s.add(fact)
-            s.flush()
+        for text, place in [("철강 경기로 수주가 끊겼다", "Customer"),
+                            ("설비 노후로 불량률이 올랐다", "Customer")]:
+            fact = wikifix.fact(
+                s, COMPANY, _PATH.get(place, f"Custom/{place}"), text, key=text[:30]
+            )
             s.add(WikiEvidence(company_id=COMPANY, fact_id=fact.id, chunk_id=c.id,
                                user_file_id=f.id, quote=text))
         s.commit()
@@ -143,11 +167,11 @@ def _read(db, out: dict, redo: bool = False):  # noqa: ANN001, ANN201, FBT001, F
 READING = {
     "items": [
         {"index": 0, "summary_of_others": False,
-         "needs": [{"place": "problem", "required": True}]},
+         "needs": [{"place": "Customer", "required": True}]},
         {"index": 1, "summary_of_others": False,
-         "needs": [{"place": "problem", "required": True}]},
+         "needs": [{"place": "Customer", "required": True}]},
         {"index": 2, "summary_of_others": False,
-         "needs": [{"place": "team", "required": True}]},
+         "needs": [{"place": "Company", "required": True}]},
     ],
     "overlaps": [{"a": 0, "b": 1, "note": "둘 다 필요성을 묻는다"}],
 }
@@ -159,7 +183,7 @@ class Test양식_읽기:
         _read(db, READING)
 
         with factory() as s:
-            assert s.scalars(select(ItemNeed.place)).all() == ["problem", "problem", "team"]
+            assert s.scalars(select(ItemNeed.place)).all() == ["Customer", "Customer", "Company"]
 
     def test_겹침_쌍이_선다(self, db) -> None:  # noqa: ANN001
         factory, _ = db
@@ -226,12 +250,12 @@ class Test초안:
         factory, _ = db
         report = _build(db)
 
-        assert report.missing == {"team": 1}
+        assert report.missing == {"Company": 1}
         with factory() as s:
             team = s.scalars(
                 select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
             ).one()
-            assert team.missing == ["team"]
+            assert team.missing == ["Company"]
             assert team.status == str(DraftItemStatus.BLANK)
 
     def test_재료가_없으면_안_쓴다(self, db) -> None:  # noqa: ANN001
@@ -244,7 +268,7 @@ class Test초안:
     def test_주인을_못_정하면_아무도_안_쓴다(self, db) -> None:  # noqa: ANN001
         """겹침 쌍에서 배분이 안 되면 **양쪽 다 비운다**(T-0064).
 
-        **`blank` 가 아니라 `yielded` 다.** 위키에는 `problem` 이 있으니 물어볼
+        **`blank` 가 아니라 `yielded` 다.** 위키에는 `Customer` 가 있으니 물어볼
         자리가 아니다 — 물어보면 사용자가 이미 준 것을 또 준다.
         """
         report = _build(db, assign=[])

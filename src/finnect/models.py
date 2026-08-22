@@ -659,7 +659,7 @@ class FactKind(enum.StrEnum):
 
     옛 이름은 `WikiPlace` 였고 값이 `value`·`event`·`uncategorized` 셋이었다
     ([ADR-0049](../../docs/adr/0049-저장값과-llm-와이어를-value-event-로-옮긴다.md)를
-    [ADR-0056](../../docs/adr/0056-위키를-동적-노드-트리로-바꾸고-매칭-정보를-따로-뽑는다.md)이 대체).
+    ADR-0056 이 대체).
     """
 
     VALUE = "value"

@@ -33,6 +33,7 @@ from finnect.models import (
     Attachment,
     AttachmentFile,
     Base,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
@@ -42,8 +43,10 @@ from finnect.models import (
     DraftItemStatus,
     ItemNeed,
     ParseStatus,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
 from finnect.views import Notice
 
@@ -55,7 +58,7 @@ ITEM = 1
 
 TABLES = [
     Notice, Attachment, AttachmentFile, Document, DocumentItem, ItemNeed,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiEvidence,
+    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode, CompanyValue, ValueEvidence, WikiEvidence,
 ]
 
 

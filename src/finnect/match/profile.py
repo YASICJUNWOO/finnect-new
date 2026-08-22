@@ -5,7 +5,7 @@ LLM 호출이 0회다. `wiki_fact` 가 이미 자격 슬롯 넷과 서술 노드
 
 ## 파생값을 저장하지 않는다
 
-업력과 만 나이는 **판정 시점에 계산한다.** `wiki/topics.py` 가 적어 둔 이유가
+업력과 만 나이는 **판정 시점에 계산한다.** `wiki/profile.py` 가 적어 둔 이유가
 그대로다 — 공고마다 기준일이 다르고, 기준일이 `신청일` 인지 `모집마감일` 인지도
 공고마다 다르다(plan/03 실측: 초기창업패키지 양식이 "(모집마감일 기준)").
 
@@ -32,17 +32,22 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from finnect.models import WikiFact
-from finnect.wiki import topics
+from finnect.models import CompanyValue, WikiFact, WikiNode
+from finnect.wiki import profile as wiki_profile
 
-#: 자격 판별의 입력. `topics.VALUE_SPECS` 의 `eligibility=True` 여덟 개다.
+#: 자격 판별의 입력. `wiki/profile.py` 의 `eligibility=True` 여덟 개다.
 #: **여기 목록을 손으로 적지 않는다** — 슬롯 표가 정본이다
 ELIGIBILITY_SLOTS: tuple[str, ...] = tuple(
-    k for k, v in topics.VALUE_SPECS.items() if v.eligibility
+    k for k, v in wiki_profile.PROFILE_KEYS.items() if v.eligibility
 )
 
 #: ④ 분야 대조가 읽는 노드. **"지금 무엇이 필요한가" 를 말하는 자리들이다**
-NEED_NODES: tuple[str, ...] = ("roadmap", "finance", "solution")
+#: ④ 가 읽는 갈래. **노드 경로의 앞자리로 본다**(ADR-0056).
+#:
+#: 옛 orbit 이름(`roadmap`·`finance`·`solution`)이 카테고리로 옮겨 갔다 — 로드맵은
+#: `Plan`, 자금은 `Financial`, 솔루션은 `Product` 다. **`Company` 를 안 넣는다** —
+#: 정체성 문장이 들어오면 무슨 분야든 걸린다.
+NEED_NODES: tuple[str, ...] = ("Plan", "Financial", "Product")
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +109,7 @@ class CompanyProfile:
 
     def need_text(self) -> str:
         """④ 가 읽는 것 — 로드맵·자금·기술을 이어 붙인 글."""
-        return " ".join(n.text for n in self.nodes if n.place in NEED_NODES)
+        return " ".join(n.text for n in self.nodes if n.place.split("/", 1)[0] in NEED_NODES)
 
 
 def load(s: Session, company_id: str, *, on: dt.date | None = None) -> CompanyProfile:
@@ -115,16 +120,23 @@ def load(s: Session, company_id: str, *, on: dt.date | None = None) -> CompanyPr
     """
     on = on or dt.date.today()
     rows = list(
-        s.scalars(select(WikiFact).where(WikiFact.company_id == company_id))
+        s.scalars(select(CompanyValue).where(CompanyValue.company_id == company_id))
     )
 
-    slots: dict[str, list[WikiFact]] = {}
-    nodes: list[NodeFact] = []
+    slots: dict[str, list[CompanyValue]] = {}
     for r in rows:
-        if r.place_kind == "value" and r.place in ELIGIBILITY_SLOTS:
-            slots.setdefault(r.place, []).append(r)
-        elif r.place_kind == "event" and r.place:
-            nodes.append(NodeFact(fact_id=r.id, place=r.place, text=r.text))
+        if r.key in ELIGIBILITY_SLOTS:
+            slots.setdefault(r.key, []).append(r)
+
+    #: 서술은 노드에서 온다. **경로의 첫 마디(카테고리)가 옛 orbit 자리를 대신한다**
+    nodes = [
+        NodeFact(fact_id=fid, place=path, text=text)
+        for fid, path, text in s.execute(
+            select(WikiFact.id, WikiNode.path, WikiFact.text)
+            .join(WikiNode, WikiNode.id == WikiFact.node_id)
+            .where(WikiFact.company_id == company_id)
+        ).all()
+    ]
 
     return CompanyProfile(
         company_id=company_id,
@@ -133,7 +145,7 @@ def load(s: Session, company_id: str, *, on: dt.date | None = None) -> CompanyPr
     )
 
 
-def _pick(claims: list[WikiFact], on: dt.date) -> SlotValue:
+def _pick(claims: list[CompanyValue], on: dt.date) -> SlotValue:
     """기준일 이전의 최신값을 고른다.
 
     **`status == 'current'` 를 믿지 않는다.** 그 값은 "가장 늦은 시점" 이라 미래

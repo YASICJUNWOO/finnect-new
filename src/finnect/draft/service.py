@@ -37,6 +37,7 @@ from finnect.models import (
     SourceType,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
 from finnect.views import Notice
 
@@ -548,20 +549,22 @@ def _notice_material(s: Session, source: str, external_id: str) -> tuple[tuple[s
 def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
     """위키 사실과 그 근거. **근거 없는 사실은 애초에 없다**(ADR-0014)."""
     out: dict[int, wr.FactMaterial] = {}
-    rows = s.scalars(
-        select(WikiFact).where(
+    rows = s.execute(
+        select(WikiFact, WikiNode.path)
+        .join(WikiNode, WikiNode.id == WikiFact.node_id)
+        .where(
             WikiFact.company_id == company_id,
             or_(WikiFact.status.is_(None), WikiFact.status != "superseded"),
         )
     ).all()
-    for f in rows:
+    for f, path in rows:
         ev = s.execute(
             select(WikiEvidence.chunk_id, WikiEvidence.quote).where(
                 WikiEvidence.fact_id == f.id
             )
         ).all()
         out[f.id] = wr.FactMaterial(
-            id=f.id, place=f.place, text=f.text,
+            id=f.id, place=path, text=f.text,
             quotes=tuple(q for _, q in ev),
             chunk_ids=tuple(c for c, _ in ev),
             source_type=f.source_type,

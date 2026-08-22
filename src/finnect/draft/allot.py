@@ -149,9 +149,7 @@ class Allotter:
         facts: list[FactView],
         pairs: list[tuple[int, int]],
     ) -> list[Allotment]:
-        by_place: dict[str, list[FactView]] = {}
-        for f in facts:
-            by_place.setdefault(f.place, []).append(f)
+        by_place = _index(facts)
 
         cand = {
             it.index: {f.id for p in it.all_places for f in by_place.get(p, [])}
@@ -224,6 +222,28 @@ def _contested(
         for fid in cand.get(a, set()) & cand.get(b, set()):
             out.setdefault(fid, set()).update((a, b))
     return out
+
+
+def _index(facts: list[FactView]) -> dict[str, list[FactView]]:
+    """자리 이름 → 사실들. **노드 경로를 조상 전부에 걸어 둔다**(ADR-0056).
+
+    `item_need.place` 는 **카테고리 열이나 매칭 정보 열넷**만 가리킨다 — 양식이 회사와
+    무관해서 동적 경로를 못 가리킨다(`item_need` 에 `company_id` 가 없다). 그런데 사실은
+    `Customer/고객문제` 같은 경로를 든다. 그래서 `Customer` 로도 찾을 수 있게 조상마다
+    걸어 둔다.
+
+    같은 사실이 여러 키에 걸리지만 **id 로 모으므로 두 번 세어지지 않는다.**
+    """
+    out: dict[str, list[FactView]] = {}
+    for f in facts:
+        for anc in _ancestors(f.place):
+            out.setdefault(anc, []).append(f)
+    return out
+
+
+def _ancestors(path: str) -> list[str]:
+    parts = path.split("/")
+    return ["/".join(parts[: i + 1]) for i in range(len(parts))]
 
 
 def _missing(

@@ -50,8 +50,9 @@ from finnect.models import (
     ItemNeed,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
-from finnect.wiki import topics
+from finnect.wiki import profile, tree
 
 
 def notice_draft(
@@ -238,11 +239,11 @@ def _missing(place: str, required: bool) -> MissingOut:  # noqa: FBT001
 
 
 def _label(place: str) -> str:
-    """`topics.py` 가 정본이다. **화면이 한국어를 짓지 않는다.**"""
-    spec = topics.VALUE_SPECS.get(place)
+    """`wiki/profile.py` 와 `wiki/tree.py` 가 정본이다. **화면이 한국어를 짓지 않는다.**"""
+    spec = profile.PROFILE_KEYS.get(place)
     if spec is not None:
         return spec.label
-    return topics.EVENT_ORBITS.get(place, place)
+    return tree.CATEGORIES.get(place, place)
 
 
 def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, EvidenceOut]]]:
@@ -253,9 +254,10 @@ def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, Evidenc
         select(
             DraftEvidence.draft_item_id, DraftEvidence.paragraph, DraftEvidence.fact_id,
             DraftEvidence.chunk_id, DraftEvidence.source_type,
-            WikiFact.place, WikiFact.text, WikiEvidence.quote,
+            WikiNode.path, WikiFact.text, WikiEvidence.quote,
         )
         .join(WikiFact, WikiFact.id == DraftEvidence.fact_id)
+        .join(WikiNode, WikiNode.id == WikiFact.node_id)
         .outerjoin(
             WikiEvidence,
             (WikiEvidence.fact_id == DraftEvidence.fact_id)
@@ -312,15 +314,26 @@ def _who_took(
         return {}
 
     place_of = dict(
-        s.execute(select(WikiFact.id, WikiFact.place).where(WikiFact.id.in_(fact_ids))).all()
+        s.execute(
+            select(WikiFact.id, WikiNode.path)
+            .join(WikiNode, WikiNode.id == WikiFact.node_id)
+            .where(WikiFact.id.in_(fact_ids))
+        ).all()
     )
-    #: 자리 → 그 자리의 사실을 받은 항목들
+    #: 자리 → 그 자리의 사실을 받은 항목들.
+    #:
+    #: **경로를 조상 전부에 걸어 둔다**(ADR-0056). `item_need.place` 는 카테고리를
+    #: 가리키는데 사실은 `Customer/고객문제` 같은 경로를 든다 — `draft/allot.py` 의
+    #: `_index` 와 같은 규칙이라 **한쪽만 고치면 배분과 넘김이 갈린다.**
     holders: dict[str, set[int]] = {}
     for key, ids in allotment.items():
         for fid in ids:
             place = place_of.get(fid)
-            if place:
-                holders.setdefault(place, set()).add(int(key))
+            if not place:
+                continue
+            parts = place.split("/")
+            for depth in range(len(parts)):
+                holders.setdefault("/".join(parts[: depth + 1]), set()).add(int(key))
 
     out: dict[int, list[str]] = {}
     for it, di in rows:

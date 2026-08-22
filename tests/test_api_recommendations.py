@@ -26,16 +26,20 @@ from finnect.models import (
     Attachment,
     AttachmentFile,
     Base,
+    CompanyValue,
     FitVerdict,
     NoticeFit,
     NoticeFitEvidence,
+    ValueEvidence,
     WikiFact,
+    WikiNode,
 )
 from finnect.views import Notice
 
 TODAY = dt.date(2026, 8, 20)
 COMPANY = "c_api"
-TABLES = [Notice, NoticeFit, NoticeFitEvidence, Attachment, AttachmentFile, WikiFact]
+TABLES = [Notice, NoticeFit, NoticeFitEvidence, Attachment, AttachmentFile, WikiFact, WikiNode,
+    CompanyValue, ValueEvidence]
 
 
 def _fit(i: int, ext: str, *, hit: bool, matched: int, reason: str = "이유예요") -> NoticeFit:

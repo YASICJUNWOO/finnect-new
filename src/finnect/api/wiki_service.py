@@ -17,41 +17,43 @@ from sqlalchemy.orm import Session
 from finnect.api.wiki_schemas import (
     EvidenceOut,
     FileProgressOut,
+    ProfileKeyOut,
+    ProfileOut,
     ProgressOut,
     StatementOut,
     StepOut,
-    TopicGroupOut,
     ValueOut,
     WikiFileOut,
+    WikiNodeOut,
     WikiOut,
-    WikiSpotOut,
 )
-from finnect.models import WikiEvidence, WikiFact, WikiPlace
-from finnect.wiki import build, export, markdown, merge, progress, topics
+from finnect.models import (
+    Chunk,
+    CompanyValue,
+    UserFile,
+    ValueEvidence,
+    WikiEvidence,
+    WikiFact,
+    WikiNode,
+)
+from finnect.wiki import build, export, markdown, profile, progress, tree
 
 
 def get_wiki(session: Session, company_id: str) -> WikiOut:
-    """S7 한 장. **위키가 없어도 자리 마흔일곱을 돌려준다**(ADR-0052).
+    """S7 한 장(트랙 A). **위키가 없어도 카테고리 열이 온다**(ADR-0056).
 
     빈 화면을 "데이터 없음"으로 끝내지 않는 것이 `DESIGN.md` §7-5 다. 자리가 있어야
     사용자가 무엇이 없는지 알고, 무엇을 올려야 하는지 안다.
     """
-    nodes = build.read_orbit(session, company_id)
-    pages = export.render(nodes)
+    nodes = build.read_nodes(session, company_id)
+    pages = {p.path: p for p in export.render(nodes, company_id)}
     files = build.read_files(session, company_id)
 
-    conflicts = session.scalar(
+    review = session.scalar(
         select(func.count())
         .select_from(WikiFact)
-        .where(WikiFact.company_id == company_id, WikiFact.status == merge.Status.CONFLICT)
-    )
-    uncategorized = session.scalar(
-        select(func.count())
-        .select_from(WikiFact)
-        .where(
-            WikiFact.company_id == company_id,
-            WikiFact.place_kind == WikiPlace.UNCATEGORIZED,
-        )
+        .join(WikiNode, WikiNode.id == WikiFact.node_id)
+        .where(WikiFact.company_id == company_id, WikiNode.path == tree.REVIEW_PATH)
     )
     extractor = session.scalar(
         select(WikiFact.extractor).where(WikiFact.company_id == company_id).limit(1)
@@ -59,7 +61,7 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
 
     return WikiOut(
         company_id=company_id,
-        spots=[_spot(p) for p in pages],
+        nodes=[_node(n, pages.get(n.path)) for n in nodes],
         files=[
             WikiFileOut(
                 filename=uf.filename,
@@ -75,12 +77,62 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
             )
             for uf, made in files
         ],
-        folders=dict(export.FOLDERS),
-        filled=sum(p.filled for p in pages),
-        total=len(pages),
-        conflicts=conflicts or 0,
-        uncategorized=uncategorized or 0,
+        categories=dict(tree.CATEGORIES),
+        filled=sum(n.filled for n in nodes),
+        total=len(nodes),
+        review=review or 0,
         extractor=extractor,
+    )
+
+
+def get_profile(session: Session, company_id: str) -> ProfileOut:
+    """회사 정보 한 장(트랙 B · `/company`). **열넷이 항상 온다.**
+
+    **빈 칸이 물어볼 자리다**(ADR-0028). 열넷이 고정이라 못 채운 것을 셀 수 있고,
+    셀 수 있어서 물어볼 수 있다 — 트랙 A 는 정답지가 없어 이걸 못 한다.
+    """
+    views = build.read_profile(session, company_id)
+
+    rows = session.execute(
+        select(ValueEvidence.value_id, UserFile.filename, Chunk.page, ValueEvidence.quote)
+        .join(Chunk, Chunk.id == ValueEvidence.chunk_id)
+        .join(UserFile, UserFile.id == ValueEvidence.user_file_id)
+        .where(ValueEvidence.company_id == company_id)
+        .order_by(UserFile.filename, Chunk.ordinal)
+    ).all()
+    by_value: dict[int, list[EvidenceOut]] = {}
+    for vid, filename, page, quote in rows:
+        by_value.setdefault(vid, []).append(
+            EvidenceOut(filename=filename, page=page, quote=quote)
+        )
+
+    def out(v) -> ValueOut:  # noqa: ANN001
+        return ValueOut(
+            value=v.value,
+            display=profile.display(v.key, v.value),
+            qualifier=v.qualifier,
+            as_of=v.as_of.isoformat() if v.as_of else None,
+            status=v.status,
+            evidence=by_value.get(v.id, []),
+        )
+
+    keys = [
+        ProfileKeyOut(
+            key=view.key,
+            label=view.label,
+            eligibility=view.eligibility,
+            current=[out(v) for v in view.current],
+            history=[out(v) for v in view.history],
+            conflicted=view.conflicted,
+        )
+        for view in views
+    ]
+    return ProfileOut(
+        company_id=company_id,
+        keys=keys,
+        filled=sum(1 for k in keys if k.current),
+        total=len(keys),
+        conflicts=sum(1 for k in keys if k.conflicted),
     )
 
 
@@ -89,59 +141,28 @@ def get_markdown(session: Session, company_id: str) -> str | None:
 
     **저장된 파일을 읽는 것이 아니다.** 매번 만든다 — `wiki/markdown.py` 참고.
     """
-    pages = export.render(build.read_orbit(session, company_id))
-    if not any(p.filled for p in pages):
+    pages = export.render(build.read_nodes(session, company_id), company_id)
+    if not pages:
         return None
     return export.bundle(pages, company_id)
 
 
-def _spot(p: export.Page) -> WikiSpotOut:
-    """자리 한 장을 응답 모양으로. **묶는 것과 절 제목을 서버가 정한다.**
-
-    "event topic 이 둘 이상일 때만 절 제목" 이라는 규칙을 화면에 한 번 더 적으면
-    두 곳이 되고, 한쪽만 고쳐지는 날이 온다(ADR-0048 결정 5).
-    """
-    spot = p.spot
-    return WikiSpotOut(
-        path=spot.path,
-        title=spot.title,
-        folder=spot.folder,
-        eligibility=any(topics.VALUE_SPECS[s].eligibility for s in spot.values),
-        values=[
-            ValueOut(
-                slot=v.slot,
-                label=v.label,
-                value=v.value,
-                display=topics.display(v.slot, v.value),
-                qualifier=v.qualifier,
-                as_of=v.as_of,
-                status=v.status,
-                evidence=[_evidence(e) for e in v.evidence],
-            )
-            for v in p.values
-        ],
-        statements=[_statement(s) for s in p.statements],
-        groups=[
-            TopicGroupOut(
-                topic=t,
-                label=topics.TOPIC_LABELS.get(t, t),
-                statements=[_statement(s) for s in p.statements if s.topic == t],
-            )
-            for t in spot.events
-        ],
-        grouped=len(spot.events) > 1,
-        source_count=len(p.sources),
-        filled=p.filled,
-        conflicted=any(v.status == merge.Status.CONFLICT for v in p.values),
-        ours=spot.ours,
-        gap=spot.gap,
-        collapsed=spot.path if (spot.instanced or spot.folded) else None,
-        grade=p.grade,
-        source=list(p.sources),
-        source_path=list(p.source_paths),
-        base_date=p.base_date,
-        updated_at=p.updated_at,
-        markdown=p.body,
+def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
+    """노드 하나를 응답 모양으로. **빈 뼈대는 장이 없다.**"""
+    return WikiNodeOut(
+        path=n.path,
+        name=n.name,
+        category=n.category,
+        parent=n.parent,
+        depth=n.depth,
+        statements=[_statement(f) for f in n.facts],
+        source_count=n.source_count,
+        filled=n.filled,
+        grade=page.grade if page else export.GRADE_UNKNOWN,
+        source=list(page.sources) if page else [],
+        source_path=list(page.source_paths) if page else [],
+        updated_at=page.updated_at if page else None,
+        markdown=page.body if page else "",
     )
 
 
@@ -164,9 +185,9 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
     먼저 볼 수 있어야 한다(DESIGN.md §7-5).
     """
     files = build.read_files(session, company_id)
-    #: **자리 셈을 S7 과 같은 표로 한다**(ADR-0052). 여기가 궤도 15 를 세고 저기가 트리 47 을
-    #: 세면 같은 위키가 화면 둘에서 다른 진도로 보인다
-    pages = export.render(build.read_orbit(session, company_id))
+    #: **자리 셈을 S7 과 같은 표로 한다.** 여기가 다른 것을 세면 같은 위키가 화면 둘에서
+    #: 다른 진도로 보인다
+    nodes = build.read_nodes(session, company_id)
 
     # **칸마다 무엇이 나왔는지 같이 낸다**(plan/15 T-0062). 넷은 컬럼에서 오는데
     # 사실 수만 근거에서 온다 — `wiki_evidence` 가 파일과 사실을 잇는 유일한 자리다.
@@ -211,10 +232,11 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
             )
         )
 
+    #: **충돌은 트랙 B 의 것이다**(ADR-0056). 트랙 A 는 값이 없어 충돌 판정을 안 한다
     conflicts = session.scalar(
         select(func.count())
-        .select_from(WikiFact)
-        .where(WikiFact.company_id == company_id, WikiFact.status == merge.Status.CONFLICT)
+        .select_from(CompanyValue)
+        .where(CompanyValue.company_id == company_id, CompanyValue.status == "conflict")
     )
     extractor = session.scalar(
         select(WikiFact.extractor).where(WikiFact.company_id == company_id).limit(1)
@@ -224,7 +246,7 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
         company_id=company_id,
         steps=[StepOut(key=s.key, label=s.label) for s in progress.STEPS],
         files=rows,
-        spot_titles={s.path: s.title for s in export.TREE},
+        spot_titles={n.path: n.name for n in nodes},
         total=len(rows),
         done=sum(f.ok for f in rows),
         moving=sum(f.moving for f in rows),
@@ -233,8 +255,8 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
         needs_review=sum(f.status == "needs_review" for f in rows),
         stuck=sum(not f.ok and not f.moving and f.status != "needs_review" for f in rows),
         running=running,
-        filled=sum(p.filled for p in pages),
-        slots=len(pages),
+        filled=sum(n.filled for n in nodes),
+        slots=len(nodes),
         conflicts=conflicts or 0,
         extractor=extractor,
     )

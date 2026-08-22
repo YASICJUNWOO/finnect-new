@@ -21,8 +21,8 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from finnect.db import SessionFactory
-from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence, WikiFact, WikiPlace
-from finnect.wiki import build, export, merge, service, storage
+from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence
+from finnect.wiki import build, export, service, storage, tree
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -241,13 +241,13 @@ def render_build(r: build.BuildReport) -> str:
         f"  읽은 파일      {r.built} / {r.files}",
         f"  사실           {r.facts}건   (이미 있어서 근거만 더 붙은 것 {r.merged}건)",
         f"  근거 연결      {r.evidence}개",
-        f"  value topic   {r.value_topics}개",
-        f"  event orbit   {r.event_orbits}개",
+        f"  회사 정보      {r.profile_keys}/14 칸",
+        f"  노드          {r.nodes}개   (새로 만든 것 {r.nodes_new}개)",
     ]
     if r.conflicts:
         lines.append(f"  충돌           {r.conflicts}건  ← 값이 갈려요. 물어봐야 해요")
-    if r.uncategorized:
-        lines.append(f"  검토 대기      {r.uncategorized}건  ← 갈 자리를 못 찾았어요")
+    if r.review:
+        lines.append(f"  검토 대기      {r.review}건  ← Custom/검토 대기 에 있어요")
     if r.problems:
         lines.append("")
         lines.append("  [못 세운 것]")
@@ -261,79 +261,54 @@ def render_export(s, company_id: str, dest: Path) -> str:  # noqa: ANN001
     **빈 자리도 파일로 낸다.** 자리를 지우면 사용자가 무엇이 없는지 모른다. 대신
     프론트매터에 왜 비는지 적혀 있어서 열어 보면 안다.
     """
-    nodes = build.read_orbit(s, company_id)
-    pages = export.render(nodes)
+    pages = export.render(build.read_nodes(s, company_id), company_id)
     root = dest / company_id
     for page in pages:
-        target = root / page.spot.file
+        target = root / export.file_of(page.path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(page.body, encoding="utf-8")
 
-    filled = sum(1 for p in pages if p.values or p.statements)
-    folded = sum(1 for p in pages if p.spot.instanced or p.spot.folded)
+    folders = len({p.node.category for p in pages})
     return "\n".join(
         [
             f"[{company_id}] {root} 에 {len(pages)}장 썼어요",
-            f"  채워진 자리 {filled} · 빈 자리 {len(pages) - filled}",
-            f"  접힌 자리 {folded} — 회사마다 개수가 다른 자리예요. 아직 한 장으로 모아 둬요",
+            f"  카테고리 {folders}개 · 사실이 붙은 노드 {len(pages)}개",
+            "  **사실이 붙은 노드만 파일이 돼요.** 빈 뼈대는 그래프에만 있어요",
         ]
     )
 
 
 def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
-    """세워진 위키를 편다. **기획 트리 자리 마흔일곱이다**(ADR-0052 · plan/20 T-0115).
+    """세워진 위키를 편다. **노드 트리다**(ADR-0056 · plan/22).
 
-    `--export` 와 **같은 `TREE` 를 읽는다.** 표가 하나라 둘이 갈릴 수 없다 — 화면과
-    CLI 가 각자 자리를 세면 「어디까지 됐나」에 답이 둘이 된다.
-
-    근거가 어느 파일 몇 쪽인지는 자리를 열어야 나온다(`--show` · `--export`). 여기는
-    **무엇이 차고 무엇이 비었나**를 한 화면에 보이는 것이 일이다.
+    `--export` 와 **같은 노드를 읽는다.** 표가 하나라 둘이 갈릴 수 없다.
     """
-    pages = export.render(build.read_orbit(s, company_id))
-    filled = sum(1 for p in pages if p.filled)
+    nodes = build.read_nodes(s, company_id)
+    pages = {p.path: p for p in export.render(nodes, company_id)}
+    filled = sum(1 for n in nodes if n.filled)
     if not filled:
         return f"[{company_id}] 아직 위키가 없어요. 파일을 올리고 --build 를 해 보세요"
 
-    out = [f"[{company_id} 사업 위키]   자리 {filled}/{len(pages)}"]
+    out = [f"[{company_id} 사업 위키]   사실이 붙은 노드 {filled}/{len(nodes)}"]
     last = ""
-    for page in pages:
-        spot = page.spot
-        if spot.folder != last:
-            last = spot.folder
-            kin = [p for p in pages if p.spot.folder == last]
-            done = sum(1 for p in kin if p.filled)
-            out += ["", f"─── {export.FOLDERS.get(last, last)} {last}   {done}/{len(kin)}"]
-
-        if not spot.filled:
-            #: 채울 topic 이 아예 없는 자리. **파일을 더 올려도 안 찬다**
-            out.append(f"  ✕ {spot.title:14} —  {spot.gap}")
+    for n in nodes:
+        if n.category != last:
+            last = n.category
+            kin = [x for x in nodes if x.category == last]
+            done = sum(1 for x in kin if x.filled)
+            out += ["", f"─── {tree.CATEGORIES.get(last, last)} {last}   {done}/{len(kin)}"]
+        if n.depth == 0:
             continue
-        if not page.filled:
-            out.append(f"  ○ {spot.title:14} —  아직 없어요")
+        pad = "  " * n.depth
+        if not n.filled:
+            out.append(f"  {pad}○ {n.name}")
             continue
+        page = pages.get(n.path)
+        grade = f"   [{page.grade}]" if page else ""
+        out.append(f"  {pad}● {n.name:14} 사실 {len(n.facts)} · 근거 {n.source_count}파일{grade}")
 
-        bits = []
-        if page.values:
-            bits.append(f"값 {len(page.values)}")
-        if page.statements:
-            bits.append(f"사실 {len(page.statements)}")
-        bits.append(f"근거 {len(page.sources)}파일")
-        mark = "!" if any(v.status == merge.Status.CONFLICT for v in page.values) else "●"
-        out.append(f"  {mark} {spot.title:14} {' · '.join(bits)}   [{page.grade}]")
+    out += ["", "  ○ 는 아직 빈 자리예요. 카테고리 열은 비어도 서요"]
 
-    out += [
-        "",
-        "  ✕ 는 채울 topic 이 없는 자리예요 — plan/20 T-0116. ! 는 값이 갈린 자리예요",
-    ]
-
-    un = s.scalars(
-        select(WikiFact)
-        .where(WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.UNCATEGORIZED)
-        .order_by(WikiFact.id)
-    ).all()
-    if un:
-        out += ["", f"─── 검토 대기 {len(un)}건 — 갈 자리를 못 찾았어요. 버리지는 않았어요"]
-        out += [f"  ? {f.text}" for f in un]
     return "\n".join(out)
 
 

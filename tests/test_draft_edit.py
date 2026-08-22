@@ -22,12 +22,14 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+import wikifix
 from finnect.api import draft_service
 from finnect.models import (
     Attachment,
     AttachmentFile,
     Base,
     Chunk,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
@@ -38,8 +40,10 @@ from finnect.models import (
     ItemNeed,
     ParseStatus,
     UserFile,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
 
 COMPANY = "c_edit"
@@ -52,7 +56,8 @@ BLANK = 4
 
 TABLES = [
     Attachment, AttachmentFile, Document, DocumentItem, ItemNeed,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiEvidence, Chunk, UserFile,
+    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode,
+    CompanyValue, ValueEvidence, WikiEvidence, Chunk, UserFile,
 ]
 
 
@@ -91,10 +96,9 @@ def db():  # noqa: ANN201
                   text="2025년 매출은 8,640만원이다", chars=17, char_start=0, char_end=17)
         s.add(c)
         s.flush()
-        s.add(WikiFact(id=1, company_id=COMPANY, place_kind="value", place="revenue",
-                       dedupe_key="k", topic="revenue", text="2025년 매출 8,640만원",
-                       extractor="stub/v1"))
-        s.flush()
+        wikifix.fact(
+            s, COMPANY, "Financial/매출", "2025년 매출 8,640만원", key="revenue_2025"
+        )
         s.add(WikiEvidence(company_id=COMPANY, fact_id=1, chunk_id=c.id,
                            user_file_id=f.id, quote="매출은 8,640만원"))
 

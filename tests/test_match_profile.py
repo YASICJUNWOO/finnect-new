@@ -15,21 +15,44 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import wikifix
 from finnect.match import profile as pf
-from finnect.models import Base, WikiFact
+from finnect.models import Base, CompanyValue, ValueEvidence, WikiFact, WikiNode
 
 COMPANY = "c_prof"
-TABLES = [WikiFact]
+TABLES = [WikiFact, WikiNode, CompanyValue, ValueEvidence]
 
 
-def _fact(**kw) -> WikiFact:  # noqa: ANN003
-    kw.setdefault("company_id", COMPANY)
-    kw.setdefault("place_kind", "value")
-    kw.setdefault("topic", "company_profile")
-    kw.setdefault("text", "")
-    kw.setdefault("extractor", "stub/v1")
-    kw.setdefault("dedupe_key", f"{kw['place']}|{kw.get('value')}|{kw.get('as_of')}")
-    return WikiFact(**kw)
+def _fact(**kw):  # noqa: ANN003, ANN201
+    """옛 `_fact` 를 두 트랙으로 가른다(ADR-0056).
+
+    `place_kind="event"` 면 노드에 앉는 사실이고, 그 밖은 **회사 정보 한 칸**이다 —
+    자격 판별이 읽는 것은 뒤쪽이다.
+    """
+    kind = kw.pop("place_kind", "value")
+    place = kw.pop("place")
+    kw.pop("topic", None)
+    if kind == "event":
+        return ("event", _PATH.get(place, f"Custom/{place}"), kw.get("text", ""))
+    return CompanyValue(
+        company_id=COMPANY,
+        key=place,
+        value=kw.get("value") or "",
+        qualifier=kw.get("qualifier"),
+        as_of=kw.get("as_of"),
+        status=kw.get("status") or "current",
+        dedupe_key=f"{place}|{kw.get('value')}|{kw.get('as_of')}|{kw.get('qualifier')}",
+        extractor="stub/v1",
+    )
+
+
+#: 옛 orbit 이름 → 노드 경로
+_PATH = {
+    "roadmap": "Plan/일정",
+    "identity": "Company/비전",
+    "finance": "Financial/자금계획",
+    "solution": "Product/기능",
+}
 
 
 @pytest.fixture
@@ -62,17 +85,15 @@ def s():  # noqa: ANN201
                       as_of=dt.date(2025, 9, 30), status="conflict"),
                 _fact(place="gov_program", value="280000000", qualifier="시드",
                       as_of=dt.date(2025, 9, 30), status="conflict"),
-                # 서술 노드
-                _fact(place_kind="event", place="roadmap", topic="roadmap",
-                      text="2단계 2026. 07. ~ 12. — 경기 남부 지역 영업망 구축",
-                      dedupe_key="event|roadmap|a"),
-                _fact(place_kind="event", place="identity", topic="identity",
-                      text="소상공인용 재고관리 소프트웨어", dedupe_key="event|identity|b"),
-                # **자격 슬롯이 아닌 슬롯은 안 담는다**
+                # **자격 입력이 아닌 칸은 안 담는다**
                 _fact(place="revenue", value="86400000",
                       as_of=dt.date(2025, 12, 31), status="current"),
             ]
         )
+        #: 서술은 노드에 앉는다 — 트랙 A
+        wikifix.fact(sess, COMPANY, "Plan/일정",
+                     "2단계 2026. 07. ~ 12. — 경기 남부 지역 영업망 구축", key="2단계")
+        wikifix.fact(sess, COMPANY, "Company/비전", "소상공인용 재고관리 소프트웨어", key="정체성")
         sess.commit()
         yield sess
 

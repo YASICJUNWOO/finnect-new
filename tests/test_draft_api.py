@@ -5,7 +5,7 @@
 1. **`status` 여섯을 갈라 준다.** 섞이면 화면이 사용자에게 이미 아는 것을 묻는다 —
    실측에서 `못 채움` 7 로 보인 것이 실은 상위 묶음 3 · 배분에서 못 받음 4 였다
 2. **트리로 준다.** 평평하게 내보내면 화면이 트리를 다시 세운다
-3. **`place_label` 을 API 가 붙인다.** 화면이 한국어를 지으면 `topics.py` 와 갈린다
+3. **`place_label` 을 API 가 붙인다.** 화면이 한국어를 지으면 서버와 갈린다
 4. **없으면 빈 목록이다. 404 가 아니다** — 404 는 원인을 안 남긴다
 5. **`api/draft_service.py` 가 `finnect.draft.service` 를 안 끌고 온다.** 그쪽은
    `llm` 을 타고 `httpx` 를 부르고, `requirements.txt` 가 그것을 뺐다
@@ -17,12 +17,14 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import wikifix
 from finnect.api import draft_service
 from finnect.models import (
     Attachment,
     AttachmentFile,
     Base,
     Chunk,
+    CompanyValue,
     Document,
     DocumentItem,
     DocumentKind,
@@ -33,8 +35,10 @@ from finnect.models import (
     ItemNeed,
     ParseStatus,
     UserFile,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
+    WikiNode,
 )
 
 COMPANY = "c_api"
@@ -42,7 +46,8 @@ NOTICE = "PBLN-API"
 SHA = "e" * 64
 TABLES = [
     Attachment, AttachmentFile, Document, DocumentItem, ItemNeed,
-    Draft, DraftItem, DraftEvidence, WikiFact, WikiEvidence, Chunk, UserFile,
+    Draft, DraftItem, DraftEvidence, WikiFact, WikiNode,
+    CompanyValue, ValueEvidence, WikiEvidence, Chunk, UserFile,
 ]
 
 
@@ -71,9 +76,9 @@ def db():  # noqa: ANN201
             s.add(DocumentItem(id=i + 1, document_id=1, parent_id=pid, ordinal=i,
                                number=no, title=title, instruction=ins,
                                limit_text=limit, input_kind="narrative"))
-        s.add(ItemNeed(document_item_id=2, place="revenue", place_kind="value", required=True))
-        s.add(ItemNeed(document_item_id=3, place="revenue", place_kind="value", required=True))
-        s.add(ItemNeed(document_item_id=4, place="team", place_kind="event", required=True))
+        s.add(ItemNeed(document_item_id=2, place="Financial", place_kind="event", required=True))
+        s.add(ItemNeed(document_item_id=3, place="Financial", place_kind="event", required=True))
+        s.add(ItemNeed(document_item_id=4, place="Company", place_kind="event", required=True))
 
         f = UserFile(company_id=COMPANY, sha256="f" * 64, filename="소개서.pdf",
                      ext="pdf", byte_size=1, status="built")
@@ -83,10 +88,9 @@ def db():  # noqa: ANN201
                   text="2025년 매출은 8,640만원이다", chars=17, char_start=0, char_end=17)
         s.add(c)
         s.flush()
-        fact = WikiFact(id=1, company_id=COMPANY, place_kind="value", place="revenue",
-                        dedupe_key="k", topic="revenue", text="2025년 매출 8,640만원",
-                        extractor="stub/v1")
-        s.add(fact)
+        wikifix.fact(
+            s, COMPANY, "Financial/매출", "2025년 매출 8,640만원", key="revenue_2025"
+        )
         s.flush()
         s.add(WikiEvidence(company_id=COMPANY, fact_id=1, chunk_id=c.id,
                            user_file_id=f.id, quote="매출은 8,640만원"))
@@ -99,7 +103,7 @@ def db():  # noqa: ANN201
             (1, DraftItemStatus.NO_NEEDS, "", []),
             (2, DraftItemStatus.DRAFTED, "2025년 매출은 8,640만원이다.", []),
             (3, DraftItemStatus.YIELDED, "", []),
-            (4, DraftItemStatus.BLANK, "", ["team"]),
+            (4, DraftItemStatus.BLANK, "", ["Company"]),
         ]):
             s.add(DraftItem(draft_id=1, document_item_id=item_id, ordinal=iid,
                             status=str(status), body=body, missing=missing,
@@ -147,7 +151,7 @@ class Test상태:
         items = _get(db).documents[0].items
         blank = next(i for i in items if i.status == "blank")
 
-        assert [m.place for m in blank.missing] == ["team"]
+        assert [m.place for m in blank.missing] == ["Company"]
         assert blank.missing[0].required is True
 
     def test_상위_묶음은_missing_이_비어_있다(self, db) -> None:  # noqa: ANN001
@@ -182,8 +186,9 @@ class Test근거:
         drafted = next(c for i in items for c in i.children if c.status == "drafted")
         blank = next(i for i in items if i.status == "blank")
 
-        assert drafted.paragraphs[0].evidence[0].place_label == "매출액"
-        assert blank.missing[0].place_label == "팀 구성"
+        #: **자리 이름이 노드 경로다**(ADR-0056). 카테고리·매칭 정보 이름이면 라벨로 편다
+        assert drafted.paragraphs[0].evidence[0].place_label == "Financial/매출"
+        assert blank.missing[0].place_label == "회사"
 
 
 class Test분량:

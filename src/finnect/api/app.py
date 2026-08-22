@@ -32,7 +32,7 @@ from finnect.api.schemas import (
     NoticeListOut,
     RecommendationsOut,
 )
-from finnect.api.wiki_schemas import ProgressOut, UploadOut, WikiOut
+from finnect.api.wiki_schemas import ProfileOut, ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs
@@ -307,15 +307,31 @@ def edit_draft_item(
 def wiki(company_id: str) -> WikiOut:
     """사업 위키 한 장.
 
-    **위키가 없어도 200 이고 궤도 열다섯이 온다.** 빈 자리도 사실이라 화면이 무엇을
-    물어야 하는지 알 수 있어야 한다(DESIGN.md §7-5). 404 는 회사가 없을 때가 아니라
-    이 경로가 없을 때만 난다.
+    **위키가 없어도 200 이고 카테고리 열이 온다**(ADR-0056). 빈 자리도 사실이라 화면이
+    무엇을 물어야 하는지 알 수 있어야 한다(DESIGN.md §7-5). 404 는 회사가 없을 때가
+    아니라 이 경로가 없을 때만 난다.
+
+    **매칭 정보(트랙 B)는 여기 안 온다.** `/api/company/{company_id}` 가 그 자리다 —
+    그래프와 회사 정보는 다른 화면이고 서로를 모른다.
 
     **추출기가 아직 스텁이라 픽스처 밖 회사는 자리만 비어서 온다**(ADR-0031).
     응답의 `extractor` 가 무엇이 뽑았는지 말한다.
     """
     with SessionFactory() as s:
         return wiki_service.get_wiki(s, company_id)
+
+
+@app.get("/api/company/{company_id}", response_model=ProfileOut)
+def company(company_id: str) -> ProfileOut:
+    """회사 정보 한 장(트랙 B · ADR-0056 결정 1·5).
+
+    **열넷이 항상 온다.** 빈 칸이 물어볼 자리이고(ADR-0028), 질문이 고정이라 못 채운
+    것을 셀 수 있다 — 트랙 A 는 정답지가 없어 이걸 못 한다.
+
+    **그래프에 안 뜬다.** 자격 판별(M1)이 읽는 것과 사람이 읽는 위키는 다른 물건이다.
+    """
+    with SessionFactory() as s:
+        return wiki_service.get_profile(s, company_id)
 
 
 @app.get("/api/wiki/{company_id}/markdown", response_class=PlainTextResponse)

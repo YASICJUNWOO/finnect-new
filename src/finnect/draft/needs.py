@@ -26,17 +26,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from finnect.wiki import topics
+from finnect.wiki import profile, tree
 
-#: 고를 수 있는 자리. **슬롯 14 + 노드 10 = 24.** 회사가 커져도 안 늘어난다
+#: 고를 수 있는 자리. **매칭 정보 14 + 카테고리 10 = 24.** 회사가 커져도 안 늘어난다.
+#:
+#: **동적 노드 경로를 여기 넣지 않는다**(ADR-0056). `item_need` 에 `company_id` 가
+#: 없어서 — 양식을 한 번 읽으면 그 양식을 쓰는 **모든 회사가 쓴다.** 회사마다 다른
+#: 경로를 가리키면 그 성질이 깨진다. 카테고리 열은 회사와 무관하게 존재가 보장된다.
 PLACES: dict[str, str] = {
-    **{k: v.label for k, v in topics.VALUE_SPECS.items()},
-    **topics.EVENT_ORBITS,
+    **{k: v.label for k, v in profile.PROFILE_KEYS.items()},
+    **tree.CATEGORIES,
 }
-#: 슬롯인가 노드인가. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
+#: 값인가 글인가. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
 PLACE_KIND: dict[str, str] = {
-    **{k: "value" for k in topics.VALUE_SPECS},
-    **{k: "event" for k in topics.EVENT_ORBITS},
+    **{k: "value" for k in profile.PROFILE_KEYS},
+    **{k: "event" for k in tree.CATEGORIES},
 }
 
 #: 지시문을 프롬프트에 넣을 때의 상한. 최장이 2,031자다(plan/11 실측)
@@ -254,8 +258,8 @@ def _dedupe(needs: list[Need]) -> list[Need]:
 
 
 def _place_list() -> str:
-    slots = " · ".join(f"`{k}` {v.label}" for k, v in topics.VALUE_SPECS.items())
-    nodes = " · ".join(f"`{k}` {v}" for k, v in topics.EVENT_ORBITS.items())
+    slots = " · ".join(f"`{k}` {v.label}" for k, v in profile.PROFILE_KEYS.items())
+    nodes = " · ".join(f"`{k}` {v}" for k, v in tree.CATEGORIES.items())
     return f"정형 값 — {slots}\n서술 글 — {nodes}"
 
 

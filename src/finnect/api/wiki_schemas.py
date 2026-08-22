@@ -27,24 +27,6 @@ class EvidenceOut(BaseModel):
     quote: str
 
 
-class ValueOut(BaseModel):
-    """정형 슬롯의 주장 하나. **충돌하면 같은 자리에 여럿이 온다.**"""
-
-    slot: str
-    label: str
-    #: 정규화된 저장값. 병합의 재료라 화면이 이걸 고쳐 쓰지 않는다
-    value: str
-    #: 사람이 읽는 값. 단위가 붙어 있다
-    display: str
-    #: `시드` · `정책자금` · `예비창업패키지`
-    qualifier: str | None
-    #: 언제 기준의 값인가. 시점 없는 슬롯은 항상 null
-    as_of: str | None
-    #: `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다
-    status: str
-    evidence: list[EvidenceOut]
-
-
 class StatementOut(BaseModel):
     """서술 노드의 사실 하나."""
 
@@ -54,66 +36,79 @@ class StatementOut(BaseModel):
     evidence: list[EvidenceOut]
 
 
-class TopicGroupOut(BaseModel):
-    """event topic 하나와 그 밑의 사실들. **빈 것도 온다**(ADR-0048 결정 5).
+class WikiNodeOut(BaseModel):
+    """노드 하나(트랙 A · ADR-0056). **빈 카테고리도 온다** — 무엇이 없는지 보여야 한다.
 
-    묶는 것을 서버가 한다. 절 제목을 보일지 말지도 서버가 정한다(`WikiNodeOut.grouped`) —
-    "event topic 이 둘 이상일 때만" 이라는 규칙을 화면에 한 번 더 적으면 두 곳이 된다.
+    **`path` 가 이 자리의 이름이다**(기획 §4-3 "경로가 곧 노드 제목이다"). 화면과 기획
+    문서와 집필 에이전트가 같은 문자열을 쓴다.
     """
 
-    topic: str
-    #: 한국어 이름. **화면이 한국어를 짓지 않는다**(`topics.display()` 와 같은 규율)
-    label: str
-    statements: list[StatementOut]
-
-
-class WikiSpotOut(BaseModel):
-    """기획 트리의 자리 하나. **빈 자리도 온다** — 비어 있다는 것도 보여야 한다.
-
-    **`path` 가 이 자리의 이름이다**(기획 문서 §4-3 "경로가 곧 노드 제목이다"). 화면과
-    집필 에이전트와 기획 문서가 같은 문자열을 쓴다 — 2026-08-22 까지는 화면만 궤도
-    이름(「솔루션과 기술」)으로 따로 불렀다(ADR-0052).
-    """
-
-    #: `Company/팀.md`. **기획 문서가 적은 그대로다** — `{}` 가 남아 있으면 동적 자리다
+    #: `Company/팀` · `Custom/특허/등록-10-2025-0114882`
     path: str
-    title: str
-    #: 최상위 폴더 키. 라벨은 `WikiOut.folders` 가 준다
-    folder: str
-    #: 자격 판별(M1)의 입력을 담은 자리인가. 비면 물어야 한다(ADR-0028)
-    eligibility: bool
-    values: list[ValueOut]
+    #: 경로의 마지막 마디. 화면에 쓰는 이름
+    name: str
+    #: 최상위 카테고리. **각도 구획이다.** 라벨은 `WikiOut.categories` 가 준다
+    category: str
+    #: 부모 경로. 최상위면 빈 문자열
+    parent: str
+    #: 몇 번째 층인가. 0 이 카테고리다
+    depth: int
+
     statements: list[StatementOut]
-    #: 위 `statements` 를 topic 별로 묶은 것. **순서는 표가 정한다**(`export.TREE`)
-    groups: list[TopicGroupOut]
-    #: 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리만 true** 다
-    grouped: bool
     #: 근거로 쓰인 **파일 수**. 근거 개수가 아니다
     source_count: int
-    #: 이 자리에 사실이 앉았나
     filled: bool
-    conflicted: bool
-    #: 우리가 더한 자리인가. **기획 문서에 없다**
-    ours: bool
-    #: 채울 topic 이 아예 없는 자리의 사유. 있으면 파일을 더 올려도 안 찬다
-    gap: str
-    #: 접혔으면 원래 경로. **조용히 접지 않는다** — `Competitor/{업체명}.md`
-    collapsed: str | None
 
-    # --- 기획 문서 §5 의 파일 머리 (ADR-0052 결정 4) ---
     #: `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 나온다** — 추출기가 출처를 판정 안 한다
     grade: str
-    #: 근거가 된 파일 이름들
     source: list[str]
-    #: 그 파일들의 저장 위치. **`source` 와 같은 순서다**
+    #: `source` 와 같은 순서다
     source_path: list[str]
-    #: 값들의 `as_of` 중 가장 늦은 것
-    base_date: str | None
-    #: 사실들의 `updated_at` 중 가장 늦은 것. **만든 시각이 아니다**
+    #: 사실이 바뀐 시각. **만든 시각이 아니다**
     updated_at: str | None
-
-    #: 이 자리 한 장의 마크다운. **저장된 것이 아니라 매번 만든 것이다**
+    #: 이 노드 한 장의 마크다운. 빈 뼈대면 빈 문자열이다
     markdown: str
+
+
+class ValueOut(BaseModel):
+    """회사 정보 한 칸의 주장 하나(트랙 B). **충돌하면 같은 자리에 여럿이 온다.**"""
+
+    #: 정규화된 저장값. 병합의 재료라 화면이 이걸 고쳐 쓰지 않는다
+    value: str
+    #: 사람이 읽는 값. 단위가 붙어 있다
+    display: str
+    #: `시드` · `정책자금`. **자유 문자열이다**
+    qualifier: str | None
+    as_of: str | None
+    #: `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다
+    status: str
+    evidence: list[EvidenceOut]
+
+
+class ProfileKeyOut(BaseModel):
+    """회사 정보 한 칸. **열넷 고정이라 빈 칸을 셀 수 있다**(ADR-0028)."""
+
+    key: str
+    label: str
+    #: 자격 판별(M1)의 입력인가. **비면 물어야 한다**
+    eligibility: bool
+    #: 지금 값들. 충돌이면 둘 이상이다
+    current: list[ValueOut]
+    #: 더 늦은 값이 있어 밀린 것들
+    history: list[ValueOut]
+    conflicted: bool
+
+
+class ProfileOut(BaseModel):
+    """회사 정보 한 장(`/company`). **그래프에 안 뜬다**(ADR-0056 결정 1)."""
+
+    company_id: str
+    #: 열넷 고정. 순서가 `PROFILE_KEYS` 표 순서다
+    keys: list[ProfileKeyOut]
+    #: 채운 칸 수. **막대를 만들지 않는다** — 「14칸 중 12칸」으로만 말한다
+    filled: int
+    total: int
+    conflicts: int
 
 
 class WikiFileOut(BaseModel):
@@ -134,21 +129,22 @@ class WikiFileOut(BaseModel):
 
 
 class WikiOut(BaseModel):
-    """S7 한 장. **자리 마흔일곱이 항상 온다**(ADR-0052)."""
+    """S7 한 장(트랙 A). **카테고리 열은 비어도 온다**(ADR-0056)."""
 
     company_id: str
-    #: 기획 트리 자리 47. **순서가 곧 기획 문서 §2 의 순서다**
-    spots: list[WikiSpotOut]
+    #: 노드 전부. **순서는 `CATEGORIES` 표가 정하고 그 안에서는 경로순이다**
+    nodes: list[WikiNodeOut]
     files: list[WikiFileOut]
-    #: 폴더 키 → 한국어 이름. 열 개 고정이다. **화면이 이름을 짓지 않는다**
-    folders: dict[str, str]
+    #: 카테고리 키 → 한국어 이름. 열 개 고정. **화면이 이름을 짓지 않는다**
+    categories: dict[str, str]
 
     # --- 채움 상태 (F1-4-2). **막대를 만들지 않는다** — 숫자로만 말한다 ---
+    #: 사실이 앉은 노드 수
     filled: int
+    #: 뼈대까지 포함한 노드 수
     total: int
-    conflicts: int
-    #: 갈 자리를 못 찾아 검토 대기에 선 사실 수. **버린 것이 아니다**
-    uncategorized: int
+    #: **이번 회차에 새로 만든 노드가 아니라 검토 대기에 선 사실 수다**
+    review: int
     #: 아직 스텁이 뽑고 있나. 화면이 그렇게 말해야 한다(ADR-0031)
     extractor: str | None
 

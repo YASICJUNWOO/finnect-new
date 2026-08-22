@@ -58,18 +58,39 @@ _CLIP = 70
 #: 아니다.** `identity`(우리가 하는 일)가 맞는 근거인데 59자로 더 길어서 밀렸다.
 #: 표에 없는 노드는 맨 뒤다.
 NODE_RANK: dict[str, int] = {
-    "identity": 0,   # 우리가 하는 일. **이유의 근거로 가장 적합하다**
-    "solution": 1,   # 솔루션과 기술
-    "customer": 2,   # 목표 고객
-    "region": 3,     # 지역 연계 — 지자체 공고에 직결된다
-    "traction": 4,   # 매출과 성과
-    "roadmap": 5,    # 로드맵
-    "team": 6,
-    "market": 7,
-    "finance": 8,
-    "problem": 9,    # 문제 인식. **조사 결과라 이유로 약하다**
+    #: **키가 노드 경로다**(ADR-0056). `_rank` 가 앞자리부터 가장 구체적인 것을 찾는다.
+    #: 경로가 없으면 카테고리로 떨어지므로 **동적으로 자란 노드도 순위를 갖는다.**
+    "Company/비전": 0,  # 우리가 하는 일. **이유의 근거로 가장 적합하다**
+    "Product": 1,  # 솔루션과 기술
+    "Customer/타깃고객": 2,  # 목표 고객
+    "Company/지역관계": 3,  # 지역 연계 — 지자체 공고에 직결된다
+    "Financial/매출": 4,  # 매출과 성과
+    "Plan": 5,  # 로드맵
+    "Company/팀": 6,
+    "Market": 7,
+    "Financial": 8,
+    "Customer": 9,  # 문제 인식. **조사 결과라 이유로 약하다**
+    #: 나머지 카테고리는 꼬리 앞에 둔다 — 표 밖보다는 낫다
+    "BusinessModel": 10,
+    "Competitor": 11,
+    "Custom": 12,
+    "Events": 13,
+    "Company": 14,
 }
 _RANK_TAIL = len(NODE_RANK)
+
+
+def _rank(path: str) -> int:
+    """노드 경로의 인용 순위. **가장 구체적인 것이 이긴다.**
+
+    `Company/팀/개발` 이면 `Company/팀` → `Company` 순으로 찾는다. 아무것도 없으면 꼬리다.
+    """
+    parts = path.split("/")
+    for depth in range(len(parts), 0, -1):
+        got = NODE_RANK.get("/".join(parts[:depth]))
+        if got is not None:
+            return got
+    return _RANK_TAIL
 
 _WS = re.compile(r"\s+")
 
@@ -158,9 +179,9 @@ def _sector_fit(
     # 낱말이 걸린 자리는 `need_text()` 안이다 — 그걸 만든 노드에서만 찾는다.
     # 전체 노드에서 찾으면 ④가 안 본 자리를 근거로 들게 된다
     scored = [
-        (NODE_RANK.get(n.place, _RANK_TAIL), len(n.text), n)
+        (_rank(n.place), len(n.text), n)
         for n in nodes
-        if n.place in NEED_NODES and any(c in n.text for c in cues)
+        if n.place.split("/", 1)[0] in NEED_NODES and any(c in n.text for c in cues)
     ]
     if not scored:
         # `need_text()` 는 노드를 이어 붙인 글이라 **낱말이 이음매에 걸릴 수 있다.**
@@ -210,7 +231,7 @@ def judge(
         # 겹침 많은 순 → **노드 종류 순** → 짧은 순.
         # 종류가 길이보다 앞인 것이 요점이다 — 위 `NODE_RANK` 주석 참고
         scored.append(
-            (-len(hits), NODE_RANK.get(n.place, _RANK_TAIL), len(n.text), n, hits)
+            (-len(hits), _rank(n.place), len(n.text), n, hits)
         )
         for k in hits:
             if k not in matched:

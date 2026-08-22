@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from finnect.config import settings
-from finnect.wiki import extract, topics
+from finnect.wiki import extract, tree
 from finnect.wiki.extract import Fact, FactExtractor, FileView
 
 #: `service.py` 와 같은 표여야 한다 — 쪽이 있는 포맷만 번호를 붙인다.
@@ -196,11 +196,11 @@ def _find(want: Fact, pool: list[Fact]) -> Fact | None:
         key = _value_key(want)
         return next((g for g in pool if g.kind == "value" and _value_key(g) == key), None)
     # 서술은 **원문의 같은 자리**를 가리키면 같은 것으로 본다
-    node = topics.orbit_of(want.topic)
+    node = tree.EVENT_PATH.get(want.topic or "")
     a = _squash(want.anchor)
     best, score = None, 0.0
     for g in pool:
-        if g.kind != "event" or topics.orbit_of(g.topic) != node:
+        if g.kind != "event" or tree.EVENT_PATH.get(g.topic or "") != node:
             continue
         r = _overlap(a, _squash(g.anchor))
         if r > score:

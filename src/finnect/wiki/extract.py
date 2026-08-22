@@ -42,7 +42,14 @@ from pathlib import Path
 from typing import Protocol
 
 from finnect.config import settings
-from finnect.wiki import topics
+from finnect.wiki import profile, tree
+
+#: 추출기가 낼 수 있는 topic. **임시 어휘다** — plan/22 T-0126 이 카테고리+경로로 바꾼다.
+#:
+#: `tree.EVENT_PATH` 가 목적지를 정하므로 **그 표의 키에 둘을 더한 것**이다.
+#: `company_profile` 과 `application_history` 는 매칭 정보의 재료라 노드 자리가 없고,
+#: 서술로 오면 `Custom/검토 대기` 로 간다.
+TOPICS: frozenset[str] = frozenset(tree.EVENT_PATH) | {"company_profile", "application_history"}
 
 
 class UnknownFile(Exception):
@@ -58,7 +65,7 @@ class Fact:
     `source_type` · 충돌 여부 셋으로 말한다(plan/12 구상도와의 차이).
     """
 
-    #: `topics.TOPICS` 안의 라벨. 밖이면 `uncategorized` 로 선다
+    #: 고정 topic 스물다섯 안의 라벨. **임시다** — plan/22 T-0126 이 카테고리+경로로 바꾼다
     topic: str
     #: `slot`=value topic · `node`=event topic. **스키마 값 그대로다** —
     #: ADR-0048 이 층 이름만 바꿨고 프롬프트·스키마는 안 바꿨다.
@@ -77,7 +84,7 @@ class Fact:
     fact_key: str | None = None
 
     # --- value topic 일 때만 ---
-    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수` — value topic 은 `topics.value_of` 가 정한다
+    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수` — key 는 `profile.key_of` 가 정한다
     key: str | None = None
     #: **정규화된 값이다.** 문서가 쓴 표현은 `text` 에 남는다.
     #:
@@ -92,11 +99,11 @@ class Fact:
 
     @property
     def value_topic(self) -> str | None:
-        return topics.value_of(self.key) if self.kind == "value" else None
+        return profile.key_of(self.key) if self.kind == "value" else None
 
     @property
     def orbit(self) -> str | None:
-        return topics.orbit_of(self.topic) if self.kind == "event" else None
+        return tree.EVENT_PATH.get(self.topic or "") if self.kind == "event" else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,7 +170,7 @@ class StubExtractor:
 def _fact(d: dict) -> Fact:
     as_of = d.get("as_of")
     return Fact(
-        topic=d["topic"] if d["topic"] in topics.TOPICS else topics.UNCATEGORIZED,
+        topic=d["topic"] if d["topic"] in TOPICS else "",
         kind=d["kind"],
         text=d["text"],
         anchor=d["anchor"],
@@ -260,7 +267,7 @@ _SYSTEM_TEMPLATE = """\
 def _value_vocab() -> str:
     """`VALUE_ALIASES` 에서 만든다. **손으로 적으면 표와 어긋난다.**"""
     by: dict[str, list[str]] = {}
-    for alias, slot in topics.VALUE_ALIASES.items():
+    for alias, slot in profile.ALIASES.items():
         by.setdefault(slot, []).append(alias)
     # **별칭만 보인다.** 라벨(`업종(종목)`)을 왼쪽에 두면 모델이 그걸 key 로 쓰는데
     # 라벨은 `VALUE_ALIASES` 에 없어서 value topic 이 `None` 으로 떨어진다. 실측으로 겪었다.
@@ -286,7 +293,7 @@ _SCHEMA = {
                     "fact_key", "key", "value", "as_of", "qualifier",
                 ],
                 "properties": {
-                    "topic": {"type": "string", "enum": sorted(topics.TOPICS)},
+                    "topic": {"type": "string", "enum": sorted(TOPICS)},
                     "kind": {"type": "string", "enum": ["value", "event"]},
                     "text": {"type": "string"},
                     "anchor": {"type": "string"},
@@ -370,7 +377,7 @@ def _fact_from_llm(d: dict) -> Fact:
         parsed = None  # 날짜가 아니면 시점 없는 값으로 둔다. 지어내지 않는다
     kind = d["kind"] if d.get("kind") in ("value", "event") else "event"
     return Fact(
-        topic=d["topic"] if d.get("topic") in topics.TOPICS else topics.UNCATEGORIZED,
+        topic=d["topic"] if d.get("topic") in TOPICS else "",
         kind=kind,
         text=(d.get("text") or "").strip(),
         anchor=(d.get("anchor") or "").strip(),

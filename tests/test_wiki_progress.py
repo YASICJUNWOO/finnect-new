@@ -24,7 +24,7 @@ from sqlalchemy.exc import OperationalError
 
 from finnect.api.wiki_schemas import ProgressOut
 from finnect.models import UserFileStatus
-from finnect.wiki import export, progress
+from finnect.wiki import progress, tree
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "finnect"
 
@@ -221,7 +221,7 @@ def test_아무것도_안_올려도_단계와_자리가_온다(client) -> None: 
     assert body.total == 0
     assert body.files == []
     assert [s.key for s in body.steps] == [s.key for s in progress.STEPS]
-    assert body.slots == 47
+    assert body.slots == len(tree.CATEGORIES)
     assert body.running is False
 
 
@@ -232,7 +232,7 @@ def test_자리_이름을_전부_준다(client) -> None:  # noqa: ANN001
     그것을 다른 자리로 읽는다.
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_없는회사/progress").json())
-    assert set(body.spot_titles) == {s.path for s in export.TREE}
+    assert set(body.spot_titles) == set(tree.CATEGORIES)
     assert all(v for v in body.spot_titles.values())
 
 
@@ -270,7 +270,7 @@ def test_자리를_채운_파일에는_사실이_있다(client) -> None:  # noqa
     거꾸로는 성립하지 않는다 — 사실이 `uncategorized` 로 앉으면 트리 자리가 없다.
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
-    known = {s.path for s in export.TREE}
+    known = set(body.spot_titles)
     for f in body.files:
         if f.spots:
             assert f.fact_count > 0, f"{f.filename}: 자리 {f.spots} · 사실 {f.fact_count}"

@@ -7,6 +7,11 @@
 그래서 이 파일은 **읽을 때마다 다시 만든다.** 대가는 매번 조인 몇 번이고, 얻는 것은
 "화면에 보이는 글자가 DB 와 다를 수 없다"는 성질이다.
 
+## 값 블록이 여기서 나갔다
+
+2026-08-22 트랙이 둘로 갈리면서(ADR-0056) 정형 값이 `company_value` 로 옮겨 갔다.
+여기 남은 것은 **트랙 A 의 사실 블록과 근거 목록**이다.
+
 ## 장을 만드는 것은 여기가 아니다
 
 2026-08-22 까지 이 모듈이 **궤도 자리 한 장**을 통째로 만들었다(`render(node)`). 화면이
@@ -33,13 +38,9 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 
-from finnect.wiki import merge, topics
-
 #: 충돌한 값 앞에 붙는 말. **이모지를 쓰지 않는다** — 옵시디언과 터미널에서 폭이 갈린다.
+#: 값은 이제 트랙 B(`company_value`)에 살고 회사 정보 화면이 이 말을 쓴다.
 CONFLICT_NOTE = "> 값이 갈려요. 어느 쪽이 맞는지 정해야 해요 — 둘 다 두었어요."
-
-#: 절은 섰는데 그 topic 에 사실이 없을 때. **자리를 지우지 않는다**(ADR-0028).
-EMPTY_TOPIC = "아직 없어요."
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,92 +62,19 @@ class Evidence:
 
 
 @dataclass(frozen=True, slots=True)
-class Value:
-    """value topic 의 주장 하나."""
-
-    slot: str
-    label: str
-    value: str
-    qualifier: str | None
-    as_of: str | None
-    status: str
-    evidence: tuple[Evidence, ...]
-    #: `document` · `user_stated`. **자료 등급이 여기서 나온다**(`export.grade_of`)
-    source_type: str = "document"
-    #: 이 주장이 마지막으로 바뀐 시각. 기획 문서 §5 의 `updated_at`
-    updated_at: dt.date | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class Statement:
-    """event topic 의 사실 하나."""
+    """노드에 앉은 사실 하나.
+
+    `topic` 은 옛 이름이고 지금 담기는 것은 **`key`** 다 — 라벨이자 병합 열쇠(ADR-0056
+    결정 3). 이름을 안 바꾼 이유는 `draft/` 와 `match/` 가 이 필드를 읽고 있어서다.
+    """
 
     text: str
+    #: 노드 안에서 이 사실을 부르는 이름. **`WikiFact.key` 가 여기 온다**
     topic: str
     evidence: tuple[Evidence, ...]
     source_type: str = "document"
     updated_at: dt.date | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class NodeView:
-    """저장 묶음 하나를 읽어 온 것. **DB 를 모른다** — `build.read_orbit` 이 채워서 넘긴다.
-
-    **화면의 단위가 아니다**(ADR-0052). `export.render()` 가 이 목록을 받아 곧바로
-    풀어 헤치고 기획 트리 자리로 다시 나눈다. 여기 남아 있는 이유는 `wiki_fact.place`
-    가 이 키를 들고 있어서다.
-    """
-
-    key: str
-    label: str
-    kind: str
-    company_id: str
-    values: tuple[Value, ...]
-    statements: tuple[Statement, ...]
-
-    @property
-    def filled(self) -> bool:
-        return bool(self.values or self.statements)
-
-    @property
-    def conflicted(self) -> bool:
-        return any(v.status == merge.Status.CONFLICT for v in self.values)
-
-
-def render_values(values: tuple[Value, ...] | list[Value]) -> list[str]:
-    """value topic. **현재값을 먼저 쓰고 이전값을 밑에 접는다.** 지우지 않는다(F1-1-7)."""
-    out: list[str] = []
-    # (value topic, 한정어) 로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
-    groups: dict[tuple[str, str | None], list[Value]] = {}
-    for v in values:
-        groups.setdefault((v.slot, v.qualifier), []).append(v)
-
-    for (slot, qualifier), items in groups.items():
-        label = topics.VALUE_SPECS[slot].label if slot in topics.VALUE_SPECS else slot
-        head = f"{label} [{qualifier}]" if qualifier else label
-        out += [f"## {head}", ""]
-
-        current = [v for v in items if v.status != merge.Status.SUPERSEDED]
-        history = [v for v in items if v.status == merge.Status.SUPERSEDED]
-
-        if any(v.status == merge.Status.CONFLICT for v in current):
-            out += [CONFLICT_NOTE, ""]
-
-        for v in current:
-            shown = topics.display(v.slot, v.value)
-            out.append(f"**{shown}**{f'  · {v.as_of} 기준' if v.as_of else ''}")
-            out.append("")
-            out += [f"- 근거 — {e}" for e in v.evidence]
-            out.append("")
-
-        if history:
-            out += ["이전 값", ""]
-            for v in sorted(history, key=lambda x: x.as_of or "", reverse=True):
-                where = " · ".join(str(e) for e in v.evidence)
-                shown = topics.display(v.slot, v.value)
-                out.append(f"- {shown}{f' · {v.as_of}' if v.as_of else ''} — {where}")
-            out.append("")
-    return out
 
 
 def render_facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:

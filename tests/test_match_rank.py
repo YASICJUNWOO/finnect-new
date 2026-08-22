@@ -17,13 +17,15 @@ from finnect.models import FitVerdict
 NODES = (
     NodeFact(
         8801,
-        "identity",
+        "Company/비전",
         "바코드와 QR로 입출고 기록을 자동으로 남겨, 발주 시점을 놓치지 않게 하는 "
         "소상공인용 재고관리 소프트웨어",
     ),
-    NodeFact(8814, "customer", "1차 목표 시장은 매장 1~3개를 직접 운영하는 식자재 소매 사업자다"),
-    NodeFact(8836, "region", "성남 지역 상인회 3개소와 업무협약 체결"),
-    NodeFact(8822, "roadmap", "2단계 경기 남부 지역 영업망 구축, 유료 전환 매장 300곳"),
+    NodeFact(
+        8814, "Customer/타깃고객", "1차 목표 시장은 매장 1~3개를 직접 운영하는 식자재 소매 사업자다"
+    ),
+    NodeFact(8836, "Company/지역관계", "성남 지역 상인회 3개소와 업무협약 체결"),
+    NodeFact(8822, "Plan/일정", "2단계 경기 남부 지역 영업망 구축, 유료 전환 매장 300곳"),
 )
 
 
@@ -90,7 +92,7 @@ def test_긴_근거는_잘라_한_줄에_넣는다() -> None:
     긴것 = (
         NodeFact(
             9001,
-            "finance",
+            "Financial/자금계획",
             "정부지원금 집행 계획 합계 7,000만원 — 인건비 3,600 · 외주용역비 1,800 · "
             "지급수수료 600 · 광고선전비 500 · 기타 500만원",
         ),
@@ -170,10 +172,14 @@ def test_확인_필요가_아니다보다_뒤다() -> None:
 
 #: `c_dasiro` 실값. **`problem` 이 짧고 `identity` 가 길다** — 실측에서 그래서 틀렸다
 실물 = (
-    NodeFact(1, "problem", "성남·용인 소상공인 30명 중 21명(70%)이 재고를 수기로 관리하고 있었다"),
+    NodeFact(
+        1,
+        "Customer/고객문제",
+        "성남·용인 소상공인 30명 중 21명(70%)이 재고를 수기로 관리하고 있었다",
+    ),
     NodeFact(
         2,
-        "identity",
+        "Company/비전",
         "바코드와 QR로 입출고 기록을 자동으로 남겨, 발주 시점을 놓치지 않게 하는 "
         "소상공인용 재고관리 소프트웨어",
     ),
@@ -202,18 +208,25 @@ def test_겹침_수가_노드_종류보다_앞이다() -> None:
 
 def test_표에_없는_노드는_맨_뒤다() -> None:
     낯선것 = (
-        NodeFact(3, "새로생긴노드", "소상공인 관련 새 자리"),
-        NodeFact(4, "identity", "소상공인용 재고관리 소프트웨어"),
+        NodeFact(3, "Custom/새로생긴노드", "소상공인 관련 새 자리"),
+        NodeFact(4, "Company/비전", "소상공인용 재고관리 소프트웨어"),
     )
     f = rk.judge(keywords=("소상공인",), nodes=낯선것)
     assert "재고관리" in f.reason
 
 
 def test_모든_서술_노드가_표에_있다() -> None:
-    """`topics.EVENT_ORBITS` 에 노드가 더 생기면 여기도 채운다 — 안 채우면 맨 뒤로 밀린다."""
-    from finnect.wiki import topics
+    """**카테고리 열이 전부 표에 있어야 한다.** 없으면 그 갈래가 통째로 맨 뒤로 밀린다.
 
-    assert set(rk.NODE_RANK) == set(topics.EVENT_ORBITS)
+    경로 키(`Company/비전` 같은 것)는 더 구체적인 순위를 주려고 얹은 것이라 늘어도 된다 —
+    `_rank` 가 앞자리부터 찾아서 없으면 카테고리로 떨어진다(ADR-0056).
+    """
+    from finnect.wiki import tree
+
+    assert set(tree.CATEGORIES) - set(rk.NODE_RANK) == set()
+    #: 경로 키의 카테고리도 표 안에 있어야 한다
+    for key in rk.NODE_RANK:
+        assert tree.category_of(key) in tree.CATEGORIES, key
 
 
 # ─────────────── ④ 분야가 만드는 이유 (T-0076) ───────────────
@@ -257,7 +270,7 @@ def test_취지가_겹치면_분야_이유를_안_쓴다() -> None:
 
 
 def test_분야_이유도_한_줄로_자른다() -> None:
-    긴것 = (NodeFact(1, "roadmap", "영업망 " + "가" * 200),)
+    긴것 = (NodeFact(1, "Plan/일정", "영업망 " + "가" * 200),)
     f = rk.judge(
         keywords=("의료기기",), nodes=긴것, sector_label="국내 판로", sector_cues=("영업망",)
     )
@@ -274,7 +287,7 @@ def test_분야_이유도_한_줄로_자른다() -> None:
 
 
 def test_탭이_든_노드는_인용하지_않는다() -> None:
-    nodes = (NodeFact(1, "roadmap", "영업망 " + 표부스러기),)
+    nodes = (NodeFact(1, "Plan/일정", "영업망 " + 표부스러기),)
     f = rk.judge(
         keywords=("의료기기",), nodes=nodes, sector_label="국내 판로", sector_cues=("영업망",)
     )
@@ -285,8 +298,8 @@ def test_탭이_든_노드는_인용하지_않는다() -> None:
 def test_인용할_수_있는_노드가_있으면_그것을_고른다() -> None:
     """더 좋은 자리에 있어도 **인용이 안 되면 밀린다.**"""
     nodes = (
-        NodeFact(1, "solution", "특허 " + 표부스러기),          # NODE_RANK 가 앞
-        NodeFact(2, "roadmap", "특허 출원을 마치고 프로토타입을 돌리고 있어요"),
+        NodeFact(1, "Product/기능", "특허 " + 표부스러기),          # NODE_RANK 가 앞
+        NodeFact(2, "Plan/일정", "특허 출원을 마치고 프로토타입을 돌리고 있어요"),
     )
     f = rk.judge(
         keywords=("의료기기",), nodes=nodes, sector_label="기술 개발", sector_cues=("특허",)
@@ -297,8 +310,8 @@ def test_인용할_수_있는_노드가_있으면_그것을_고른다() -> None:
 
 def test_취지_이유도_표_부스러기를_피한다() -> None:
     nodes = (
-        NodeFact(1, "identity", "소상공인 " + 표부스러기),
-        NodeFact(2, "market", "소상공인 재고관리 시장을 보고 있어요"),
+        NodeFact(1, "Company/비전", "소상공인 " + 표부스러기),
+        NodeFact(2, "Market/시장규모", "소상공인 재고관리 시장을 보고 있어요"),
     )
     f = rk.judge(keywords=("소상공인",), nodes=nodes)
     assert f.verdict is FitVerdict.MATCH
@@ -306,7 +319,7 @@ def test_취지_이유도_표_부스러기를_피한다() -> None:
 
 
 def test_전부_표_부스러기면_이유가_비고_근거는_남는다() -> None:
-    nodes = (NodeFact(1, "identity", "소상공인 " + 표부스러기),)
+    nodes = (NodeFact(1, "Company/비전", "소상공인 " + 표부스러기),)
     f = rk.judge(keywords=("소상공인",), nodes=nodes)
     assert f.verdict is FitVerdict.MATCH
     assert not f.reason
@@ -316,7 +329,7 @@ def test_전부_표_부스러기면_이유가_비고_근거는_남는다() -> No
 def test_줄바꿈이_든_노드도_인용하지_않는다() -> None:
     """탭을 막았더니 이번엔 줄이 셋인 목록이 나갔다 (같은 실측)."""
     여러줄 = "2027 상반기\n다점포 통합 관리 출시\n프랜차이즈 본부 영업 착수"
-    nodes = (NodeFact(1, "roadmap", "출시 " + 여러줄),)
+    nodes = (NodeFact(1, "Plan/일정", "출시 " + 여러줄),)
     f = rk.judge(
         keywords=("의료기기",), nodes=nodes, sector_label="사업화", sector_cues=("출시",)
     )

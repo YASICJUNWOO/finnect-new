@@ -19,13 +19,15 @@ from finnect.config import settings
 from finnect.models import (
     Base,
     Chunk,
+    CompanyValue,
     UserFile,
     UserFileStatus,
+    ValueEvidence,
     WikiEvidence,
     WikiFact,
-    WikiPlace,
+    WikiNode,
 )
-from finnect.wiki import build, merge, service, topics
+from finnect.wiki import build, merge, profile, service, tree
 from finnect.wiki.extract import Fact
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
@@ -57,8 +59,11 @@ def built(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
             tables=[
                 UserFile.__table__,
                 Chunk.__table__,
+                WikiNode.__table__,
                 WikiFact.__table__,
                 WikiEvidence.__table__,
+                CompanyValue.__table__,
+                ValueEvidence.__table__,
             ],
         )
         factory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
@@ -77,10 +82,25 @@ def built(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
 
 
 def _facts(factory, **where):  # noqa: ANN001, ANN202
+    """트랙 A 의 사실들. `path=` 로 노드를 좁힌다."""
+    path = where.pop("path", None)
     with factory() as s:
-        q = select(WikiFact).where(WikiFact.company_id == COMPANY)
+        q = select(WikiFact).join(WikiNode, WikiNode.id == WikiFact.node_id).where(
+            WikiFact.company_id == COMPANY
+        )
+        if path:
+            q = q.where(WikiNode.path == path)
         for k, v in where.items():
             q = q.where(getattr(WikiFact, k) == v)
+        return s.scalars(q).all()
+
+
+def _values(factory, **where):  # noqa: ANN001, ANN202
+    """트랙 B 의 값들. **트리에 안 앉는다**(ADR-0056)."""
+    with factory() as s:
+        q = select(CompanyValue).where(CompanyValue.company_id == COMPANY)
+        for k, v in where.items():
+            q = q.where(getattr(CompanyValue, k) == v)
         return s.scalars(q).all()
 
 
@@ -116,8 +136,12 @@ def test_서술_노드가_전부_찬다(built):  # noqa: ANN001
     **구상도의 topic 22개로는 둘이 빈다** — 지역 연계와 로드맵. 그래서 둘을 더했다.
     정체성은 2026-08-18 하나 더 붙었다(ADR-0033)."""
     factory, _ = built
-    filled = {f.place for f in _facts(factory, place_kind=WikiPlace.EVENT)}
-    assert filled == set(topics.EVENT_ORBITS)
+    with factory() as s:
+        filled = {n.category for n in build.read_nodes(s, COMPANY) if n.filled}
+    #: **카테고리로 본다.** 경로가 잘아져서(23자리) 코퍼스 하나가 전부를 못 채운다 —
+    #: 「자리가 비었다」와 「그 갈래를 아예 못 읽었다」는 다른 말이고, 여기서 보려는 것은 뒤다
+    want = {tree.category_of(p) for p in tree.EVENT_PATH.values()}
+    assert want - filled == set(), f"통째로 빈 갈래: {want - filled}"
 
 
 def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001
@@ -128,8 +152,8 @@ def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001
     """
     factory, _ = built
     with factory() as s:
-        views = {v.name: v for v in build.read_values(s, COMPANY)}
-    need = [n for n, spec in topics.VALUE_SPECS.items() if spec.eligibility]
+        views = {v.key: v for v in build.read_profile(s, COMPANY)}
+    need = sorted(profile.ELIGIBILITY_KEYS)
     empty = [n for n in need if not views[n].current]
     assert not empty, f"자격 판별 입력이 비었다: {empty}"
 
@@ -142,7 +166,7 @@ def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001
 def test_직원_수는_시계열로_서고_충돌이_아니다(built):  # noqa: ANN001
     """7 → 8 → 10 → 15. **충돌로 세우면 오탐이다.**"""
     factory, _ = built
-    rows = _facts(factory, place="headcount")
+    rows = _values(factory, key="headcount")
     assert sorted(r.value for r in rows) == ["10", "15", "7", "8"]
     assert not [r for r in rows if r.status == merge.Status.CONFLICT]
 
@@ -153,7 +177,7 @@ def test_직원_수는_시계열로_서고_충돌이_아니다(built):  # noqa: 
 def test_시드_금액은_충돌로_선다(built):  # noqa: ANN001
     """3억(사업계획서·재무제표) 대 2.8억(피치덱). **둘 다 보관한다** — 다수결로 안 푼다."""
     factory, _ = built
-    seed = [r for r in _facts(factory, place="funding") if r.qualifier == "시드"]
+    seed = [r for r in _values(factory, key="funding") if r.qualifier == "시드"]
     assert {r.value for r in seed} == {"300000000", "280000000"}
     assert all(r.status == merge.Status.CONFLICT for r in seed)
 
@@ -161,7 +185,7 @@ def test_시드_금액은_충돌로_선다(built):  # noqa: ANN001
 def test_같은_사실은_하나로_서고_근거만_쌓인다(built):  # noqa: ANN001
     """재구매율 34→51% 가 네 문서에 있다. **사실 넷이 되면 틀렸다**(픽스처 README 3번)."""
     factory, _ = built
-    rows = [r for r in _facts(factory, place="problem") if "재구매율" in r.text]
+    rows = [r for r in _facts(factory) if "재구매율" in r.text]
     assert len(rows) == 1
 
     with factory() as s:
@@ -172,7 +196,7 @@ def test_같은_사실은_하나로_서고_근거만_쌓인다(built):  # noqa: 
 def test_매출액은_표기가_달라도_한_값이다(built):  # noqa: ANN001
     """`24,100천원` · `2,410만원` · `24100000` 이 같은 값이다. 안 모으면 없는 충돌이 난다."""
     factory, _ = built
-    rows = [r for r in _facts(factory, place="revenue") if r.as_of and r.as_of.year == 2024]
+    rows = [r for r in _values(factory, key="revenue") if r.as_of and r.as_of.year == 2024]
     assert len(rows) == 1
     assert rows[0].value == "24100000"
     assert rows[0].status == merge.Status.SUPERSEDED  # 2025년 값이 더 늦다
@@ -181,7 +205,7 @@ def test_매출액은_표기가_달라도_한_값이다(built):  # noqa: ANN001
 def test_수혜_이력_셋이_hwpx_에서만_나온다(built):  # noqa: ANN001
     """**HWP 파서를 빼면 중복수혜 판정이 통째로 틀린다**(픽스처 README 4번)."""
     factory, _ = built
-    rows = _facts(factory, place="gov_program")
+    rows = _values(factory, key="gov_program")
     assert len(rows) == 3
     with factory() as s:
         files = {
@@ -189,8 +213,8 @@ def test_수혜_이력_셋이_hwpx_에서만_나온다(built):  # noqa: ANN001
             for r in rows
             for uf in s.scalars(
                 select(UserFile)
-                .join(WikiEvidence, WikiEvidence.user_file_id == UserFile.id)
-                .where(WikiEvidence.fact_id == r.id)
+                .join(ValueEvidence, ValueEvidence.user_file_id == UserFile.id)
+                .where(ValueEvidence.value_id == r.id)
             )
         }
     assert files == {"성남시_시범사업_신청서.hwpx"}
@@ -199,8 +223,8 @@ def test_수혜_이력_셋이_hwpx_에서만_나온다(built):  # noqa: ANN001
 def test_문서에_박힌_업력은_슬롯에_안_들어간다(built):  # noqa: ANN001
     """`업력 1년 6개월` 은 2025-08 기준이라 지금은 틀렸다. **버리지도 않는다.**"""
     factory, _ = built
-    assert "tenure" not in topics.VALUE_SPECS
-    un = _facts(factory, place_kind=WikiPlace.UNCATEGORIZED)
+    assert "tenure" not in profile.PROFILE_KEYS
+    un = _facts(factory, path=tree.REVIEW_PATH)
     assert any("업력" in r.text for r in un)
 
 

@@ -20,7 +20,7 @@ import datetime as dt
 import pytest
 
 from finnect import llm
-from finnect.wiki import build, extract, topics
+from finnect.wiki import build, extract
 from finnect.wiki.extract import FileView, LlmExtractor
 
 
@@ -94,7 +94,7 @@ def test_모르는_라벨은_uncategorized_로_간다() -> None:
     ex = LlmExtractor(client=가짜클라이언트([
         _f(topic="없는라벨", text="x", anchor="재구매율이 34%"),
     ]))
-    assert ex.extract(VIEW)[0].topic == topics.UNCATEGORIZED
+    assert ex.extract(VIEW)[0].topic == ""
 
 
 def test_날짜가_아니면_시점_없는_값이_된다() -> None:
@@ -142,7 +142,7 @@ def test_원문에_라벨_목록을_안_넘긴다() -> None:
     assert "재구매율이 34%" in user
     schema = c.calls[0]["schema"]
     enum = schema["properties"]["facts"]["items"]["properties"]["topic"]["enum"]
-    assert set(enum) == set(topics.TOPICS)
+    assert set(enum) == set(extract.TOPICS)
 
 
 def test_키가_없으면_스텁으로_안_물러난다(monkeypatch) -> None:  # noqa: ANN001

@@ -20,17 +20,21 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
+import wikifix
 from finnect.match import normalize as nz
 from finnect.match import service
 from finnect.models import (
     Base,
     BizinfoNotice,
+    CompanyValue,
     FitVerdict,
     KstartupNotice,
     NoticeFit,
     NoticeFitEvidence,
     NoticeProfile,
+    ValueEvidence,
     WikiFact,
+    WikiNode,
 )
 from finnect.views import Notice
 
@@ -38,7 +42,7 @@ TODAY = dt.date(2026, 8, 20)
 COMPANY = "c_match"
 TABLES = [
     Notice, BizinfoNotice, KstartupNotice, NoticeProfile, NoticeFit,
-    NoticeFitEvidence, WikiFact,
+    NoticeFitEvidence, WikiFact, WikiNode, CompanyValue, ValueEvidence,
 ]
 
 #: 공고 셋. **지역·분야·취지가 서로 다르게 걸리도록 골랐다**
@@ -79,12 +83,34 @@ class 가짜정규화기:
         return nz.Profile(regions=r, industries=i, conditions=c, keywords=k, purpose=p)
 
 
-def _fact(**kw) -> WikiFact:  # noqa: ANN003
-    kw.setdefault("company_id", COMPANY)
-    kw.setdefault("topic", "solution")
-    kw.setdefault("extractor", "stub/v1")
-    kw.setdefault("dedupe_key", f"{kw['place']}|{kw.get('text', '')[:20]}")
-    return WikiFact(**kw)
+#: 옛 orbit 이름 → 노드 경로
+_PATH = {
+    "identity": "Company/비전",
+    "solution": "Product/기능",
+    "roadmap": "Plan/일정",
+    "finance": "Financial/자금계획",
+    "location": "location",
+}
+
+
+def _fact(**kw):  # noqa: ANN003, ANN201
+    """옛 `_fact` 를 두 트랙으로 가른다(ADR-0056). 값이면 회사 정보 칸이다."""
+    kind = kw.pop("place_kind", "event")
+    place = kw.pop("place")
+    kw.pop("topic", None)
+    if kind == "value":
+        return CompanyValue(
+            company_id=kw.get("company_id", COMPANY),
+            key=place,
+            value=kw.get("value") or "",
+            qualifier=kw.get("qualifier"),
+            as_of=kw.get("as_of"),
+            status=kw.get("status") or "current",
+            dedupe_key=kw.get("dedupe_key") or f"{place}|{kw.get('value')}",
+            extractor="stub/v1",
+        )
+    return ("event", kw.get("company_id", COMPANY), _PATH.get(place, f"Custom/{place}"),
+            kw.get("text", ""), kw.get("dedupe_key") or kw.get("text", "")[:30])
 
 
 @pytest.fixture
@@ -111,17 +137,18 @@ def db(monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
 
         s.add_all([
             _fact(place_kind="value", place="location", status="current",
-                  value="경기도 성남시 분당구 판교로 255", text="소재지",
+                  value="경기도 성남시 분당구 판교로 255",
                   as_of=dt.date(2026, 1, 31)),
             _fact(place_kind="value", place="founded_on", status="current",
-                  value="2024-03-11", text="개업"),
-            _fact(place_kind="event", place="identity",
-                  text="소상공인용 재고관리 소프트웨어"),
-            _fact(place_kind="event", place="roadmap",
-                  text="2단계 경기 남부 지역 영업망 구축, 유료 전환 매장 300곳"),
-            _fact(place_kind="event", place="finance",
-                  text="정부지원금 집행 계획 합계 7,000만원 — 인건비 3,600만원"),
+                  value="2024-03-11"),
         ])
+        for path, text in [
+            ("Company/비전", "소상공인용 재고관리 소프트웨어"),
+            ("Plan/일정", "2단계 경기 남부 지역 영업망 구축, 유료 전환 매장 300곳"),
+            ("Financial/자금계획", "정부지원금 집행 계획 합계 7,000만원 — 인건비 3,600만원"),
+        ]:
+            wikifix.fact(s, COMPANY, path, text, key=text[:20])
+        wikifix.fact(s, "c_daegu", "Company/비전", "기업 전용 통신망 구축 서비스", key="정체성")
         s.commit()
     return factory
 
@@ -258,10 +285,10 @@ def test_회사가_늘어도_정규화_호출이_안_늘어난다(db) -> None:  
     첫호출 = len(n.calls)
 
     with db() as s:
-        s.add(WikiFact(
-            company_id="c_other", place_kind="event", place="identity",
-            topic="identity", text="소상공인용 배달 대행 서비스",
-            extractor="stub/v1", dedupe_key="event|identity|other",
+        wikifix.fact(s, "c_other", "Company/비전", "소상공인용 배달 대행 서비스", key="정체성")
+        s.add(CompanyValue(
+            company_id="c_other", key="location", value="서울특별시 강남구",
+            status="current", dedupe_key="loc|other", extractor="stub/v1",
         ))
         s.commit()
     service.run(COMPANY, today=TODAY)
@@ -277,13 +304,10 @@ def test_회사마다_다른_추천이_나온다(db) -> None:  # noqa: ANN001
     service.normalize(today=TODAY, normalizer=가짜정규화기())
     with db() as s:
         s.add_all([
-            WikiFact(company_id="c_daegu", place_kind="value", place="location",
-                     status="current", value="대구광역시 수성구 알파시티1로",
-                     topic="company_profile", text="소재지", extractor="stub/v1",
-                     dedupe_key="location|대구", as_of=dt.date(2026, 1, 31)),
-            WikiFact(company_id="c_daegu", place_kind="event", place="identity",
-                     topic="identity", text="기업 전용 통신망 구축 서비스",
-                     extractor="stub/v1", dedupe_key="event|identity|daegu"),
+            CompanyValue(company_id="c_daegu", key="location",
+                         status="current", value="대구광역시 수성구 알파시티1로",
+                         extractor="stub/v1",
+                         dedupe_key="location|대구", as_of=dt.date(2026, 1, 31)),
         ])
         s.commit()
 

@@ -16,20 +16,6 @@ export type Evidence = {
   quote: string;
 };
 
-export type WikiValue = {
-  slot: string;
-  label: string;
-  /** 정규화된 저장값. **화면이 이걸 고쳐 쓰지 않는다** — 병합의 재료다 */
-  value: string;
-  /** 사람이 읽는 값. 단위가 붙어 있다. **단위 규칙을 프론트에 두지 않는다** */
-  display: string;
-  qualifier: string | null;
-  as_of: string | null;
-  /** `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다 */
-  status: string;
-  evidence: Evidence[];
-};
-
 export type WikiStatement = {
   text: string;
   /** LLM 이 붙인 라벨. **목적지가 아니다** */
@@ -44,45 +30,72 @@ export type WikiTopicGroup = {
   statements: WikiStatement[];
 };
 
-/** 기획 트리의 자리 하나(ADR-0052).
+/** 노드 하나(트랙 A · ADR-0056).
  *
  * **`path` 가 이름이다** — 기획 문서 §4-3 「경로가 곧 노드 제목이다」. 화면과 기획
- * 문서와 집필 에이전트가 같은 문자열을 쓴다. */
-export type WikiSpot = {
-  /** `Company/팀.md`. `{}` 가 남아 있으면 동적 자리다 */
+ * 문서와 집필 에이전트가 같은 문자열을 쓴다.
+ *
+ * **카테고리 열은 비어도 온다.** 무엇이 없는지 보여야 한다(DESIGN.md §7-5). */
+export type WikiNode = {
+  /** `Company/팀` · `Custom/특허/등록-10-2025-0114882` */
   path: string;
-  title: string;
-  /** 최상위 폴더 키. 라벨은 `Wiki.folders` 가 준다 */
-  folder: string;
-  /** 자격 판별의 입력을 담은 자리인가. 비면 물어야 한다 */
-  eligibility: boolean;
-  values: WikiValue[];
+  /** 경로의 마지막 마디. 화면에 쓰는 이름 */
+  name: string;
+  /** 최상위 카테고리. **각도 구획이다.** 라벨은 `Wiki.categories` 가 준다 */
+  category: string;
+  /** 부모 경로. 최상위면 빈 문자열 */
+  parent: string;
+  /** 몇 번째 층인가. 0 이 카테고리다 */
+  depth: number;
+
   statements: WikiStatement[];
-  /** 위 `statements` 를 topic 별로 묶은 것. **순서는 서버의 표가 정한다** */
-  groups: WikiTopicGroup[];
-  /** 절 제목을 보일 자리인가. **판정은 서버가 한다** — 여기서 다시 세지 않는다 */
-  grouped: boolean;
   /** 근거로 쓰인 **파일 수**. 근거 개수가 아니다 */
   source_count: number;
   filled: boolean;
-  conflicted: boolean;
-  /** 우리가 더한 자리인가. **기획 문서에 없다** */
-  ours: boolean;
-  /** 채울 topic 이 아예 없는 자리의 사유. **있으면 파일을 더 올려도 안 찬다** */
-  gap: string;
-  /** 접혔으면 원래 경로. **조용히 접지 않는다** */
-  collapsed: string | null;
 
-  /** `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 온다**(ADR-0052 결정 4) */
+  /** `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 온다** */
   grade: string;
   source: string[];
   /** `source` 와 같은 순서다 */
   source_path: string[];
-  base_date: string | null;
   /** 사실이 바뀐 시각. **만든 시각이 아니다** */
   updated_at: string | null;
-  /** 이 자리 한 장의 마크다운. **저장된 것이 아니라 매번 만든 것이다** */
+  /** 이 노드 한 장의 마크다운. **빈 뼈대면 빈 문자열이다** */
   markdown: string;
+};
+
+/** 회사 정보 한 칸의 주장 하나(트랙 B). **충돌하면 같은 자리에 여럿이 온다.** */
+export type WikiValue = {
+  /** 정규화된 저장값. **화면이 이걸 고쳐 쓰지 않는다** — 병합의 재료다 */
+  value: string;
+  /** 사람이 읽는 값. 단위가 붙어 있다. **단위 규칙을 프론트에 두지 않는다** */
+  display: string;
+  qualifier: string | null;
+  as_of: string | null;
+  /** `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다 */
+  status: string;
+  evidence: Evidence[];
+};
+
+export type ProfileKey = {
+  key: string;
+  label: string;
+  /** 자격 판별의 입력인가. **비면 물어야 한다**(ADR-0028) */
+  eligibility: boolean;
+  current: WikiValue[];
+  history: WikiValue[];
+  conflicted: boolean;
+};
+
+/** 회사 정보 한 장(`/company`). **그래프에 안 뜬다**(ADR-0056 결정 1). */
+export type Profile = {
+  company_id: string;
+  /** 열넷 고정. 순서가 서버 표 순서다 */
+  keys: ProfileKey[];
+  /** 채운 칸 수. **막대를 만들지 않는다** — 「14칸 중 12칸」으로만 말한다 */
+  filled: number;
+  total: number;
+  conflicts: number;
 };
 
 export type WikiFile = {
@@ -101,15 +114,17 @@ export type WikiFile = {
 
 export type Wiki = {
   company_id: string;
-  /** 기획 트리 자리 47. **순서가 곧 기획 문서 §2 의 순서다**(ADR-0052) */
-  spots: WikiSpot[];
+  /** 노드 전부. **순서는 카테고리 표가 정하고 그 안에서는 경로순이다**(ADR-0056) */
+  nodes: WikiNode[];
   files: WikiFile[];
-  /** 폴더 키 → 한국어 이름. 열 개 고정. **화면이 이름을 짓지 않는다** */
-  folders: Record<string, string>;
+  /** 카테고리 키 → 한국어 이름. 열 개 고정. **화면이 이름을 짓지 않는다** */
+  categories: Record<string, string>;
+  /** 사실이 앉은 노드 수 */
   filled: number;
+  /** 뼈대까지 포함한 노드 수 */
   total: number;
-  conflicts: number;
-  uncategorized: number;
+  /** `Custom/검토 대기` 에 선 사실 수. **버린 것이 아니다** */
+  review: number;
   /** 무엇이 사실을 뽑았나. `stub/v1` 이면 픽스처 밖에서는 안 돈 것이다(ADR-0031) */
   extractor: string | null;
 };
@@ -120,7 +135,7 @@ export type Wiki = {
  * 기본값 하나를 두고 주소로 갈아탄다 — 시연 대상이 하나뿐이라 성립하는 임시 조치다. */
 export const DEFAULT_COMPANY = process.env.FINNECT_COMPANY ?? "c_dasiro";
 
-/** 위키가 없어도 200 이고 자리 마흔일곱이 온다.
+/** 위키가 없어도 200 이고 카테고리 열이 온다.
  *
  * **빈 화면을 "데이터 없음"으로 끝내지 않는다**(DESIGN.md §7-5). 자리가 있어야
  * 사용자가 무엇이 없는지 알고 무엇을 올려야 하는지 안다. */
@@ -260,4 +275,11 @@ function detailOf(status: number, body: string): string {
     // JSON 이 아니면 상태 코드로 말한다
   }
   return `API가 ${status}로 답했어요`;
+}
+
+/** 회사 정보(트랙 B). **열넷이 항상 온다** — 빈 칸이 물어볼 자리다(ADR-0028).
+ *
+ * **그래프와 서로를 모른다.** 자격 판별이 읽는 것과 사람이 읽는 위키는 다른 물건이다. */
+export function getProfile(companyId: string): Promise<Profile> {
+  return get<Profile>(`/api/company/${encodeURIComponent(companyId)}`);
 }

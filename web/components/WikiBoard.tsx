@@ -27,7 +27,7 @@ export function WikiBoard({
 }) {
   const [tab, setTab] = useState<"orbit" | "files">("orbit");
   const [picked, setPicked] = useState<string | null>(
-    wiki.spots.some((s) => s.path === initial) ? (initial as string) : null,
+    wiki.nodes.some((n) => n.path === initial) ? (initial as string) : null,
   );
 
   /** 고른 자리를 주소에 남긴다. **딥링크가 되고 새로고침해도 살아 있다.**
@@ -43,7 +43,7 @@ export function WikiBoard({
     window.history.replaceState(null, "", url);
   }
 
-  const spot = wiki.spots.find((s) => s.path === picked) ?? null;
+  const node = wiki.nodes.find((n) => n.path === picked) ?? null;
   const empty = wiki.filled === 0;
   const upload = company ? `/wiki/files?company=${encodeURIComponent(company)}` : "/wiki/files";
 
@@ -92,7 +92,7 @@ export function WikiBoard({
           {empty && (
             /* 5. 빈 화면(§7). **자리를 지우지 않는다** — 무엇이 없는지 보여야 한다 */
             <p className={styles.hole}>
-              아직 위키가 없어요. 파일을 올리면 이 자리 {wiki.total}개가 채워져요.
+              아직 위키가 없어요. 파일을 올리면 카테고리 아래로 자리가 자라요.
               <span className={styles.holeSub}>
                 <Link href={upload}>파일 올리러 가기</Link>
               </span>
@@ -100,25 +100,23 @@ export function WikiBoard({
           )}
 
           <Orbit
-            spots={wiki.spots}
-            folders={wiki.folders}
+            nodes={wiki.nodes}
+            categories={wiki.categories}
             filled={wiki.filled}
             total={wiki.total}
             selected={picked}
             onSelect={(p) => pick(picked === p ? null : p)}
           />
 
-          {/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다** — 상태 셋과 표시 하나 */}
+          {/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다** */}
           <ul className={styles.legend}>
             <li data-mark="filled">찼어요</li>
             <li data-mark="empty">아직 비었어요</li>
-            <li data-mark="none">아직 안 채워요</li>
-            <li data-mark="blank">손봐야 해요</li>
           </ul>
 
-          {spot ? (
+          {node ? (
             <div className={styles.panelWrap}>
-              <WikiPanel spot={spot} folderLabel={wiki.folders[spot.folder] ?? spot.folder} />
+              <WikiPanel node={node} categoryLabel={wiki.categories[node.category] ?? node.category} />
             </div>
           ) : (
             <p className={styles.hint}>자리를 누르면 무엇이 들어 있는지, 어디서 왔는지 열려요.</p>
@@ -161,7 +159,7 @@ function Files({
     );
   }
 
-  const label = (path: string) => wiki.spots.find((s) => s.path === path)?.title ?? path;
+  const label = (path: string) => wiki.nodes.find((n) => n.path === path)?.name ?? path;
 
   return (
     <ul className={styles.files}>

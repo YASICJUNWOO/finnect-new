@@ -44,13 +44,8 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
           <span data-numeric>
             자리 {wiki.total}개 중 <b>{wiki.filled}개</b>가 찼어요
           </span>
-          {wiki.conflicts > 0 && (
-            <span className={styles.warn} data-numeric>
-              값이 갈린 곳 {wiki.conflicts}건
-            </span>
-          )}
-          {wiki.uncategorized > 0 && (
-            <span data-numeric>갈 자리를 못 찾은 것 {wiki.uncategorized}건</span>
+          {wiki.review > 0 && (
+            <span data-numeric>갈 자리를 못 찾은 것 {wiki.review}건</span>
           )}
         </p>
       </header>

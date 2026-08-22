@@ -1,25 +1,20 @@
-/* 위키 방사형(ADR-0017 배치 · ADR-0052 자리와 구획).
+/* 위키 방사 트리(ADR-0017 원칙 · ADR-0056 배치).
  *
- * **색을 안 쓴다.** 폴더 구획이 이미 묶는 일을 해서 분류색이 같은 말을 두 번 하게 된다.
- * 상태 셋(찼다 · 아직 비었다 · 안 채운다)은 채움 · 선 · 크기로 가른다. */
+ * **색을 안 쓴다.** 카테고리 가지가 이미 묶어 줘서 분류색이 같은 말을 두 번 하게 된다.
+ * 상태 둘(찼다 · 비었다)은 채움과 선으로, 층은 크기와 굵기로 가른다. */
 
 .svg {
   display: block;
   width: 100%;
-  max-width: 720px;
+  max-width: 900px;
   height: auto;
   margin: 0 auto;
   overflow: visible;
 }
 
-/* 선이 구조를 말하니 아주 얇다 */
-.ring {
+/* 가지. **선이 구조를 말하니 아주 얇다** */
+.branch {
   fill: none;
-  stroke: var(--line);
-  stroke-width: 1px;
-}
-
-.spoke {
   stroke: var(--line);
   stroke-width: 1px;
 }
@@ -43,20 +38,6 @@
   opacity: 0.72;
 }
 
-/* --- 폴더 이름. 글자로 서는 유일한 것이다 --- */
-
-.folder {
-  fill: var(--ink-2);
-  font-size: var(--t-small);
-  font-weight: var(--w-mid);
-}
-
-.count {
-  fill: var(--ink-3);
-  font-size: var(--t-caption);
-  font-variant-numeric: tabular-nums;
-}
-
 /* --- 자리 --- */
 
 .node {
@@ -69,25 +50,12 @@
   transition: fill-opacity 0.12s;
 }
 
-/* 아직 비었다 — 속을 비우고 점선을 두른다. 파일을 더 올리면 찬다 */
+/* 아직 비었다 — 속을 비우고 점선을 두른다. **파일을 더 올리면 찬다** */
 .node[data-state="empty"] .dot {
   fill: var(--surface);
   stroke: var(--ink-4);
   stroke-width: 1.5px;
   stroke-dasharray: 3 3;
-}
-
-/* 채울 topic 이 아예 없다 — 더 작고 실선이다. **「아직」이 아니라 「안 채운다」** */
-.node[data-state="none"] .dot {
-  fill: var(--surface);
-  stroke: var(--ink-4);
-  stroke-width: 1px;
-}
-
-.badge {
-  fill: var(--blank);
-  stroke: var(--surface);
-  stroke-width: 2px;
 }
 
 .halo {
@@ -96,34 +64,42 @@
   stroke-width: 2px;
 }
 
-/* 이름. **고르거나 올렸을 때만 뜬다** — 마흔일곱을 늘 세우면 원 밖에 안 들어간다 */
+/* 이름. **늘 보인다** — 가지를 따라 퍼지므로 겹치지 않는다.
+ * 캔버스 색으로 테두리를 둘러 가지 위에 얹혀도 읽힌다 */
 .label {
-  fill: var(--ink);
+  fill: var(--ink-2);
   font-size: var(--t-caption);
-  font-weight: var(--w-mid);
   paint-order: stroke;
   stroke: var(--canvas);
   stroke-width: 4px;
   stroke-linejoin: round;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s;
 }
 
-.node:hover .label,
-.node:focus-visible .label,
-.node[data-selected="true"] .label {
-  opacity: 1;
+/* 카테고리는 더 크고 진하다. **층을 크기로 말한다** */
+.node[data-depth="0"] .label {
+  fill: var(--ink);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+}
+
+.node[data-state="empty"] .label {
+  fill: var(--ink-4);
 }
 
 .node:hover .dot {
   fill-opacity: 0.82;
 }
 
-.node[data-state="empty"]:hover .dot,
-.node[data-state="none"]:hover .dot {
+.node[data-state="empty"]:hover .dot {
   fill: var(--quiet);
   fill-opacity: 1;
+}
+
+.node:hover .label,
+.node[data-selected="true"] .label {
+  fill: var(--ink);
+  font-weight: var(--w-mid);
 }
 
 .node:focus {
@@ -138,8 +114,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot,
-  .label {
+  .dot {
     transition: none;
   }
 }

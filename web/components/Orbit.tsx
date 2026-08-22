@@ -1,186 +1,167 @@
 "use client";
 
-import type { WikiSpot } from "@/lib/wiki";
+import type { WikiNode } from "@/lib/wiki";
 import styles from "./Orbit.module.css";
 
-/** 위키 방사형. **힘 기반 배치를 쓰지 않는다**(ADR-0017 · ADR-0052).
+/** 위키 방사 트리(마인드맵). **힘 기반 배치를 쓰지 않는다**(ADR-0017 · ADR-0056).
  *
- * 자리가 마흔일곱이고 어느 폴더에 들어갈지가 표로 정해져 있어서 배치를 물리에 맡길
- * 이유가 없다. 자리를 고정하면 **두 번째 볼 때 찾는다** — 물리 배치는 열 때마다 모양이
- * 달라진다.
+ * 중심(회사) → 카테고리 열 → 노드 → 하위 노드로 **간선이 뻗는다.** 자리를 고정하면
+ * 두 번째 볼 때 찾는다 — 물리 배치는 열 때마다 모양이 달라진다.
  *
- * ## 각도가 뜻하는 것이 바뀌었다
+ * ## 궤도·링·구획 호를 걷어냈다
  *
- * 2026-08-22 까지 구획은 우리가 지어낸 여섯(`registration` · `principal` …)이었고 점이
- * 열다섯이었다. 지금은 **기획 문서가 그린 폴더 열**이고 점이 마흔일곱이다([ADR-0052](../../docs/adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)).
- * 구획 크기는 자리 수에 비례한다 — `Plan/` 일곱이 `Competitor/` 둘보다 넓다.
+ * 저것들은 **깊이가 둘로 고정일 때만** 성립한다. 자리가 동적이 되면서 깊이가 정해져
+ * 있지 않고, 그래서 층마다 반지름을 주는 방사 트리라야 한다.
  *
- * **링이 하나다.** 안팎을 가르던 것이 `kind` 였는데 트리 자리 하나가 value 와 event 를
- * 같이 받아서(`Financial/매출.md`) 어느 링인지 정해지지 않는다.
+ * ## 각도를 잎 수로 나눈다
  *
- * ## 글자로 서는 것은 폴더 이름뿐이다
+ * 카테고리마다 각도 구간을 갖고 **그 폭은 제 아래 잎 수에 비례한다** — `Plan` 이
+ * 자라면 넓어진다. 각도가 뜻을 갖는다는 ADR-0017 의 성질이 여기서 유지된다.
  *
- * 점 마흔일곱을 한 링에 놓으면 점 사이가 29px 이라 **라벨 마흔일곱이 원 밖에 안 들어간다.**
- * 자리 이름은 고르거나 올렸을 때 그 점 옆에 뜨고, 전부는 아래 패널과 셈이 말한다.
- * 궤도 열다섯은 이름이 전부 보였다 — 그것이 점을 세 배로 늘린 값이다.
+ * 잎이 없는 카테고리도 한 몫을 받는다. **비어도 자리가 있어야** 무엇이 없는지 보인다
+ * (`DESIGN.md` §7-5).
  *
- * **색을 안 쓴다**(ADR-0052 포기 ④). 폴더 구획이 이미 묶는 일을 해서 분류색이 같은 말을
- * 두 번 하게 된다. 상태 셋은 채움·선·크기로 가른다 — 색조 하나에 뜻 둘을 얹지 않는다.
+ * ## 점마다 이름이 붙는다
  *
- * **관련 선(점선)이 없다.** 자리 간 연결(F1-1-6)이 아직 데이터에 없어서다. 없는 관계를
- * 그리지 않는다 — 같은 폴더에 있다고 이어 버리면 사용자가 근거 있는 연결로 읽는다. */
+ * 가지를 따라 라벨이 퍼져서 47개도 들어간다. 한 링에 몰아넣으면 점 사이가 26px 이라
+ * 라벨을 못 붙였는데, 그 제약이 트리에서는 없다.
+ *
+ * **색을 안 쓴다**(ADR-0056). 카테고리 가지가 이미 묶어 줘서 분류색이 같은 말을 두 번
+ * 하게 된다. 상태는 채움·선·크기로 가른다 — 색조 하나에 뜻 둘을 얹지 않는다. */
 
-const SIZE = 720;
+const SIZE = 900;
 const C = SIZE / 2;
 
-/** 점이 앉는 반지름과 폴더 이름이 앉는 반지름. */
-const RING = 262;
-const LABEL = RING + 52;
+/** 층마다의 반지름. 0 은 중심이라 목록에 없다. **깊이가 더 깊으면 마지막 간격으로 민다.** */
+const RING = [0, 150, 290, 400] as const;
+const STEP = 110;
 
-/** 점 크기. **채울 topic 이 없는 자리는 작다** — 상태를 색 대신 크기로도 말한다. */
-const DOT = { filled: 7, empty: 6, none: 4 } as const;
+/** 점 크기. 얕을수록 크다 — **가지의 굵기가 층을 말한다.** */
+const DOT = [26, 9, 6, 5] as const;
 
-/** 구획 사이를 벌리는 각도. **이게 없으면 마흔일곱이 고르게 퍼져 구획이 안 보인다.** */
-const GAP = 9;
+/** 카테고리 사이를 벌리는 각도. **이게 없으면 가지가 서로 붙는다.** */
+const GAP = 6;
 
-type Placed = WikiSpot & { x: number; y: number; angle: number; r: number; state: string };
-/** 폴더 하나가 링에서 차지하는 각도 범위. **링을 이 단위로 끊어 그린다.** */
-type Arc = { folder: string; from: number; to: number; mid: number; done: number; total: number };
+type Placed = WikiNode & { x: number; y: number; angle: number; r: number; state: string };
 
-function stateOf(spot: WikiSpot): keyof typeof DOT {
-  if (spot.filled) return "filled";
-  // 채울 topic 이 아예 없는 자리. **파일을 더 올려도 안 찬다** — 「아직」이 아니다
-  return spot.gap ? "none" : "empty";
+function radiusOf(depth: number): number {
+  return depth < RING.length ? RING[depth] : RING[RING.length - 1] + (depth - RING.length + 1) * STEP;
 }
 
-/** 자리를 잡는다. **폴더끼리 붙여 두고 사이만 벌린다.**
+function stateOf(n: WikiNode): "filled" | "empty" {
+  return n.filled ? "filled" : "empty";
+}
+
+/** 각도를 나눈다. **부모의 구간 안에서 자식이 다시 나뉜다** — 그게 트리다.
  *
- * 서버가 준 순서가 이미 폴더별로 묶여 있다(`export.TREE`). 여기서 다시 정렬하면 그
- * 순서가 두 곳에 살게 되고, 한쪽만 고쳐지는 날이 온다. */
-function place(spots: WikiSpot[]): { placed: Placed[]; arcs: Arc[] } {
-  if (spots.length === 0) return { placed: [], arcs: [] };
+ * 몫은 **제 아래 잎 수**다. 잎이 없으면 자기 자신을 1로 센다 — 안 그러면 빈 카테고리가
+ * 폭 0 이 되어 사라진다. */
+function place(nodes: WikiNode[]): { placed: Placed[]; edges: [Placed, Placed][] } {
+  const byParent = new Map<string, WikiNode[]>();
+  for (const n of nodes) byParent.set(n.parent, [...(byParent.get(n.parent) ?? []), n]);
 
-  // 이웃한 같은 폴더끼리 묶는다. 정렬하지 않는다 — 서버 순서가 정본이다
-  const runs: WikiSpot[][] = [];
-  for (const s of spots) {
-    const last = runs.at(-1);
-    if (last && last[0].folder === s.folder) last.push(s);
-    else runs.push([s]);
-  }
+  // 제 아래 잎 수. 깊은 곳부터 올라오며 더한다
+  const weight = new Map<string, number>();
+  const weigh = (n: WikiNode): number => {
+    const kids = byParent.get(n.path) ?? [];
+    const w = kids.length === 0 ? 1 : kids.reduce((a, k) => a + weigh(k), 0);
+    weight.set(n.path, w);
+    return w;
+  };
+  const roots = byParent.get("") ?? [];
+  const total = roots.reduce((a, r) => a + weigh(r), 0) || 1;
 
-  const step = (360 - runs.length * GAP) / spots.length;
   const placed: Placed[] = [];
-  const arcs: Arc[] = [];
-  let deg = -90 - step / 2; // 12시에서 시작해 시계 방향
+  const at = new Map<string, Placed>();
+  const edges: [Placed, Placed][] = [];
 
-  for (const run of runs) {
-    const from = deg + GAP / 2;
-    deg += GAP / 2;
-    for (const s of run) {
-      deg += step;
-      const rad = (deg * Math.PI) / 180;
-      const state = stateOf(s);
-      placed.push({
-        ...s,
-        angle: deg,
-        r: DOT[state],
-        state,
-        x: C + RING * Math.cos(rad),
-        y: C + RING * Math.sin(rad),
-      });
+  // 12시에서 시작해 시계 방향. 최상위 사이만 벌린다
+  const span = 360 - roots.length * GAP;
+  let cursor = -90;
+
+  const walk = (n: WikiNode, from: number, to: number): void => {
+    const mid = (from + to) / 2;
+    const rad = (mid * Math.PI) / 180;
+    const r = radiusOf(n.depth);
+    const node: Placed = {
+      ...n,
+      angle: mid,
+      r: DOT[Math.min(n.depth, DOT.length - 1)],
+      state: stateOf(n),
+      x: C + r * Math.cos(rad),
+      y: C + r * Math.sin(rad),
+    };
+    placed.push(node);
+    at.set(n.path, node);
+
+    const parent = at.get(n.parent);
+    if (parent) edges.push([parent, node]);
+
+    const kids = byParent.get(n.path) ?? [];
+    if (kids.length === 0) return;
+    const w = weight.get(n.path) ?? 1;
+    let cur = from;
+    for (const kid of kids) {
+      const share = ((weight.get(kid.path) ?? 1) / w) * (to - from);
+      walk(kid, cur, cur + share);
+      cur += share;
     }
-    const to = deg + GAP / 2;
-    arcs.push({
-      folder: run[0].folder,
-      from,
-      to,
-      mid: (from + to) / 2,
-      done: run.filter((s) => s.filled).length,
-      total: run.length,
-    });
-    deg += GAP / 2;
+  };
+
+  for (const root of roots) {
+    const share = ((weight.get(root.path) ?? 1) / total) * span;
+    walk(root, cursor + GAP / 2, cursor + GAP / 2 + share);
+    cursor += share + GAP;
   }
-  return { placed, arcs };
+  return { placed, edges };
 }
 
-/** 호 하나의 `d`. 링을 구획별로 끊어 그린다. */
-function arcPath(radius: number, from: number, to: number): string {
-  const a = (from * Math.PI) / 180;
-  const b = (to * Math.PI) / 180;
-  const large = to - from > 180 ? 1 : 0;
-  return [
-    `M ${C + radius * Math.cos(a)} ${C + radius * Math.sin(a)}`,
-    `A ${radius} ${radius} 0 ${large} 1 ${C + radius * Math.cos(b)} ${C + radius * Math.sin(b)}`,
-  ].join(" ");
+/** 부모에서 자식으로 가는 곡선. **반지름을 따라 휘어야 가지로 읽힌다.**
+ *
+ * 직선으로 이으면 별 모양이 되고 층이 안 보인다. 중간점을 부모 반지름에 두고 자식
+ * 각도로 돌려 이차 베지에로 잇는다. */
+function branch(a: Placed, b: Placed): string {
+  const ra = Math.hypot(a.x - C, a.y - C);
+  const rad = (b.angle * Math.PI) / 180;
+  const mx = C + ra * Math.cos(rad);
+  const my = C + ra * Math.sin(rad);
+  return `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
 }
 
-/** 글자를 어느 쪽으로 붙일지. 왼쪽 반원이면 오른쪽 정렬 — 안 그러면 원 위로 겹친다. */
-function anchorAt(rad: number): "start" | "middle" | "end" {
-  const c = Math.cos(rad);
-  return c > 0.25 ? "start" : c < -0.25 ? "end" : "middle";
+/** 글자를 어느 쪽으로 붙일지. 왼쪽 반원이면 오른쪽 정렬 — 안 그러면 안쪽으로 겹친다. */
+function anchorAt(deg: number): "start" | "middle" | "end" {
+  const c = Math.cos((deg * Math.PI) / 180);
+  return c > 0.2 ? "start" : c < -0.2 ? "end" : "middle";
 }
 
 export function Orbit({
-  spots,
-  folders,
+  nodes,
+  categories,
   filled,
   total,
   selected,
   onSelect,
 }: {
-  spots: WikiSpot[];
-  folders: Record<string, string>;
+  nodes: WikiNode[];
+  categories: Record<string, string>;
   filled: number;
   total: number;
   selected: string | null;
   onSelect: (path: string) => void;
 }) {
-  const { placed, arcs } = place(spots);
+  const { placed, edges } = place(nodes);
 
   return (
     <svg
       className={styles.svg}
       viewBox={`0 0 ${SIZE} ${SIZE}`}
       role="group"
-      aria-label={`내 사업 위키. 폴더 ${arcs.length}개에 자리 ${total}개`}
+      aria-label={`내 사업 위키. 자리 ${total}개 중 ${filled}개가 찼어요`}
     >
-      {/* 살. **폴더마다 하나씩이다** — 자리마다 그으면 마흔일곱 줄이 별 모양이 된다.
-        * 중심에서 그 구획의 가운데 각도로 나간다. 선이 구조를 말하니 아주 얇다 */}
-      {arcs.map((a) => {
-        const rad = (a.mid * Math.PI) / 180;
-        return (
-          <line
-            key={`spoke-${a.folder}`}
-            className={styles.spoke}
-            x1={C + 46 * Math.cos(rad)}
-            y1={C + 46 * Math.sin(rad)}
-            x2={C + (RING - 16) * Math.cos(rad)}
-            y2={C + (RING - 16) * Math.sin(rad)}
-          />
-        );
-      })}
-
-      {/* 링. **구획별로 끊어 그린다** — 끊긴 자리가 구획 경계다 */}
-      {arcs.map((a) => (
-        <path key={`arc-${a.folder}`} className={styles.ring} d={arcPath(RING, a.from, a.to)} />
+      {/* 가지. **선이 구조를 말하니 아주 얇다** */}
+      {edges.map(([a, b]) => (
+        <path key={`e-${b.path}`} className={styles.branch} d={branch(a, b)} />
       ))}
-
-      {/* 폴더 이름과 셈. **글자로 서는 유일한 것이다.** 막대를 만들지 않는다(§7) */}
-      {arcs.map((a) => {
-        const rad = (a.mid * Math.PI) / 180;
-        const x = C + LABEL * Math.cos(rad);
-        const y = C + LABEL * Math.sin(rad);
-        return (
-          <g key={`label-${a.folder}`} textAnchor={anchorAt(rad)}>
-            <text className={styles.folder} x={x} y={y}>
-              {folders[a.folder] ?? a.folder}
-            </text>
-            <text className={styles.count} x={x} y={y + 17}>
-              {a.done}/{a.total}
-            </text>
-          </g>
-        );
-      })}
 
       {/* 중심. 노드가 아니라 표지다 — 누를 것이 없다 */}
       <circle className={styles.hub} cx={C} cy={C} r={44} />
@@ -191,8 +172,14 @@ export function Orbit({
         {filled}/{total}
       </text>
 
-      {placed.map((s) => (
-        <Dot key={s.path} spot={s} selected={selected === s.path} onSelect={onSelect} />
+      {placed.map((n) => (
+        <Dot
+          key={n.path}
+          node={n}
+          label={n.depth === 0 ? (categories[n.category] ?? n.name) : n.name}
+          selected={selected === n.path}
+          onSelect={onSelect}
+        />
       ))}
     </svg>
   );
@@ -200,65 +187,47 @@ export function Orbit({
 
 /** 자리 하나. **키보드로 갈 수 있어야 한다** — 이 그래프가 유일한 길이라 마우스 전용이면 못 연다. */
 function Dot({
-  spot,
+  node,
+  label,
   selected,
   onSelect,
 }: {
-  spot: Placed;
+  node: Placed;
+  label: string;
   selected: boolean;
   onSelect: (path: string) => void;
 }) {
-  const rad = (spot.angle * Math.PI) / 180;
-  const out = spot.r + 14;
-  const state =
-    spot.state === "filled"
-      ? spot.conflicted
-        ? "손봐야 해요"
-        : "찼어요"
-      : spot.state === "none"
-        ? `아직 안 채워요 — ${spot.gap}`
-        : "아직 비었어요";
+  const rad = (node.angle * Math.PI) / 180;
+  const out = node.r + 12;
+  const state = node.filled ? `사실 ${node.statements.length}개` : "아직 비었어요";
 
   return (
     <g
       className={styles.node}
-      data-state={spot.state}
+      data-state={node.state}
+      data-depth={node.depth}
       data-selected={selected}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${spot.title} — ${state}`}
-      onClick={() => onSelect(spot.path)}
+      aria-label={`${node.path} — ${state}`}
+      onClick={() => onSelect(node.path)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onSelect(spot.path);
+          onSelect(node.path);
         }
       }}
     >
-      {/* 고른 자리의 링. 색이 아니라 테두리로 말한다 */}
-      {selected && <circle className={styles.halo} cx={spot.x} cy={spot.y} r={spot.r + 5} />}
-      <circle className={styles.dot} cx={spot.x} cy={spot.y} r={spot.r} />
-
-      {/* 손봐야 하는 자리의 배지. **점 색은 그대로 둔다**(DESIGN.md §2) */}
-      {spot.conflicted && (
-        <circle
-          className={styles.badge}
-          cx={spot.x + spot.r * 0.8}
-          cy={spot.y - spot.r * 0.8}
-          r={3.5}
-        />
-      )}
-
-      {/* 이름. **고르거나 올렸을 때만 뜬다** — 마흔일곱을 늘 세우면 원 밖에 안 들어간다.
-        * CSS 가 `:hover` 와 `[data-selected]` 에서 켠다 */}
+      {selected && <circle className={styles.halo} cx={node.x} cy={node.y} r={node.r + 5} />}
+      <circle className={styles.dot} cx={node.x} cy={node.y} r={node.r} />
       <text
         className={styles.label}
-        x={spot.x + out * Math.cos(rad)}
-        y={spot.y + out * Math.sin(rad) + 4}
-        textAnchor={anchorAt(rad)}
+        x={node.x + out * Math.cos(rad)}
+        y={node.y + out * Math.sin(rad) + 4}
+        textAnchor={anchorAt(node.angle)}
       >
-        {spot.title}
+        {label}
       </text>
     </g>
   );

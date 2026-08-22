@@ -1,0 +1,199 @@
+/* 회사 정보 열넷(트랙 B). **크롬 없는 조밀한 목록이다**(DESIGN.md §4 «목록»).
+ *
+ * 카드 채움도 그림자도 없다. 칸을 가르는 것은 1px 선 하나뿐이다. */
+
+.table {
+  margin: 0;
+  display: grid;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s1);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+/* 빈 칸은 흐리다. **지우지 않는다** — 무엇이 없는지가 이 화면의 절반이다 */
+.row[data-empty="true"] .name {
+  color: var(--ink-3);
+}
+
+.name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-mid);
+  color: var(--ink);
+}
+
+/* 자격 판별에 쓰는 칸. **색을 쓰지 않는다** — 경고가 아니라 사실이다 */
+.tag {
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-caption);
+  line-height: 1.7;
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+}
+
+.body {
+  margin: 0;
+}
+
+.unknown {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-4);
+}
+
+.conflict {
+  margin-bottom: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.value + .value {
+  margin-top: var(--s2);
+}
+
+/* 충돌한 값은 왼쪽에 선 하나. **색을 안 쓴다** */
+.value[data-conflict="true"] {
+  padding-left: var(--s3);
+  box-shadow: inset 2px 0 0 var(--ink-4);
+}
+
+.valueText {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.qual,
+.asOf {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+  font-weight: var(--w-normal);
+}
+
+/* --- 이전 값 --- */
+
+.history {
+  margin-top: var(--s2);
+}
+
+.historySummary {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.historyList {
+  margin: var(--s2) 0 0;
+  padding: 0 0 0 var(--s3);
+  list-style: none;
+  display: grid;
+  gap: var(--s1);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.historyList > li {
+  display: flex;
+  gap: var(--s2);
+  align-items: baseline;
+}
+
+/* --- 근거. **이 줄이 화면의 시그니처다** --- */
+
+.src {
+  margin-top: var(--s1);
+}
+
+.srcSummary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.srcCount {
+  flex: none;
+}
+
+.srcWhere {
+  word-break: break-all;
+}
+
+.quotes {
+  margin: var(--s2) 0 0;
+  padding: 0 0 0 var(--s3);
+  list-style: none;
+  display: grid;
+  gap: var(--s2);
+}
+
+.quoteWhere {
+  display: flex;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.quoteText {
+  margin: var(--s1) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--line);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.noSource {
+  font-size: var(--t-aux);
+  color: var(--ink-3);
+}
+
+/* --- 빈 화면 --- */
+
+.hole {
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink-2);
+}
+
+.holeSub {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+
+@media (min-width: 1024px) {
+  /* 넓은 화면에서 이름과 값이 두 단으로 선다 — §5 의 조밀한 표 */
+  .row {
+    grid-template-columns: 200px 1fr;
+    gap: var(--s4);
+    align-items: baseline;
+  }
+}

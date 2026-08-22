@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evidence, WikiSpot, WikiStatement, WikiValue } from "@/lib/wiki";
+import type { Evidence, WikiNode, WikiStatement } from "@/lib/wiki";
 import styles from "./WikiPanel.module.css";
 
 /** 자리 한 장(SPEC F1-3). **이 화면의 시그니처는 근거 줄이다.**
@@ -13,9 +13,9 @@ import styles from "./WikiPanel.module.css";
  * **출처를 툴팁이나 각주로 빼지 않는다.** 빼는 순간 값과 근거가 떨어지고, 떨어지면
  * 아무도 안 연다.
  *
- * 상세 상태는 **글자로** 적는다 — 확정·충돌·비어 있음. 그래프가 단색이라(ADR-0052)
- * 여기도 색으로 말할 것이 없다. */
-export function WikiPanel({ spot, folderLabel }: { spot: WikiSpot; folderLabel: string }) {
+ * **값은 여기 없다.** 트랙이 갈리면서 회사 정보로 나갔다(ADR-0056) — 이 패널은 노드
+ * 하나에 앉은 **사실들**을 편다. 상세 상태는 글자로 적고 색으로 말하지 않는다. */
+export function WikiPanel({ node, categoryLabel }: { node: WikiNode; categoryLabel: string }) {
   const [raw, setRaw] = useState(false);
 
   return (
@@ -23,19 +23,17 @@ export function WikiPanel({ spot, folderLabel }: { spot: WikiSpot; folderLabel: 
       <header className={styles.head}>
         <div className={styles.headText}>
           <p className={styles.eyebrow}>
-            {folderLabel}
-            {/* **접혔으면 원래 경로를 적는다.** 조용히 접으면 트리를 지원한다는 말이 거짓이 된다 */}
-            <span className={styles.path}>{spot.collapsed ?? spot.path}</span>
-            {spot.eligibility && <span className={styles.tag}>자격 판별에 써요</span>}
+            {categoryLabel}
+            {/* **경로가 곧 이름이다**(기획 §4-3). 집필 에이전트가 부르는 이름도 이것이다 */}
+            <span className={styles.path}>{node.path}</span>
           </p>
           <h2 id="node-title" className={styles.title}>
-            {spot.title}
+            {node.name}
           </h2>
           <p className={styles.meta}>
-            {spot.filled ? `근거가 된 파일 ${spot.source_count}개` : "아직 비어 있어요"}
-            {spot.filled && <span>자료 등급 {spot.grade}</span>}
-            {spot.base_date && <span>{spot.base_date} 기준</span>}
-            {spot.conflicted && <span className={styles.warn}>값이 갈렸어요</span>}
+            {node.filled ? `근거가 된 파일 ${node.source_count}개` : "아직 비어 있어요"}
+            {node.filled && <span>자료 등급 {node.grade}</span>}
+            {node.updated_at && <span>{node.updated_at} 갱신</span>}
           </p>
         </div>
 
@@ -51,43 +49,19 @@ export function WikiPanel({ spot, folderLabel }: { spot: WikiSpot; folderLabel: 
       </header>
 
       {raw ? (
-        <pre className={styles.raw}>{spot.markdown}</pre>
-      ) : !spot.filled ? (
-        /* 5. 빈 화면(§7). **"데이터 없음"으로 끝내지 않는다.**
-         * 채울 topic 이 아예 없는 자리와 아직 안 올린 자리는 **다른 말을 한다** */
+        <pre className={styles.raw}>{node.markdown}</pre>
+      ) : !node.filled ? (
+        /* 5. 빈 화면(§7). **"데이터 없음"으로 끝내지 않는다** */
         <p className={styles.empty}>
-          {spot.gap
-            ? `이 자리는 아직 안 채워요. ${spot.gap}.`
-            : "이 자리를 채우려면 관련된 내용이 담긴 파일을 더 올리면 돼요."}
+          이 자리를 채우려면 관련된 내용이 담긴 파일을 더 올리면 돼요.
         </p>
       ) : (
-        <>
-          {spot.values.length > 0 && <Values values={spot.values} />}
-          {spot.grouped ? (
-            /* topic 이 둘 이상인 자리. **빈 topic 도 자리를 지키고 무엇이 없는지 말한다** */
-            spot.groups.map((g) => (
-              <section key={g.topic} className={styles.block}>
-                <h3 className={styles.blockTitle}>{g.label}</h3>
-                {g.statements.length > 0 ? (
-                  <Facts statements={g.statements} />
-                ) : (
-                  <p className={styles.empty}>아직 없어요.</p>
-                )}
-              </section>
-            ))
-          ) : (
-            spot.statements.length > 0 && (
-              <section className={styles.block}>
-                {spot.values.length > 0 && <h3 className={styles.blockTitle}>사업 내용</h3>}
-                <Facts statements={spot.statements} />
-              </section>
-            )
-          )}
-        </>
+        <Facts statements={node.statements} />
       )}
     </article>
   );
 }
+
 
 /** 서술 사실 목록. 값이든 문장이든 **바로 아래 근거 줄이 붙는다.** */
 function Facts({ statements }: { statements: WikiStatement[] }) {
@@ -100,78 +74,6 @@ function Facts({ statements }: { statements: WikiStatement[] }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-/** 정형 슬롯. **현재값 · 이전값 · 충돌을 한 눈에 가른다.**
- *
- * 시점이 다르면 성장이고 같으면 모순이다 — 그 판정은 서버가 이미 했고(`status`)
- * 여기는 그 결과를 배치로만 말한다. 이전값을 지우지 않는 것이 F1-1-7 이다. */
-function Values({ values }: { values: WikiValue[] }) {
-  // (슬롯, 한정어)로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
-  const groups = new Map<string, WikiValue[]>();
-  for (const v of values) {
-    const key = `${v.slot}|${v.qualifier ?? ""}`;
-    groups.set(key, [...(groups.get(key) ?? []), v]);
-  }
-
-  return (
-    <section className={styles.block}>
-      <dl className={styles.slots}>
-        {[...groups.values()].map((items) => {
-          const head = items[0];
-          const current = items.filter((v) => v.status !== "superseded");
-          const history = items.filter((v) => v.status === "superseded");
-          const conflicted = current.some((v) => v.status === "conflict");
-
-          return (
-            <div key={`${head.slot}|${head.qualifier ?? ""}`} className={styles.slot}>
-              <dt className={styles.slotName}>
-                {head.label}
-                {head.qualifier && <span className={styles.qual}>{head.qualifier}</span>}
-              </dt>
-              <dd className={styles.slotBody}>
-                {conflicted && (
-                  <p className={styles.conflict}>
-                    값이 갈려요. 어느 쪽이 맞는지 정해야 해요 — 둘 다 두었어요.
-                  </p>
-                )}
-                {current.map((v, i) => (
-                  <div key={i} className={styles.value} data-conflict={v.status === "conflict"}>
-                    <p className={styles.valueText} data-numeric>
-                      {v.display}
-                      {v.as_of && <span className={styles.asOf}>{v.as_of} 기준</span>}
-                    </p>
-                    <Sources evidence={v.evidence} />
-                  </div>
-                ))}
-
-                {/* 이전 값. **지우지 않는다** — 시계열이지 쓰레기가 아니다 */}
-                {history.length > 0 && (
-                  <details className={styles.history}>
-                    <summary className={styles.historySummary}>
-                      이전 값 {history.length}개
-                    </summary>
-                    <ul className={styles.historyList}>
-                      {history
-                        .slice()
-                        .sort((a, b) => (b.as_of ?? "").localeCompare(a.as_of ?? ""))
-                        .map((v, i) => (
-                          <li key={i}>
-                            <span data-numeric>{v.display}</span>
-                            {v.as_of && <span className={styles.asOf}>{v.as_of}</span>}
-                            <Sources evidence={v.evidence} quiet />
-                          </li>
-                        ))}
-                    </ul>
-                  </details>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </section>
   );
 }
 

@@ -58,8 +58,15 @@ const ADMIN = "/admin/notices";
  * `on` 을 축마다 함수로 두는 이유는 **상세도 자기 축이기 때문이다** — `/notices/...` 는
  * '지원사업'이고 `'/' === path` 로 보면 목록에서만 켜진다. */
 const AXES = [
-  { href: "/", label: "지원사업", on: (p: string) => !p.startsWith("/wiki") },
+  {
+    href: "/",
+    label: "지원사업",
+    on: (p: string) => !p.startsWith("/wiki") && !p.startsWith("/company"),
+  },
   { href: "/wiki", label: "내 사업", on: (p: string) => p.startsWith("/wiki") },
+  //: 트랙 B 다(ADR-0056). **그래프와 다른 화면이라 축도 다르다** — 위키가 「우리 사업이
+  //: 뭔가」이고 여기는 「공고를 거를 때 쓰는 값」이다
+  { href: "/company", label: "회사 정보", on: (p: string) => p.startsWith("/company") },
   { href: null, label: "신청 현황", on: () => false },
 ] as const;
 

@@ -440,7 +440,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 ```json
 {
   "company_id": "c_dasiro",
-  "spots": [
+  "nodes": [
     {
       "path": "Financial/자금계획.md", "title": "자금 계획", "folder": "Financial",
       "eligibility": false,
@@ -478,9 +478,9 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
     {"filename": "재무제표_2025.xlsx", "ext": "xlsx", "byte_size": 10700,
      "status": "done", "parse_status": "ok", "parser": "xlsx/openpyxl",
      "parse_error": null, "chunk_count": 4, "page_count": null,
-     "spots": ["Company/회사소개.md", "Financial/자금계획.md", "Financial/매출.md"]}
+     "nodes": ["Company/회사소개.md", "Financial/자금계획.md", "Financial/매출.md"]}
   ],
-  "folders": {"Company": "회사", "Product": "제품", "…": "…"},
+  "categories": {"Company": "회사", "Product": "제품", "…": "…"},
   "filled": 20, "total": 47, "conflicts": 2, "uncategorized": 1,
   "extractor": "stub/v1"
 }
@@ -488,7 +488,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 | 필드 | 뜻 |
 |---|---|
-| `spots` | **기획 트리 자리 마흔일곱.** 순서가 기획 문서 §2 의 순서이고 곧 배치 순서다 — 프론트가 이 순서로 각도를 나눈다 |
+| `nodes` | **노드 전부.** 순서가 기획 문서 §2 의 순서이고 곧 배치 순서다 — 프론트가 이 순서로 각도를 나눈다 |
 | `path` | **자리의 이름이다**(기획 §4-3 「경로가 곧 노드 제목이다」). 화면·기획 문서·집필 에이전트가 같은 문자열을 쓴다 |
 | `folder` | 최상위 폴더 키 = **각도 구획**. 라벨은 `folders` 가 준다. `sector` 여섯을 대신한다([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)) |
 | `gap` | 채울 topic 이 **아예 없는** 자리의 사유. 있으면 파일을 더 올려도 안 찬다 — 「아직 비었다」와 다른 말이다 |
@@ -589,7 +589,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
     "text_chars": 281,       // 해독 글자 수. **0 이면 스캔본이다**
     "parser": "ocr/rapidocr-v5-server",   // **`ocr/` 로 시작하면 사진에서 읽은 것이다**
     "fact_count": 7,         // 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다**
-    "spots": ["Company/회사소개.md", "Company/비전.md", "Company/팀.md"]   // 이 파일이 채운 자리
+    "nodes": ["Company/회사소개.md", "Company/비전.md", "Company/팀.md"]   // 이 파일이 채운 자리
   }],
   "total": 7, "done": 7, "moving": 0, "needs_review": 0, "stuck": 0,
   "running": false,          // **화면이 계속 물어볼지를 이 값으로 정한다**

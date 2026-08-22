@@ -95,6 +95,14 @@ uv run python -m finnect.attach --report         # 해독 집계만
 uv run python -m finnect.attach --scrape-kstartup             # K-Startup 첨부 목록. 파일은 안 받는다
 uv run python -m finnect.attach --only 목록.txt --source kstartup  # 목록에 있는 URL 만 받는다
 uv sync --group ocr                              # OCR (ADR-0030). 기본 의존성이 아니다
+uv run python -m finnect.dataset --report        # 공고·첨부 현황
+uv run python -m finnect.dataset --dump out/공고-백업.jsonl   # 지우기 전에 뜬다. 기업마당은 복구가 안 된다
+uv run python -m finnect.dataset --restore out/공고-백업.jsonl  # 되돌린다. 대상 표를 먼저 비운다
+uv run python -m finnect.dataset --purge         # 공고·첨부를 통째로 비운다. --yes 없이는 세기만 한다
+uv run python -m finnect.dataset --prune 목록.txt --source bizinfo --yes  # 목록 밖 공고를 지운다
+uv run python -m finnect.dataset --prune 목록.txt --source kstartup --sample 3 --yes  # + 번호 % 3 만 남긴다
+cd notice-filter && python3 run.py --no-serve --ids ../out/bizinfo-남길.txt  # 기업마당 목록 파일
+cd notice-filter && python3 kstartup.py --json ../out/덤프.json --ids ../out/kstartup-남길.txt
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 파일 → 청크 → 사실 → 노드
 uv run python -m finnect.wiki --company c_narin tests/fixtures/wiki-narin/*  # 둘째 페르소나. llm 이어야 돈다
 uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키를 본다
@@ -170,6 +178,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 - [`DESIGN_DEPRECATED.md`](DESIGN_DEPRECATED.md) — 2026-08-16~08-20 판. **현재 설계로 읽지 않는다.** 남겨 둔 이유는 옛 토큰 실값 전부와 **절 번호 대응표**가 거기 있어서다
 - [`docs/api-contract.md`](docs/api-contract.md) — 제품 API 계약. `web/`과 `src/finnect/api/` 사이의 유일한 경계다. **정본은 코드**(`api/schemas.py`)이고 이 문서가 뜻을 적는다
 - [`docs/deploy.md`](docs/deploy.md) — 배포 절차. **올라가는 것은 읽기 경로뿐이다**([ADR-0026](docs/adr/0026-읽기-경로만-vercel에-올린다.md)). 수집·해독·admin은 로컬에 남는다
+- [`docs/dataset.md`](docs/dataset.md) — **공고 코퍼스 초기화·재적재 절차 일곱 단계.** 「공고 초기화하고 다시 채워」가 뜻하는 것이 거기 있다. **로컬 전용이고 배포 DB 에 안 쓴다**
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다
 - [`docs/adr/`](docs/adr/README.md) — 결정 로그. **append-only. 기존 파일 본문을 수정하지 않는다**
 - [`docs/adr/evidence/2026-08-16-v2-기획문서/`](docs/adr/evidence/2026-08-16-v2-기획문서/) — **기획이 넘긴 v2 원본 일곱.** SPEC이 이걸 흡수했다. 문서끼리 안 맞는 곳이 있으니 SPEC §9를 먼저 본다
@@ -256,7 +265,11 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **확장자를 파일명으로 판정하지 않는다.** 3,354건 중 7건이 파일명과 내용이 다르다(`.hwpx`인데 HWP 5건 등). 판정은 `attach/formats.py`가 내용으로 한다
 - **ZIP 166개 안에 읽을 수 있는 문서가 799개 있다.** 지금은 목록만 읽고 안 푼다. 풀지 말지는 이 숫자를 보고 정한다
 - **기업마당은 재수집마다 1,538건 전부가 '변경'으로 잡힌다.** 콘텐츠 해시 재료에 조회수(`inqireCo`)가 들어 있다. 그래서 `attachment` 행이 매번 통째로 갈리고, 해독 상태가 `attachment_file`에 따로 사는 이유가 이것이다
-- **기업마당 공고는 마감되면 API 에서 사라진다. 재수집으로 복구되지 않는다.** 8/16 스냅샷 1,538건 대 8/18 라이브 1,524건 — 이틀에 **14건이 소멸**했고 그중 `125201` 하남 이루다+ 는 원문까지 읽어 둔 건이었다([근거](notice-filter/로직과근거.md) §12). **우리 DB 가 유일한 사본이다.** 그래서 수집은 항상 전량이고(요청 1회) **필터링은 수집이 아니라 조회 계층에서 한다.** `--limit` 로 받은 것을 정본으로 삼지 않는다
+- **기업마당 공고는 마감되면 API 에서 사라진다. 재수집으로 복구되지 않는다.** 8/16 스냅샷 1,538건 대 8/18 라이브 1,524건 — 이틀에 **14건이 소멸**했고 그중 `125201` 하남 이루다+ 는 원문까지 읽어 둔 건이었다([근거](notice-filter/로직과근거.md) §12). **우리 DB 가 유일한 사본이다.** 그래서 수집은 항상 전량이고(요청 1회) **필터링은 수집이 아니라 조회 계층에서 한다.** `--limit` 로 받은 것을 정본으로 삼지 않는다. **코퍼스를 작게 다시 세울 때도 이 규칙이 그대로다** — `dataset --purge` 로 지우고 전량으로 받은 뒤 `dataset --prune` 이 목록 파일대로 솎는다([dataset.md](docs/dataset.md)). **`--purge` 전에 `--dump` 를 뜬다** — 안 뜨면 이미 사라진 14건이 그 자리에서 소실된다
+- **표본을 `hash()` 로 고르지 않는다**(`dataset/sample.py`). `공고번호 % N == 0` 이고 무작위 시드를 안 쓴다 — 같은 목록으로 몇 번을 솎아도 같은 DB 가 선다. `PYTHONHASHSEED` 가 프로세스마다 달라 **`hash()` 는 실행마다 다른 집합을 내는데 둘 다 테스트를 통과한다**(plan/12 T-0094 의 락 키와 같은 함정). 숫자를 먼저 보는 것도 의도다 — `174036 % 3 == 0` 은 사람이 눈으로 검산한다. **표본을 끄는 값이 `None` 이 아니라 1 이다**
+- **`dataset --prune` 에 `--source` 가 필수다.** 두 출처의 공고번호가 같은 자릿수라(`125069` 대 `174036`) 목록 하나로 양쪽을 솎으면 우연히 겹친 번호가 살아남는다. `match --only` 는 이 구분이 없다 — 저기는 후보를 좁히는 것이고 여기는 지우는 것이다
+- **K-Startup 을 솎기 전에 `attach --scrape-kstartup` 을 먼저 돌린다.** `notice-filter` 축2d′ 구제가 `attachment` 의 `filename`·`ext` 만 보는데, 첨부 행이 없으면 구제가 한 건도 안 돌아 **과배제된다** — 실측 50건에서 배제 26건 중 23건이 축2d′ 사유였고 첨부는 0개였다. **파일을 받는 게 아니라 목록만 긁는 것이라 디스크를 안 쓴다**
+- **`notice-filter/filter.py --ids` 는 없다.** `filter.py` 는 규칙 모듈이라 `--test` 뿐이고, 목록 파일을 내는 것은 **`run.py --ids`** 다. `match/service.py:13` 주석이 2026-08-22 까지 없는 명령을 안내하고 있었다. **`sn` 이 아니라 `id` 를 쓴다** — `sn` 은 화면용 뒤 6자리이고 DB 키는 `pblancId` 다
 - **재무제표는 표 구조와 셀 좌표를 보존해야 한다.** 뭉개면 연도-항목-값 대응이 깨진다
 - **`document_item` 은 트리다. 최상위만 내보내면 조용히 틀린다.** API 가 `children` 을 안 주면 `2 추진배경 및 목표` 가 잎이 되어 **가지에 쓰는 칸이 붙고** 거기 쓴 글은 어느 항목의 것도 아니게 된다. 잎을 세는 곳은 `FormFill` 의 `leafKeys` 하나다. **빈 응답이 아니라 그럴듯한 응답이 나와서** 화면을 눈으로 안 보면 안 걸린다 — 2026-08-20 자식 30개가 그렇게 빠져 있었다. `tests/test_api_documents.py` 가 막아 둔다
 - v2 문서군끼리 안 맞는 곳이 있다. 가장 큰 것은 **질문을 언제 하는가**다. `SPEC.md` §9에 전부 올려 뒀다

@@ -218,7 +218,8 @@ def demo_pick(items: list[dict], today: str, modulus: int = DEMO_MODULUS) -> lis
 
 
 def run(dump: pathlib.Path, urls_out: pathlib.Path | None = None,
-        demo: int | None = None, today: str = "", read_only: bool = False) -> int:
+        demo: int | None = None, today: str = "", read_only: bool = False,
+        ids_out: pathlib.Path | None = None) -> int:
     """덤프 하나를 통째로 돌려 퍼널을 찍는다. **DB 를 모른다.**
 
     덤프는 `[{"notice": {...}, "attachments": [...]}, ...]` 다. 만드는 법은
@@ -261,6 +262,10 @@ def run(dump: pathlib.Path, urls_out: pathlib.Path | None = None,
         urls = [a["url"] for a in att if a.get("url")]
         urls_out.write_text("\n".join(urls) + "\n", encoding="utf-8")
         print(f"  → {urls_out} 에 URL {len(urls):,}개")
+    if ids_out is not None:
+        ids = [str(it["notice"]["pbanc_sn"]) for it in passed if it["notice"].get("pbanc_sn")]
+        ids_out.write_text("\n".join(ids) + "\n", encoding="utf-8")
+        print(f"  → {ids_out} 에 공고번호 {len(ids):,}개")
     return 0
 
 
@@ -272,10 +277,11 @@ if __name__ == "__main__":
         import datetime
         d = pathlib.Path(a[a.index("--json") + 1])
         o = pathlib.Path(a[a.index("--urls") + 1]) if "--urls" in a else None
+        i = pathlib.Path(a[a.index("--ids") + 1]) if "--ids" in a else None
         dm = None
         if "--demo" in a:
             nxt = a[a.index("--demo") + 1] if len(a) > a.index("--demo") + 1 else ""
             dm = int(nxt) if nxt.isdigit() else DEMO_MODULUS
         t = a[a.index("--today") + 1] if "--today" in a else datetime.date.today().isoformat()
-        sys.exit(run(d, o, demo=dm, today=t, read_only="--read-only" in a))
+        sys.exit(run(d, o, demo=dm, today=t, read_only="--read-only" in a, ids_out=i))
     print(__doc__)

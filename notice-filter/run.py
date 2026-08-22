@@ -320,6 +320,9 @@ def main() -> int:
     ap.add_argument("--no-serve", action="store_true")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--today", default=date.today().isoformat())
+    ap.add_argument("--ids", metavar="파일",
+                    help="통과한 공고의 pblancId 를 한 줄에 하나씩 쓴다. "
+                         "받는 쪽은 이 파일만 읽고 필터의 존재를 모른다")
     a = ap.parse_args()
     OUT.mkdir(exist_ok=True)
 
@@ -358,6 +361,14 @@ def main() -> int:
          "count": len(kept), "items": kept}, ensure_ascii=False, indent=1), encoding="utf-8")
     (OUT / "index.html").write_text(build_html(res), encoding="utf-8")
     print(f"\n→ {OUT/'data.json'}\n→ {OUT/'index.html'}")
+
+    if a.ids:
+        # `sn` 이 아니라 `id` 다. `sn` 은 화면용 뒤 6자리라 DB 키가 아니다.
+        ids = [x["id"] for x in kept if x.get("id")]
+        p = pathlib.Path(a.ids)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("\n".join(ids) + "\n", encoding="utf-8")
+        print(f"→ {p} 에 공고번호 {len(ids):,}개")
 
     if a.no_serve:
         return 0

@@ -277,15 +277,16 @@ def test_미지원_넷이_저마다_이유를_남긴다(tmp_path: Path, monkeypa
     c.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
     got_c = extract.parse(c, "사업자등록증.png", allowed=settings.wiki_formats, use_ocr=False)
 
-    # 4. 목록에는 있는데 파서가 없다. **설정을 잘못 넣은 것이다**
-    d = tmp_path / "메모.txt"
+    # 4. 목록에는 있는데 파서가 없다. **설정을 잘못 넣은 것이라 사용자 잘못이 아니다**
+    d = tmp_path / "정체불명.zzz"
     d.write_bytes(b"hello")
-    got_d = extract.parse(d, "메모.txt", allowed=frozenset({"txt"}))
+    got_d = extract.parse(d, "정체불명.zzz", allowed=frozenset({"zzz"}))
 
     assert got_a.ext == "tiff"
     assert got_b.ext is None
     assert got_c.ext == "png"
-    assert got_d.ext == "txt"
+    assert got_d.ext == "zzz"
+    assert "zzz" not in extract.PARSERS  # 전제가 바뀌면 이 테스트가 뜻을 잃는다
 
     got = (got_a, got_b, got_c, got_d)
     assert all(g.status is ParseStatus.UNSUPPORTED for g in got)

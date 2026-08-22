@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from finnect.attach import formats, hwp, ocr
+from finnect.attach import formats, hwp, ocr, text
 from finnect.models import ParseStatus
 
 #: 확장자 → (함수, 파서 이름). 여기 있어도 설정 목록에 없으면 안 돈다.
@@ -22,6 +22,10 @@ PARSERS = {
     # 사용자 파일 전용(plan/12 T-0042). 첨부 목록에 없으면 여기 있어도 안 돈다.
     "xlsx": (hwp.from_xlsx, "xlsx/openpyxl"),
     "pptx": (hwp.from_pptx, "pptx/python-pptx"),
+    # 글자만 있는 것(T-0101). **인코딩을 우리가 정한다** — 포맷이 안 정해 준다
+    "txt": (text.from_text, "text/plain"),
+    "md": (text.from_text, "text/plain"),
+    "csv": (text.from_csv, "csv/tab"),
 }
 
 #: 그림에서 글자를 찾는 것은 비용이 세 자릿수 배 다르다. **`ocr=True` 일 때만 돈다**

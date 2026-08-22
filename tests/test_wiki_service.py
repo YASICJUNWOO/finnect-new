@@ -158,6 +158,59 @@ def test_같은_파일을_다시_올리면_청크가_두_벌_안_된다(factory)
         assert s.scalar(select(func.count()).select_from(Chunk)) == first.chunks
 
 
+def test_묶음을_풀어_안쪽_파일마다_행을_만든다(factory, tmp_path: Path) -> None:  # noqa: ANN001
+    """**첨부와 반대로 결정했다**(T-0102).
+
+    공고 첨부는 목록만 읽고 안 푼다(ADR-0022 4번). 사용자 파일은 푼다 — 메일로 받은
+    제출서류 한 벌이 대개 zip 하나고, 안 풀면 그 사람의 위키가 빈다.
+
+    **안쪽 파일이 제 행을 가져야 근거가 산다**(ADR-0014). 어느 파일에서 나온 청크인지는
+    나중에 붙일 수 없다. 묶음 자신도 행으로 남는다 — 사용자가 던진 것이 목록에서
+    사라지면 무슨 일이 있었는지 못 본다.
+    """
+    import zipfile
+
+    z = tmp_path / "제출서류.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        for name in ("회사소개서_v3.pdf", "재무제표_2025.xlsx"):
+            zf.write(_fixture(name), f"제출서류/{name}")
+
+    service.ingest_files(factory, COMPANY, [z])
+
+    with factory() as s:
+        rows = s.scalars(select(UserFile).order_by(UserFile.id)).all()
+
+    assert len(rows) == 3, "묶음 자신 + 안쪽 둘"
+
+    assert rows[0].filename == "제출서류.zip"
+    assert rows[0].status == UserFileStatus.UNPACKED
+    assert rows[0].chunk_count == 0, "묶음 자신은 글자를 안 낸다"
+
+    # **묶음 안의 경로를 그대로 쓴다.** 이름만 남기면 같은 이름이 폴더 둘에 있을 때
+    # 사용자가 자기 묶음에서 그 파일을 못 찾는다
+    assert [r.filename for r in rows[1:]] == [
+        "제출서류/회사소개서_v3.pdf",
+        "제출서류/재무제표_2025.xlsx",
+    ]
+    assert all(r.chunk_count for r in rows[1:]), "안쪽 파일은 제대로 읽혔다"
+
+
+def test_hwpx는_묶음이_아니라_문서다(factory) -> None:  # noqa: ANN001
+    """**ZIP 이라고 다 묶음이 아니다.**
+
+    HWPX · DOCX · XLSX · PPTX 가 전부 ZIP 이다. 안 걸러 주면 문서 하나를 풀어
+    XML 조각 수십 개를 위키에 붓는다.
+    """
+    service.ingest_files(factory, COMPANY, [_fixture("성남시_시범사업_신청서.hwpx")])
+
+    with factory() as s:
+        rows = s.scalars(select(UserFile)).all()
+
+    assert len(rows) == 1
+    assert rows[0].ext == "hwpx"
+    assert rows[0].status != UserFileStatus.UNPACKED
+
+
 def test_다른_회사_것은_안_보인다(factory, tmp_path: Path) -> None:  # noqa: ANN001
     """ADR-0029 의 검증 조건. A 사 파일을 B 사로 조회하면 못 찾아야 한다."""
     src = _fixture("회사소개서_v3.pdf")

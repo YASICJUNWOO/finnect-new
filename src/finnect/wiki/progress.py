@@ -51,7 +51,14 @@ STEPS: tuple[Step, ...] = (
 )
 
 #: 더 안 움직이는 상태. 나머지는 도는 중이거나 **멈춘 것**이다
-TERMINAL = frozenset({UserFileStatus.DONE, UserFileStatus.NEEDS_REVIEW, UserFileStatus.FAILED})
+TERMINAL = frozenset(
+    {
+        UserFileStatus.DONE,
+        UserFileStatus.NEEDS_REVIEW,
+        UserFileStatus.FAILED,
+        UserFileStatus.UNPACKED,
+    }
+)
 
 #: 도는 중일 때 / 멈춰 있을 때. **같은 행이 다른 말을 한다**
 _MID: dict[str, tuple[int, str, str]] = {
@@ -80,6 +87,9 @@ _END: dict[str, tuple[int, str, bool]] = {
     UserFileStatus.NEEDS_REVIEW: (1, "글자가 안 나왔어요", False),
     UserFileStatus.DONE: (len(STEPS), "다 됐어요", True),
     UserFileStatus.FAILED: (1, "못 읽었어요", False),
+    #: 묶음(T-0102). **`EMPTY_LABEL` 이 여기 걸리면 안 된다** — 묶음은 자식을 통해
+    #: 채우므로 제 사실이 0인 것이 정상이고, 「사업 정보를 못 찾았어요」는 거짓말이다
+    UserFileStatus.UNPACKED: (len(STEPS), "안에 있던 파일을 꺼냈어요", True),
 }
 
 
@@ -115,7 +125,9 @@ def stage_of(
     """
     if status in _END:
         reached, label, ok = _END[status]
-        if ok and empty:
+        # **`done` 에만 건다.** 묶음(`unpacked`)은 자식을 통해 채우므로 제 사실이 0인
+        # 것이 정상이고, 거기에 「사업 정보를 못 찾았어요」를 붙이면 거짓말이 된다.
+        if empty and status == UserFileStatus.DONE:
             label = EMPTY_LABEL
         return Stage(reached=reached, label=label, moving=False, ok=ok)
 

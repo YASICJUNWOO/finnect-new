@@ -549,6 +549,14 @@ class UserFileStatus(enum.StrEnum):
     DONE = "done"
     #: 읽을 수 없었다. **나머지 파일은 그대로 간다**
     FAILED = "failed"
+    #: 묶음이라 풀었다(T-0102). 안쪽 파일이 제 행으로 따로 선다.
+    #:
+    #: **`done` 도 `failed` 도 아니다.** 실패가 아니고(제 할 일을 했다), 그렇다고
+    #: 「다 됐는데 아무 자리도 못 채웠다」(plan/15 T-0095)도 아니다 — 묶음은 **자식을
+    #: 통해** 채운다. 둘 중 하나에 얹으면 그 구분이 사라진다.
+    #:
+    #: `status` 가 `String(16)` 이라 값을 더해도 마이그레이션이 없다.
+    UNPACKED = "unpacked"
 
 
 class UserFile(Base):

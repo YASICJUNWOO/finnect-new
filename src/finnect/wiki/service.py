@@ -20,7 +20,7 @@ from finnect.attach import extract, formats
 from finnect.config import settings
 from finnect.models import Chunk, ParseStatus, UserFile, UserFileStatus
 from finnect.wiki import chunk as chunker
-from finnect.wiki import storage
+from finnect.wiki import storage, unpack
 
 
 @dataclass(slots=True)
@@ -92,6 +92,60 @@ def receive(
     return uf, "received"
 
 
+def receive_many(
+    session: Session,
+    company_id: str,
+    data: bytes,
+    filename: str,
+) -> list[tuple[UserFile, str]]:
+    """바이트 하나를 받아 행 여럿으로. **묶음이면 안쪽까지 편다**(T-0102).
+
+    **첫 항목이 항상 던진 파일 자신이다.** 묶음이어도 제 행으로 남는다 — 사용자가 던진
+    것이 목록에서 사라지면 무슨 일이 있었는지 못 본다.
+
+    묶음이 아니면 `receive` 를 한 번 부른 것과 같다. `is_archive` 가 HWPX·DOCX 같은
+    문서를 걸러 낸다 — **저것들도 ZIP 이라** 안 걸러 주면 문서 하나가 XML 조각 수십 개가
+    된다.
+
+    안쪽 파일도 `(company_id, sha256)` 키를 타므로, 같은 파일을 따로 올린 적이 있으면
+    `duplicate` 로 걸린다. 청크가 두 벌 되지 않는다.
+    """
+    uf, what = receive(session, company_id, data, filename)
+    out = [(uf, what)]
+
+    if what == "duplicate" or not unpack.is_archive(data):
+        return out
+
+    try:
+        got = unpack.expand(data)
+    except unpack.BadArchive as e:
+        # 묶음인 줄 알았는데 못 열었다. **이 파일만 실패로 남고 예외는 안 나간다**
+        uf.status = UserFileStatus.FAILED
+        uf.parse_status = ParseStatus.FAILED
+        uf.parse_error = str(e)
+        uf.chunk_count = 0
+        return out
+
+    for member in got.members:
+        out.append(receive(session, company_id, member.data, member.name))
+
+    uf.status = UserFileStatus.UNPACKED
+    uf.parse_status = ParseStatus.CONTAINER
+    uf.parser = "zip/unpack"
+    uf.chunk_count = 0
+    uf.text_chars = 0
+    # **버린 것을 조용히 넘기지 않는다.** 부스러기(`__MACOSX/`)는 사용자 파일이 아니라
+    # 말할 것이 없지만, 상한에 걸린 것은 사용자 파일인데 안 넣은 것이라 말해야 한다.
+    if got.dropped:
+        uf.parse_error = (
+            f"{got.dropped}개를 못 풀었다"
+            f"(상한: 파일 {settings.user_zip_max_files}개 · 총 {settings.user_zip_max_mb}MB"
+            f" · 개당 {settings.user_file_max_mb}MB)"
+        )
+    session.flush()
+    return out
+
+
 def decode(session: Session, uf: UserFile) -> str:
     """받아 둔 파일을 읽어 청크까지. **원본은 저장소에서 꺼낸다.**
 
@@ -161,19 +215,29 @@ def ingest_file(
     path: Path,
     *,
     filename: str | None = None,
-) -> tuple[UserFile, str]:
-    """파일 하나를 받아 청크까지. `receive` 와 `decode` 를 이어 놓은 것이다.
+) -> list[tuple[UserFile, str]]:
+    """파일 하나를 받아 청크까지. `receive_many` 와 `decode` 를 이어 놓은 것이다.
 
     CLI 가 부르는 자리다. 업로드(plan/15)는 둘을 **따로** 부른다 — 받는 것은 요청 안에서,
     읽는 것은 응답을 보낸 뒤에 한다.
 
+    **경로 하나가 행 여럿이 된다**(T-0102). 묶음이면 안쪽 파일이 각자 선다.
+
     **예외를 밖으로 던지지 않는 것이 목표가 아니다.** 던지는 것은 호출부(`ingest_files`)가
     받아 그 파일만 실패로 남긴다. 여기서 다 삼키면 원인이 사라진다.
     """
-    uf, what = receive(session, company_id, path.read_bytes(), filename or path.name)
-    if what == "duplicate":
-        return uf, what
-    return uf, decode(session, uf)
+    got = receive_many(session, company_id, path.read_bytes(), filename or path.name)
+    out: list[tuple[UserFile, str]] = []
+    for uf, what in got:
+        if what == "duplicate" or uf.status in (
+            UserFileStatus.UNPACKED,
+            UserFileStatus.FAILED,
+        ):
+            # 묶음 자신은 읽을 것이 없다. 안쪽 파일이 각자 읽힌다
+            out.append((uf, what))
+            continue
+        out.append((uf, decode(session, uf)))
+    return out
 
 
 def ingest_files(
@@ -190,20 +254,31 @@ def ingest_files(
     for path in paths:
         try:
             with session_factory() as session:
-                uf, what = ingest_file(session, company_id, path)
+                got = ingest_file(session, company_id, path)
                 session.commit()
-                report.status[uf.status] += 1
-                report.chunks += uf.chunk_count or 0
-                if what == "duplicate":
-                    report.duplicate += 1
-                elif uf.status == UserFileStatus.CHUNKED:
-                    report.done += 1
-                elif uf.status == UserFileStatus.NEEDS_REVIEW:
-                    report.needs_review += 1
-                    report.problems.append((path.name, uf.parse_status or "글자가 없어요"))
-                else:
-                    report.failed += 1
-                    report.problems.append((path.name, uf.parse_error or uf.parse_status or "실패"))
+                # **경로 하나가 행 여럿일 수 있다**(T-0102). 셈은 행 단위다 —
+                # 묶음 하나를 1건으로 세면 안쪽 파일 스무 개가 보고에서 사라진다
+                for uf, what in got:
+                    report.status[uf.status] += 1
+                    report.chunks += uf.chunk_count or 0
+                    label = uf.filename
+                    if what == "duplicate":
+                        report.duplicate += 1
+                    elif uf.status == UserFileStatus.CHUNKED:
+                        report.done += 1
+                    elif uf.status == UserFileStatus.UNPACKED:
+                        # 실패가 아니다. 제 할 일을 했고 안쪽 파일이 따로 세어진다.
+                        # 못 푼 것이 있으면 그것만 말한다
+                        if uf.parse_error:
+                            report.problems.append((label, uf.parse_error))
+                    elif uf.status == UserFileStatus.NEEDS_REVIEW:
+                        report.needs_review += 1
+                        report.problems.append((label, uf.parse_status or "글자가 없어요"))
+                    else:
+                        report.failed += 1
+                        report.problems.append(
+                            (label, uf.parse_error or uf.parse_status or "실패")
+                        )
         except Exception as e:  # noqa: BLE001 — 이 파일만 실패시키고 다음으로 간다
             report.failed += 1
             report.status[UserFileStatus.FAILED] += 1

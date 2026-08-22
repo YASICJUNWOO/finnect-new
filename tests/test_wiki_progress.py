@@ -112,10 +112,19 @@ def test_끝난_상태는_running_과_무관하다():
             assert progress.stage_of(status, running=running).moving is False
 
 
-def test_다_된_것만_ok_다():
-    """**움직이는 중에는 ok 가 아니다** — 아직 모르는 것을 됐다고 말하지 않는다."""
-    assert progress.stage_of(UserFileStatus.DONE, running=False).ok is True
-    for status in set(UserFileStatus) - {UserFileStatus.DONE}:
+def test_끝났고_성공인_것만_ok_다():
+    """**움직이는 중에는 ok 가 아니다** — 아직 모르는 것을 됐다고 말하지 않는다.
+
+    성공으로 끝나는 상태가 **둘이다**(T-0102). `done` 은 제가 사실을 냈고, `unpacked` 는
+    묶음이라 **자식을 통해** 냈다. 묶음을 `ok=False` 로 두면 화면이 멈춘 것으로 칠하는데
+    (`Upload.tsx` `toneOf`) 아무것도 잘못되지 않았다.
+    """
+    good = {UserFileStatus.DONE, UserFileStatus.UNPACKED}
+
+    for status in good:
+        assert progress.stage_of(status, running=False).ok is True
+
+    for status in set(UserFileStatus) - good:
         assert progress.stage_of(status, running=True).ok is False
         assert progress.stage_of(status, running=False).ok is False
 

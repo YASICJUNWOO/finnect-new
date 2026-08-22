@@ -318,12 +318,16 @@ async def wiki_upload(
             continue
         try:
             with SessionFactory() as s:
-                uf, what = user_files.receive(s, company_id, data, name)
+                # **묶음이면 안쪽 파일이 각자 행을 갖는다**(T-0102). 그것들도 `pending`
+                # 에 들어가야 뒤이어 도는 빌드가 읽는다 — 묶음 자신만 넣으면 안쪽이
+                # `uploaded` 로 남아 다음 올리기까지 아무 일도 안 일어난다.
+                for uf, what in user_files.receive_many(s, company_id, data, name):
+                    if what == "duplicate":
+                        duplicate += 1
+                    elif uf.status != UserFileStatus.UNPACKED:
+                        # 묶음 자신은 읽을 것이 없다. 넣으면 빌드가 헛돈다
+                        received.append(uf.id)
                 s.commit()
-                if what == "duplicate":
-                    duplicate += 1
-                else:
-                    received.append(uf.id)
         except storage.IsolationError as e:
             raise HTTPException(400, str(e)) from e
         except Exception as e:  # noqa: BLE001 — 이 파일만 거절하고 나머지는 받는다

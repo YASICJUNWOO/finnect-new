@@ -110,12 +110,12 @@ def _riff_kind(head: bytes) -> str | None:
     return "webp" if head[8:12] == b"WEBP" else None
 
 
-def _zip_kind(path: Path) -> str | None:
-    try:
-        with zipfile.ZipFile(path) as z:
-            names = set(z.namelist())
-    except (zipfile.BadZipFile, OSError):
-        return None
+def zip_kind(names: set[str]) -> str | None:
+    """ZIP 안의 이름들로 진짜 포맷을 가른다. **경로가 아니라 이름 집합을 받는다** —
+    업로드처럼 메모리에만 있는 바이트도 같은 답을 얻어야 한다(`wiki/unpack.py`).
+
+    `None` 은 **문서가 아니라 진짜 묶음**이라는 뜻이다.
+    """
     for marker, ext in ZIP_MARKERS:
         if marker in names:
             return ext
@@ -123,6 +123,15 @@ def _zip_kind(path: Path) -> str | None:
     if any(n.startswith("Contents/section") for n in names):
         return "hwpx"
     return None
+
+
+def _zip_kind(path: Path) -> str | None:
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = set(z.namelist())
+    except (zipfile.BadZipFile, OSError):
+        return None
+    return zip_kind(names)
 
 
 def _is_hwp(path: Path) -> bool:

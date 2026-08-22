@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     #: 공고 첨부라 크기를 알고 받지만, 이쪽은 사용자가 던지는 것이라 상한이 방어다.
     user_file_max_mb: int = 50
 
+    #: 묶음 하나에서 꺼낼 파일 수와 푼 총합(T-0102). **개별 상한(`user_file_max_mb`)만으로는
+    #: 못 막는다** — 50MB 묶음 하나가 풀리면 수십 GB 가 될 수 있다. 상한에 걸리면 조용히
+    #: 자르지 않고 **몇 개를 못 풀었는지 센다.**
+    user_zip_max_files: int = 200
+    user_zip_max_mb: int = 200
+
     #: 사용자 파일에 OCR 을 쓸지(ADR-0030). **첨부는 별도다** — 켜면 plan/07 이
     #: 측정한 값을 다시 재야 하고 총 비용을 아직 모른다.
     user_file_ocr: bool = True

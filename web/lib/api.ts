@@ -258,6 +258,10 @@ export type NoticeDocuments = {
     decided_by: string;
     filename: string;
     url: string | null;
+    /** 원본 파일의 콘텐츠 주소. 미리보기가 `/api/attachments/{sha256}/file` 로 받는다 */
+    sha256: string;
+    /** **내용으로 판정한** 확장자. 파일명의 확장자가 아니다 */
+    ext: string | null;
     items: ApiFormItem[];
   }[];
   /** 양식이 없을 때 공고문이 서류에 대해 말한 줄. 원문 그대로다. */
@@ -286,4 +290,13 @@ export async function getNoticeDocuments(
     console.error("서류를 못 불러왔다 — 상세는 그대로 띄운다", e);
     return null;
   }
+}
+
+/** 미리보기가 원본 바이트를 받는 주소. **브라우저에서 부른다.**
+ *
+ * `BASE` 를 안 쓰고 우리 라우트 핸들러를 가리킨다 — `FINNECT_API_TOKEN` 이 서버
+ * 전용이라 브라우저가 API 를 직접 부르면 토큰 없이 나가서 401 이 되고, 토큰을
+ * `NEXT_PUBLIC_` 으로 내보내면 인터넷에 노출된다(ADR-0035). */
+export function attachmentFileUrl(sha256: string): string {
+  return `/api/attachments/${encodeURIComponent(sha256)}/file`;
 }

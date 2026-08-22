@@ -32,6 +32,10 @@ export type FormDocument = {
   title: string;
   kind: DocumentKind;
   attachment: { filename: string; url: string | null };
+  /** 원본 파일의 콘텐츠 주소. 미리보기가 이걸로 원본을 받는다 */
+  sha256: string;
+  /** **내용으로 판정한** 확장자. 파일명의 확장자가 아니다 — 3,354건 중 7건이 다르다 */
+  ext: string | null;
   items: FormItem[];
 };
 
@@ -82,6 +86,8 @@ export function fromApi(
       kind: string;
       filename: string;
       url: string | null;
+      sha256: string;
+      ext: string | null;
       items: ApiItem[];
     }[];
     submit_hint: string[];
@@ -96,6 +102,8 @@ export function fromApi(
       title: d.title,
       kind: d.kind === "fields" ? "fields" : "narrative",
       attachment: { filename: d.filename, url: d.url },
+      sha256: d.sha256,
+      ext: d.ext,
       items: d.items.map(toItem),
     })),
     submitHint: api.submit_hint.length > 0 ? api.submit_hint : null,
@@ -106,4 +114,28 @@ export function fromApi(
 /** 항목 수를 센다. 트리라서 자식까지 내려간다. */
 export function countItems(items: FormItem[]): number {
   return items.reduce((n, it) => n + 1 + countItems(it.children), 0);
+}
+
+/** 미리보기가 여는 포맷. **API `_VIEWABLE` 과 같아야 한다** —
+ * 갈리면 화면이 버튼을 띄우고 서버가 415 를 준다.
+ *
+ * `zip` 이 없는 것은 안에 뭐가 들었는지 우리가 모르기 때문이고, 그림·xlsx 가 없는
+ * 것은 rhwp 가 문서 뷰어이기 때문이다. */
+const VIEWABLE = new Set(["hwp", "hwpx", "pdf", "docx"]);
+
+/** 미리보기(`FormPreview`)를 열 수 있나. **원본을 그대로 띄우므로 포맷이 정한다.**
+ *
+ * 항목 수로 판단하지 않는다 — 우리가 뽑은 항목이 0개여도 원본 문서는 멀쩡히
+ * 열린다. 오히려 그럴 때 원본을 보는 것이 제일 쓸모 있다.
+ *
+ * **파일명으로 거르지 않는다.** 여기 오는 문서는 API 가 이미 `narrative`·`fields`
+ * 로 좁힌 것이라(`api/service.py` `notice_documents` 가 `none`·`unknown` 을 뺀다)
+ * 전부 신청서 아니면 계획서다. 파일명 `신청|계획` 은 사업계획서를 가진 공고
+ * 53건 중 16건만 맞혔다(재현율 30% · 2026-08-22 실측) — 사업계획서가 대개
+ * 「공고문」이라는 이름의 묶음 파일 안에 있기 때문이다.
+ *
+ * **이 함수가 `FormPreview.tsx` 에 있으면 안 된다.** 저기가 `"use client"` 라
+ * 서버 컴포넌트인 `FormDocuments` 가 부르면 런타임에 500 이 난다. */
+export function canPreview(doc: FormDocument): boolean {
+  return doc.ext !== null && VIEWABLE.has(doc.ext);
 }

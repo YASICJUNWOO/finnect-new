@@ -1,0 +1,175 @@
+/* S4 쓰기 껍데기 — 초안 단 · 양식 단.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041).
+ *
+ * **모바일 우선이다**(DESIGN.md §5). 기본이 1단이고 컨테이너가 넓어질 때 2단이
+ * 얹힌다. 반대로 쓰면 경계 밖 화면에서 조밀한 쪽이 새고 그쪽이 더 위험하다.
+ *
+ * **가름은 세로선 1px 하나다.** gap 도 카드도 그림자도 없다(§4 · §6 · §7). */
+
+/* 이 요소가 컨테이너다. 자식이 **뷰포트가 아니라 이 폭**을 본다 */
+.workspace {
+  container-type: inline-size;
+  container-name: workspace;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface);
+}
+
+/* ── 탭 (좁은 폭) ───────────────────────────────────── */
+
+/* §4 «필터 칩» 계열이지만 선택 표시가 필요해 아래 2px 선을 쓴다.
+ * **색으로 안 가른다**(§7) — --ink + --w-mid + 선이다 */
+.tabs {
+  display: flex;
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.tab {
+  flex: 1 1 0;
+  min-height: 44px; /* §5 터치 타깃 */
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  color: var(--ink);
+  font-weight: var(--w-mid);
+  border-bottom-color: var(--ink);
+}
+
+/* ── 두 단 ──────────────────────────────────────────── */
+
+.panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+/* 좁은 폭에서는 정확히 하나만 보인다. **`display:none` 으로 끈다** —
+ * 숨기기만 하면 감춰진 단의 iframe 이 계속 살아 있다 */
+.panes[data-tab="draft"] > .form,
+.panes[data-tab="form"] > .draft {
+  display: none;
+}
+
+.draft,
+.form {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 초안 단만 구른다. 페이지는 안 구른다 */
+.draft {
+  overflow-y: auto;
+  /* `overflow` 가 포커스 링을 자른다. §7 이 outline-offset 3px 을 요구하므로
+   * 안쪽 여백이 그만큼은 있어야 한다 */
+  padding: var(--s5) var(--s4);
+}
+
+.form {
+  background: var(--canvas);
+}
+
+/* 우리 머리줄. **rhwp 크롬 위에 겹치지 않고 그 위에 한 줄만 둔다** */
+.formHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 44px;
+  padding: var(--s2) var(--s4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.formHeadSlot {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* §4 «오버레이 트리거». 좁은 폭에서는 안 보이므로 44px 을 안 맞춰도 된다 */
+.collapse {
+  display: none;
+}
+
+.formBody {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ── 2단 — 컨테이너가 1147px 이상일 때 ─────────────────
+ *
+ * 1147 = 초안 최소 360 + 양식 최소 787. 787 은 rhwp 메뉴 여덟이 살아 있는
+ * 하한이고 실측이다(eval/rhwp-최소폭-실측.md). **뷰포트가 아니라 컨테이너다** —
+ * ADR-0047 의 브레이크포인트 둘을 안 늘린다. */
+
+@container workspace (min-width: 1147px) {
+  /* 같은 메뉴가 화면에 두 번 있으면 안 된다(§5) */
+  .tabs {
+    display: none;
+  }
+
+  .panes {
+    /* 왼쪽은 읽는 폭이라 상한이 있고(§5 62ch 아래) 오른쪽은 문서라 상한이 없다.
+     * 360 하한은 textarea 와 44px 버튼이 드는 최소다 */
+    grid-template-columns: clamp(360px, 34%, 480px) 1fr;
+  }
+
+  /* 탭이 없으므로 둘 다 보인다 — 위 `data-tab` 규칙을 되돌린다 */
+  .panes[data-tab="draft"] > .form,
+  .panes[data-tab="form"] > .draft {
+    display: flex;
+  }
+
+  .form {
+    border-left: 1px solid var(--line);
+  }
+
+  .collapse {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 32px;
+    padding: 0 var(--s3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-aux);
+    line-height: var(--lh-aux);
+    cursor: pointer;
+  }
+
+  .collapse:hover {
+    border-color: var(--ink-3);
+  }
+
+  /* 접으면 양식이 단을 다 먹는다. 1440 에서 787 → 1192 가 된다 */
+  .workspace[data-collapsed] .panes {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace[data-collapsed] .draft {
+    display: none;
+  }
+
+  .workspace[data-collapsed] .form {
+    border-left: 0;
+  }
+}

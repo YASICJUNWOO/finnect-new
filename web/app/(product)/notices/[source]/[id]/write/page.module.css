@@ -1,42 +1,52 @@
-/* 상세(`../page.module.css`)와 같은 뼈대다. 색 리터럴 없음 — 값은 tokens.css 하나다. */
+/* S4 신청서 쓰기 — 2단 워크스페이스의 바깥 껍데기.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041).
+ *
+ * **페이지가 안 구른다.** 두 단이 각자 구른다 — 문서를 보면서 초안을 고치는
+ * 화면이라 한쪽을 읽으려고 다른 쪽을 밀어 올리면 안 된다. */
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
+  min-height: 0;
+  height: 100%;
+  padding-top: var(--s4);
 }
 
 .back {
-  align-self: flex-start;
-  font-size: var(--t-small);
+  flex: none;
+  display: inline-block;
+  margin: 0 var(--s4) var(--s3);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
   color: var(--ink-2);
-  text-decoration: none;
 }
 
-.back:hover {
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+/* morph 가 걸리는 상자. **이 자리가 공고 상세의 문서 카드와 이어진다** */
+.shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
 }
 
-/* 상세의 제목은 --t-display 다. 여기는 쓰는 화면이라 한 단 낮춘다 —
- * 이 화면의 주역은 제목이 아니라 칸이다(DESIGN.md §8.1-5). */
-.title {
-  font-size: var(--t-title);
-  line-height: var(--lh-title);
-  font-weight: var(--w-bold);
-  letter-spacing: var(--tracking-title);
-  /* 줄길이 62ch 이하 — DESIGN.md §8.2 */
-  max-width: 40ch;
+.loading {
+  margin: 0;
+  padding: var(--s5) var(--s4);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
 }
 
-.failed {
-  font-size: var(--t-body);
-  line-height: var(--lh-body);
-  color: var(--ink-2);
-  max-width: 62ch;
-}
+/* 좁은 폭에서는 페이지가 구른다 — 전폭 모드가 안 켜지므로 높이를 안 잠근다 */
+@media (max-width: 1023px) {
+  .page {
+    height: auto;
+  }
 
-.link {
-  color: var(--ink);
+  .shell {
+    min-height: 70vh;
+  }
 }

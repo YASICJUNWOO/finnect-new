@@ -337,7 +337,17 @@ function Empty({ hint, url }: { hint: string[] | null; url: string | null }) {
   );
 }
 
-export function FormFill({ data }: { data: NoticeDocuments }) {
+export function FormFill({
+  data,
+  heading = "section",
+}: {
+  data: NoticeDocuments;
+  /** `"none"` 이면 제목과 진행을 안 그린다. **스레드가 그 자리를 이미 갖고 있다.**
+   *
+   * 기본값이 `"section"` 인 이유는 `/documents/[case]/write` 가 이 컴포넌트를
+   * 그대로 쓰기 때문이다 — 기본을 바꾸면 그 화면이 제목을 잃는다. */
+  heading?: "section" | "none";
+}) {
   const [answers, setAnswers] = useState<Answers>({});
   const { documents } = data;
 
@@ -353,23 +363,33 @@ export function FormFill({ data }: { data: NoticeDocuments }) {
 
   if (documents.length === 0) {
     return (
-      <section className={styles.section} aria-labelledby="fill-title">
-        <h2 id="fill-title" className={styles.title}>
-          신청서 쓰기
-        </h2>
+      <section
+        className={styles.section}
+        aria-labelledby={heading === "none" ? undefined : "fill-title"}
+      >
+        {heading === "none" ? null : (
+          <h2 id="fill-title" className={styles.title}>
+            신청서 쓰기
+          </h2>
+        )}
         <Empty hint={data.submitHint} url={data.notice.url} />
       </section>
     );
   }
 
   return (
-    <section className={styles.section} aria-labelledby="fill-title">
-      <div className={styles.head}>
-        <h2 id="fill-title" className={styles.title}>
-          신청서 쓰기
-        </h2>
-        <Progress done={done} total={allKeys.length} />
-      </div>
+    <section
+      className={styles.section}
+      aria-labelledby={heading === "none" ? undefined : "fill-title"}
+    >
+      {heading === "none" ? null : (
+        <div className={styles.head}>
+          <h2 id="fill-title" className={styles.title}>
+            신청서 쓰기
+          </h2>
+          <Progress done={done} total={allKeys.length} />
+        </div>
+      )}
 
       {/* **초안은 위(`DraftView`)에 있다.** 여기는 칸 채우기 서식이라 초안이 설
           자리가 아니다 — `draft_item` 이 서술형 항목에 걸려 있다(plan/16 T-0065).

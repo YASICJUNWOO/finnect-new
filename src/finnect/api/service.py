@@ -370,7 +370,7 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
     docs: list[DocumentOut] = []
     undecided = 0
     seen: set[int] = set()
-    for att, _file, doc in rows:
+    for att, att_file, doc in rows:
         if doc.id in seen:
             continue
         seen.add(doc.id)
@@ -393,6 +393,8 @@ def notice_documents(s: Session, source: str, external_id: str) -> NoticeDocumen
                 decided_by=doc.decided_by,
                 filename=att.filename,
                 url=att.url,
+                sha256=doc.sha256,
+                ext=att_file.detected_ext,
                 items=_tree(items),
             )
         )

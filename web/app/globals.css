@@ -83,3 +83,36 @@ a {
   white-space: nowrap;
   border: 0;
 }
+
+/* ── 화면 사이 전환 (View Transitions) ─────────────────
+ *
+ * 공고 상세의 문서 카드가 쓰기 화면의 양식 단으로 **morph** 한다. 이름은
+ * `doc-<sha256>` 이고 양쪽 `<ViewTransition>` 이 같은 값을 쓴다.
+ *
+ * **CSS Module 에 두면 안 된다.** `::view-transition-*` 은 문서 루트에 따로 붙는
+ * 트리라 스코프가 없고, 모듈에 두면 클래스 이름이 해시로 망가진다.
+ *
+ * 240ms 와 이 이징은 관측 밖 값이다 — DESIGN.md §15 가 비워 둔 자리를 처음 채운다.
+ * 짧게 잡은 이유가 아래 `pointer-events` 다. */
+::view-transition-group(*) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* 전환 중 오버레이가 클릭을 먹는다. 240ms 를 안 넘기는 이유가 이것이다 */
+::view-transition {
+  pointer-events: none;
+}
+
+/* **위의 `*, *::before, *::after` 블록이 이걸 안 잡는다.**
+ * `::view-transition-*` 은 그 셀렉터에 안 걸리는 별도 트리다 — 이미 처리된 것처럼
+ * 보이는 자리라 여기 따로 적는다. §15 가 finnect 가 정한 유일한 모션 규칙이고
+ * 그 규칙이 「reduce 에서 전부 끈다」이다. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

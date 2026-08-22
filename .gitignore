@@ -47,3 +47,6 @@ spike/data/
 
 # Claude Code 로컬 설정. 켠 플러그인과 MCP 서버라 사람마다 다르다.
 .claude/
+
+# Playwright MCP 스크래치 (스냅샷·콘솔 로그). 실측 증거는 .omd/runs 로 옮긴다
+.playwright-mcp/

@@ -12,7 +12,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy import select
 
 from finnect.api import admin_service, draft_service, service, wiki_service
@@ -36,7 +36,7 @@ from finnect.api.wiki_schemas import ProfileOut, ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs
-from finnect.models import UserFile, UserFileStatus
+from finnect.models import AttachmentFile, UserFile, UserFileStatus
 from finnect.wiki import storage
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
@@ -159,6 +159,71 @@ def notice_documents(source: str, external_id: str) -> NoticeDocumentsOut:
     if found is None:
         raise HTTPException(404, f"모르는 출처: {source}")
     return found
+
+
+#: 미리보기가 여는 포맷. **여기 없는 것은 안 내보낸다** — 뷰어가 못 여는 파일을
+#: 굳이 흘려 보낼 이유가 없고, `zip` 은 안에 뭐가 들었는지 우리가 모른다.
+_VIEWABLE: dict[str, str] = {
+    "hwp": "application/x-hwp",
+    "hwpx": "application/vnd.hancom.hwpx",
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@app.get("/api/attachments/{sha256}/file")
+def attachment_bytes(sha256: str) -> FileResponse:
+    """첨부 원본 바이트. **미리보기(rhwp)가 이걸 읽는다.**
+
+    파일은 이미 `data/attachments/<sha[:2]>/<sha>` 에 있는데 그걸 HTTP 로 내주는
+    자리가 없었다. 브라우저는 디스크를 못 읽으므로 이 경로가 필요하다.
+
+    **원본 URL(`attachment.url`)로 보내지 않는다.** 다른 출처라 CORS 에 막히고,
+    그 URL 은 브라우저 UA·Referer 를 요구하며 **오류를 HTTP 200 + HTML 로 준다**
+    (CLAUDE.md 함정). 오류 페이지가 hwp 로 둔갑해 뷰어에 들어간다.
+
+    **sha256 을 반드시 검사한다.** 경로의 일부로 쓰이므로 `../` 가 섞이면 저장소
+    밖 파일이 나간다. 64자 16진수만 통과시킨다.
+
+    **DB 에 있는 첨부만 내보낸다.** 안 그러면 해시를 아는 사람이 저장소에 그 파일이
+    있는지 물어볼 수 있는 창구가 된다.
+
+    없을 때 404 와 503 을 가른다. **디렉터리 자체가 없으면 배포본에 디스크가 없는
+    것**이고(ADR-0034 와 같은 자리), 디렉터리는 있는데 파일이 없으면 `--only` 로
+    안 받아 둔 것이다. 둘을 같은 코드로 답하면 어느 쪽인지 못 가린다.
+    """
+    from finnect.attach import store
+
+    if len(sha256) != 64 or not all(c in "0123456789abcdef" for c in sha256):
+        raise HTTPException(400, "첨부 식별자가 sha256 이 아니에요")
+
+    with SessionFactory() as s:
+        row = s.scalars(
+            select(AttachmentFile).where(AttachmentFile.sha256 == sha256).limit(1)
+        ).first()
+        if row is None:
+            raise HTTPException(404, "모르는 첨부예요")
+        ext = (row.detected_ext or "").lower()
+        name = row.server_filename or f"{sha256[:12]}.{ext or 'bin'}"
+
+    if ext not in _VIEWABLE:
+        raise HTTPException(415, f"미리보기가 못 여는 포맷이에요: {ext or '모름'}")
+
+    if not settings.attachment_dir.exists():
+        raise HTTPException(503, "이 서버에는 첨부 원본이 없어요")
+
+    path = store.abs_path(store.rel_path(sha256))
+    if not path.is_file():
+        raise HTTPException(404, "아직 안 받아 둔 첨부예요")
+
+    return FileResponse(
+        path,
+        media_type=_VIEWABLE[ext],
+        # **`inline` 이다.** 기본값(`attachment`)이면 미리보기를 누를 때마다 파일이
+        # 내려받아진다 — 뷰어가 읽을 바이트를 주는 것이지 저장시키는 것이 아니다.
+        content_disposition_type="inline",
+        filename=name,
+    )
 
 
 @app.get("/api/notices/{source}/{external_id}/draft", response_model=DraftOut)

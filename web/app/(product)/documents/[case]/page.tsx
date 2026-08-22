@@ -52,7 +52,9 @@ export default async function DocumentsPreviewPage({
         ))}
       </nav>
 
-      <FormDocuments data={data} />
+      {/* 표본 화면이라 회사가 없다. 픽스처의 `sha256` 이 빈 문자열이라
+          「이 양식으로 쓰기」 링크도 원본 뷰어도 안 뜬다 — 그게 맞다 */}
+      <FormDocuments data={data} company="" />
 
       {/* 아직 없는 것을 있는 척하지 않는다 */}
       <p className={styles.note}>

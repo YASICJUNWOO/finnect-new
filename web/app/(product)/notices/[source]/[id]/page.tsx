@@ -99,6 +99,7 @@ export default async function NoticeDetailPage({
       {docs && (
         <>
           <FormDocuments
+            company={company}
             data={fromApi(docs, {
               id: external,
               source,

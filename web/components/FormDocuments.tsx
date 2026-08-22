@@ -1,4 +1,11 @@
-import { countItems, type FormDocument, type FormItem, type NoticeDocuments } from "@/lib/documents";
+import {
+  countItems,
+  type FormDocument,
+  type FormItem,
+  type NoticeDocuments,
+} from "@/lib/documents";
+import Link from "next/link";
+import { ViewTransition } from "react";
 import styles from "./FormDocuments.module.css";
 
 /** 지시문이 이보다 길면 접는다. 실측 최장이 2,031자다 — 펴 두면 화면이 무너진다. */
@@ -85,10 +92,25 @@ function Fields({ items }: { items: FormItem[] }) {
   );
 }
 
-function Document({ doc, open }: { doc: FormDocument; open: boolean }) {
+function Document({
+  doc,
+  open,
+  href,
+}: {
+  doc: FormDocument;
+  open: boolean;
+  /** 이 양식으로 쓰기. `null` 이면 링크를 안 낸다 */
+  href: string | null;
+}) {
   const n = countItems(doc.items);
 
   return (
+    /* **이 상자가 쓰기 화면의 양식 단으로 morph 한다.**
+       **이름이 sha256 이 아니라 구간 id 다.** 한 첨부에 서식이 여럿 들어 있어서
+       sha256 이 겹친다 — 실측 224쌍 중 65(29%)가 그렇고 최대 14구간이다.
+       겹치면 React 가 「two ViewTransition with the same name」으로 죽는다.
+       `default="none"` 을 쓰면 `share` 를 반드시 같이 준다 — 없으면 소리 없이 멈춘다 */
+    <ViewTransition name={`doc-${doc.id}`} share="morph" default="none">
     <details className={styles.doc} open={open}>
       <summary className={styles.docHead}>
         <span className={styles.docTitle}>{doc.title}</span>
@@ -97,13 +119,25 @@ function Document({ doc, open }: { doc: FormDocument; open: boolean }) {
         </span>
       </summary>
 
-      {doc.attachment.url && (
+      {/* 원본 파일과 쓰기로 가는 문.
+          **`canPreview` 로 링크를 안 가린다** — 못 여는 형식이어도 쓰기 화면에는
+          항목 트리가 있고, 뷰어가 「이 형식은 화면에서 못 열어요」로 답한다. */}
+      <div className={styles.actions}>
         <p className={styles.source}>
-          <a className={styles.link} href={doc.attachment.url}>
-            {doc.attachment.filename}
-          </a>
+          {doc.attachment.url ? (
+            <a className={styles.link} href={doc.attachment.url}>
+              {doc.attachment.filename}
+            </a>
+          ) : (
+            doc.attachment.filename
+          )}
         </p>
-      )}
+        {href && (
+          <Link href={href} className={styles.open}>
+            이 양식으로 쓰기
+          </Link>
+        )}
+      </div>
 
       {/* 양식은 갈랐는데 항목이 안 나온 것. **"항목 0개"로 끝내지 않는다**
           (DESIGN.md §7-5). 쓰기 화면(`FormFill`)이 같은 말을 한다. */
@@ -121,6 +155,7 @@ function Document({ doc, open }: { doc: FormDocument; open: boolean }) {
         <Fields items={doc.items} />
       )}
     </details>
+    </ViewTransition>
   );
 }
 
@@ -155,8 +190,16 @@ function Empty({ hint, url }: { hint: string[] | null; url: string | null }) {
   );
 }
 
-export function FormDocuments({ data }: { data: NoticeDocuments }) {
+export function FormDocuments({
+  data,
+  company,
+}: {
+  data: NoticeDocuments;
+  /** 쓰기 화면으로 물고 갈 값. **인증이 없어서 주소가 말한다** */
+  company: string;
+}) {
   const { documents } = data;
+  const base = `/notices/${data.notice.source}/${encodeURIComponent(data.notice.id)}/write`;
 
   return (
     <section className={styles.section} aria-labelledby="forms-title">
@@ -176,7 +219,12 @@ export function FormDocuments({ data }: { data: NoticeDocuments }) {
       ) : (
         <div className={styles.docs}>
           {documents.map((d, i) => (
-            <Document key={d.id} doc={d} open={i === 0} />
+            <Document
+              key={d.id}
+              doc={d}
+              open={i === 0}
+              href={`${base}?company=${encodeURIComponent(company)}&doc=${d.id}`}
+            />
           ))}
         </div>
       )}

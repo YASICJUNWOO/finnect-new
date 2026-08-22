@@ -27,6 +27,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         "id": "pohang-plan",
         "title": "[붙임2] 2026년 경북 포항시 지역산업위기대응 맞춤형 지원사업 신청서식.hwp",
         "kind": "narrative",
+        "sha256": "",
+        "ext": null,
         "attachment": {
           "filename": "[붙임2] 2026년 경북 포항시 지역산업위기대응 맞춤형 지원사업 신청서식.hwp",
           "url": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_000000000767525&fileSn=1"
@@ -147,6 +149,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         "id": "pohang-form",
         "title": "신청서 · 서식",
         "kind": "fields",
+        "sha256": "",
+        "ext": null,
         "attachment": {
           "filename": "[붙임2] 2026년 경북 포항시 지역산업위기대응 맞춤형 지원사업 신청서식.hwp",
           "url": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_000000000767525&fileSn=1"
@@ -520,6 +524,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         "id": "ai-plan",
         "title": "붙임2_사업수행계획서 등 관련 서식.hwp",
         "kind": "narrative",
+        "sha256": "",
+        "ext": null,
         "attachment": {
           "filename": "붙임2_사업수행계획서 등 관련 서식.hwp",
           "url": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_000000000769075&fileSn=2"
@@ -1000,6 +1006,8 @@ export const FIXTURES: Record<string, NoticeDocuments> = {
         "id": "ai-form",
         "title": "신청서 · 서식",
         "kind": "fields",
+        "sha256": "",
+        "ext": null,
         "attachment": {
           "filename": "붙임2_사업수행계획서 등 관련 서식.hwp",
           "url": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_000000000769075&fileSn=2"

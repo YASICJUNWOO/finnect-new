@@ -108,9 +108,12 @@ function Axes({ path }: { path: string }) {
  * 시안은 이 줄에 코퍼스 건수와 마지막 수집 시각을 넣는다. **안 옮겼다** — 껍데기는
  * 데이터를 안 가져오고, 숫자를 박아 넣으면 그 순간부터 낡는다(§7 "예시 데이터로 빈
  * 화면을 채우지 않는다"). 수집 시각은 운영 정보라 이미 `/admin` 에 있다. */
-const WHERE: ReadonlyArray<readonly [RegExp, string]> = [
+/** 셋째 자리가 **전폭 여부**다. `.main` 의 1040px 캡을 벗는 화면이 하나 있다 —
+ * S4 쓰기는 문서 뷰어를 품는데 rhwp 가 787px 아래에서 메뉴를 접는다(실측).
+ * **표를 새로 만들지 않는다** — 여기 이미 그 경로가 있고 순서 함정도 위 주석에 있다. */
+const WHERE: ReadonlyArray<readonly [RegExp, string, boolean?]> = [
   [/^\/$/, "전체 공고"],
-  [/^\/notices\/[^/]+\/[^/]+\/write$/, "쓰기"],
+  [/^\/notices\/[^/]+\/[^/]+\/write$/, "쓰기", true],
   [/^\/notices\/[^/]+\/[^/]+$/, "공고 상세"],
   [/^\/wiki$/, "사업 위키"],
   [/^\/wiki\/files$/, "파일 올리기"],
@@ -123,10 +126,17 @@ function whereOf(path: string): string | null {
   return WHERE.find(([re]) => re.test(path))?.[1] ?? null;
 }
 
+/** 이 경로가 1040px 캡을 벗나. **`/documents/[case]/write` 는 아니다** — 표본
+ * 화면이라 뷰어가 없다. */
+function fullWidth(path: string): boolean {
+  return WHERE.find(([re]) => re.test(path))?.[2] === true;
+}
+
 export default function ProductLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const axis = AXES.find((a) => a.on(path))?.label ?? null;
   const where = whereOf(path);
+  const full = fullWidth(path);
 
   return (
     <div className={styles.app}>
@@ -188,7 +198,9 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
           </div>
         </header>
 
-        <main className={styles.main}>{children}</main>
+        <main className={full ? `${styles.main} ${styles.full}` : styles.main}>
+          {children}
+        </main>
 
         {/* 같은 3축. **≤640px 에서만 뜨고 그때 위의 둘은 꺼진다** —
           * 규칙은 CSS 한 곳에 있다.

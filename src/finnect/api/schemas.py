@@ -144,6 +144,12 @@ class DocumentOut(BaseModel):
     decided_by: str
     filename: str
     url: str | None
+    #: 원본 파일의 콘텐츠 주소. `/api/attachments/{sha256}/file` 이 이걸 받는다.
+    #: **미리보기가 원본을 열려면 있어야 한다** — 파일명은 같은 이름이 여럿이라 키가 안 된다.
+    sha256: str
+    #: 내용으로 판정한 확장자. **파일명의 확장자가 아니다** — 3,354건 중 7건이 서로 다르다.
+    #: 화면이 이걸로 「미리보기가 열 수 있는 포맷인가」를 정한다.
+    ext: str | None
     items: list[DocumentItemOut]
 
 

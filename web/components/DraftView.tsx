@@ -102,7 +102,11 @@ function Length({ item, chars }: { item: DraftItem; chars: number }) {
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
-function Item({
+/** 항목 하나 — 써진 글 · 근거 · 못 채운 자리 · 저장.
+ *
+ * **`<li>` 를 그대로 낸다** — 부르는 쪽이 `<ol>`/`<ul>` 을 대야 한다.
+ * `DraftView` 와 `DraftThread` 가 같이 쓴다. */
+export function DraftItemCard({
   item,
   onSave,
 }: {
@@ -231,7 +235,7 @@ function Item({
       {item.children.length > 0 && (
         <ol className={styles.children}>
           {item.children.map((c) => (
-            <Item key={c.document_item_id} item={c} onSave={onSave} />
+            <DraftItemCard key={c.document_item_id} item={c} onSave={onSave} />
           ))}
         </ol>
       )}
@@ -239,7 +243,14 @@ function Item({
   );
 }
 
-export function DraftView({
+/** 초안 상태 하나 — 폴링 · 시작 · 저장.
+ *
+ * **`DraftView` 에서 뽑아 낸 것이고 파일을 안 옮겼다.** 같은 규칙을 두 화면
+ * (`DraftView` 와 `DraftThread`)이 써야 하는데, 파일을 가르면 폴링 규칙이
+ * 두 벌이 되고 한쪽만 고쳐지는 날이 온다.
+ *
+ * 표현을 안 갖는다 — 무엇을 그릴지는 부르는 쪽이 정한다. */
+export function useDraft({
   initial,
   source,
   externalId,
@@ -314,6 +325,29 @@ export function DraftView({
   const written = draft.documents.flatMap((d) => leaves(d.items));
   const done = written.filter((i) => bodyOf(i).trim().length > 0).length;
 
+  return { draft, starting, why, start, onSave, written, done };
+}
+
+/** 지금까지의 화면. **안 지운다** — 스레드가 실패하면 되돌아갈 자리이고,
+ * `useDraft` 가 정말 표현과 갈렸는지 보는 대조군이기도 하다. */
+export function DraftView({
+  initial,
+  source,
+  externalId,
+  company,
+}: {
+  initial: Draft;
+  source: string;
+  externalId: string;
+  company: string;
+}) {
+  const { draft, starting, why, start, onSave, written, done } = useDraft({
+    initial,
+    source,
+    externalId,
+    company,
+  });
+
   return (
     <section className={styles.section} aria-labelledby="draft-title">
       <div className={styles.top}>
@@ -366,7 +400,7 @@ export function DraftView({
           <h3 className={styles.docTitle}>{doc.title}</h3>
           <ol className={styles.items}>
             {doc.items.map((it) => (
-              <Item key={it.document_item_id} item={it} onSave={onSave} />
+              <DraftItemCard key={it.document_item_id} item={it} onSave={onSave} />
             ))}
           </ol>
         </div>

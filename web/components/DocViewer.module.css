@@ -1,0 +1,99 @@
+/* 양식 뷰어 — rhwp 무대와 그 자리를 대신하는 글.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041).
+ *
+ * **그림자가 하나도 없다.** 모달이 없어지면서 이 화면에서 위에 뜨는 것이 사라졌다
+ * (DESIGN.md §6). 무대와 바깥을 가르는 것은 세로선 1px 하나이고 그것은
+ * WriteWorkspace 가 긋는다 — 여기는 안쪽만 그린다. */
+
+.stage {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.mount {
+  width: 100%;
+  height: 100%;
+}
+
+/* 열리기 전과 실패했을 때 빈 iframe 을 감춘다. **언마운트하지 않는다** —
+ * 조건부로 그리면 createEditor 가 붙을 자리가 그때 없다 */
+.mount[data-busy="true"] {
+  visibility: hidden;
+}
+
+.status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--s5);
+  text-align: center;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+}
+
+/* --- 무대 대신 서는 글 ------------------------------------------------------ */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: 100%;
+  padding: var(--s5);
+  text-align: center;
+  background: var(--canvas);
+}
+
+/* 무대 위에 겹칠 때(못 열었다). 아래 iframe 은 이미 visibility:hidden 이다 */
+.overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.noticeTitle {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-mid);
+  color: var(--ink);
+}
+
+.noticeBody {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 파일명은 길고 잘리면 안 된다 — 내려받을 것을 가리키는 값이다 */
+.filename {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* §4 «주 버튼». 이 자리는 화면당 하나이고 행마다 반복되지 않는다 */
+.cta {
+  margin-top: var(--s2);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-sm);
+  background: var(--action);
+  color: var(--surface);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+}

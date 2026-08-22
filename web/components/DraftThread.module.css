@@ -1,0 +1,249 @@
+/* 초안 스레드 — 차례로 쌓이는 단.
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041).
+ *
+ * **말풍선이 없다.** 사람이 친 말과 우리 말을 가르는 것은 채움도 색도 아니고
+ * 정렬과 글자색이다(§7 UI 크롬에 색 금지 · §2 색조 하나에 뜻 둘 금지). */
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+/* ── 머리줄 · 바닥 — 스크롤 밖 ─────────────────────── */
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.count {
+  margin: 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* ── 차례 ───────────────────────────────────────────── */
+
+.turns {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s4) 0;
+}
+
+/* 우리가 하는 말. 크롬 없이 산문이다 */
+.system {
+  margin: 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 사람이 친 말. **채움도 색도 없다** — 오른쪽으로 붙이고 글자를 진하게 한다 */
+.mine {
+  margin: 0;
+  align-self: flex-end;
+  max-width: 90%;
+  text-align: right;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink);
+  font-weight: var(--w-mid);
+}
+
+.fail {
+  margin: 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--urgent);
+}
+
+/* 안내. DraftView 의 `.running`/`.empty` 모양 그대로 */
+.note {
+  margin: 0;
+  padding: var(--s3);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* ── 문서 구분선 ────────────────────────────────────── */
+
+.doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* 두 단이 이어져 있다는 유일한 표시. 눌리는 것이라 44px 을 준다(§5) */
+.divider,
+.dividerFlat {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  font-weight: var(--w-mid);
+  text-align: left;
+}
+
+.divider {
+  cursor: pointer;
+}
+
+.divider:hover {
+  color: var(--ink-2);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ── 칸 채우기 서식 (접힘) ──────────────────────────── */
+
+.fields {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s3);
+}
+
+/* **flex 를 안 쓴다.** flex 컨테이너는 자식 사이의 텍스트 노드 공백을 먹어서
+ * 「칸만 채우는 서식4개」가 된다. 세로 가운데는 line-height 로 맞춘다 */
+.fieldsSummary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: var(--s2) 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* ── 바닥 ───────────────────────────────────────────── */
+
+.foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.startRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+/* §4 «주 버튼». 이 단에 하나뿐이다 */
+.start {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--action);
+  color: var(--surface);
+  font: inherit;
+  font-weight: var(--w-medium);
+  cursor: pointer;
+}
+
+.start:disabled {
+  background: var(--ink-4);
+  cursor: default;
+}
+
+.startWhy {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+}
+
+/* ── 입력칸 ─────────────────────────────────────────── */
+
+.composer {
+  display: flex;
+  gap: var(--s2);
+}
+
+/* §4 «입력». 잠잠한 면 + 4px */
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--quiet);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+}
+
+/* 보내기는 주 동작이 아니다 — 이 단의 주 버튼은 「초안 쓰기」다(§4 화면당 하나) */
+.send {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-aux);
+  cursor: pointer;
+}
+
+.send:disabled {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+.limitNote {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 1.5;
+  color: var(--ink-3);
+}

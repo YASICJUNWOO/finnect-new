@@ -21,8 +21,17 @@ MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"\x89PNG\r\n\x1a\n", "png"),
     (b"\xff\xd8\xff", "jpg"),
     (b"GIF8", "gif"),
+    # TIFF 는 바이트 순서를 앞 두 글자로 말한다. 스캐너·팩스가 어느 쪽으로 쓸지는 기기가 정한다.
+    (b"II*\x00", "tiff"),
+    (b"MM\x00*", "tiff"),
+    (b"RIFF", "riff"),  # WebP · WAV · AVI 공통. 아래에서 더 가른다
     (b"PK\x03\x04", "zip"),  # HWPX · DOCX · XLSX · PPTX 공통. 아래에서 더 가른다
+    # **두 글자짜리라 맨 뒤다.** 위의 어느 것과도 안 겹치지만 이 표에서 가장 약한 근거다.
+    (b"BM", "bmp"),
 )
+
+#: 시그니처를 볼 만큼. **12 이상이어야 한다** — RIFF 의 진짜 포맷이 8~12바이트에 있다.
+HEAD_BYTES = 16
 
 #: ZIP 안에 이 경로가 있으면 그 포맷이다.
 ZIP_MARKERS: tuple[tuple[str, str], ...] = (
@@ -48,7 +57,7 @@ def name_ext(filename: str | None) -> str | None:
 def detect(path: Path, filename: str | None = None) -> str | None:
     """파일 내용으로 확장자를 판정한다. 모르겠으면 파일명 확장자로 물러난다."""
     try:
-        head = path.open("rb").read(8)
+        head = path.open("rb").read(HEAD_BYTES)
     except OSError:
         return name_ext(filename)
 
@@ -56,10 +65,18 @@ def detect(path: Path, filename: str | None = None) -> str | None:
 
     if kind == "zip":
         return _zip_kind(path) or "zip"
+    if kind == "riff":
+        # 컨테이너 이름은 포맷이 아니다. 소리(WAV)와 영상(AVI)이 같은 네 글자로 시작한다.
+        return _riff_kind(head) or name_ext(filename)
     if kind == "ole":
         # OLE 는 HWP · DOC · XLS 가 공유한다. HWP 는 FileHeader 스트림에 시그니처가 있다.
         return "hwp" if _is_hwp(path) else (name_ext(filename) or "ole")
     return kind or name_ext(filename)
+
+
+def _riff_kind(head: bytes) -> str | None:
+    """RIFF 안의 진짜 포맷. **WebP 만 받는다** — 우리가 읽을 수 있는 것이 그것뿐이다."""
+    return "webp" if head[8:12] == b"WEBP" else None
 
 
 def _zip_kind(path: Path) -> str | None:

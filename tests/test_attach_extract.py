@@ -9,6 +9,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from finnect.attach import extract
 from finnect.models import ParseStatus
 
@@ -194,6 +196,55 @@ def test_이미지는_실패가_아니라_미지원이다(tmp_path: Path) -> Non
     assert got.status is ParseStatus.UNSUPPORTED
     assert got.ext == "png"
     assert got.text is None
+
+
+@pytest.mark.parametrize(
+    ("name", "head", "ext"),
+    [
+        ("스캔본.tiff", b"II*\x00", "tiff"),
+        ("사진.webp", b"RIFF\x00\x00\x00\x00WEBP", "webp"),
+        ("도면.bmp", b"BM\x36\x00\x00\x00", "bmp"),
+        ("표.gif", b"GIF89a", "gif"),
+    ],
+)
+def test_사용자_그림_넷이_ocr_문턱까지_간다(
+    tmp_path: Path, name: str, head: bytes, ext: str
+) -> None:
+    """**문전에서 잘린 것과 그림이라 OCR 이 필요한 것은 다른 사실이다**(T-0097).
+
+    `ocr.IMAGE_EXTS` 는 여섯인데 `user_file_formats` 가 `jpg`·`png` 둘만 열어 둬서
+    나머지 넷이 `ext not in allowed` 에서 잘렸다. **파서가 있는데 설정이 막고 있었다** —
+    tiff 는 스캐너·팩스 기본 출력이고 webp 는 웹에서 저장한 그림의 기본이다.
+
+    이유를 보는 것이 요점이다. 두 경로가 상태는 같고(`UNSUPPORTED`) 뜻이 다르다.
+    """
+    from finnect.config import settings
+
+    f = tmp_path / name
+    f.write_bytes(head + b"\x00" * 64)
+
+    got = extract.parse(f, name, allowed=settings.wiki_formats, use_ocr=False)
+
+    assert got.ext == ext
+    assert got.status is ParseStatus.UNSUPPORTED
+    # 목록에서 잘렸으면 이유가 없다. 그림 분기까지 갔으면 이유가 OCR 을 말한다.
+    assert got.error and "OCR" in got.error
+
+
+def test_첨부_목록은_그림을_안_받는다(tmp_path: Path) -> None:
+    """**T-0097 은 사용자 파일만 연다.**
+
+    첨부를 같이 열면 plan/07 이 측정한 2,827/3,354 가 근거를 잃는다.
+    """
+    from finnect.config import settings
+
+    f = tmp_path / "스캔본.tiff"
+    f.write_bytes(b"II*\x00" + b"\x00" * 64)
+
+    got = extract.parse(f, "스캔본.tiff", allowed=settings.formats, use_ocr=False)
+
+    assert got.status is ParseStatus.UNSUPPORTED
+    assert got.error is None  # 문전에서 잘렸다. 그림 분기까지 안 갔다
 
 
 def test_깨진_pdf는_실패로_남는다(tmp_path: Path) -> None:

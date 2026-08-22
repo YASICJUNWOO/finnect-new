@@ -120,17 +120,29 @@ def client():  # noqa: ANN201
     return TestClient(app)
 
 
-def test_위키가_없어도_카테고리_열이_온다(client) -> None:  # noqa: ANN001
+def test_위키가_없어도_폴더_열이_온다(client) -> None:  # noqa: ANN001
     """**빈 화면을 '데이터 없음'으로 끝내지 않는다**(DESIGN.md §7-5)."""
     r = client.get("/api/wiki/c_없는회사")
     assert r.status_code == 200
     body = WikiOut.model_validate(r.json())
-    assert body.total == len(spots.FOLDERS)
     assert {n.path for n in body.nodes} == set(spots.FOLDERS)
     assert body.filled == 0
     assert all(n.depth == 0 for n in body.nodes)
     #: 카테고리 라벨이 같이 온다 — **화면이 이름을 짓지 않는다**
     assert set(body.categories) == set(spots.FOLDERS)
+
+
+def test_분모가_자리표지_노드_수가_아니다(client) -> None:  # noqa: ANN001
+    """**2026-08-22 화면이 「자리 71개 중 52개」라고 말했다.**
+
+    `_ensure_node` 가 조상을 다 만들어서 `Custom/특허/출원-10-…` 하나가 노드 셋을
+    만든다. 그걸 분모에 넣으면 **사용자가 채울 수 있는 것이 아닌 뼈대 스물다섯이
+    「아직 안 찬 자리」로 보인다** — 파일을 더 올려도 안 줄어드는 숫자다.
+    """
+    body = WikiOut.model_validate(client.get("/api/wiki/c_없는회사").json())
+    assert body.total == len(spots.SPOTS) == 46
+    #: 빈 회사인데도 노드는 폴더 열 만큼 온다 — **둘이 같은 수가 아니다**
+    assert len(body.nodes) == len(spots.FOLDERS)
 
 
 def test_마크다운은_없으면_404다(client) -> None:  # noqa: ANN001

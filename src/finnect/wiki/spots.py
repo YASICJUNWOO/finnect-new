@@ -116,6 +116,18 @@ class Spot:
             parts[i] = name
         return "/".join(parts)
 
+    def instance(self, path: str) -> str:
+        """채워진 경로에서 인스턴스 이름만 도로 뽑는다. `fill` 의 역이다.
+
+        **프롬프트가 「이 자리에 이미 있는 이름」을 보일 때 쓴다.** 경로를 통째로
+        보이면 모델이 `Custom/특허/출원-10-…` 을 통째로 베껴 **다른 자리에 그 이름을
+        붙인다** — 실측에서 `Customer/페르소나/출원-10-2025-0114882` 가 나왔다.
+        """
+        parts = path.split("/")
+        if len(parts) != len(self.parts):
+            return ""
+        return "/".join(parts[i] for i in self.holes)
+
 
 #: **기획 문서 §2 트리 그대로다.** 순서도 거기 순서다.
 #:

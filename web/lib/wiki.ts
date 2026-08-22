@@ -130,9 +130,10 @@ export type Wiki = {
   files: WikiFile[];
   /** 카테고리 키 → 한국어 이름. 열 개 고정. **화면이 이름을 짓지 않는다** */
   categories: Record<string, string>;
-  /** 사실이 앉은 노드 수 */
+  /** 사실이 앉은 **자리표 자리** 수. `{…}` 자리는 인스턴스 여럿이 하나로 접힌다 */
   filled: number;
-  /** 뼈대까지 포함한 노드 수 */
+  /** **자리표 마흔여섯 고정이다.** `nodes.length` 가 아니다 — 거기엔 조상 뼈대와
+   * 폴더 열이 섞여 있고 그건 사용자가 채울 수 있는 것이 아니다 */
   total: number;
   /** `Custom/검토 대기` 에 선 사실 수. **버린 것이 아니다** */
   review: number;

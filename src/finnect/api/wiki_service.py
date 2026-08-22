@@ -78,8 +78,8 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
             for uf, made in files
         ],
         categories=dict(spots.FOLDERS),
-        filled=sum(n.filled for n in nodes),
-        total=len(nodes),
+        filled=len(_filled_spots(nodes)),
+        total=len(spots.SPOTS),
         review=review or 0,
         extractor=extractor,
     )
@@ -145,6 +145,27 @@ def get_markdown(session: Session, company_id: str) -> str | None:
     if not pages:
         return None
     return export.bundle(pages, company_id)
+
+
+def _filled_spots(nodes: list[build.NodeView]) -> set[str]:
+    """사실이 앉은 **자리표 자리**들. `{…}` 자리는 인스턴스 여럿이 하나로 접힌다.
+
+    **노드 수를 그냥 세면 안 된다.** `_ensure_node` 가 조상을 다 만들어서
+    `Custom/특허/출원-10-…` 하나가 노드 셋(`Custom`·`Custom/특허`·잎)을 만든다.
+    2026-08-22 화면이 그걸 분모에 넣어 **「자리 71개 중 52개」**라고 말했는데, 자리표는
+    마흔여섯이고 나머지 스물다섯은 사용자가 채울 수 있는 것이 아니라 뼈대였다.
+
+    **검토 대기는 안 센다.** 자리표 밖이고 「찬 자리」가 아니라 「자리를 못 찾은 것」이라
+    그 수는 `review` 가 따로 말한다.
+    """
+    out: set[str] = set()
+    for n in nodes:
+        if not n.filled:
+            continue
+        spot = spots.spot_of(n.path)
+        if spot is not None and spot.path != spots.REVIEW.path:
+            out.add(spot.path)
+    return out
 
 
 def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:

@@ -129,10 +129,16 @@ class Roster:
         return clean
 
     def render(self, empty: str = "(아직 없다)") -> str:
-        """프롬프트에 싣는 모양. `[1] Company/팀` 꼴이다."""
+        """프롬프트에 싣는 모양. `- 배달의민족` 꼴이다.
+
+        **번호를 안 붙인다.** 2026-08-22 여기가 `[1] [2] [3]` 이었고 자리표도 `[n]`
+        이라 **번호 공간이 겹쳤다** — 모델이 두 목록을 이어 세어 `spot=47~65` 를
+        냈고(표는 46 까지다) 사실 30건이 검토 대기로 갔다. 번호로 답하는 목록은
+        **자리표 하나뿐이어야 한다.**
+        """
         if not self.names:
             return empty
-        return "\n".join(f"[{i}] {n}" for i, n in enumerate(self.names, 1))
+        return "\n".join(f"- {n}" for n in self.names)
 
 
 @dataclass(frozen=True, slots=True)

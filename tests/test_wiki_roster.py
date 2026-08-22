@@ -190,10 +190,46 @@ def test_자리표_전체가_프롬프트에_번호와_함께_실린다():
     assert spots.SPOTS[0].holds in system
 
 
-def test_지금_있는_자리가_실린다():
+def test_지금_있는_이름이_자리별로_묶여_실린다():
+    """**어느 자리의 이름인지 안 밝히면 자리를 건너 베껴진다**(2026-08-22 실측).
+
+    평평한 경로 목록이었을 때 `Customer/페르소나/출원-10-2025-0114882` 와
+    `Custom/인증/성남·용인 소상공인-30명-…` 이 나왔다 — 특허 번호가 페르소나 이름이
+    되고 인터뷰 이름이 인증 이름이 됐다.
+    """
     c = 가짜클라이언트([])
-    LlmNodes(client=c).extract(VIEW, Known.of(spots=["Competitor/배달의민족"]))
-    assert "[1] Competitor/배달의민족" in c.calls[0]["system"]
+    LlmNodes(client=c).extract(
+        VIEW,
+        Known.of(spots=[
+            "Competitor/배달의민족", "Competitor/요기요",
+            "Custom/특허/등록-10-2025-0114882",
+            "Company/팀",                    # 고정 자리 — 실릴 일이 없다
+            spots.REVIEW.path,               # 오류 통 — 자리 이름이 아니다
+        ]),
+    )
+    system = c.calls[0]["system"]
+    assert "- `Competitor/{업체명}` — 배달의민족 · 요기요" in system
+    assert "- `Custom/특허/{상태}-{번호}` — 등록-10-2025-0114882" in system
+    #: **경로를 통째로 안 보인다.** 보이면 그 문자열이 다른 자리로 베껴진다
+    assert "Competitor/배달의민족" not in system
+    #: 고정 자리는 이름을 지을 일이 없다
+    assert "Company/팀` —" not in system
+    #: **검토 대기가 실리면 `Competitor/검토 대기` 가 나온다** — 실제로 나왔다
+    assert "검토 대기` —" not in system
+
+
+def test_번호가_붙은_목록이_자리표_하나뿐이다():
+    """**둘이면 모델이 이어 세어 표 밖 번호를 낸다**(2026-08-22 실측).
+
+    자리표도 `[n]`, 「지금 있는 자리」도 `[n]` 이었다. 모델이 `spot=47~65` 를 냈고
+    (표는 46 까지다) **사실 30건이 그것 때문에 검토 대기로 갔다.**
+    """
+    c = 가짜클라이언트([])
+    LlmNodes(client=c).extract(VIEW, Known.of(spots=["Competitor/배달의민족"] * 1))
+    system = c.calls[0]["system"]
+    import re
+    got = sorted({int(m) for m in re.findall(r"^\[(\d+)\]", system, re.M)})
+    assert got == list(range(1, len(spots.SPOTS) + 1)), "번호가 자리표 것만 있어야 한다"
 
 
 def test_아무것도_없으면_없다고_적는다():

@@ -267,21 +267,29 @@ _SYSTEM = """\
 
 `{{…}}` 가 없는 자리는 `instance` 를 비운다.
 
+**`{{…}}` 가 있는 자리를 골랐으면 `instance` 를 반드시 채운다.** 비우면 그 사실은
+자리를 잃고 검토 대기로 간다 — 문서에 서비스 이름이 한 번밖에 안 나와도 그것을 쓴다.
+
 **이름에 값과 기준을 넣어라.** `인터뷰` 가 아니라 `취준생-59명-2026Q1` 이다 — 열지
 않고도 인원수와 시점을 알 수 있어야 한다. **실명을 쓴다.** 경쟁사를 A사·B사로 가리지
 마라.
 
-## 지금 있는 자리
+## 이 자리에 이미 있는 이름
 
 {known}
 
-같은 대상이면 **위와 똑같은 이름을 쓴다.** `㈜다시로` 와 `다시로` 를 섞으면 한 업체가
-자리 둘로 갈리고, 사용자는 어느 쪽이 진짜인지 알 방법이 없다.
+같은 대상이면 **그 자리에 이미 있는 이름을 그대로 쓴다.** `㈜다시로` 와 `다시로` 를
+섞으면 한 업체가 자리 둘로 갈리고, 사용자는 어느 쪽이 진짜인지 알 방법이 없다.
+
+**다른 자리의 이름을 가져다 쓰지 마라.** 위 목록은 자리마다 따로 적혀 있다 — 특허
+번호를 페르소나 이름으로, 인터뷰 이름을 인증 이름으로 쓰면 그 사실은 엉뚱한 데
+앉고 아무도 왜 거기 있는지 못 찾는다.
 
 ## 자리를 못 고르겠으면
 
 **억지로 끼워 맞추지 마라.** `spot` 을 비우면 검토 대기로 가고 사람이 본다.
-버려지지 않는다.
+버려지지 않는다. **표에 없는 번호를 지어내지 마라** — 고를 수 있는 것은 위 자리표의
+번호뿐이고, 그 밖의 번호는 자리를 안 고른 것과 같다.
 
 ## kind — value 인가 event 인가
 
@@ -348,13 +356,39 @@ _SYSTEM = """\
 """
 
 
-def system_prompt(known: Known) -> str:
-    """**자리표는 상수이고 「지금 있는 자리」만 회사마다 다르다.**
+def known_names(known: Known) -> str:
+    """이미 쓰인 인스턴스 이름을 **자리별로 묶어서** 낸다.
 
-    자리표가 고정이라 프롬프트의 대부분이 이제 안 변한다 — 회사마다 자라던 노드
-    목록이 인스턴스 이름 목록으로 줄었다.
+    **경로를 통째로 안 보인다.** 2026-08-22 실측에서 이 목록이 평평한 경로 목록이라
+    모델이 이름을 자리 건너 베꼈다 — `Customer/페르소나/출원-10-2025-0114882` ·
+    `Custom/인증/성남·용인 소상공인-30명-…` · **`Competitor/검토 대기`**(오류 통
+    이름을 업체명으로 썼다). 어느 자리의 이름인지 밝히면 그 길이 막힌다.
+
+    **고정 자리는 안 싣는다.** 거기는 이름을 지을 일이 없어서 실어 봐야 프롬프트만
+    길어진다. **검토 대기도 안 싣는다** — 자리 이름이 아니라 오류 통이다.
     """
-    return _SYSTEM.format(spots=spots.render(), known=known.spots.render())
+    by_spot: dict[str, list[str]] = {}
+    for path in known.spots.names:
+        spot = spots.spot_of(path)
+        if spot is None or spot.fixed or spot.path == spots.REVIEW.path:
+            continue
+        if name := spot.instance(path):
+            by_spot.setdefault(spot.path, []).append(name)
+
+    if not by_spot:
+        return "(아직 없다)"
+    return "\n".join(
+        f"- `{tpl}` — {' · '.join(sorted(set(names)))}" for tpl, names in sorted(by_spot.items())
+    )
+
+
+def system_prompt(known: Known) -> str:
+    """**자리표는 상수이고 「이미 있는 이름」만 회사마다 다르다.**
+
+    **번호가 붙은 목록은 자리표 하나뿐이다.** 둘이면 모델이 이어 세어서 표 밖 번호를
+    낸다 — `port.Roster.render` 첫 문단.
+    """
+    return _SYSTEM.format(spots=spots.render(), known=known_names(known))
 
 
 #: **`spot` 이 정수 하나다.** 자리 마흔여섯을 문자열 enum 으로 실으면 모델이 경로를

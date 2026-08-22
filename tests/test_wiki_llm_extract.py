@@ -264,7 +264,7 @@ def test_원문과_현재_상태만_넘긴다() -> None:
     assert "회사소개서.pdf" in user
     assert "재구매율이 34%" in user
     assert "배달의민족" not in user
-    assert "[1] Competitor/배달의민족" in system
+    assert "- `Competitor/{업체명}` — 배달의민족" in system
 
 
 def test_자리표_전체가_프롬프트에_있다() -> None:

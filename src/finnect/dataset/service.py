@@ -10,10 +10,11 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finnect.config import settings
@@ -172,7 +173,10 @@ def prune(
             return rep
 
         _delete_attachments(s, source, doomed, urls)
-        s.query(model).filter(getattr(model, pk).in_(doomed)).delete(synchronize_session=False)
+        for part in _chunks(doomed):
+            s.query(model).filter(getattr(model, pk).in_(part)).delete(
+                synchronize_session=False
+            )
 
     for p in paths:
         p.unlink(missing_ok=True)
@@ -181,19 +185,33 @@ def prune(
 
 # ── 안쪽 ──────────────────────────────────────────────────────────────
 
+#: 한 질의에 실어 보낼 id 수. **복합 IN 을 안 쓰는 것과 한 쌍이다** —
+#: `tuple_(source, external_id).in_(29,360개)` 가 Postgres 의 max_stack_depth(2MB)를
+#: 넘긴다. 복합 튜플은 중첩 표현식으로 파싱돼서 건수에 비례해 스택을 먹는다.
+#: `source` 는 어차피 상수라 열 하나짜리 IN 이면 되고, 그것도 psycopg 파라미터
+#: 상한(65,535)이 있어 쪼갠다. **50건짜리 실측으로는 안 걸린다.**
+_CHUNK = 2000
+
+
+def _chunks(xs: Sequence[str]) -> Iterator[Sequence[str]]:
+    for i in range(0, len(xs), _CHUNK):
+        yield xs[i : i + _CHUNK]
+
 
 def _count(s: Session, model: type) -> int:
     return s.scalar(select(func.count()).select_from(model)) or 0
 
 
 def _attachment_urls(s: Session, source: str, ids: list[str]) -> list[str]:
-    if not ids:
-        return []
-    keys = [(source, i) for i in ids]
-    rows = s.scalars(
-        select(Attachment.url).where(tuple_(Attachment.source, Attachment.external_id).in_(keys))
-    )
-    return [u for u in rows if u]
+    out: list[str] = []
+    for part in _chunks(ids):
+        rows = s.scalars(
+            select(Attachment.url).where(
+                Attachment.source == source, Attachment.external_id.in_(part)
+            )
+        )
+        out.extend(u for u in rows if u)
+    return out
 
 
 def _orphan_paths(s: Session, urls: list[str]) -> list[Path]:
@@ -204,24 +222,38 @@ def _orphan_paths(s: Session, urls: list[str]) -> list[Path]:
     """
     if not urls:
         return []
-    doomed = list(s.scalars(select(AttachmentFile).where(AttachmentFile.url.in_(urls))))
-    mine = {p for f in doomed for p in (f.stored_path, f.text_path) if p}
+    doomed_urls = set(urls)
+    rows = list(s.scalars(select(AttachmentFile)))
+    mine = {
+        p
+        for f in rows
+        if f.url in doomed_urls
+        for p in (f.stored_path, f.text_path)
+        if p
+    }
     if not mine:
         return []
-    survivors = s.scalars(select(AttachmentFile).where(AttachmentFile.url.notin_(urls)))
-    theirs = {p for f in survivors for p in (f.stored_path, f.text_path) if p}
+    # **살아남는 쪽은 파이썬에서 가른다.** `notin_(urls)` 는 쪼갤 수가 없다 —
+    # 조각마다 NOT IN 을 걸면 교집합이 아니라 합집합이 되어 조용히 더 지운다.
+    theirs = {
+        p
+        for f in rows
+        if f.url not in doomed_urls
+        for p in (f.stored_path, f.text_path)
+        if p
+    }
     return [settings.attachment_dir / rel for rel in sorted(mine - theirs)]
 
 
 def _delete_attachments(s: Session, source: str, ids: list[str], urls: list[str]) -> None:
-    if urls:
-        s.query(AttachmentFile).filter(AttachmentFile.url.in_(urls)).delete(
+    for part in _chunks(urls):
+        s.query(AttachmentFile).filter(AttachmentFile.url.in_(part)).delete(
             synchronize_session=False
         )
-    keys = [(source, i) for i in ids]
-    s.query(Attachment).filter(
-        tuple_(Attachment.source, Attachment.external_id).in_(keys)
-    ).delete(synchronize_session=False)
+    for part in _chunks(ids):
+        s.query(Attachment).filter(
+            Attachment.source == source, Attachment.external_id.in_(part)
+        ).delete(synchronize_session=False)
 
 
 def _disk() -> tuple[int, int]:

@@ -24,7 +24,7 @@ from sqlalchemy.exc import OperationalError
 
 from finnect.api.wiki_schemas import ProgressOut
 from finnect.models import UserFileStatus
-from finnect.wiki import progress, topics
+from finnect.wiki import export, progress
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "finnect"
 
@@ -221,15 +221,19 @@ def test_아무것도_안_올려도_단계와_자리가_온다(client) -> None: 
     assert body.total == 0
     assert body.files == []
     assert [s.key for s in body.steps] == [s.key for s in progress.STEPS]
-    assert body.slots == 15
+    assert body.slots == 47
     assert body.running is False
 
 
-def test_자리_라벨을_전부_준다(client) -> None:  # noqa: ANN001
-    """**화면이 이름을 짓지 않는다.** `files[].nodes` 가 키라서 이게 없으면 영문이 뜬다."""
+def test_자리_이름을_전부_준다(client) -> None:  # noqa: ANN001
+    """**화면이 이름을 짓지 않는다.** `files[].spots` 가 경로라서 이게 없으면 경로가 그대로 뜬다.
+
+    **S7 과 같은 표를 읽는다**(ADR-0052). 두 화면이 같은 자리를 다르게 부르면 사용자가
+    그것을 다른 자리로 읽는다.
+    """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_없는회사/progress").json())
-    assert set(body.places) == set(topics.ORBIT)
-    assert all(v for v in body.places.values())
+    assert set(body.spot_titles) == {s.path for s in export.TREE}
+    assert all(v for v in body.spot_titles.values())
 
 
 def test_셈이_파일_수와_맞는다(client) -> None:  # noqa: ANN001
@@ -260,12 +264,15 @@ def test_칸마다_낼_것이_같이_온다(client) -> None:  # noqa: ANN001
 
 
 def test_자리를_채운_파일에는_사실이_있다(client) -> None:  # noqa: ANN001
-    """**둘 다 근거에서 온다.** `nodes` 는 사실이 앉은 궤도 자리이고 `fact_count` 는 그
+    """**둘 다 근거에서 온다.** `spots` 는 사실이 앉은 트리 자리이고 `fact_count` 는 그
     사실 수라, 자리를 채웠는데 사실이 0이면 조인 하나가 틀린 것이다.
 
-    거꾸로는 성립하지 않는다 — 사실이 `uncategorized` 로 앉으면 궤도 자리가 없다.
+    거꾸로는 성립하지 않는다 — 사실이 `uncategorized` 로 앉으면 트리 자리가 없다.
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
+    known = {s.path for s in export.TREE}
     for f in body.files:
-        if f.nodes:
-            assert f.fact_count > 0, f"{f.filename}: 자리 {f.nodes} · 사실 {f.fact_count}"
+        if f.spots:
+            assert f.fact_count > 0, f"{f.filename}: 자리 {f.spots} · 사실 {f.fact_count}"
+            #: **경로가 표에 있는 것이어야 한다.** 없으면 화면이 이름을 못 찾는다
+            assert set(f.spots) <= known, f.spots

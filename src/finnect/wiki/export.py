@@ -1,17 +1,19 @@
-"""기획이 넘긴 폴더 트리로 내보내기 — **뷰 둘 중 트리 뷰**(ADR-0048 결정 4).
+"""기획이 넘긴 폴더 트리 — **위키의 유일한 뷰다**(ADR-0052).
 
-궤도 뷰(`markdown.py`)는 orbit 열다섯 장이고 화면이 쓴다. 이쪽은 기획 문서
-`20_지식베이스구조.md` 가 그린 폴더 트리이고 **내보낼 때만 쓴다**(F1-6).
+기획 문서 `20_지식베이스구조.md` 가 그린 폴더 열과 `.md` 자리 46개를 자리 하나까지
+옮겨 놓은 것이다. **2026-08-22 부터 화면도 이걸 본다** — 그전까지는 궤도 열다섯 장이 화면이었고
+이쪽은 `--export` 플래그 뒤에만 있었다(ADR-0052 가 ADR-0048 결정 4 를 대체).
 
-저장 모델을 이 모양으로 바꾸지 않는다. 마크다운을 저장하지 않기로 한 것과 같은
+**저장 모델을 이 모양으로 바꾸지 않는다.** 마크다운을 저장하지 않기로 한 것과 같은
 이유다 — 사실이 `wiki_fact` 에 있는데 파일 트리로도 들고 있으면 둘 중 하나가 먼저
-낡는다. 여기는 **읽을 때마다 만든다.**
+낡는다. 여기는 **읽을 때마다 만든다.** 화면의 단위가 된 것이지 저장의 단위가 된 것이
+아니다.
 
-## 자리 마흔여섯 중 스물일곱이 닿는다
+## 자리 마흔여섯 중 스물다섯이 닿는다
 
 기획 트리는 `.md` 자리 46개다(고정 29 · 폴더만 동적 5 · 파일 동적 12). 우리 topic 37 을
-얹으면 25 가 채워지고 21 이 빈다. **빈 것을 지우지 않는다** — 비어 있다는 것도 사실이고 물어야 할
-자리다(ADR-0028). 대조표는
+얹으면 25 가 채워지고 21 이 빈다. 우리가 더한 `Company/지역관계.md` 를 합쳐 **47 중 26** 이다.
+**빈 것을 지우지 않는다** — 비어 있다는 것도 사실이고 물어야 할 자리다(ADR-0028). 대조표는
 [`docs/adr/evidence/2026-08-21-위키-자리-구조/04-기획-트리-대조표.md`](../../../docs/adr/evidence/2026-08-21-위키-자리-구조/04-기획-트리-대조표.md)
 에 있고 **이 파일의 `TREE` 에서 만든다.** 손으로 세지 않는다.
 
@@ -31,7 +33,48 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from finnect.wiki import markdown, topics
+from finnect.models import SourceType
+from finnect.wiki import markdown, storage, topics
+
+#: 기획 문서 §2 의 최상위 폴더 열과 화면에 쓰는 이름.
+#:
+#: **자리 제목과 겹치면 안 된다.** 겹치면 `# 경쟁 상대` 밑에 `## 경쟁사` 가 서서
+#: `DESIGN.md` §10("제목이 말한 것을 부제에서 반복하지 않는다")을 어긴다 —
+#: `TOPIC_LABELS` 를 orbit 라벨과 안 겹치게 고른 것과 같은 규율이고 테스트가 막아 둔다.
+#: `Competitor` 가 「경쟁사」가 아니라 「경쟁 상대」인 이유가 그것이다.
+#:
+#: **폴더 이름(키)은 기획 문서 것 그대로다.** 경로가 곧 자리의 이름이라(기획 §4-3)
+#: 여기서 한 번 더 번역하면 집필 에이전트가 부르는 이름과 갈린다. `Custom` 이 내용을
+#: 안 가리킨다는 것은 기획도 알고 있고(§7-4) **그 이름을 우리가 먼저 고치지 않는다.**
+FOLDERS: dict[str, str] = {
+    "Company": "회사",
+    "Product": "제품",
+    "Market": "시장",
+    "Competitor": "경쟁 상대",
+    "Customer": "고객",
+    "BusinessModel": "사업 모델",
+    "Financial": "재무",
+    "Custom": "지식 재산",
+    "Plan": "계획",
+    "Events": "기록",
+}
+
+
+#: 기획 문서 §5 의 자료 등급 다섯. **우리가 내는 것은 앞 둘과 마지막뿐이다.**
+#:
+#: `2차`(외부 인용)와 `가정`(추정)을 안 내는 이유는 **추출기가 그것을 판정하지 않기**
+#: 때문이다(ADR-0052 결정 4). 「이 시장 규모가 KOSIS 인용인가 대표가 어림한 값인가」는
+#: 문서 안에 답이 있을 때도 없을 때도 있는데 지금 프롬프트가 묻지 않는다. 없는 판정을
+#: 그럴듯한 등급으로 채우면 `Market/` 값이 전부 `2차` 로 보이고, **기획이 이 필드를 만든
+#: 목적(심사에서 산출 근거를 대는 것)이 정확히 거기서 깨진다.**
+GRADES: tuple[str, ...] = ("실측", "1차", "2차", "가정", "미정")
+
+#: 사용자가 직접 답한 값(ADR-0028). 문서보다 세다
+GRADE_MEASURED = "실측"
+#: 사용자가 올린 문서에서 나왔다. **자기 자료가 1차 자료다**
+GRADE_PRIMARY = "1차"
+#: 자리가 비었다
+GRADE_UNKNOWN = "미정"
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +93,11 @@ class Spot:
     ours: bool = False
     #: 왜 비는가. 채울 topic 이 없는 자리에만 적는다
     gap: str = ""
+
+    @property
+    def folder(self) -> str:
+        """최상위 폴더. **묶는 축이 이것이다**(ADR-0052 결정 3 이 `sector` 를 대신한다)."""
+        return self.path.split("/", 1)[0]
 
     @property
     def instanced(self) -> bool:
@@ -169,16 +217,46 @@ TREE: tuple[Spot, ...] = (
 
 @dataclass(slots=True)
 class Page:
-    """내보낼 파일 하나."""
+    """자리 한 장. **저장된 것이 아니라 매번 만든 것이다.**"""
 
     spot: Spot
     body: str
     values: list[markdown.Value] = field(default_factory=list)
     statements: list[markdown.Statement] = field(default_factory=list)
 
+    #: --- 기획 문서 §5 의 파일 머리 (ADR-0052 결정 4) ---
+    #: `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 나온다** — `GRADES` 주석 참고
+    grade: str = GRADE_UNKNOWN
+    #: 근거가 된 파일 이름들. 정렬돼 있다
+    sources: tuple[str, ...] = ()
+    #: 그 파일들의 저장 위치. `sources` 와 같은 순서다
+    source_paths: tuple[str, ...] = ()
+    #: 값들의 `as_of` 중 가장 늦은 것. 시점 없는 자리는 `None`
+    base_date: str | None = None
+    #: 사실들의 `updated_at` 중 가장 늦은 것. **만든 시각이 아니다**
+    updated_at: str | None = None
+
+    @property
+    def filled(self) -> bool:
+        return bool(self.values or self.statements)
+
+
+def grade_of(values: list[markdown.Value], statements: list[markdown.Statement]) -> str:
+    """자리 하나의 자료 등급. **판정할 수 없는 등급을 지어내지 않는다**(ADR-0052 결정 4).
+
+    비었으면 `미정`, 사실이 전부 사용자 답변이면 `실측`, 그 밖에는 `1차` 다. `2차` 와
+    `가정` 은 추출기가 출처를 판정하는 날 생긴다 — **그날까지 이 함수는 그 둘을 안 낸다.**
+    """
+    kinds = [f.source_type for f in (*values, *statements)]
+    if not kinds:
+        return GRADE_UNKNOWN
+    if all(k == SourceType.USER_STATED for k in kinds):
+        return GRADE_MEASURED
+    return GRADE_PRIMARY
+
 
 def render(nodes: list[markdown.NodeView]) -> list[Page]:
-    """궤도 뷰를 트리 뷰로 옮긴다. **자리 마흔일곱 전부 돌려준다.**
+    """저장 묶음을 트리 자리로 옮긴다. **자리 마흔일곱 전부 돌려준다.**
 
     빈 자리를 빼면 사용자가 무엇이 없는지 모른다. 화면에서 자리를 지우지 않는 것과
     같은 규칙이다(`DESIGN.md` §7-5).
@@ -196,38 +274,80 @@ def render(nodes: list[markdown.NodeView]) -> list[Page]:
     for spot in TREE:
         values = [v for s in spot.values for v in by_value.get(s, [])]
         statements = [st for t in spot.events for st in by_topic.get(t, [])]
-        out.append(
-            Page(
-                spot=spot,
-                body=_page(spot, company, values, statements),
-                values=values,
-                statements=statements,
-            )
+        page = Page(
+            spot=spot,
+            body="",
+            values=values,
+            statements=statements,
+            grade=grade_of(values, statements),
+            base_date=_latest(v.as_of for v in values),
+            updated_at=_latest(
+                f.updated_at.isoformat() for f in (*values, *statements) if f.updated_at
+            ),
         )
+        page.sources, page.source_paths = _sources_of(company, values, statements)
+        page.body = _page(page, company)
+        out.append(page)
     return out
 
 
-def _page(
-    spot: Spot,
-    company: str,
-    values: list[markdown.Value],
-    statements: list[markdown.Statement],
-) -> str:
+def _latest(items: object) -> str | None:
+    """ISO 날짜 문자열 중 가장 늦은 것. **문자열로 비교한다** — ISO 라 사전순이 곧 시간순이다."""
+    seen = sorted(x for x in items if x)  # type: ignore[union-attr]
+    return seen[-1] if seen else None
+
+
+def _sources_of(
+    company: str, values: list[markdown.Value], statements: list[markdown.Statement]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """근거 파일 이름과 저장 위치. **둘의 순서가 같다** — 짝이 어긋나면 위치가 거짓말이 된다.
+
+    같은 파일이 근거 여럿에 걸리므로 파일명으로 묶는다. `sha256` 이 없는 근거는 위치를
+    빈 문자열로 둔다 — **없는 경로를 지어내지 않는다.**
+    """
+    by_name: dict[str, str] = {}
+    for f in (*values, *statements):
+        for e in f.evidence:
+            by_name.setdefault(e.filename, e.sha256)
+    names = tuple(sorted(by_name))
+    paths = tuple(
+        storage.source_path(company, by_name[n]) if by_name[n] and company else ""
+        for n in names
+    )
+    return names, paths
+
+
+def _page(page: Page, company: str) -> str:
+    """자리 한 장의 마크다운. 머리는 **기획 문서 §5 모양**이다(ADR-0052 결정 4).
+
+    **만든 시각을 안 넣는다.** `updated_at` 은 `wiki_fact` 의 값이라 같은 DB 면 같다 —
+    그래서 두 번 내보낸 결과를 바이트로 비교할 수 있다(`markdown.py` 문서 참고).
+    """
+    spot = page.spot
     lines = [
         "---",
         f"path: {spot.path}",
         f"title: {spot.title}",
         f"company: {company}",
+        f"grade: {page.grade}",
     ]
+    if page.sources:
+        lines.append(f"source: {' · '.join(page.sources)}")
+    if any(page.source_paths):
+        lines.append(f"source_path: {' · '.join(p for p in page.source_paths if p)}")
+    if page.base_date:
+        lines.append(f"base_date: {page.base_date}")
+    if page.updated_at:
+        lines.append(f"updated_at: {page.updated_at}")
     if spot.ours:
         lines.append("added_by: finnect")
     if spot.instanced or spot.folded:
         #: **접혔다는 것을 적는다.** 조용히 접으면 트리를 지원한다는 말이 거짓이 된다
         lines.append(f"collapsed: {spot.path}")
-    if values:
-        lines.append(f"values: {len(values)}")
-    if statements:
-        lines.append(f"statements: {len(statements)}")
+    if page.values:
+        lines.append(f"values: {len(page.values)}")
+    if page.statements:
+        lines.append(f"statements: {len(page.statements)}")
     lines.append("---")
 
     out = ["\n".join(lines), "", f"# {spot.title}", ""]
@@ -235,31 +355,57 @@ def _page(
     if not spot.filled:
         out += [f"이 자리는 아직 안 채워요. {spot.gap}.", ""]
         return "\n".join(out).rstrip() + "\n"
-    if not values and not statements:
+    if not page.filled:
         out += ["아직 비어 있어요. 이 자리를 채우려면 관련된 파일을 더 올리면 돼요.", ""]
         return "\n".join(out).rstrip() + "\n"
 
-    if values:
-        out += markdown._values(tuple(values))
-    if statements:
-        out += _by_topic(spot, statements)
+    if page.values:
+        out += markdown.render_values(page.values)
+    if page.statements:
+        out += _by_topic(spot, page.statements)
 
-    evidence = [e for v in values for e in v.evidence] + [
-        e for s in statements for e in s.evidence
+    evidence = [e for v in page.values for e in v.evidence] + [
+        e for s in page.statements for e in s.evidence
     ]
-    out += markdown._sources(evidence)
+    out += markdown.render_sources(evidence)
     return "\n".join(out).rstrip() + "\n"
 
 
 def _by_topic(spot: Spot, statements: list[markdown.Statement]) -> list[str]:
-    """event topic 이 둘 이상이면 절로 가른다. **궤도 뷰와 같은 규칙이다**(ADR-0048 결정 5)."""
+    """event topic 이 둘 이상이면 절로 가른다(ADR-0048 결정 5).
+
+    **표가 정하고 데이터가 정하지 않는다.** 실제로 나온 사실 수로 판단하면 파일을 하나
+    더 올릴 때 절 제목이 생겼다 없어진다.
+    """
     if len(spot.events) < 2:
-        return markdown._facts(statements)
+        return markdown.render_facts(statements)
     out: list[str] = []
     for topic in spot.events:
         items = [s for s in statements if s.topic == topic]
         if not items:
             continue
         out += [f"## {topics.TOPIC_LABELS.get(topic, topic)}", ""]
-        out += markdown._facts(items)
+        out += markdown.render_facts(items)
     return out
+
+
+def bundle(pages: list[Page], company: str) -> str:
+    """자리 전부를 한 덩어리로. 화면에서 통째로 보거나 복사할 때 쓴다.
+
+    **F1-6(밖으로 꺼내기)이 아니다.** 저기는 자리마다 `.md` 파일 하나로 떨어져 옵시디언
+    볼트가 되는 것이고(`__main__.py --export`), 여기는 한 덩어리다.
+
+    **빈 자리도 넣는다.** 무엇이 없는지가 이 문서의 절반이다(ADR-0028).
+
+    폴더가 바뀔 때 이름을 한 줄 세운다. 자리가 47개라 표지가 없으면 어디를 읽고 있는지
+    알 수 없다. **제목 층이 자리 제목과 겹치는데** 그대로 둔다 — 낱장으로 열려야 하는
+    문서를 이어 붙인 것이라 낱장이 정본이고, 맞추려면 저쪽을 `##` 로 내려야 한다.
+    """
+    out: list[str] = [f"# 사업 위키 — {company}", ""]
+    last = ""
+    for page in pages:
+        if page.spot.folder != last:
+            last = page.spot.folder
+            out += [f"# {FOLDERS.get(last, last)}", ""]
+        out += [page.body, ""]
+    return "\n".join(out).rstrip() + "\n"

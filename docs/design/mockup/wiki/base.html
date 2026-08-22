@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>현행 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* 대조군. **`web/components/Orbit.tsx` + `WikiPanel.tsx` 의 현행 재현이다.**
+       *
+       * 값을 하나도 안 바꿨다. 이 화면이 좋아 보이지 않는 것이 이 하네스의 출발점이고,
+       * 그것을 정확히 재현해야 «좋아졌나»가 판정된다.
+       *
+       * ── 현행이 하는 일 ────────────────────────────────────
+       *  · 자리 15개를 납작한 원으로 그린다. 지름은 중심 40 · 나머지 15
+       *  · **근거 117개가 화면에 하나도 없다.** 자리를 눌러야 패널이 열리고
+       *    거기서 다시 `근거 N` 을 눌러야 원문이 나온다 — 두 번 눌러야 근거가 보인다
+       *  · 자리마다 담긴 양이 3~19 로 갈리는데 **도트 크기가 전부 같다**
+       *  · 패널이 궤도 아래에 편다. 궤도를 안 가리는 대신 스크롤이 길어진다
+       *
+       * ── 알고 있는 결함 둘. 고치지 않는다 ──────────────────
+       *  · 빈 자리 이름표가 `--ink-3` 2.65:1 로 AA 미달이다
+       *  · 구획 라벨이 바깥 넷에만 있다(ADR-0017 결정 2 미이행)
+       *
+       * 하단 검은 바는 **목업 전용이다.** 코드로 옮길 때는 바를 뺀다. */
+
+      .stage {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s5) var(--s4);
+      }
+
+      .tabs {
+        display: flex;
+        align-items: center;
+        gap: var(--s4);
+        margin-bottom: var(--s4);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        padding: var(--s2) 0;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: none;
+        color: var(--ink-3);
+        font-size: var(--t-aux);
+        cursor: pointer;
+      }
+
+      .tab[aria-selected="true"] {
+        color: var(--ink);
+        font-weight: var(--w-medium);
+        border-bottom-color: var(--ink);
+      }
+
+      .tabN {
+        margin-left: var(--s1);
+        color: var(--ink-3);
+      }
+
+      .md {
+        margin-left: auto;
+        color: var(--ink-3);
+        font-size: var(--t-aux);
+        text-decoration: none;
+      }
+
+      .panelWrap {
+        margin-top: var(--s5);
+      }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, C = window.Current;
+        var picked = null;
+
+        window.__view = Parts.mount({
+          crumb: "사업 위키",
+          render: function (main, density) {
+            var nodes = W.nodes(density);
+            if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+            var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+            var s = W.summary(density);
+
+            main.insertAdjacentHTML(
+              "beforeend",
+              '<div class="tabs" role="tablist" aria-label="보기">' +
+                '<button type="button" role="tab" aria-selected="true" class="tab">궤도</button>' +
+                '<button type="button" role="tab" aria-selected="false" class="tab">원본 파일' +
+                '<span class="tabN" data-numeric>' + s.files + "</span></button>" +
+                '<a class="md" href="#">마크다운 전체</a></div>' +
+                '<section class="stage" aria-label="궤도">' +
+                C.orbit(nodes, { selected: picked }) +
+                '<ul class="cLegend">' +
+                '<li data-kind="identity">우리가 하는 일</li>' +
+                '<li data-kind="company">사업체 정보</li>' +
+                '<li data-kind="content">사업 내용</li>' +
+                '<li data-mark="blank">손봐야 해요</li>' +
+                '<li data-mark="empty">아직 비었어요</li></ul>' +
+                '<div class="panelWrap">' + C.panel(node) + "</div></section>"
+            );
+
+            main.querySelectorAll(".cNode").forEach(function (g) {
+              function pick() {
+                picked = picked === g.dataset.key ? null : g.dataset.key;
+                window.__view.redraw();
+              }
+              g.addEventListener("click", pick);
+              g.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+              });
+            });
+          },
+        });
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "base",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS(),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

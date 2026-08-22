@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>G4 별자리 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* G4 별자리 — **한 번에 자리 하나.**
+       *
+       * 나머지 넷이 「전부 보여 준다」로 가는 동안 이것만 반대로 간다. 고른 자리가
+       * 가운데 서고 그 표시 단위와 근거가 둘레에 돌고, **나머지 열넷은 바깥에 흐릿하게
+       * 남아 다음에 갈 곳으로만 존재한다.**
+       *
+       * ── 왜 이 방향이 있어야 하나 ──────────────────────────
+       * 186개를 한 화면에 올리면 예쁘지만 **읽을 수는 없다.** 사용자는 창업 3년 이내
+       * 사업자이고 화면을 오래 안 본다(DESIGN.md §9·§13). 이 시안은 그래프를 「전경」이
+       * 아니라 **「한 자리를 깊게 보는 도구」**로 쓴다 — 근거 19개가 자리 하나 둘레에
+       * 다 떠 있어서 그 자리에 무엇이 얼마나 있는지가 한 눈에 든다.
+       *
+       * ── 색을 거의 안 쓴다 ──────────────────────────────────
+       * 회색 위에 고른 자리의 종류색 하나. 레퍼런스 이미지 3 의 어법이고, §7 의
+       * 「강조는 하나만」과도 맞는다. **켠 것과 끈 것을 색이 아니라 밝기로 가른다** —
+       * 색조 하나에 뜻 둘을 얹지 않는다는 §2 규칙이 여기서는 공짜로 지켜진다.
+       *
+       * ── 대가 셋 ────────────────────────────────────────────
+       *  1. **전체가 안 보인다.** 위키가 몇 개짜리이고 어디가 비었는지는 바깥의 흐린
+       *     점 열넷이 말하는데, 그건 개요이지 지도가 아니다
+       *  2. **자리를 옮길 때마다 전부 다시 그려진다.** 옮겨 다니는 비용이 다른 넷보다 크다
+       *  3. **근거가 19개를 넘어가면 둘째 링이 필요하다.** 지금 최대가 19(문제 인식)라
+       *     한 링에 들어가지만, 진짜 회사는 143개였다 — 그때는 링이 여럿이 되고
+       *     이 시안의 「한 눈에」가 깨진다. **밀도 노브로 그걸 미리 못 본다**
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        position: relative;
+        background: #101014;
+        border: 1px solid #1e1e24;
+        border-radius: var(--r);
+        overflow: hidden;
+      }
+
+      .gsvg { display: block; width: 100%; height: auto; }
+
+      /* 바깥의 흐린 자리들. **끈 것이지 없는 것이 아니다** */
+      .far { cursor: pointer; }
+      .far circle { fill: #3a3a44; transition: fill 140ms ease; }
+      .far[data-filled="false"] circle { fill: none; stroke: #33333c; stroke-width: 1.2; stroke-dasharray: 3 3; }
+      /* **흐리게 보이되 읽히기는 해야 한다.** #55555f 는 2.58:1 이었다 —
+       * 「끈 것이지 없는 것이 아니다」라면서 못 읽으면 없는 것과 같다 */
+      .far text { fill: #8a8a99; font-size: 11px; }
+      .far:hover circle { fill: #6b6b78; }
+      .far:hover text { fill: #b6b6c2; }
+      .far:focus { outline: none; }
+      .far:focus-visible text { fill: #fff; }
+      .far:focus-visible circle { fill: #8a8a99; }
+
+      /* 허브에서 표시 단위로. **유일하게 색이 있는 선이다** */
+      .beam { stroke: var(--c); stroke-width: 1.1; opacity: 0.5; }
+      /* 표시 단위에서 근거로. 무채색 */
+      .thread { stroke: #3a3a44; stroke-width: 0.7; opacity: 0.8; }
+
+      /* 채움은 `materials.js` 가 맡는다 */
+      .hubRing { fill: none; stroke: var(--c); stroke-width: 1; opacity: 0.22; }
+      .item { fill: #d4d4dc; }
+      .ev { fill: #6b6b78; }
+
+      .hubLabel {
+        fill: #fff;
+        font-size: 15px;
+        font-weight: var(--w-medium);
+        text-anchor: middle;
+      }
+
+      .hubMeta {
+        fill: #9a9aa6;
+        font-size: 11.5px;
+        text-anchor: middle;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* 표시 단위 이름표. **문장은 안 적는다** — 표 부스러기가 노드로 들어와 있어서
+       * (plan/12 T-0078) 그대로 띄우면 탭과 줄바꿈이 그림에 나온다. 슬롯 이름만 적고
+       * 문장은 「문장 N」으로 센다 */
+      .itemLabel {
+        fill: #a8a8b4;
+        font-size: 10.5px;
+        paint-order: stroke;
+        stroke: #101014;
+        stroke-width: 3;
+        stroke-linejoin: round;
+        pointer-events: none;
+      }
+
+      .badge { fill: #d29922; stroke: #101014; stroke-width: 1.6; }
+
+      .hint {
+        position: absolute;
+        left: var(--s4);
+        bottom: var(--s3);
+        margin: 0;
+        color: #8a8a99;
+        font-size: var(--t-caption);
+      }
+
+      .panelWrap { margin-top: var(--s4); }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="materials.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, L = window.Layout, P = window.Parts, C = window.Current;
+        var VW = 980, VH = 720;
+        var CX = VW / 2, CY = VH / 2 - 6;
+        var M = window.Materials;
+        var picked = "problem"; /* 처음부터 하나가 서 있어야 이 시안이 무엇인지 보인다 */
+        var look = { material: "flat", palette: "kind" };
+
+        function color(n) {
+          return M.colorOf(n, { tone: "dark", palette: look.palette, selected: true });
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          if (!nodes.some(function (n) { return n.key === picked && n.filled; })) {
+            var first = nodes.filter(function (n) { return n.filled; })[0];
+            picked = first ? first.key : nodes[0].key;
+          }
+          var hub = nodes.filter(function (n) { return n.key === picked; })[0];
+          var c = color(hub);
+          var out = [];
+          out.push(M.defs([c], look.material, "dark"));
+
+          /* 바깥의 열넷. 넓은 원에 고르게. **자리 순서를 지킨다** — 서버 순서가 정본이다 */
+          var far = nodes.filter(function (n) { return n.key !== picked; });
+          L.radial(far, { cx: CX, cy: CY, radius: 320, perRing: far.length, ringGap: 0, jitter: 0, rotate: -0.2 });
+          far.forEach(function (n) {
+            var right = n.x > CX;
+            out.push(
+              '<g class="far" data-key="' + n.key + '" data-filled="' + n.filled +
+              '" role="button" tabindex="0" aria-label="' + P.esc(n.label) + '로 옮기기">' +
+              '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="' +
+              (n.filled ? 3.4 : 3) + '"/>' +
+              '<text x="' + (n.x + (right ? 9 : -9)).toFixed(1) + '" y="' + (n.y + 4).toFixed(1) +
+              '" text-anchor="' + (right ? "start" : "end") + '">' + P.esc(n.label) + "</text></g>"
+            );
+          });
+
+          /* 표시 단위와 근거. 안쪽 링에 단위, 바깥 링에 그 단위의 근거 */
+          var items = hub.values
+            .map(function (v) {
+              return { label: v.label + (v.qualifier ? " " + v.qualifier : ""), ev: v.evidence_count };
+            })
+            .concat(
+              hub.statements.map(function (s, i) {
+                return { label: "문장 " + (i + 1), ev: s.evidence_count };
+              })
+            );
+
+          L.radial(items, { cx: CX, cy: CY, radius: 108, perRing: items.length || 1,
+            ringGap: 0, jitter: 0, rotate: -0.35, seed: 11 });
+
+          /* 근거를 제 단위 바깥으로 조금 더 민다 */
+          var evs = [];
+          items.forEach(function (it, i) {
+            var a = it.angle;
+            var spread = 0.42 / Math.max(1, items.length / 3);
+            for (var k = 0; k < it.ev; k++) {
+              var t = it.ev === 1 ? 0 : (k / (it.ev - 1) - 0.5) * 2;
+              var aa = a + t * spread;
+              var rr = 196 + (k % 2) * 17;
+              evs.push({ x: CX + rr * Math.cos(aa), y: CY + rr * Math.sin(aa), from: i });
+            }
+          });
+
+          out.push('<circle class="hubRing" cx="' + CX + '" cy="' + CY + '" r="108"/>');
+          out.push('<circle class="hubRing" cx="' + CX + '" cy="' + CY + '" r="203"/>');
+
+          evs.forEach(function (e) {
+            var it = items[e.from];
+            out.push('<line class="thread" x1="' + it.x.toFixed(1) + '" y1="' + it.y.toFixed(1) +
+              '" x2="' + e.x.toFixed(1) + '" y2="' + e.y.toFixed(1) + '"/>');
+          });
+          items.forEach(function (it) {
+            out.push('<line class="beam" style="--c:' + c + '" x1="' + CX + '" y1="' + CY +
+              '" x2="' + it.x.toFixed(1) + '" y2="' + it.y.toFixed(1) + '"/>');
+          });
+          evs.forEach(function (e) {
+            out.push('<circle class="ev" cx="' + e.x.toFixed(1) + '" cy="' + e.y.toFixed(1) + '" r="2.6"/>');
+          });
+          items.forEach(function (it) {
+            var right = it.x > CX;
+            out.push(
+              '<circle class="item" cx="' + it.x.toFixed(1) + '" cy="' + it.y.toFixed(1) + '" r="5"/>' +
+              '<text class="itemLabel" x="' + (it.x + (right ? 9 : -9)).toFixed(1) +
+              '" y="' + (it.y + 3.5).toFixed(1) + '" text-anchor="' + (right ? "start" : "end") + '">' +
+              P.esc(it.label) + "</text>"
+            );
+          });
+
+          out.push('<g class="hub">' +
+            M.node(CX, CY, 30, c, { material: look.material, tone: "dark" }) + "</g>");
+          if (hub.conflicted) {
+            out.push('<circle class="badge" cx="' + (CX + 22) + '" cy="' + (CY - 22) + '" r="5.5"/>');
+          }
+          out.push('<text class="hubLabel" x="' + CX + '" y="' + (CY + 56) + '">' + P.esc(hub.label) + "</text>");
+          out.push('<text class="hubMeta" x="' + CX + '" y="' + (CY + 74) + '">' +
+            (hub.filled ? "값과 문장 " + items.length + " · 근거 " + hub.evidence_count + " · 파일 " + hub.source_count
+                        : "아직 비어 있어요") + "</text>");
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="위키 별자리">' +
+              '<svg class="gsvg" viewBox="0 0 ' + VW + " " + VH +
+              '" role="group" aria-label="' + P.esc(hub.label) + '를 가운데 둔 그래프">' +
+              out.join("") + "</svg>" +
+              '<p class="hint">바깥의 흐린 자리를 누르면 그 자리가 가운데로 와요.</p></section>' +
+              '<div class="panelWrap">' + C.panel(hub) + "</div>"
+          );
+
+          main.querySelectorAll(".far").forEach(function (el) {
+            function go() { picked = el.dataset.key; window.__view.redraw(); }
+            el.addEventListener("click", go);
+            el.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+            });
+          });
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+        window.__look = M.controls(function () { window.__view.redraw(); }, look);
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "g4",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS().concat(window.__look),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

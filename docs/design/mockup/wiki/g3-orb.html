@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>G3 구체 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* G3 구체 — **구면에 얹고 돌린다.**
+       *
+       * 자리 열다섯을 구면에 고르게 뿌리고(피보나치 격자) 각 자리의 표시 단위와 근거를
+       * 그 둘레에 작은 구름으로 매단다. 끌면 돌아가고, 안 건드리면 아주 천천히 자전한다.
+       *
+       * ── 의존성 0 ──────────────────────────────────────────
+       * **three.js 를 안 쓴다.** 목업에 라이브러리를 넣으면 「이 시안을 고르면 무엇을
+       * 지불하는가」가 흐려진다 — 여기서는 `layout.js` 의 `project()` 로 손으로 투영하고,
+       * 고를 때 실제 비용(three.js ≈ 150KB gz · `web/` 번들에 처음 들어가는 3D 의존성)을
+       * README 가 숫자로 적는다. 손 투영으로도 깊이 단서 넷은 다 나온다 —
+       * **z 정렬 · 크기 · 불투명도 · 안개**.
+       *
+       * **CSS 3D 로 하지 않는다.** 카메라를 향해 되돌린 원이 바닥 면과 교차하면 브라우저가
+       * 교차선에서 잘라 그려 도트가 부채꼴이 되고, `filter: blur()` 는 `preserve-3d` 를
+       * 끊는다. canvas 에 z 순으로 그리면 이 문제가 통째로 없다.
+       *
+       * ── 3D 가 실제로 사는 곳 ───────────────────────────────
+       * 2D 에서 자리 열다섯을 한 원에 놓으면 이웃이 아닌 것들이 이웃처럼 보인다. 구면에서는
+       * **가려짐이 거리를 말한다** — 뒤로 돌아간 자리는 흐려지고 작아진다. 근거 117개가
+       * 서로 안 겹치는 것도 3차원이 한 축을 더 갖기 때문이다.
+       *
+       * ── 대가 넷 ────────────────────────────────────────────
+       *  1. **canvas 라 DOM 이 없다.** 스크린 리더가 읽을 것이 없어서 옆에 자리 목록을
+       *     따로 둔다 — 그게 진짜 조작 요소이고 캔버스는 그림이다. **이건 완화가 아니라
+       *     구조다**: 캔버스만 두면 키보드로 위키에 들어갈 길이 아예 없다
+       *  2. **자리가 안 고정된다.** 돌아가므로 「두 번째 볼 때 찾는다」가 각도로는 안 되고
+       *     이름으로만 된다. ADR-0017 을 뒤집는다
+       *  3. **모션이 기본으로 돈다.** `prefers-reduced-motion` 에서 자전을 끄지만,
+       *     끄면 뒤쪽 자리를 영영 못 본다 — 그래서 끌 때는 정면 배치로 갈아탄다
+       *  4. **다크가 사실상 강제다.** 안개와 발광으로 깊이를 말하는데 흰 면에서는
+       *     안개가 «흐린 글자»로 읽힌다
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        position: relative;
+        background: radial-gradient(120% 100% at 50% 20%, #131a24 0%, #0b0e13 62%, #080a0e 100%);
+        border: 1px solid #1c2430;
+        border-radius: var(--r);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 232px;
+        min-height: 640px;
+      }
+
+      .cv { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+      .cv:active { cursor: grabbing; }
+
+      /* 자리 목록. **범례가 아니라 유일한 접근 가능한 길이다** — canvas 에는 DOM 이 없다 */
+      .list {
+        padding: var(--s4) var(--s3);
+        border-left: 1px solid #1c2430;
+        overflow-y: auto;
+        max-height: 700px;
+      }
+
+      .listH {
+        margin: 0 0 var(--s2);
+        color: #8b949e;
+        font-size: var(--t-caption);
+        letter-spacing: 0.03em;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        width: 100%;
+        padding: 5px var(--s2);
+        border: 0;
+        border-radius: var(--r-sm);
+        background: none;
+        color: #c9d1d9;
+        font-size: var(--t-small);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .row:hover { background: #161b22; }
+      .row[aria-pressed="true"] { background: #1c2430; color: #fff; }
+      .row[data-filled="false"] { color: #8b949e; }
+
+      .sw { width: 8px; height: 8px; flex: none; border-radius: var(--r-pill); background: var(--c); }
+      .row[data-filled="false"] .sw { background: none; box-shadow: inset 0 0 0 1.2px var(--c); }
+      .rowN { margin-left: auto; color: #8b949e; font-variant-numeric: tabular-nums; }
+
+      .hint {
+        position: absolute;
+        left: var(--s3);
+        bottom: var(--s3);
+        margin: 0;
+        padding: 3px 8px;
+        border-radius: var(--r-sm);
+        background: rgba(8, 10, 14, 0.86);
+        color: #8b949e;
+        font-size: var(--t-caption);
+      }
+
+      .panelWrap { margin-top: var(--s4); }
+
+      @media (max-width: 1023px) {
+        .stage { grid-template-columns: 1fr; min-height: 0; }
+        .cv { height: 460px; }
+        .list { border-left: 0; border-top: 1px solid #1c2430; max-height: 260px; }
+      }
+    </style>
+  </head>
+  <body data-bleed="full">
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="materials.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, L = window.Layout, P = window.Parts, C = window.Current;
+        var picked = null;
+        var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        var M = window.Materials;
+        var R = 210;
+        var look = { material: "orb", palette: "kind" };
+
+        /* canvas 는 `materials.js` 의 SVG def 을 못 쓴다. **재질 이름만 공유하고
+         * 칠하기는 여기서 다시 한다** — 그래도 값(색·밝기 단계)은 저쪽에서 가져와서
+         * SVG 시안과 같은 것이 나온다 */
+        function rgbOf(node) {
+          return M.hex(M.colorOf(node, {
+            tone: "dark", palette: look.palette, selected: picked === node.key,
+          }));
+        }
+
+        /* 구름 하나. 자리를 중심으로 표시 단위와 근거를 3차원에 흩는다.
+         * **자리 방향 바깥쪽으로 민다** — 안쪽으로 두면 구 중심에 전부 뭉친다 */
+        function cloud(nodes) {
+          var pts = L.sphere(nodes.length, R, 0.5);
+          var out = [];
+          nodes.forEach(function (n, i) {
+            var c = pts[i];
+            var len = Math.sqrt(c.x * c.x + c.y * c.y + c.z * c.z) || 1;
+            var nx = c.x / len, ny = c.y / len, nz = c.z / len;
+            out.push({
+              t: "slot", key: n.key, label: n.label, kind: n.kind, node: n, c: rgbOf(n),
+              x: c.x, y: c.y, z: c.z,
+              r: n.kind === "identity" ? 13 : 5.5 + Math.sqrt(n.evidence_count) * 1.6,
+            });
+
+            var kids = n.evidence_count;
+            if (!kids) return;
+            /* 근거를 자리 바깥 얕은 껍질에 뿌린다. 시드는 자리 이름에서 뽑아
+             * **같은 자리는 늘 같은 구름이다** */
+            var seed = 0;
+            for (var s = 0; s < n.key.length; s++) seed = (seed * 31 + n.key.charCodeAt(s)) >>> 0;
+            var rand = L.rng(seed);
+            for (var k = 0; k < kids; k++) {
+              var a = rand() * Math.PI * 2;
+              var b = (rand() - 0.5) * 1.5;
+              var spread = 26 + rand() * 30;
+              /* 자리 접선 방향 둘을 만든다 */
+              var t1x = -ny, t1y = nx, t1z = 0;
+              var tl = Math.sqrt(t1x * t1x + t1y * t1y) || 1;
+              t1x /= tl; t1y /= tl;
+              var t2x = ny * t1z - nz * t1y, t2y = nz * t1x - nx * t1z, t2z = nx * t1y - ny * t1x;
+              var off = 16 + rand() * 26;
+              out.push({
+                t: "ev", key: n.key, kind: n.kind, c: rgbOf(n), r: 1.9 + rand() * 0.9,
+                x: c.x + nx * off + (t1x * Math.cos(a) + t2x * Math.sin(a)) * spread * Math.cos(b),
+                y: c.y + ny * off + (t1y * Math.cos(a) + t2y * Math.sin(a)) * spread * Math.cos(b),
+                z: c.z + nz * off + (t1z * Math.cos(a) + t2z * Math.sin(a)) * spread * Math.cos(b) + Math.sin(b) * spread,
+                px: c.x, py: c.y, pz: c.z,
+              });
+            }
+          });
+          return out;
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+          var pts = cloud(nodes);
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="위키 구체">' +
+              '<div style="position:relative"><canvas class="cv"></canvas>' +
+              '<p class="hint">끌면 돌아가요. 오른쪽 목록에서 자리를 고를 수도 있어요.</p></div>' +
+              '<div class="list"><p class="listH">자리 ' + nodes.length + "개</p>" +
+              nodes
+                .map(function (n) {
+                  var c = rgbOf(n);
+                  return (
+                    '<button type="button" class="row" data-key="' + n.key +
+                    '" data-filled="' + n.filled + '" aria-pressed="' + (picked === n.key) +
+                    '" style="--c:' + M.rgb(c) + '"><i class="sw"></i>' +
+                    P.esc(n.label) + '<span class="rowN" data-numeric>' +
+                    (n.filled ? n.evidence_count : "—") + "</span></button>"
+                  );
+                })
+                .join("") +
+              "</div></section>" +
+              '<div class="panelWrap">' + C.panel(node) + "</div>"
+          );
+
+          main.querySelectorAll(".row").forEach(function (el) {
+            el.addEventListener("click", function () {
+              picked = picked === el.dataset.key ? null : el.dataset.key;
+              window.__view.redraw();
+            });
+          });
+
+          spin(main.querySelector(".cv"), pts);
+        }
+
+        /* 캔버스. **z 순으로 그린다** — 뒤에 있는 것을 먼저 그려야 앞의 것이 덮는다 */
+        function spin(cv, pts) {
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          var cam = { yaw: 0.6, pitch: -0.34, distance: 900, cx: 0, cy: 0 };
+          var drag = null, raf = null;
+
+          function size() {
+            var b = cv.getBoundingClientRect();
+            cv.width = Math.max(1, Math.round(b.width * dpr));
+            cv.height = Math.max(1, Math.round(b.height * dpr));
+            cam.cx = b.width / 2;
+            cam.cy = b.height / 2;
+            return b;
+          }
+          var box = size();
+
+          function draw() {
+            var g = cv.getContext("2d");
+            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            g.clearRect(0, 0, box.width, box.height);
+
+            var proj = pts.map(function (p) {
+              var q = L.project(p, cam);
+              return { p: p, q: q };
+            });
+            /* 뒤에서 앞으로 */
+            proj.sort(function (a, b) { return b.q.z - a.q.z; });
+            var byKey = {};
+            proj.forEach(function (o) { if (o.p.t === "slot") byKey[o.p.key] = o; });
+
+            /* 근거를 제 자리에 매단다. **아주 옅다** — 보이면 그물이 된다 */
+            g.lineWidth = 0.6;
+            proj.forEach(function (o) {
+              if (o.p.t !== "ev") return;
+              var parent = byKey[o.p.key];
+              if (!parent) return;
+              var hot = picked === o.p.key;
+              g.strokeStyle = hot ? "rgba(230,237,243,.34)" : "rgba(120,140,170,.13)";
+              g.beginPath();
+              g.moveTo(o.q.x, o.q.y);
+              g.lineTo(parent.q.x, parent.q.y);
+              g.stroke();
+            });
+
+            /* 이름표 자리를 미리 잡는다. **앞에서부터 놓고 부딪히면 버린다.**
+             *
+             * 그냥 다 그렸더니 「지역 연계」와 「솔루션과 기술」이 겹쳐 둘 다 못 읽었다.
+             * 구면이라 앞뒤로 겹치는 것이 구조적이다 — 2D 배치처럼 밀어낼 수가 없다.
+             * 버리는 쪽을 고른 이유는, 뒤로 돌아간 자리의 이름은 **어차피 지금 볼 것이
+             * 아니기 때문**이다. 돌리면 앞으로 나오면서 이름이 돌아온다. */
+            var taken = [];
+            var labels = {};
+            var g2 = cv.getContext("2d");
+            g2.font = '500 11.5px "IBM Plex Sans KR", sans-serif';
+            proj
+              .filter(function (o) { return o.p.t === "slot" && o.q.scale > 0.9; })
+              .sort(function (a, b) { return b.q.scale - a.q.scale; })
+              .forEach(function (o) {
+                var r = Math.max(0.6, o.p.r * o.q.scale);
+                var w = g2.measureText(o.p.node.label).width;
+                var box2 = { x: o.q.x + r + 5, y: o.q.y - 8, w: w, h: 16 };
+                var hit = taken.some(function (t) {
+                  return !(box2.x > t.x + t.w || box2.x + box2.w < t.x ||
+                           box2.y > t.y + t.h || box2.y + box2.h < t.y);
+                });
+                if (hit) return;
+                taken.push(box2);
+                labels[o.p.key] = box2;
+              });
+
+            /* 재질 하나를 canvas 에 칠한다. **빈 자리는 재질과 무관하게 점선 원이다** —
+             * 재질에 상태를 얹으면 「비었다」와 「유리다」가 구분이 안 된다 */
+            function paint(x, y, r, c, a) {
+              var m = look.material;
+              var lit = M.lighten(c, 0.55), mid = M.lighten(c, 0.14), dk = M.darken(c, 0.34);
+
+              if (m === "flat") {
+                g.fillStyle = M.rgb(c, a);
+                g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+                return;
+              }
+              if (m === "ring") {
+                var w = Math.max(1, r * 0.42);
+                g.strokeStyle = M.rgb(c, a); g.lineWidth = w;
+                g.beginPath(); g.arc(x, y, r - w / 2, 0, 6.2832); g.stroke();
+                return;
+              }
+              if (m === "glow") {
+                var gg = g.createRadialGradient(x, y, 0, x, y, r);
+                gg.addColorStop(0, M.rgb(M.lighten(c, 0.42), a));
+                gg.addColorStop(0.58, M.rgb(c, a));
+                gg.addColorStop(1, M.rgb(M.darken(c, 0.14), a));
+                g.fillStyle = gg;
+                g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+                return;
+              }
+              if (m === "glass") {
+                var gl = g.createRadialGradient(x, y, 0, x, y, r);
+                gl.addColorStop(0, M.rgb(c, 0.9 * a));
+                gl.addColorStop(0.46, M.rgb(c, 0.5 * a));
+                gl.addColorStop(1, M.rgb(M.lighten(c, 0.3), 0.34 * a));
+                g.fillStyle = gl;
+                g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+                g.strokeStyle = M.rgb(lit, 0.5 * a); g.lineWidth = 1;
+                g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.stroke();
+                g.fillStyle = M.rgb(c, 0.85 * a);
+                g.beginPath(); g.arc(x, y, r * 0.42, 0, 6.2832); g.fill();
+                var sp = g.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x - r * 0.3, y - r * 0.4, r * 0.6);
+                sp.addColorStop(0, "rgba(255,255,255," + 0.6 * a + ")");
+                sp.addColorStop(1, "rgba(255,255,255,0)");
+                g.fillStyle = sp;
+                g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+                return;
+              }
+              /* 구체 — 광원은 왼쪽 위 한 곳. **시안 안에서 방향이 갈리면 안 된다** */
+              var ob = g.createRadialGradient(x - r * 0.36, y - r * 0.44, r * 0.05, x, y, r * 1.06);
+              ob.addColorStop(0, M.rgb(M.lighten(c, 0.62), a));
+              ob.addColorStop(0.34, M.rgb(mid, a));
+              ob.addColorStop(0.76, M.rgb(c, a));
+              ob.addColorStop(1, M.rgb(dk, a));
+              g.fillStyle = ob;
+              g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+            }
+
+            proj.forEach(function (o) {
+              var p = o.p, q = o.q;
+              var c = p.c || [140, 150, 160];
+              /* 안개. 뒤로 갈수록 흐려진다 — 깊이 단서 넷 중 하나다 */
+              var depth = (q.scale - 0.62) / 0.72;
+              var fog = Math.max(0.1, Math.min(1, depth));
+              var dim = picked && p.key !== picked ? 0.2 : 1;
+              var r = Math.max(0.6, p.r * q.scale);
+
+              if (p.t === "slot") {
+                var n = p.node;
+                /* 담긴 양의 후광. **발광 재질에서는 끈다** — 둘이 겹치면 무엇이 양을
+                 * 말하는지 모르게 된다 */
+                if (n.filled && look.material !== "glow") {
+                  var gr = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, r * 4.2);
+                  gr.addColorStop(0, M.rgb(c, 0.3 * fog * dim));
+                  gr.addColorStop(1, M.rgb(c, 0));
+                  g.fillStyle = gr;
+                  g.beginPath(); g.arc(q.x, q.y, r * 4.2, 0, 6.2832); g.fill();
+                }
+                if (n.filled) {
+                  paint(q.x, q.y, r, c, fog * dim);
+                } else {
+                  g.beginPath(); g.arc(q.x, q.y, r, 0, 6.2832);
+                  g.strokeStyle = M.rgb(c, 0.7 * fog * dim);
+                  g.lineWidth = 1.3; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]);
+                }
+                if (picked === p.key) {
+                  g.strokeStyle = "rgba(230,237,243,.9)"; g.lineWidth = 1.6;
+                  g.beginPath(); g.arc(q.x, q.y, r + 5, 0, 6.2832); g.stroke();
+                }
+                if (n.conflicted) {
+                  g.fillStyle = "rgba(210,153,34," + fog + ")";
+                  g.beginPath(); g.arc(q.x + r * 0.75, q.y - r * 0.75, 3.4 * q.scale, 0, 6.2832); g.fill();
+                }
+                /* 이름표. **앞쪽 절반에서, 자리를 잡은 것만 그린다**(위 labels 참조) */
+                var lb = labels[p.key];
+                if (lb) {
+                  g.font = '500 11.5px "IBM Plex Sans KR", sans-serif';
+                  g.lineJoin = "round"; g.lineWidth = 3.4;
+                  g.strokeStyle = "rgba(8,10,14,.92)";
+                  g.strokeText(n.label, lb.x, q.y + 4);
+                  g.fillStyle = "rgba(230,237,243," + Math.min(1, fog + 0.25) * dim + ")";
+                  g.fillText(n.label, lb.x, q.y + 4);
+                }
+              } else {
+                paint(q.x, q.y, r, c, 0.5 * fog * dim);
+              }
+            });
+          }
+
+          function loop() {
+            if (!drag) cam.yaw += 0.0016; /* 자전. 아주 느리다 */
+            draw();
+            raf = requestAnimationFrame(loop);
+          }
+
+          cv.addEventListener("pointerdown", function (e) {
+            drag = { x: e.clientX, y: e.clientY, yaw: cam.yaw, pitch: cam.pitch };
+            cv.setPointerCapture(e.pointerId);
+          });
+          cv.addEventListener("pointermove", function (e) {
+            if (!drag) return;
+            cam.yaw = drag.yaw + (e.clientX - drag.x) * 0.006;
+            cam.pitch = Math.max(-1.2, Math.min(1.2, drag.pitch + (e.clientY - drag.y) * 0.005));
+            if (reduce) draw();
+          });
+          cv.addEventListener("pointerup", function () { drag = null; });
+          window.addEventListener("resize", function () { box = size(); draw(); });
+
+          if (window.__spin) cancelAnimationFrame(window.__spin);
+          if (reduce) draw();
+          else { loop(); window.__spin = raf; }
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+        window.__look = M.controls(function () { window.__view.redraw(); }, look);
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "g3",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS().concat(window.__look),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

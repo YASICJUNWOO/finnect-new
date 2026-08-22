@@ -1,0 +1,353 @@
+/* 껍데기. **시안은 :root 를 갈아 끼우지 않는다** — 값의 유일한 자리는 tokens.css 다.
+ *
+ * 제품 토큰을 직접 링크한다(하네스 규칙 4). 그래야 「적용」이 판단이 아니라 전사가 된다.
+ * 토큰에 없는 값이 필요하면 그건 스케일을 바꿔야 한다는 신호이지 여기 하드코딩할
+ * 이유가 아니다 — 그런 값은 시안 파일 안에 두고 README 에 대가로 적는다.
+ *
+ * 껍데기 구조는 `docs/design/mockup/notice/r-adaptive.html` 이 확정한 것이다.
+ *   ≥1024px  좌측 아이콘 레일 60px + 상단 2단 · 콘텐츠 1040px · 보조 글자 13px
+ *   <1024px  상단 1단(레일이 접혀 올라온다) · 콘텐츠 100% · 전부 16px
+ *   ≤640px   운영 도구 숨김 · 3축 가로 스크롤
+ *
+ * **모바일 우선이다.** 좁은 쪽이 기본이고 넓은 쪽이 얹힌다. 반대로 쓰면 브레이크포인트
+ * 밖 화면에서 13px 이 폰으로 샌다.
+ *
+ * ── 위키 화면이 껍데기와 부딪치는 곳 하나 ──────────────────
+ * **1040px 이 그래프에는 좁다.** 레퍼런스 셋이 전부 전폭을 쓴다. 시안마다 다르게
+ * 두고(`data-bleed`) README 에 실측을 적는다 — 이건 시안이 정할 것이지 껍데기가
+ * 미리 정할 것이 아니다. */
+
+/* **서체를 실제로 내려받는다.** `tokens.css` 의 `--font-sans` 는 `--font-plex` 가
+ * 없으면 `"IBM Plex Sans KR"` 이름으로 떨어지는데, 제품에서는 `next/font/google` 이
+ * 그 이름을 심어 준다. 목업에는 그게 없어서 **선언만 있고 로드가 없으면 조용히 시스템
+ * 고딕으로 간다** — 그리고 `getComputedStyle` 은 선언된 스택을 그대로 돌려주므로
+ * 코드만 봐서는 안 걸린다(APPLY.md 함정 6). 판정은 `assets/font-probe.mjs` 가
+ * **잉크량(canvas 알파 합)** 으로 한다 — 폭 대조는 한글에서 틀린 답을 준다. */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");
+@import url("../../../../web/app/tokens.css");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-normal);
+}
+
+/* 숫자는 세로로 정렬돼야 한다(DESIGN.md §3). 금액·마감일·건수 전부 */
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 포커스. **표가 긴 화면에서 위치를 잃지 않아야 한다**(DESIGN.md §7) */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ══ 껍데기 ═══════════════════════════════════════════════ */
+
+.rail {
+  display: none;
+}
+
+.bar {
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 20;
+}
+
+.tier1 {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 var(--s5);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  font-weight: var(--w-medium);
+}
+
+/* 좁은 화면에서는 컨텍스트 줄을 접는다 */
+.tier2 {
+  display: none;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+/* 로고 마크는 동작이 아니다. --ink 이고 반경은 6px 이다(DESIGN.md §4) */
+.mark {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  flex: none;
+}
+
+.menu {
+  display: flex;
+  gap: var(--s4);
+  font-weight: var(--w-normal);
+}
+
+.menu a,
+.menu span {
+  text-decoration: none;
+  color: var(--ink-3);
+}
+
+.menu .on {
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+.menu .soon {
+  color: var(--ink-4);
+}
+
+.admin {
+  margin-left: auto;
+  color: var(--ink-3);
+  text-decoration: none;
+  font-weight: var(--w-normal);
+  font-size: var(--t-aux);
+}
+
+/* 아래 여백이 큰 것은 **하네스 바 자리다.** 두 줄짜리 바가 하단 중앙에 고정으로 떠 있어서
+ * `--s8`(64px)만 주면 본문 마지막 줄을 덮는다 — 실제로 G5 의 설명글이 가려졌다.
+ * **제품으로 옮길 때는 이 값을 `--s8` 로 되돌린다.** 바는 목업 전용이다 */
+main {
+  max-width: 1040px;
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--s5) var(--s5) 132px;
+}
+
+/* 그래프 판이 컨테이너를 깨고 나가는 시안. **전폭이 공짜가 아니다** —
+ * 옆의 글이 62ch 를 넘게 되고 §5 가 그걸 막는다. 그래서 판만 넓히고 글은 안 넓힌다 */
+body[data-bleed="full"] main {
+  max-width: none;
+}
+
+body[data-bleed="full"] .prose,
+body[data-bleed="full"] .head {
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── 화면 머리 ── */
+
+.head {
+  margin-bottom: var(--s4);
+}
+
+.headTop {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.h1 {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: var(--w-medium);
+  line-height: var(--lh-title);
+}
+
+/* S1 로 가는 문. **주 동작이 아니다** — 이 화면의 일은 보는 것이다 */
+.ghost {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--t-aux);
+  cursor: pointer;
+}
+
+.sub {
+  margin: var(--s1) 0 0;
+  color: var(--ink-3);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  max-width: 62ch;
+}
+
+/* 채움 상태. **막대를 만들지 않는다** — 숫자가 근거를 갖는 값이라 막대로 그리면
+ * 비율처럼 읽히고, 그러면 §7 이 막은 것과 같은 물건이 된다 */
+.counts {
+  margin: var(--s3) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-3);
+}
+
+.counts b {
+  color: var(--ink);
+  font-weight: var(--w-mid);
+}
+
+.counts .warn {
+  color: var(--blank);
+}
+
+/* ── 아주 좁은 화면 ── */
+
+@media (max-width: 640px) {
+  .tier1 {
+    gap: var(--s4);
+    padding: 0 var(--s4);
+  }
+
+  .tier1 > * {
+    white-space: nowrap;
+  }
+
+  /* 넘치면 잘라 버리지 않고 가로로 스크롤시킨다 */
+  .menu {
+    gap: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tier1 .admin {
+    display: none;
+  }
+
+  main {
+    padding: var(--s4) var(--s4) 132px;
+  }
+}
+
+/* ══ ≥1024px — 레일이 서고 상단이 2단이 된다 ═══════════════ */
+
+@media (min-width: 1024px) {
+  .app {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    min-height: 100vh;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+    padding: var(--s3) 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .rail .mark {
+    display: block;
+    margin-bottom: var(--s4);
+  }
+
+  .rail a,
+  .rail span {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    color: var(--ink-3);
+    text-decoration: none;
+    font-size: 11px;
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  .rail .on {
+    background: var(--quiet);
+    color: var(--ink);
+    font-weight: var(--w-medium);
+  }
+
+  .rail .soon {
+    color: var(--ink-4);
+  }
+
+  /* 3축이 레일로 내려간다. **같은 메뉴가 두 곳에 있으면 안 된다** */
+  .tier1 {
+    height: 44px;
+    max-width: none;
+  }
+
+  .tier1 .menu {
+    display: none;
+  }
+
+  .tier2 {
+    display: flex;
+    align-items: center;
+    gap: var(--s4);
+    padding: 0 var(--s5);
+    height: 44px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-3);
+    font-size: var(--t-aux);
+  }
+
+  .crumb b {
+    color: var(--ink);
+    font-weight: var(--w-medium);
+  }
+
+  .sep {
+    color: var(--ink-4);
+  }
+}

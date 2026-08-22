@@ -44,12 +44,16 @@ export type WikiTopicGroup = {
   statements: WikiStatement[];
 };
 
-export type WikiNode = {
-  key: string;
-  label: string;
-  /** `identity` · `company` · `content`. **색은 이것만 말한다**(DESIGN.md §4.1) */
-  kind: string;
-  sector: string;
+/** 기획 트리의 자리 하나(ADR-0052).
+ *
+ * **`path` 가 이름이다** — 기획 문서 §4-3 「경로가 곧 노드 제목이다」. 화면과 기획
+ * 문서와 집필 에이전트가 같은 문자열을 쓴다. */
+export type WikiSpot = {
+  /** `Company/팀.md`. `{}` 가 남아 있으면 동적 자리다 */
+  path: string;
+  title: string;
+  /** 최상위 폴더 키. 라벨은 `Wiki.folders` 가 준다 */
+  folder: string;
   /** 자격 판별의 입력을 담은 자리인가. 비면 물어야 한다 */
   eligibility: boolean;
   values: WikiValue[];
@@ -62,6 +66,21 @@ export type WikiNode = {
   source_count: number;
   filled: boolean;
   conflicted: boolean;
+  /** 우리가 더한 자리인가. **기획 문서에 없다** */
+  ours: boolean;
+  /** 채울 topic 이 아예 없는 자리의 사유. **있으면 파일을 더 올려도 안 찬다** */
+  gap: string;
+  /** 접혔으면 원래 경로. **조용히 접지 않는다** */
+  collapsed: string | null;
+
+  /** `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 온다**(ADR-0052 결정 4) */
+  grade: string;
+  source: string[];
+  /** `source` 와 같은 순서다 */
+  source_path: string[];
+  base_date: string | null;
+  /** 사실이 바뀐 시각. **만든 시각이 아니다** */
+  updated_at: string | null;
   /** 이 자리 한 장의 마크다운. **저장된 것이 아니라 매번 만든 것이다** */
   markdown: string;
 };
@@ -76,17 +95,17 @@ export type WikiFile = {
   parse_error: string | null;
   chunk_count: number | null;
   page_count: number | null;
-  /** 이 파일이 근거가 된 궤도 자리들 */
-  nodes: string[];
+  /** 이 파일이 근거가 된 트리 자리들. **경로다** */
+  spots: string[];
 };
 
 export type Wiki = {
   company_id: string;
-  /** 궤도 자리 열다섯. **순서가 곧 배치 순서다**(ADR-0017) */
-  nodes: WikiNode[];
+  /** 기획 트리 자리 47. **순서가 곧 기획 문서 §2 의 순서다**(ADR-0052) */
+  spots: WikiSpot[];
   files: WikiFile[];
-  /** 궤도 위에 얹는 구획 라벨 여섯 */
-  sectors: Record<string, string>;
+  /** 폴더 키 → 한국어 이름. 열 개 고정. **화면이 이름을 짓지 않는다** */
+  folders: Record<string, string>;
   filled: number;
   total: number;
   conflicts: number;
@@ -101,7 +120,7 @@ export type Wiki = {
  * 기본값 하나를 두고 주소로 갈아탄다 — 시연 대상이 하나뿐이라 성립하는 임시 조치다. */
 export const DEFAULT_COMPANY = process.env.FINNECT_COMPANY ?? "c_dasiro";
 
-/** 위키가 없어도 200 이고 궤도 열다섯이 온다.
+/** 위키가 없어도 200 이고 자리 마흔일곱이 온다.
  *
  * **빈 화면을 "데이터 없음"으로 끝내지 않는다**(DESIGN.md §7-5). 자리가 있어야
  * 사용자가 무엇이 없는지 알고 무엇을 올려야 하는지 안다. */
@@ -162,16 +181,16 @@ export type FileProgress = {
   parser: string | null;
   /** 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다** — 다 더해도 위키의 사실 수가 아니다 */
   fact_count: number;
-  /** 이 파일이 채운 궤도 자리들. **키다** — 이름은 `Progress.places` 가 준다 */
-  nodes: string[];
+  /** 이 파일이 채운 트리 자리들. **경로다** — 이름은 `Progress.spot_titles` 가 준다 */
+  spots: string[];
 };
 
 export type Progress = {
   company_id: string;
   steps: Step[];
   files: FileProgress[];
-  /** 자리 키 → 라벨. **화면이 이름을 짓지 않는다** */
-  places: Record<string, string>;
+  /** 자리 경로 → 제목. **화면이 이름을 짓지 않는다.** S7 과 같은 표다(ADR-0052) */
+  spot_titles: Record<string, string>;
   total: number;
   done: number;
   moving: number;

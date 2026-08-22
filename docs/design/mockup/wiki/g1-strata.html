@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>G1 성층 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* G1 성층 — **자리는 제자리에 두고 안에 든 것을 밖으로 꺼낸다.**
+       *
+       * 현행이 못 보여 주는 것 둘을 화면에 올린다.
+       *  1. **자리마다 담긴 양이 다르다.** 문제 인식 19 · 목표 고객 3 — 6배 차이인데
+       *     현행은 도트 지름이 전부 15px 로 같다. 여기서는 지름이 근거 수를 따른다
+       *  2. **표시 단위 47개가 아예 안 보인다.** 자리를 눌러야 나온다. 여기서는
+       *     위성으로 자리 둘레에 떠 있어서 **누르기 전에 몇 덩어리인지 보인다**
+       *
+       * ── 지킨 것 ────────────────────────────────────────────
+       * **ADR-0017 을 안 뒤집는다.** 자리 열다섯의 각도와 반지름이 그대로다 —
+       * 중심 1 · 안쪽 5 · 바깥 9, 각도가 구획을 뜻하고 순서는 서버가 준 그대로다.
+       * 파일을 더 올려도 **자리는 안 움직이고 위성만 는다.** 이것이 힘 배치와
+       * 갈리는 지점이고 「두 번째 볼 때 찾는다」가 여기서만 성립한다.
+       *
+       * **색은 여전히 종류 셋만 말한다**(DESIGN.md §2). 위성은 제 부모의 색을 옅게
+       * 쓴다 — 새 색조를 만들지 않는다.
+       *
+       * ── 대가 셋 ────────────────────────────────────────────
+       *  1. **판이 커진다.** 640 → 860px. 위성이 설 자리가 필요하다
+       *  2. **위성은 44px 타깃이 안 된다.** 지름 7~9px 이다. 그래서 **위성을 직접
+       *     누르게 하지 않는다** — 자리를 누르면 패널이 열리고 거기서 고른다.
+       *     위성은 «얼마나 들었나»를 말하는 표시이지 조작 요소가 아니다
+       *  3. **자리 지름이 근거 수를 말하므로 빈 자리가 아주 작아진다.** 점선 원 지름을
+       *     최소 12px 로 바닥을 깔았다 — 안 깔면 빈 자리가 먼지처럼 보여 «없다»가
+       *     «안 중요하다»로 읽힌다
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s4) var(--s3) var(--s3);
+      }
+
+      .gsvg {
+        display: block;
+        width: 100%;
+        max-width: 860px;
+        height: auto;
+        margin: 0 auto;
+        overflow: visible;
+      }
+
+      /* 궤도. 구획별로 끊어 그린다 — 끊긴 자리가 구획 경계다 */
+      .ring {
+        fill: none;
+        stroke: var(--line-2);
+        stroke-width: 1;
+      }
+
+      /* 바큇살. 링보다도 옅다 — 링이 층을 말하고 이건 소속만 말한다 */
+      .spoke {
+        stroke: var(--line-2);
+        stroke-width: 1;
+        opacity: 0.7;
+      }
+
+      /* 위성을 부모에 매다는 실. **아주 얇다** — 레퍼런스 셋이 전부 에지를
+       * 거의 안 보이게 둔다. 보이면 구조가 아니라 그물로 읽힌다 */
+      .tether {
+        stroke-width: 0.75;
+        opacity: 0.28;
+      }
+
+      .sector {
+        fill: var(--ink-3);
+        font-size: var(--t-caption);
+        font-weight: var(--w-medium);
+        text-anchor: middle;
+        letter-spacing: 0.02em;
+      }
+
+      .node { cursor: pointer; }
+
+      /* 담긴 양의 후광. **막대가 아니다** — 넓이가 근거 수를 따르지만 눈금이 없고
+       * 옆의 것과 견주는 용도이지 값을 읽는 용도가 아니다 */
+      /* **채움을 CSS 가 안 정한다.** `materials.js` 가 재질별로 그라데이션을 만들고
+       * 색도 노브가 정하므로 여기서는 밝기만 다룬다 — 값이 두 곳에 살면 갈린다 */
+      .aura { opacity: 0.06; }
+      .core { transition: opacity 140ms ease; }
+      .sat { opacity: 0.55; transition: opacity 140ms ease; }
+
+      /* 손봐야 하는 자리. **노드 색은 그대로 두고 배지 점을 하나 더 붙인다** */
+      .badge {
+        fill: var(--blank);
+        stroke: var(--surface);
+        stroke-width: 2;
+      }
+
+      /* 고른 자리. 색을 하나 더 만들지 않고 근검정 링을 두른다 */
+      .halo {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 2;
+      }
+
+      .label {
+        fill: var(--ink-2);
+        font-size: var(--t-small);
+        pointer-events: none;
+      }
+
+      /* 중심 이름표. **원 밖으로 내렸다** — 안에 넣으면 일곱 자가 원을 넘는다.
+       * 다른 자리보다 한 단 굵게 해서 중심이라는 것을 굵기로 말한다 */
+      .centerLabel {
+        fill: var(--ink);
+        font-size: var(--t-small);
+        font-weight: var(--w-medium);
+        pointer-events: none;
+      }
+
+      /* 담긴 양. 이름표 밑에 아주 작게. **비율이 아니라 개수다** */
+      .count {
+        fill: var(--ink-3);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+      }
+
+      .node:hover .core { opacity: 0.84; }
+      .node:hover .sat { opacity: 0.9; }
+      .node:hover .label { fill: var(--ink); font-weight: var(--w-medium); }
+      .node:focus { outline: none; }
+      .node:focus-visible .core { stroke: var(--ink); stroke-width: 2; stroke-dasharray: none; }
+      .node:focus-visible .label { fill: var(--ink); font-weight: var(--w-bold); }
+
+      .node[data-selected="true"] .sat { opacity: 0.95; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .core, .sat { transition: none; }
+      }
+
+      .panelWrap { margin-top: var(--s5); }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="materials.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, L = window.Layout, P = window.Parts, C = window.Current;
+        var M = window.Materials;
+        var SIZE = 860;
+        var picked = null;
+        /* 재질과 색은 노브가 정한다. **CSS 변수로 못 바꾼다** — 그라데이션 def 이
+         * 색마다 하나씩이라 값이 바뀌면 다시 그려야 한다 */
+        var look = { material: "flat", palette: "kind" };
+
+        /* 자리 지름. **근거 수를 따르되 제곱근으로 눌러 담는다.**
+         * 선형으로 하면 19와 3의 넓이 차가 40배가 되어 작은 자리가 먼지가 된다 —
+         * 넓이가 아니라 반지름이 양을 말하도록 √로 눕힌다 */
+        function radius(n) {
+          if (n.kind === "identity") return 34;
+          if (!n.filled) return 6; /* 바닥. 지름 12px — 빈 자리가 «안 중요하다»로 읽히면 안 된다 */
+          return 7 + Math.sqrt(n.evidence_count) * 2.9; /* 3 → 12.0 · 19 → 19.6 */
+        }
+
+        function color(n) {
+          return M.colorOf(n, { tone: "light", palette: look.palette, selected: picked === n.key });
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+
+          var g = L.orbit(nodes, { size: SIZE, inner: 180, outer: 336 });
+          var out = [];
+
+          /* **쓰는 색만 def 을 만든다.** 팔레트를 통째로 만들면 안 쓰는 것이 남는다 */
+          out.push(M.defs(
+            nodes.map(function (n) { return color(n); }),
+            look.material, "light"
+          ));
+
+          /* 궤도 두 줄 */
+          g.innerArcs.concat(g.outerArcs).forEach(function (a, i) {
+            var r = i < g.innerArcs.length ? g.inner : g.outer;
+            out.push('<path class="ring" d="' + L.arcPath(g.cx, g.cy, r, a.from, a.to) + '"/>');
+          });
+
+          /* 바큇살 */
+          g.placed.forEach(function (p) {
+            var rad = (p.angle * Math.PI) / 180;
+            var from = 38;
+            var to = Math.hypot(p.x - g.cx, p.y - g.cy) - radius(p.node) - 4;
+            if (to <= from) return;
+            out.push(
+              '<line class="spoke" x1="' + (g.cx + from * Math.cos(rad)) +
+              '" y1="' + (g.cy + from * Math.sin(rad)) +
+              '" x2="' + (g.cx + to * Math.cos(rad)) +
+              '" y2="' + (g.cy + to * Math.sin(rad)) + '"/>'
+            );
+          });
+
+          /* 구획 라벨. **바깥 넷만이다** — 안쪽 다섯은 위성이 붙어 자리가 더 없어졌다.
+           * ADR-0017 결정 2 가 둘 다 얹으라고 하는데 여기서도 못 지킨다 */
+          g.outerArcs.forEach(function (a) {
+            var rad = (a.from * Math.PI) / 180;
+            var r = g.outer + 74;
+            out.push(
+              '<text class="sector" x="' + (g.cx + r * Math.cos(rad)) +
+              '" y="' + (g.cy + r * Math.sin(rad) + 4) + '">' +
+              P.esc(W.sectors[a.sector]) + "</text>"
+            );
+          });
+
+          var all = (g.center ? [{ node: g.center.node, x: g.cx, y: g.cy, angle: 0, center: true }] : [])
+            .concat(g.placed);
+
+          all.forEach(function (p) {
+            out.push(one(p, p.center));
+          });
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="궤도">' +
+              '<svg class="gsvg" viewBox="0 0 ' + SIZE + " " + SIZE +
+              '" role="group" aria-label="사업 위키 궤도. 자리 열다섯과 그 안의 표시 단위">' +
+              out.join("") + "</svg>" +
+              '<ul class="cLegend">' +
+              '<li data-kind="identity">우리가 하는 일</li>' +
+              '<li data-kind="company">사업체 정보</li>' +
+              '<li data-kind="content">사업 내용</li>' +
+              '<li data-mark="blank">손봐야 해요</li>' +
+              '<li data-mark="empty">아직 비었어요</li></ul>' +
+              '<div class="panelWrap">' + C.panel(node) + "</div></section>"
+          );
+          wire(main);
+        }
+
+        /* 자리 하나 + 그 위성들 */
+        function one(p, isCenter) {
+          var n = p.node;
+          var r = radius(n);
+          var sel = picked === n.key;
+          var c = color(n);
+
+          /* 위성. 표시 단위 하나가 점 하나다 — 슬롯 값이든 문장이든 같은 무게로 센다.
+           * **가르지 않는 이유는 색이 이미 종류를 말하고 있어서다**(§2) */
+          var sats = [];
+          var items = n.values.length + n.statements.length;
+          if (items) {
+            var pts = L.radial(
+              new Array(items).fill(0).map(function (_, i) { return { i: i }; }),
+              { cx: p.x, cy: p.y, radius: r + (isCenter ? 22 : 15), perRing: 8,
+                ringGap: 15, jitter: 5, rotate: (n.key.charCodeAt(0) % 7) * 0.4, seed: 7 + items }
+            );
+            pts.forEach(function (s) {
+              sats.push(
+                '<line class="tether" stroke="' + c + '" x1="' + p.x + '" y1="' + p.y +
+                '" x2="' + s.x + '" y2="' + s.y + '"/>'
+              );
+            });
+            pts.forEach(function (s) {
+              /* 위성도 같은 재질을 입는다. **부모보다 작아서 재질이 거의 안 보이지만**
+               * 안 입히면 부모만 구체이고 위성은 평면이라 한 무리로 안 읽힌다 */
+              sats.push('<g class="sat">' +
+                M.node(s.x.toFixed(1), s.y.toFixed(1), sel ? 5 : 4, c, { material: look.material, tone: "light" }) +
+                "</g>");
+            });
+          }
+
+          /* **중심 이름표를 원 안에 넣지 않는다.** 현행은 넣는데 「우리가 하는 일」
+           * 일곱 자가 12px 이면 84px 이라 지름 80px 원을 넘는다 — 현행 화면에서 실제로
+           * 삐져나온다(`base.html` 에서 그대로 볼 수 있다). 여기서는 밖으로 내리고
+           * 다른 자리와 같은 어법을 쓴다. 중심이라는 것은 자리가 이미 말한다 */
+          var rad = (p.angle * Math.PI) / 180;
+          var out = r + 34;
+          var lx = isCenter ? p.x : p.x + out * Math.cos(rad);
+          var ly = isCenter ? p.y + r + 44 : p.y + out * Math.sin(rad) + 4;
+          var anchor = isCenter
+            ? "middle"
+            : Math.cos(rad) > 0.25 ? "start" : Math.cos(rad) < -0.25 ? "end" : "middle";
+          var state = n.filled ? (n.conflicted ? "손봐야 해요" : "찼어요") : "아직 비어 있어요";
+
+          return (
+            '<g class="node" data-kind="' + n.kind + '" data-filled="' + n.filled +
+            '" data-selected="' + sel + '" data-key="' + n.key +
+            '" role="button" tabindex="0" aria-pressed="' + sel +
+            '" aria-label="' + P.esc(n.label + " — " + state + ", 근거 " + n.evidence_count + "개") + '">' +
+            /* 담긴 양의 후광. **발광 재질에서는 끈다** — 그쪽이 이미 빛을 갖고 있어
+             * 둘이 겹치면 무엇이 양을 말하는지 모르게 된다 */
+            (n.filled && look.material !== "glow"
+              ? '<circle class="aura" cx="' + p.x + '" cy="' + p.y + '" r="' + (r + 20) + '" fill="' + c + '"/>'
+              : "") +
+            sats.join("") +
+            (sel ? '<circle class="halo" cx="' + p.x + '" cy="' + p.y + '" r="' + (r + 7) + '"/>' : "") +
+            '<g class="core">' +
+            M.node(p.x.toFixed(1), p.y.toFixed(1), r, c, {
+              material: look.material, tone: "light", empty: !n.filled,
+            }) + "</g>" +
+            (n.conflicted
+              ? '<circle class="badge" cx="' + (p.x + r * 0.72) + '" cy="' + (p.y - r * 0.72) + '" r="5"/>'
+              : "") +
+            '<text class="' + (isCenter ? "centerLabel" : "label") + '" x="' + lx + '" y="' + ly +
+            '" text-anchor="' + anchor + '">' + P.esc(n.label) + "</text>" +
+            (!n.filled
+              ? ""
+              : '<text class="count" x="' + lx + '" y="' + (ly + 15) +
+                '" text-anchor="' + anchor + '">근거 ' + n.evidence_count + "</text>") +
+            "</g>"
+          );
+        }
+
+        function wire(main) {
+          main.querySelectorAll(".node").forEach(function (g) {
+            function pick() {
+              picked = picked === g.dataset.key ? null : g.dataset.key;
+              window.__view.redraw();
+            }
+            g.addEventListener("click", pick);
+            g.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+        window.__look = M.controls(function () { window.__view.redraw(); }, look);
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "g1",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS().concat(window.__look),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

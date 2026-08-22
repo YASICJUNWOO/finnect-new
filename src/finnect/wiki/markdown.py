@@ -1,4 +1,4 @@
-"""자리 한 장을 마크다운으로 — **뷰다. 저장하지 않는다**(plan/12 `구상도와의 차이`).
+"""사실 하나를 마크다운 조각으로 — **뷰다. 저장하지 않는다**(plan/12 `구상도와의 차이`).
 
 구상도는 ⑥에서 마크다운을 만들고 ⑦에서 SQL 로도 저장한다. **우리는 저장하지 않는다.**
 `SPEC.md` §2-1 이 "소스가 갈라지면 불일치가 생긴다"고 적었고, 사실이 `wiki_fact` 에
@@ -7,22 +7,30 @@
 그래서 이 파일은 **읽을 때마다 다시 만든다.** 대가는 매번 조인 몇 번이고, 얻는 것은
 "화면에 보이는 글자가 DB 와 다를 수 없다"는 성질이다.
 
+## 장을 만드는 것은 여기가 아니다
+
+2026-08-22 까지 이 모듈이 **궤도 자리 한 장**을 통째로 만들었다(`render(node)`). 화면이
+기획 폴더 트리로 바뀌면서 그 장이 없어졌고(ADR-0052), 여기 남은 것은 **어느 뷰든 쓰는
+조각들**이다 — 값 블록 · 사실 블록 · 근거 파일 목록.
+장을 조립하는 것은 `export.py` 하나다. **뷰가 둘이던 시절의 잔재를 남기지 않는다.**
+
 ## 시각이 안 들어간다
 
-프론트매터에 `generated: 2026-08-18` 같은 것을 넣지 않는다. 넣으면 같은 DB 에서 만든
-마크다운이 매일 달라져 **바이트로 비교할 수 없다.** 테스트가 그걸 본다.
+`generated: 2026-08-18` 같은 것을 넣지 않는다. 넣으면 같은 DB 에서 만든 마크다운이
+매일 달라져 **바이트로 비교할 수 없다.** 테스트가 그걸 본다.
+
+프론트매터의 `updated_at` 은 다른 것이다 — 그것은 `wiki_fact.updated_at` 이라 **DB 가
+같으면 같다.** 만든 시각이 아니라 사실이 바뀐 시각이다.
 
 ## `SPEC.md` F1-3 의 한 장이 이 모양이다
 
 머리말 · 본문 · **자기 근거가 되는 원문 조각** 셋이다. 근거는 `파일명 N쪽` 까지 적는다 —
 "출처는 문자열이 아니라 연결이다"(F1-3)라고 한 그 연결의 마크다운 표현이다.
-
-F1-6(밖으로 꺼내기)이 이걸 그대로 쓴다. 옵시디언에서 열리는 것이 목표라 프론트매터는
-YAML 이고 자리 사이 링크는 `[[제목]]` 이다.
 """
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 
 from finnect.wiki import merge, topics
@@ -36,11 +44,17 @@ EMPTY_TOPIC = "아직 없어요."
 
 @dataclass(frozen=True, slots=True)
 class Evidence:
-    """근거 하나. `파일명 3쪽`."""
+    """근거 하나. `파일명 3쪽`.
+
+    `sha256` 을 드는 이유는 기획 문서 §5 의 `source_path` 때문이다 — 원본은 콘텐츠
+    주소로 누워 있어서(`ADR-0029`) 파일명만으로는 위치를 되찾을 수 없다. **비어 있어도
+    된다** — 프론트매터가 그 줄을 건너뛴다.
+    """
 
     filename: str
     page: int | None
     quote: str
+    sha256: str = ""
 
     def __str__(self) -> str:
         return f"{self.filename}{f' {self.page}쪽' if self.page else ''}"
@@ -57,6 +71,10 @@ class Value:
     as_of: str | None
     status: str
     evidence: tuple[Evidence, ...]
+    #: `document` · `user_stated`. **자료 등급이 여기서 나온다**(`export.grade_of`)
+    source_type: str = "document"
+    #: 이 주장이 마지막으로 바뀐 시각. 기획 문서 §5 의 `updated_at`
+    updated_at: dt.date | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,16 +84,22 @@ class Statement:
     text: str
     topic: str
     evidence: tuple[Evidence, ...]
+    source_type: str = "document"
+    updated_at: dt.date | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class NodeView:
-    """마크다운을 만들기에 충분한 만큼. **DB 를 모른다** — 서비스가 채워서 넘긴다."""
+    """저장 묶음 하나를 읽어 온 것. **DB 를 모른다** — `build.read_orbit` 이 채워서 넘긴다.
+
+    **화면의 단위가 아니다**(ADR-0052). `export.render()` 가 이 목록을 받아 곧바로
+    풀어 헤치고 기획 트리 자리로 다시 나눈다. 여기 남아 있는 이유는 `wiki_fact.place`
+    가 이 키를 들고 있어서다.
+    """
 
     key: str
     label: str
     kind: str
-    sector: str
     company_id: str
     values: tuple[Value, ...]
     statements: tuple[Statement, ...]
@@ -88,64 +112,8 @@ class NodeView:
     def conflicted(self) -> bool:
         return any(v.status == merge.Status.CONFLICT for v in self.values)
 
-    @property
-    def source_count(self) -> int:
-        """근거로 쓰인 파일 수. **근거 개수가 아니라 파일 수다.**"""
-        return len({e.filename for e in self._all_evidence})
 
-    @property
-    def _all_evidence(self) -> list[Evidence]:
-        return [e for v in self.values for e in v.evidence] + [
-            e for s in self.statements for e in s.evidence
-        ]
-
-
-def render(node: NodeView) -> str:
-    """자리 한 장. **빈 자리도 만든다** — 비어 있다는 것도 사실이고, 물어야 할 자리다."""
-    out = [_front_matter(node), "", f"# {node.label}", ""]
-
-    if not node.filled:
-        out += [
-            "아직 비어 있어요. 이 자리를 채우려면 관련된 파일을 더 올리면 돼요.",
-            "",
-        ]
-        return "\n".join(out)
-
-    if node.values:
-        out += _values(node.values)
-    out += _statements(node)
-
-    out += _sources(node._all_evidence)
-    return "\n".join(out).rstrip() + "\n"
-
-
-def _front_matter(node: NodeView) -> str:
-    """YAML. **옵시디언이 읽는 모양이다**(F1-6).
-
-    `kind` 를 넣는 이유는 옵시디언 그래프에서도 종류가 색으로 갈리게 하려는 것이다 —
-    `DESIGN.md` §4.1 의 "색은 종류만 말한다"가 밖에서도 유지된다.
-    """
-    lines = [
-        "---",
-        f"node: {node.key}",
-        f"title: {node.label}",
-        f"kind: {node.kind}",
-        f"sector: {node.sector}",
-        f"company: {node.company_id}",
-    ]
-    if node.values:
-        lines.append(f"values: {len(node.values)}")
-    if node.statements:
-        lines.append(f"statements: {len(node.statements)}")
-    if node.filled:
-        lines.append(f"sources: {node.source_count}")
-    if node.conflicted:
-        lines.append("conflict: true")
-    lines.append("---")
-    return "\n".join(lines)
-
-
-def _values(values: tuple[Value, ...]) -> list[str]:
+def render_values(values: tuple[Value, ...] | list[Value]) -> list[str]:
     """value topic. **현재값을 먼저 쓰고 이전값을 밑에 접는다.** 지우지 않는다(F1-1-7)."""
     out: list[str] = []
     # (value topic, 한정어) 로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
@@ -181,36 +149,8 @@ def _values(values: tuple[Value, ...]) -> list[str]:
     return out
 
 
-def _statements(node: NodeView) -> list[str]:
-    """event topic. **한 사실에 근거가 여럿이다** — 문서 넷이 같은 말을 하면 줄 하나에 근거 넷.
-
-    **event topic 이 둘 이상인 자리는 topic 마다 `##` 절을 세운다**(ADR-0048 결정 5).
-    하나뿐이면 안 세운다 — `# 목표 고객` 밑의 `## 목표 고객` 은 `DESIGN.md` §10
-    ("제목이 말한 것을 부제에서 반복하지 않는다")을 정면으로 어긴다.
-
-    절이 서는 자리에서는 **빈 topic 도 절을 낸다.** 비어 있다는 것도 사실이고 물어야 할
-    자리다(ADR-0028) — 지금 «솔루션과 기술» 한 장에 기능·특허·인증이 구분 없이 섞여
-    있어서 무엇이 없는지 볼 수가 없었다.
-
-    절이 안 서는 자리(단일 topic 다섯)는 빈 것을 따로 알리지 않는다. 제목이 없어서
-    「아직 없어요」한 줄만 뜨면 무엇이 없다는 말인지 알 수 없다.
-    """
-    order = topics.ORBIT_TOPICS.get(node.key, ())
-    if len(order) < 2:
-        return _facts(node.statements)
-
-    out: list[str] = []
-    for topic in order:
-        out += [f"## {topics.TOPIC_LABELS.get(topic, topic)}", ""]
-        items = [s for s in node.statements if s.topic == topic]
-        out += _facts(items) if items else [EMPTY_TOPIC, ""]
-
-    #: 표에 없는 topic 으로 온 것. **버리지 않는다** — 라우팅 표를 고치면 생긴다
-    rest = [s for s in node.statements if s.topic not in order]
-    return out + _facts(rest)
-
-
-def _facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:
+def render_facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:
+    """event topic. **한 사실에 근거가 여럿이다** — 문서 넷이 같은 말을 하면 줄 하나에 근거 넷."""
     out: list[str] = []
     for s in items:
         out += [s.text, ""]
@@ -220,21 +160,7 @@ def _facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:
     return out
 
 
-def _sources(evidence: list[Evidence]) -> list[str]:
+def render_sources(evidence: list[Evidence]) -> list[str]:
     """이 장을 만든 파일들. **어느 파일을 지우면 무엇이 사라지는지** 보이는 자리다."""
     files = sorted({e.filename for e in evidence})
     return ["## 근거 파일", "", *[f"- {f}" for f in files], ""]
-
-
-def bundle(nodes: list[NodeView]) -> str:
-    """전부를 한 파일로. 화면에서 통째로 보거나 복사할 때 쓴다.
-
-    **F1-6(밖으로 꺼내기)이 아니다.** 저기는 자리마다 `.md` 파일 하나로 떨어져 옵시디언
-    볼트가 되는 것이고, 여기는 한 덩어리다. 파일로 떨어뜨리는 것은 그 태스크에서 한다.
-    """
-    company = nodes[0].company_id if nodes else ""
-    out = [f"# 사업 위키 — {company}", ""]
-    for node in nodes:
-        out.append(render(node))
-        out.append("")
-    return "\n".join(out).rstrip() + "\n"

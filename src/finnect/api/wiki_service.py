@@ -23,20 +23,21 @@ from finnect.api.wiki_schemas import (
     TopicGroupOut,
     ValueOut,
     WikiFileOut,
-    WikiNodeOut,
     WikiOut,
+    WikiSpotOut,
 )
 from finnect.models import WikiEvidence, WikiFact, WikiPlace
-from finnect.wiki import build, markdown, merge, progress, topics
+from finnect.wiki import build, export, markdown, merge, progress, topics
 
 
 def get_wiki(session: Session, company_id: str) -> WikiOut:
-    """S7 한 장. **위키가 없어도 궤도 열다섯을 돌려준다.**
+    """S7 한 장. **위키가 없어도 자리 마흔일곱을 돌려준다**(ADR-0052).
 
     빈 화면을 "데이터 없음"으로 끝내지 않는 것이 `DESIGN.md` §7-5 다. 자리가 있어야
     사용자가 무엇이 없는지 알고, 무엇을 올려야 하는지 안다.
     """
     nodes = build.read_orbit(session, company_id)
+    pages = export.render(nodes)
     files = build.read_files(session, company_id)
 
     conflicts = session.scalar(
@@ -58,7 +59,7 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
 
     return WikiOut(
         company_id=company_id,
-        nodes=[_node(n) for n in nodes],
+        spots=[_spot(p) for p in pages],
         files=[
             WikiFileOut(
                 filename=uf.filename,
@@ -70,13 +71,13 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
                 parse_error=uf.parse_error,
                 chunk_count=uf.chunk_count,
                 page_count=uf.page_count,
-                nodes=made,
+                spots=made,
             )
             for uf, made in files
         ],
-        sectors=dict(topics.SECTORS),
-        filled=sum(n.filled for n in nodes),
-        total=len(nodes),
+        folders=dict(export.FOLDERS),
+        filled=sum(p.filled for p in pages),
+        total=len(pages),
         conflicts=conflicts or 0,
         uncategorized=uncategorized or 0,
         extractor=extractor,
@@ -88,20 +89,24 @@ def get_markdown(session: Session, company_id: str) -> str | None:
 
     **저장된 파일을 읽는 것이 아니다.** 매번 만든다 — `wiki/markdown.py` 참고.
     """
-    nodes = build.read_orbit(session, company_id)
-    if not any(n.filled for n in nodes):
+    pages = export.render(build.read_orbit(session, company_id))
+    if not any(p.filled for p in pages):
         return None
-    return markdown.bundle(nodes)
+    return export.bundle(pages, company_id)
 
 
-def _node(n: markdown.NodeView) -> WikiNodeOut:
-    spot = topics.ORBIT[n.key]
-    return WikiNodeOut(
-        key=n.key,
-        label=n.label,
-        kind=n.kind,
-        sector=spot.sector,
-        eligibility=any(topics.VALUE_SPECS[s].eligibility for s in spot.value_topics),
+def _spot(p: export.Page) -> WikiSpotOut:
+    """자리 한 장을 응답 모양으로. **묶는 것과 절 제목을 서버가 정한다.**
+
+    "event topic 이 둘 이상일 때만 절 제목" 이라는 규칙을 화면에 한 번 더 적으면
+    두 곳이 되고, 한쪽만 고쳐지는 날이 온다(ADR-0048 결정 5).
+    """
+    spot = p.spot
+    return WikiSpotOut(
+        path=spot.path,
+        title=spot.title,
+        folder=spot.folder,
+        eligibility=any(topics.VALUE_SPECS[s].eligibility for s in spot.values),
         values=[
             ValueOut(
                 slot=v.slot,
@@ -113,22 +118,30 @@ def _node(n: markdown.NodeView) -> WikiNodeOut:
                 status=v.status,
                 evidence=[_evidence(e) for e in v.evidence],
             )
-            for v in n.values
+            for v in p.values
         ],
-        statements=[_statement(s) for s in n.statements],
+        statements=[_statement(s) for s in p.statements],
         groups=[
             TopicGroupOut(
                 topic=t,
                 label=topics.TOPIC_LABELS.get(t, t),
-                statements=[_statement(s) for s in n.statements if s.topic == t],
+                statements=[_statement(s) for s in p.statements if s.topic == t],
             )
-            for t in topics.ORBIT_TOPICS.get(n.key, ())
+            for t in spot.events
         ],
-        grouped=len(topics.ORBIT_TOPICS.get(n.key, ())) > 1,
-        source_count=n.source_count,
-        filled=n.filled,
-        conflicted=n.conflicted,
-        markdown=markdown.render(n),
+        grouped=len(spot.events) > 1,
+        source_count=len(p.sources),
+        filled=p.filled,
+        conflicted=any(v.status == merge.Status.CONFLICT for v in p.values),
+        ours=spot.ours,
+        gap=spot.gap,
+        collapsed=spot.path if (spot.instanced or spot.folded) else None,
+        grade=p.grade,
+        source=list(p.sources),
+        source_path=list(p.source_paths),
+        base_date=p.base_date,
+        updated_at=p.updated_at,
+        markdown=p.body,
     )
 
 
@@ -151,7 +164,9 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
     먼저 볼 수 있어야 한다(DESIGN.md §7-5).
     """
     files = build.read_files(session, company_id)
-    nodes = build.read_orbit(session, company_id)
+    #: **자리 셈을 S7 과 같은 표로 한다**(ADR-0052). 여기가 궤도 15 를 세고 저기가 트리 47 을
+    #: 세면 같은 위키가 화면 둘에서 다른 진도로 보인다
+    pages = export.render(build.read_orbit(session, company_id))
 
     # **칸마다 무엇이 나왔는지 같이 낸다**(plan/15 T-0062). 넷은 컬럼에서 오는데
     # 사실 수만 근거에서 온다 — `wiki_evidence` 가 파일과 사실을 잇는 유일한 자리다.
@@ -192,7 +207,7 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
                 text_chars=uf.text_chars,
                 parser=uf.parser,
                 fact_count=facts.get(uf.id, 0),
-                nodes=made,
+                spots=made,
             )
         )
 
@@ -209,7 +224,7 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
         company_id=company_id,
         steps=[StepOut(key=s.key, label=s.label) for s in progress.STEPS],
         files=rows,
-        places={key: spot.label for key, spot in topics.ORBIT.items()},
+        spot_titles={s.path: s.title for s in export.TREE},
         total=len(rows),
         done=sum(f.ok for f in rows),
         moving=sum(f.moving for f in rows),
@@ -218,8 +233,8 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
         needs_review=sum(f.status == "needs_review" for f in rows),
         stuck=sum(not f.ok and not f.moving and f.status != "needs_review" for f in rows),
         running=running,
-        filled=sum(n.filled for n in nodes),
-        slots=len(nodes),
+        filled=sum(p.filled for p in pages),
+        slots=len(pages),
         conflicts=conflicts or 0,
         extractor=extractor,
     )

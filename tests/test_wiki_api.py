@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from finnect.api.wiki_schemas import WikiOut
-from finnect.wiki import topics
+from finnect.wiki import export, topics
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "finnect"
 
@@ -75,22 +75,15 @@ def test_궤도가_SPEC_의_열다섯이다():
     assert len(topics.ORBIT) == 15
 
 
-def test_구획이_전부_이름을_갖는다():
-    """이름 없는 구획이 있으면 궤도에 키 문자열이 그대로 뜬다."""
-    assert {o.sector for o in topics.ORBIT.values()} == set(topics.SECTORS)
+def test_구획_어휘가_없어졌다():
+    """**ADR-0052 결정 3.** 구획 여섯은 궤도 그래프의 각도였고 그래프와 같이 사라졌다.
 
-
-def test_구획이_궤도에서_흩어지지_않는다():
-    """**서버가 준 순서가 곧 배치 순서다**(ADR-0017). 같은 구획이 이웃해 있어야
-    프론트가 각도를 묶어 나눈다 — 흩어져 있으면 구획이 원을 한 바퀴 돈다."""
-    for kind in ("company", "content"):
-        seen: list[str] = []
-        for o in topics.ORBIT.values():
-            if o.kind != kind:
-                continue
-            if not seen or seen[-1] != o.sector:
-                seen.append(o.sector)
-        assert len(seen) == len(set(seen)), f"{kind} 구획이 흩어져 있다: {seen}"
+    묶는 축은 이제 기획 폴더 열이고 표는 `export.FOLDERS` 다. 되살리려는 코드가 생기면
+    여기서 걸린다.
+    """
+    assert not hasattr(topics, "SECTORS")
+    assert "sector" not in topics.Orbital.__slots__
+    assert len(export.FOLDERS) == 10
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -113,15 +106,17 @@ def client():  # noqa: ANN201
     return TestClient(app)
 
 
-def test_위키가_없어도_궤도_열다섯이_온다(client) -> None:  # noqa: ANN001
+def test_위키가_없어도_자리_마흔일곱이_온다(client) -> None:  # noqa: ANN001
     """**빈 화면을 '데이터 없음'으로 끝내지 않는다**(DESIGN.md §7-5)."""
     r = client.get("/api/wiki/c_없는회사")
     assert r.status_code == 200
     body = WikiOut.model_validate(r.json())
-    assert body.total == 15
-    assert len(body.nodes) == 15
+    assert body.total == 47
+    assert len(body.spots) == 47
     assert body.filled == 0
-    assert all(not n.filled for n in body.nodes)
+    assert all(not s.filled for s in body.spots)
+    #: 폴더 라벨이 같이 온다 — **화면이 이름을 짓지 않는다**
+    assert set(body.folders) == {s.folder for s in body.spots}
 
 
 def test_마크다운은_없으면_404다(client) -> None:  # noqa: ANN001
@@ -132,9 +127,11 @@ def test_마크다운은_없으면_404다(client) -> None:  # noqa: ANN001
 def test_모든_자리가_제_마크다운을_들고_온다(client) -> None:  # noqa: ANN001
     """화면이 자리마다 원문을 보여 줄 수 있어야 한다. **빈 자리도 한 장이 나온다.**"""
     body = WikiOut.model_validate(client.get("/api/wiki/c_없는회사").json())
-    for n in body.nodes:
-        assert n.markdown.startswith("---"), n.key
-        assert f"# {n.label}" in n.markdown
+    for spot in body.spots:
+        assert spot.markdown.startswith("---"), spot.path
+        assert f"# {spot.title}" in spot.markdown
+        #: 채울 topic 이 없는 자리는 **왜 비는지** 말한다
+        assert spot.filled or spot.gap or "아직 비어 있어요" in spot.markdown
 
 
 def test_topic_묶음을_서버가_만들고_절을_보일지도_서버가_정한다():
@@ -143,37 +140,45 @@ def test_topic_묶음을_서버가_만들고_절을_보일지도_서버가_정�
     `groups` 는 표 순서 그대로이고 빈 것도 온다 — 화면이 «무엇이 없는지» 를 말할 수
     있어야 한다. `grouped` 가 false 인 자리에서는 화면이 `statements` 를 통째로 뿌린다.
     """
-    from finnect.api.wiki_service import _node
+    from finnect.api.wiki_service import _spot
     from finnect.wiki.markdown import Evidence, NodeView, Statement
 
     e = Evidence("사업계획서.hwp", 3, "ㅇ")
-    solution = _node(
-        NodeView(
-            key="solution",
-            label="솔루션과 기술",
-            kind="content",
-            sector="problem_solution",
-            company_id="c_t",
-            values=(),
-            statements=(Statement("출원번호 10-2025-0012345.", "patent", (e,)),),
+    pages = {
+        p.spot.path: p
+        for p in export.render(
+            [
+                NodeView(
+                    key="solution",
+                    label="솔루션과 기술",
+                    kind="content",
+                    company_id="c_t",
+                    values=(),
+                    statements=(Statement("출원번호 10-2025-0012345.", "patent", (e,)),),
+                )
+            ]
         )
-    )
-    assert solution.grouped is True
-    assert [g.topic for g in solution.groups] == list(topics.ORBIT_TOPICS["solution"])
-    assert [g.label for g in solution.groups][:2] == ["서비스 소개", "기능"]
-    #: 빈 topic 도 온다
-    assert sum(1 for g in solution.groups if not g.statements) == 6
+    }
 
-    customer = _node(
-        NodeView(
-            key="customer",
-            label="목표 고객",
-            kind="content",
-            sector="market_customer",
-            company_id="c_t",
-            values=(),
-            statements=(Statement("소상공인이다.", "target_customer", (e,)),),
-        )
-    )
-    assert customer.grouped is False
-    assert len(customer.groups) == 1
+    #: 특허는 제 자리를 갖는다. **궤도에서는 기능·인증과 한 장에 섞여 있었다**
+    patent = _spot(pages["Custom/특허/{상태}-{번호}.md"])
+    assert patent.grouped is False
+    assert [g.topic for g in patent.groups] == ["patent"]
+    assert patent.filled is True
+
+    #: 매출 자리는 값과 사실을 같이 받지만 event topic 은 하나다
+    revenue = _spot(pages["Financial/매출.md"])
+    assert revenue.grouped is False
+    assert len(revenue.groups) == 1
+
+
+def test_자리_이름이_경로다():
+    """기획 §4-3 «경로가 곧 노드 제목이다». **화면·기획·집필이 같은 문자열을 쓴다.**"""
+    from finnect.api.wiki_service import _spot
+
+    spots = [_spot(p) for p in export.render([])]
+    assert [s.path for s in spots] == [t.path for t in export.TREE]
+    #: 접힌 자리는 원래 경로를 들고 온다 — **조용히 접지 않는다**
+    folded = [s for s in spots if s.collapsed]
+    assert len(folded) == 17
+    assert all("{" in s.collapsed for s in folded)

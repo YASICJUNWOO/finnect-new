@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evidence, WikiNode, WikiStatement, WikiValue } from "@/lib/wiki";
+import type { Evidence, WikiSpot, WikiStatement, WikiValue } from "@/lib/wiki";
 import styles from "./WikiPanel.module.css";
 
 /** 자리 한 장(SPEC F1-3). **이 화면의 시그니처는 근거 줄이다.**
@@ -13,9 +13,9 @@ import styles from "./WikiPanel.module.css";
  * **출처를 툴팁이나 각주로 빼지 않는다.** 빼는 순간 값과 근거가 떨어지고, 떨어지면
  * 아무도 안 연다.
  *
- * 상세 상태는 **글자로** 적는다 — 확정·충돌·비어 있음. 색조로 말하면 종류 색과 섞인다
- * (DESIGN.md §4.1). */
-export function WikiPanel({ node, sectorLabel }: { node: WikiNode; sectorLabel: string }) {
+ * 상세 상태는 **글자로** 적는다 — 확정·충돌·비어 있음. 그래프가 단색이라(ADR-0052)
+ * 여기도 색으로 말할 것이 없다. */
+export function WikiPanel({ spot, folderLabel }: { spot: WikiSpot; folderLabel: string }) {
   const [raw, setRaw] = useState(false);
 
   return (
@@ -23,18 +23,19 @@ export function WikiPanel({ node, sectorLabel }: { node: WikiNode; sectorLabel: 
       <header className={styles.head}>
         <div className={styles.headText}>
           <p className={styles.eyebrow}>
-            <span className={styles.kind} data-kind={node.kind} aria-hidden />
-            {sectorLabel}
-            {node.eligibility && <span className={styles.tag}>자격 판별에 써요</span>}
+            {folderLabel}
+            {/* **접혔으면 원래 경로를 적는다.** 조용히 접으면 트리를 지원한다는 말이 거짓이 된다 */}
+            <span className={styles.path}>{spot.collapsed ?? spot.path}</span>
+            {spot.eligibility && <span className={styles.tag}>자격 판별에 써요</span>}
           </p>
           <h2 id="node-title" className={styles.title}>
-            {node.label}
+            {spot.title}
           </h2>
           <p className={styles.meta}>
-            {node.filled
-              ? `근거가 된 파일 ${node.source_count}개`
-              : "아직 비어 있어요"}
-            {node.conflicted && <span className={styles.warn}>값이 갈렸어요</span>}
+            {spot.filled ? `근거가 된 파일 ${spot.source_count}개` : "아직 비어 있어요"}
+            {spot.filled && <span>자료 등급 {spot.grade}</span>}
+            {spot.base_date && <span>{spot.base_date} 기준</span>}
+            {spot.conflicted && <span className={styles.warn}>값이 갈렸어요</span>}
           </p>
         </div>
 
@@ -50,18 +51,21 @@ export function WikiPanel({ node, sectorLabel }: { node: WikiNode; sectorLabel: 
       </header>
 
       {raw ? (
-        <pre className={styles.raw}>{node.markdown}</pre>
-      ) : !node.filled ? (
-        /* 5. 빈 화면(§7). **"데이터 없음"으로 끝내지 않는다** */
+        <pre className={styles.raw}>{spot.markdown}</pre>
+      ) : !spot.filled ? (
+        /* 5. 빈 화면(§7). **"데이터 없음"으로 끝내지 않는다.**
+         * 채울 topic 이 아예 없는 자리와 아직 안 올린 자리는 **다른 말을 한다** */
         <p className={styles.empty}>
-          이 자리를 채우려면 관련된 내용이 담긴 파일을 더 올리면 돼요.
+          {spot.gap
+            ? `이 자리는 아직 안 채워요. ${spot.gap}.`
+            : "이 자리를 채우려면 관련된 내용이 담긴 파일을 더 올리면 돼요."}
         </p>
       ) : (
         <>
-          {node.values.length > 0 && <Values values={node.values} />}
-          {node.grouped ? (
+          {spot.values.length > 0 && <Values values={spot.values} />}
+          {spot.grouped ? (
             /* topic 이 둘 이상인 자리. **빈 topic 도 자리를 지키고 무엇이 없는지 말한다** */
-            node.groups.map((g) => (
+            spot.groups.map((g) => (
               <section key={g.topic} className={styles.block}>
                 <h3 className={styles.blockTitle}>{g.label}</h3>
                 {g.statements.length > 0 ? (
@@ -72,10 +76,10 @@ export function WikiPanel({ node, sectorLabel }: { node: WikiNode; sectorLabel: 
               </section>
             ))
           ) : (
-            node.statements.length > 0 && (
+            spot.statements.length > 0 && (
               <section className={styles.block}>
-                {node.values.length > 0 && <h3 className={styles.blockTitle}>사업 내용</h3>}
-                <Facts statements={node.statements} />
+                {spot.values.length > 0 && <h3 className={styles.blockTitle}>사업 내용</h3>}
+                <Facts statements={spot.statements} />
               </section>
             )
           )}

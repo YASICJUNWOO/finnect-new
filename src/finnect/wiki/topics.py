@@ -326,73 +326,64 @@ def orbit_of(topic: str | None) -> str | None:
 
 
 # ─────────────────────────────────────────────────────────────────
-# 궤도 배치 (ADR-0017 · SPEC §5.3)
+# 저장 묶음 (ADR-0017 → ADR-0052)
 # ─────────────────────────────────────────────────────────────────
 
-#: `SPEC.md` F1-2 가 센 열다섯은 **value topic 열넷과 다른 셈이다.** 저기는 화면의 단위이고
-#: 여기는 병합의 단위다. 사업체 정보 다섯은 value topic 여럿을 묶은 것이다.
+#: 열다섯은 **value topic 열넷과 다른 셈이다.** 여기는 병합의 단위이고, 사업체 정보
+#: 다섯은 value topic 여럿을 묶은 것이다.
 #:
 #:     정체성 1  +  사업체 정보 5  +  사업 내용 9  =  15
 #:
 #: **남는 value topic 넷(직원 수·자본금·매출액·조달액)은 사업체 정보가 아니라 사업 내용으로 간다.**
 #: `SPEC.md` F1-2 의 다섯에 그것들이 없고, 실제로 팀 구성·매출과 성과·자금 현황을 읽을 때
 #: 같이 봐야 하는 값이다.
+#:
+#: **ADR-0017 이 정한 궤도 배치는 2026-08-22 없어졌다**(ADR-0052). 각도·구획·안팎 궤도가
+#: 전부 그래프의 것이었고, 화면이 기획 폴더 트리가 되면서 읽는 곳이 사라졌다.
 
 
 @dataclass(frozen=True, slots=True)
 class Orbital:
-    """궤도 위의 자리 하나. **자리가 고정돼 두 번째 볼 때 찾는다**(ADR-0017)."""
+    """저장이 사실을 묶는 단위 하나. **`wiki_fact.place` 가 이 키다.**
 
-    #: 화면에 쓰는 이름
+    **더 이상 화면의 단위가 아니다**(ADR-0052).
+    2026-08-22 까지는 이것이 궤도 그래프의 자리였고 `sector` 로 각도까지 갈랐는데,
+    화면이 기획 폴더 트리로 바뀌면서 **묶는 일만 남았다** — 열다섯이 남아 있는 이유는
+    `place` 컬럼이 이 키를 들고 있어서다. 화면에 쓰는 이름은 `export.TREE` 가 정한다.
+    """
+
+    #: 사람이 읽는 이름. **화면이 아니라 CLI 와 로그가 쓴다**
     label: str
-    #: `identity` · `company` · `content`. **색은 이것만 말한다**(DESIGN.md §4.1)
+    #: `identity` · `company` · `content`. 사실이 어느 갈래인지만 말한다
     kind: str
-    #: 구획. 각도가 의미를 갖는다
-    sector: str
     #: 이 자리에 딸린 value topic
     value_topics: tuple[str, ...] = ()
     #: 이 자리가 event topic 을 받나. 값은 제 orbit 키다 (ADR-0048)
     event: str | None = None
 
 
-#: 구획 여섯. **사업 내용 넷 · 사업체 정보 둘**(ADR-0017 결정 2).
-SECTORS: dict[str, str] = {
-    "registration": "등록 정보",
-    "principal": "대표와 이력",
-    "problem_solution": "문제와 해결",
-    "market_customer": "시장과 고객",
-    "result_money": "성과와 자금",
-    "team_plan": "팀과 계획",
-}
-
-
-#: 궤도 열다섯. **순서가 곧 배치 순서다** — 프론트가 이 순서로 각도를 나눈다.
+#: 저장 단위 열다섯. **순서를 바꾸면 CLI 출력 순서가 바뀐다.**
+#:
+#: **`sector` 가 2026-08-22 없어졌다**(ADR-0052). 구획 여섯은 궤도 그래프의 각도였고,
+#: 그래프를 걷어내면서 읽는 곳이 하나도 남지 않았다. 상위 묶음은 이제 기획 폴더 열이고
+#: 그 표는 `export.FOLDERS` 다.
 ORBIT: dict[str, Orbital] = {
-    # 중심 — 사업 한 줄 정의. 그래프의 중심이다
-    "identity": Orbital(
-        "우리가 하는 일", "identity", "registration", ("company_name",), event="identity"
-    ),
-    # 안쪽 궤도 — 사업체 정보 다섯. M1 자격 판별의 입력
-    "biz": Orbital(
-        "사업자 정보", "company", "registration",
-        ("business_no", "corp_no", "founded_on"),
-    ),  # fmt: skip
-    "where": Orbital("소재지", "company", "registration", ("location",)),
-    "what": Orbital("업종", "company", "registration", ("industry", "industry_item")),
-    "who": Orbital("대표자", "company", "principal", ("ceo_name", "ceo_birth")),
-    "grants": Orbital("수령 이력", "company", "principal", ("gov_program",)),
-    # 바깥 궤도 — 사업 내용 아홉. M2 적합도와 G 집필의 입력
-    "problem": Orbital("문제 인식", "content", "problem_solution", event="problem"),
-    "solution": Orbital("솔루션과 기술", "content", "problem_solution", event="solution"),
-    "customer": Orbital("목표 고객", "content", "market_customer", event="customer"),
-    "market": Orbital("시장과 경쟁", "content", "market_customer", event="market"),
-    "region": Orbital("지역 연계", "content", "market_customer", event="region"),
-    "traction": Orbital(
-        "매출과 성과", "content", "result_money", ("revenue",), event="traction"
-    ),
-    "finance": Orbital(
-        "자금 현황", "content", "result_money", ("capital", "funding"), event="finance"
-    ),
-    "team": Orbital("팀 구성", "content", "team_plan", ("headcount",), event="team"),
-    "roadmap": Orbital("로드맵", "content", "team_plan", event="roadmap"),
+    # 사업 한 줄 정의
+    "identity": Orbital("우리가 하는 일", "identity", ("company_name",), event="identity"),
+    # 사업체 정보 다섯. M1 자격 판별의 입력
+    "biz": Orbital("사업자 정보", "company", ("business_no", "corp_no", "founded_on")),
+    "where": Orbital("소재지", "company", ("location",)),
+    "what": Orbital("업종", "company", ("industry", "industry_item")),
+    "who": Orbital("대표자", "company", ("ceo_name", "ceo_birth")),
+    "grants": Orbital("수령 이력", "company", ("gov_program",)),
+    # 사업 내용 아홉. M2 적합도와 G 집필의 입력
+    "problem": Orbital("문제 인식", "content", event="problem"),
+    "solution": Orbital("솔루션과 기술", "content", event="solution"),
+    "customer": Orbital("목표 고객", "content", event="customer"),
+    "market": Orbital("시장과 경쟁", "content", event="market"),
+    "region": Orbital("지역 연계", "content", event="region"),
+    "traction": Orbital("매출과 성과", "content", ("revenue",), event="traction"),
+    "finance": Orbital("자금 현황", "content", ("capital", "funding"), event="finance"),
+    "team": Orbital("팀 구성", "content", ("headcount",), event="team"),
+    "roadmap": Orbital("로드맵", "content", event="roadmap"),
 }

@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+
+  <diagram name="1. 저장 하나 · 뷰 하나 · 화면 하나">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1500" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t1" value="사실 하나가 화면에 서기까지 — ADR-0052 판" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="2026-08-22. &lt;b&gt;뷰가 둘에서 하나가 됐다&lt;/b&gt; — ADR-0052 가 ADR-0048 결정 4 와 ADR-0017 의 배치를 대체한다. 화면·마크다운·내보내기가 전부 같은 표(export.TREE)를 읽는다. 숫자는 uv run python 으로 세어 맞췄다." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1420" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a1" value="① 파일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="110" width="150" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1d" value="user_file · data/user-files/&lt;company_id&gt;/&lt;sha[:2]&gt;/&lt;sha&gt; (ADR-0029)&#xa;&lt;b&gt;키가 (company_id, sha256) 이다&lt;/b&gt; — 회사 사이 중복 제거를 안 한다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="110" width="1220" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a2" value="② 청크" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="190" width="150" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2d" value="chunk — 원문 조각 + 위치정보(char_start·char_end·page·heading)&#xa;&lt;b&gt;위치정보는 여기서만 심을 수 있다&lt;/b&gt;(ADR-0014). 파싱이 끝난 뒤에는 「이 문장이 몇 쪽이었나」를 되찾을 방법이 없다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="190" width="1220" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a3" value="③ LLM 이 라벨만 붙인다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="270" width="150" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3d" value="wiki/extract.py — topic(37종 중 하나) · kind('value'|'event') · text · anchor · fact_key&#xa;&lt;b&gt;자유 생성 금지.&lt;/b&gt; 표 밖의 것은 uncategorized 로 서고 버리지 않는다.&#xa;&lt;b&gt;목적지를 LLM 이 정하지 않는다&lt;/b&gt; — 정하게 하면 같은 사실이 어제는 A, 오늘은 B 로 가서 위키가 돌릴 때마다 달라진다.&#xa;&lt;b&gt;anchor 가 원문에 없으면 그 사실은 버려진다&lt;/b&gt; — 근거 없는 wiki_fact 행을 만들지 않기 때문이다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="270" width="1220" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a4" value="④ 표가 목적지를 정한다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="370" width="150" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4d" value="&lt;b&gt;표가 둘이고 코드에 산다. 이 도면의 요점이다.&lt;/b&gt;&#xa;&#xa;  wiki/topics.py  TOPIC_ORBIT : topic → orbit    ← &lt;b&gt;저장&lt;/b&gt;이 묶는 자리. wiki_fact.place 가 이 키다&#xa;  wiki/export.py  TREE        : topic → 자리 경로  ← &lt;b&gt;화면&lt;/b&gt;이 쓰는 자리. Company/팀.md&#xa;&#xa;&lt;b&gt;한 topic 이 두 자리에 안 간다&lt;/b&gt; — tests/test_wiki_export.py 가 막아 둔다. 가면 같은 사실이 파일 둘에 실려 정본이 없어진다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="370" width="1220" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a5" value="⑤ 저장" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="500" width="150" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5d" value="wiki_fact — place_kind('value'|'event'|'uncategorized') · &lt;b&gt;place&lt;/b&gt;(orbit 키) · topic · dedupe_key · source_type · updated_at&#xa;wiki_evidence → chunk → user_file.  &lt;b&gt;근거 없는 행은 만들지 않는다.&lt;/b&gt;&#xa;&#xa;&lt;b&gt;ADR-0052 가 저장을 하나도 안 바꿨다. 마이그레이션이 없다.&lt;/b&gt; 화면의 단위가 바뀐 것이지 저장의 단위가 바뀐 것이 아니다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="500" width="1220" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a6" value="⑥ 뷰 — 매번 만든다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="630" width="150" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6d" value="wiki/export.py render() → Page 47장.  &lt;b&gt;마크다운을 저장하지 않는다&lt;/b&gt; — 사실이 wiki_fact 에 있는데 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다.&#xa;&lt;b&gt;만든 시각을 안 넣는다&lt;/b&gt;(generated: 같은 것). 넣으면 같은 DB 에서 만든 글이 매일 달라져 바이트로 못 비교한다.&#xa;프론트매터의 updated_at 은 다르다 — wiki_fact 의 값이라 같은 DB 면 같다. &lt;b&gt;실측: 두 번 내보낸 47장이 diff -r 로 0 이다.&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="630" width="1220" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a7" value="⑦ 세 곳이 같은 것을 쓴다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="760" width="150" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7d" value="화면 S7  /wiki           방사형 · 점 47 · 구획 열   (web/components/Orbit.tsx)&#xa;마크다운   /wiki/markdown    자리 47장을 한 덩어리로     (export.bundle)&#xa;내보내기   --export &lt;폴더&gt;      .md 47개 · 옵시디언 볼트   (__main__.render_export)&#xa;&lt;b&gt;셋이 갈릴 수 없다&lt;/b&gt; — 같은 TREE 를 읽는다. 2026-08-22 이전에는 앞 둘이 궤도 15장이고 뒤 하나만 트리 47이었다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="760" width="1220" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a1" target="a2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a2" target="a3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a3" target="a4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a4" target="a5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a5" target="a6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;endArrow=block;" edge="1" parent="1" source="a6" target="a7"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="warn" value="&lt;b&gt;바뀐 것과 안 바뀐 것&lt;/b&gt;&#xa;안 바뀜  ①②③⑤ — 파일·청크·추출·저장. &lt;b&gt;마이그레이션이 없는 이유가 이것이다.&lt;/b&gt;&#xa;바뀜    ④에 표가 하나 더 섰고(TREE 가 화면을 먹인다) ⑥⑦ 이 궤도 15 에서 자리 47 로 갈렸다." style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="880" width="1400" height="70" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="2. 자리 47 — 폴더 열과 채움">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1500" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t2" value="기획 폴더 트리 47자리 — 무엇이 차고 무엇이 비나" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="정본은 src/finnect/wiki/export.py 의 TREE 다. 기획 문서 20_지식베이스구조.md §2 를 자리 하나까지 옮긴 것이고 &lt;b&gt;선언 순서가 그 문서의 순서다.&lt;/b&gt;  ● topic 이 매달린 자리 26 ·  ✕ 채울 topic 이 없는 자리 21 ·  괄호 안은 픽스처 코퍼스 5건으로 실제로 찬 수(20/47)." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1420" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c1" value="&lt;b&gt;회사&lt;/b&gt;  Company&#xa;자리 6 · topic 5 · 실측 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1d" value="● 회사소개.md      company_name · business_no · corp_no · founded_on · location · industry · industry_item&#xa;● 비전.md         vision&#xa;● 팀.md           headcount + team&#xa;● 대표자.md        ceo_name · ceo_birth&#xa;✕ 창업계기.md      topic 이 없다. 사업계획서에 그 절이 없다&#xa;● 지역관계.md      region_link  ← &lt;b&gt;기획 문서에 없는 자리. 우리가 더했다&lt;/b&gt;(added_by: finnect). 지자체 공고 매칭에 직결된다" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="100" width="1140" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c2" value="&lt;b&gt;제품&lt;/b&gt;  Product&#xa;자리 6 · topic 4 · 실측 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2d" value="● 소개 · ● 기능 · ● 차별점 · ● 개발현황     service_overview · service_feature · service_differentiator · development_status&#xa;✕ 문제와해결.md   문제-해결 짝을 topic 으로 안 들고 있다. 문제는 Customer/고객문제.md 에 있다&#xa;✕ 화면/{화면명}.md  와이어프레임을 안 읽는다&#xa;&lt;b&gt;폴더가 동적이다&lt;/b&gt;(Product/{서비스명}/) — 서비스를 여러 개 세울 수 없어 폴더를 접고 파일 이름만 남긴다. 여섯 자리 전부 collapsed 다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="210" width="1140" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c3" value="&lt;b&gt;시장&lt;/b&gt;  Market&#xa;자리 6 · topic 2 · 실측 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3d" value="● 시장규모.md  market_size    ● 트렌드.md  market_trend&#xa;✕ 산출식-TAM · SAM · SOM   곱셈 과정을 자리 텍스트로 못 담는다  ← &lt;b&gt;심사에서 산출 근거를 묻는 자리인데 세 개가 비어 있다&lt;/b&gt;&#xa;✕ 통계/{항목}-{값}.md      인용 통계를 낱개로 안 세운다" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="300" width="1140" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c4" value="&lt;b&gt;경쟁 상대&lt;/b&gt;  Competitor&#xa;자리 2 · topic 1 · 실측 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4d" value="● {업체명}.md  competitor   ← &lt;b&gt;업체마다 갈려야 하는데 한 장으로 접혀 있다&lt;/b&gt;(plan/19 T-0090). fact_key 가 컬럼으로 없어서다&#xa;✕ 비교축.md   2x2 축을 topic 으로 안 들고 있다&#xa;&lt;b&gt;폴더 이름이 「경쟁사」가 아니라 「경쟁 상대」인 이유&lt;/b&gt; — 자리 제목 「경쟁사」와 겹치면 # 경쟁사 밑에 ## 경쟁사 가 서서 DESIGN.md §10 을 어긴다. 테스트가 겹침 0을 막는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="380" width="1140" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c5" value="&lt;b&gt;고객&lt;/b&gt;  Customer&#xa;자리 6 · topic 3 · 실측 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="460" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5d" value="● 타깃고객 · ● 고객문제 · ● 검증/{활동}-{결과}    target_customer · customer_problem · customer_evidence&#xa;✕ 페르소나/{이름}    인구통계를 낱개로 안 세운다&#xa;✕ 인터뷰/{세그먼트}-{인원}-{시점}  답변 원문을 안 읽는다&#xa;✕ 인용문/{세그먼트}-{주제}      발언 하나를 자리로 안 둔다" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="460" width="1140" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c6" value="&lt;b&gt;사업 모델&lt;/b&gt;  BusinessModel&#xa;자리 3 · topic 3 · 실측 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c6d" value="● 수익모델 revenue_model  ·  ● 가격정책 pricing  ·  ● 판매전략 go_to_market&#xa;&lt;b&gt;셋 다 orbit traction 하나에서 온다&lt;/b&gt; — 궤도에서는 「매출과 성과」 한 점에 매출 실적까지 같이 섞여 있었다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="540" width="1140" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c7" value="&lt;b&gt;재무&lt;/b&gt;  Financial&#xa;자리 4 · topic 3 · 실측 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="600" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c7d" value="● 매출.md    revenue(value) + revenue(event)   ← &lt;b&gt;value 와 event 가 같은 이름으로 한 자리에 온다.&lt;/b&gt; 매출액(값)과 매출(문장)은 다른 것이다&#xa;● 비용.md    cost        ● 자금계획.md  capital · funding(value) + funding(event)&#xa;✕ 집행계획.md  지원금 항목별 배분을 안 다룬다  ← 인건비 비중 규칙이 걸리는 검사 대상이라 기획이 따로 뺀 자리다" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="600" width="1140" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c8" value="&lt;b&gt;지식 재산&lt;/b&gt;  Custom&#xa;자리 3 · topic 3 · 실측 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="670" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c8d" value="● 특허/{상태}-{번호} patent  ·  ● 인증/{인증명} certification  ·  ● 기술/{기술명} technology&#xa;&lt;b&gt;셋 다 orbit solution 에서 온다&lt;/b&gt; — 궤도에서는 「솔루션과 기술」 한 점에 기능·차별점·개발현황까지 일곱이 섞여 있었다. &lt;b&gt;이게 자리를 47로 늘려 얻은 것이다.&lt;/b&gt;&#xa;셋 다 파일이 동적이라 한 장으로 접힌다. 폴더 이름 Custom 이 내용을 안 가리키는 것은 기획도 알고 있다(§7-4) — &lt;b&gt;그 이름을 우리가 먼저 고치지 않는다.&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="670" width="1140" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c9" value="&lt;b&gt;계획&lt;/b&gt;  Plan&#xa;자리 7 · topic 1 · 실측 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="740" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c9d" value="● 일정.md  roadmap&#xa;✕ KPI · 마케팅 · 채용 · 고객확장 · 기술고도화 · 사회적가치   시점별 목표값을 topic 으로 안 들고 있다&#xa;&lt;b&gt;빈 자리 21 중 여섯이 여기다.&lt;/b&gt; 기획 문서 §6 마지막 줄이 이미 적어 뒀다 — 「topic 온톨로지도 신설 폴더에 맞춰 늘려야 한다」. plan/20 T-0116 이 그 태스크다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="740" width="1140" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c10" value="&lt;b&gt;기록&lt;/b&gt;  Events&#xa;자리 4 · topic 1 · 실측 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8e8;strokeColor=#222222;align=left;spacing=8;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="810" width="270" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="c10d" value="● applications/{공고명}-{연도}-{결과}  gov_program   ← 중복 수혜 제한 판정과 다음 지원 보강에 쓴다&#xa;✕ meetings/{날짜} · decisions · actions   &lt;b&gt;일부러 뺐다&lt;/b&gt;(topics.py 문서 2번) — 사업계획서·IR·재무제표에서 나오지 않는 자료다. 도면이 스스로 적은 「선형 증가」가 F1-4 를 첫날부터 깬다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="320" y="810" width="1140" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sum2" value="&lt;b&gt;합&lt;/b&gt;   자리 47 = 기획 46 + 우리가 더한 1 (Company/지역관계.md)&#xa;      ● topic 이 매달린 자리 26  ·  ✕ 채울 topic 이 아예 없는 자리 21   ← &lt;b&gt;빈 자리를 지우지 않고 왜 비는지 적는다&lt;/b&gt;(Spot.gap · ADR-0028)&#xa;      접힌 자리 17 = 파일 동적 12 + 폴더 동적 5   ← &lt;b&gt;조용히 접지 않는다.&lt;/b&gt; 프론트매터에 collapsed: 로 원래 경로를 적는다&#xa;      픽스처 코퍼스 5건 실측 20/47   ← 26 은 표가 낼 수 있는 최대이고 나머지 6 은 이 코퍼스에 그 사실이 없어서 빈다" style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="1420" height="90" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="3. 방사형 — 각도가 폴더를 뜻한다">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1500" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t3" value="S7 화면 — 방사형은 남고 각도의 뜻이 바뀌었다" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="web/components/Orbit.tsx. &lt;b&gt;ADR-0017 의 원칙은 살고 배치만 대체됐다&lt;/b&gt; — 자리를 고정한다 · 힘 기반 배치를 안 쓴다 · 각도가 뜻을 갖는다. 실제 그림은 브라우저에서 아직 안 봤다(plan/20 검증 4·5)." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1420" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="bef" value="&lt;b&gt;전 — 2026-08-22 이전&lt;/b&gt;" style="text;html=1;fontSize=13;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="300" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="befd" value="중심 1 (정체성)&#xa;안쪽 링 5   사업체 정보   kind=company&#xa;바깥 링 9   사업 내용     kind=content&#xa;구획 6      registration · principal · problem_solution&#xa;            market_customer · result_money · team_plan&#xa;            ← &lt;b&gt;우리가 지어낸 이름이다.&lt;/b&gt; 사용자가 아는 말이 아니다&#xa;색 3        --n-identity · --n-company · --n-content&#xa;라벨        점 15개 전부에 이름이 붙었다&#xa;&#xa;&lt;b&gt;구획 라벨이 넷만 떴다&lt;/b&gt; — 안쪽 둘은 지름이 작아 라벨을 둘 자리가 없었다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="115" width="640" height="200" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="aft" value="&lt;b&gt;후 — ADR-0052&lt;/b&gt;" style="text;html=1;fontSize=13;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="740" y="90" width="300" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="aftd" value="중심 1      「내 사업」 + 찬 자리/전체. &lt;b&gt;노드가 아니라 표지다&lt;/b&gt; — 누를 것이 없다&#xa;링 1        점 47.  &lt;b&gt;안팎을 버렸다&lt;/b&gt; — 링을 가르던 kind 가 트리 자리에 안 맞는다&#xa;            (Financial/매출.md 이 값과 서술을 같이 받아 종류가 안 정해진다)&#xa;구획 10     회사 · 제품 · 시장 · 경쟁 상대 · 고객 · 사업 모델 · 재무 · 지식 재산 · 계획 · 기록&#xa;            ← &lt;b&gt;기획 문서와 집필 에이전트가 쓰는 그 말이다&lt;/b&gt;&#xa;            &lt;b&gt;구획 크기가 자리 수에 비례한다&lt;/b&gt; — Plan 7 이 Competitor 2 보다 넓다&#xa;색 0        &lt;b&gt;단색이다.&lt;/b&gt; 구획이 이미 묶어 줘서 분류색이 같은 말을 두 번 한다&#xa;살 10       폴더마다 하나. 47개를 그으면 별 모양이 된다&#xa;라벨        &lt;b&gt;폴더 이름 열과 「찬 자리/전체」뿐이다.&lt;/b&gt; 자리 이름은 고르거나 올렸을 때 뜬다" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="740" y="115" width="720" height="200" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="geo" value="&lt;b&gt;기하 — 왜 라벨 47개를 못 붙이나&lt;/b&gt;&#xa;링 반지름 262px · 구획 사이 간격 9° · 점 지름 14px&#xa;step = (360 − 10×9) / 47 = 5.74°  →  점 사이 = 262 × 5.74° × π/180 ≈ &lt;b&gt;26px&lt;/b&gt;&#xa;&lt;b&gt;점은 들어가고 글자는 안 들어간다.&lt;/b&gt; 한글 라벨이 대여섯 자면 12px 로도 70px 남짓이라 이웃과 겹친다.&#xa;&lt;b&gt;이 값은 계산이지 실측이 아니다&lt;/b&gt; — 브라우저에서 재야 한다." style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="335" width="700" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="st" value="&lt;b&gt;상태 셋을 색 없이 가른다&lt;/b&gt;&#xa;● 채운 점 r=7        찼다&#xa;○ 점선 빈 점 r=6     아직 비었다 — &lt;b&gt;파일을 더 올리면 찬다&lt;/b&gt;&#xa;· 실선 빈 점 r=4     채울 topic 이 없다 — &lt;b&gt;올려도 안 찬다.&lt;/b&gt; 이 둘을 같은 말로 뭉치지 않는다&#xa;+ 배지 점           손봐야 한다(값이 갈렸다). &lt;b&gt;점 자체는 그대로 둔다&lt;/b&gt; — 색조 하나에 뜻 둘을 얹지 않는다" style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="780" y="335" width="680" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="why" value="&lt;b&gt;왜 궤도 시절에는 구획을 폴더로 못 넣었나 — 이 결정의 핵심이다&lt;/b&gt;&#xa;&#xa;Orbit.tsx 의 place() 는 &lt;b&gt;정렬하지 않고 이웃한 같은 구획끼리만 묶는다.&lt;/b&gt; 그래서 구획은 &lt;b&gt;선언 순서에서 연속&lt;/b&gt;이어야 하고, 한 자리는 구획 하나에만 속해야 한다(문자열 하나다).&#xa;&#xa;orbit 15 와 기획 폴더 10 은 &lt;b&gt;다대다&lt;/b&gt;였다.&#xa;    Company/     → identity · biz · where · what · who + team + region   (7개. 안팎 링에 걸친다)&#xa;    Product/ + Custom/  → solution 하나        (특허·인증·기술이 전부 거기)&#xa;    Market/ + Competitor/ → market 하나&#xa;    Customer/    → customer + problem          (고객문제가 problem 이다)&#xa;    BusinessModel/ + Financial/매출 → traction 하나&#xa;그래서 sector 자리에 폴더 이름을 넣는 것 자체가 성립하지 않았다.&#xa;&#xa;&lt;b&gt;TREE 는 폴더 순서로 선언돼 있어서 그 조건이 저절로 맞는다.&lt;/b&gt; 화면의 단위를 자리 47로 바꾼 것이 구획을 폴더로 만든 것과 같은 일이었다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="465" width="1400" height="230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lost" value="&lt;b&gt;포기한 것&lt;/b&gt;&#xa;① 점마다 이름이 안 붙는다. 궤도 열다섯은 전부 보였다 — 그것이 점을 세 배로 늘린 값이다&#xa;② 노드 분류색 셋을 안 쓴다. 토큰은 tokens.css 에 남아 있지만 &lt;b&gt;읽는 코드가 없다&lt;/b&gt;(DESIGN.md §2·§8 을 같이 고쳤다)&#xa;③ 채움률이 15/15 에서 20/47 로 보인다. &lt;b&gt;나빠진 것이 아니라 궤도가 감추던 것이 드러난 것이다&lt;/b&gt; — 「솔루션과 기술」 한 점이 차 있으면 기능·특허·인증·기술이 다 있는 것처럼 보였다&#xa;④ 상태 셋을 크기와 선으로만 가른다. 색보다 약하다" style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="715" width="1400" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="kept" value="&lt;b&gt;안 포기한 것&lt;/b&gt;   자리를 고정한다(두 번째 볼 때 찾는다) · 힘 기반 배치를 안 쓴다 · 각도가 뜻을 갖는다 · 표가 순서를 정하고 데이터가 정하지 않는다 · 관련 선을 안 그린다(없는 관계를 그리면 근거 있는 연결로 읽힌다)" style="text;html=1;align=left;verticalAlign=top;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="845" width="1400" height="50" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="4. 표가 사는 곳 · 파일 머리">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1500" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t4" value="어느 표가 무엇을 정하나 — 정본의 자리" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="같은 값을 두 곳에 두지 않는다. 두면 한쪽만 고쳐지는 날이 온다 — 이 도면은 「그 한 곳이 어디인가」다." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1420" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="h1" value="&lt;b&gt;무엇&lt;/b&gt;" style="text;html=1;fontSize=12;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="60" y="95" width="300" height="20" as="geometry"/></mxCell>
+        <mxCell id="h2" value="&lt;b&gt;정본&lt;/b&gt;" style="text;html=1;fontSize=12;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="380" y="95" width="380" height="20" as="geometry"/></mxCell>
+        <mxCell id="h3" value="&lt;b&gt;왜 거기인가&lt;/b&gt;" style="text;html=1;fontSize=12;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="780" y="95" width="680" height="20" as="geometry"/></mxCell>
+
+        <mxCell id="r1" value="자리 47 · 경로 · 제목 · 왜 비는지" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="120" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r1b" value="wiki/export.py  TREE" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="120" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r1c" value="기획 문서 §2 를 옮긴 것이라 대조할 수 있어야 한다. 대조표(04-기획-트리-대조표.md)도 여기서 만든다 — 손으로 세지 않는다." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="120" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r2" value="폴더 10 과 한국어 이름" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="165" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r2b" value="wiki/export.py  FOLDERS" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="165" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r2c" value="구획 이름이자 화면 라벨이다. 폴더 키(영문)는 기획 것 그대로 두고 한국어만 우리가 골랐다 — 경로가 곧 이름이라(기획 §4-3) 키를 번역하면 집필이 부르는 이름과 갈린다." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="165" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r3" value="topic 37 · orbit 15 · 별칭" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="210" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r3b" value="wiki/topics.py" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="210" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r3c" value="라우팅이 결정론이어야 해서 코드에 둔다. VALUE_ALIASES 가 「상시 근로자 / 종업원 수 / 구성원 / 임직원」 넷을 headcount 하나로 모은다. &lt;b&gt;SECTORS 는 2026-08-22 없어졌다.&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="210" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r4" value="단위 붙이기 (120000000 → 120,000,000원)" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="255" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r4b" value="wiki/topics.py  display()" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="255" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r4c" value="화면·마크다운·API 가 같은 함수를 쓴다. 저장값은 병합의 재료라 손대면 충돌 판정이 깨진다." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="255" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r5" value="절 제목을 보일지 · 묶는 순서" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="300" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r5b" value="서버 — Spot.events / grouped" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="300" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r5c" value="「event topic 이 둘 이상일 때만」이라는 규칙을 화면에 한 번 더 적으면 두 곳이 된다(ADR-0048 결정 5). &lt;b&gt;표가 정하고 데이터가 정하지 않는다&lt;/b&gt; — 사실 수로 판단하면 파일을 하나 더 올릴 때 절 제목이 생겼다 없어진다." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="300" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r6" value="API 계약" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="345" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r6b" value="api/wiki_schemas.py → docs/api-contract.md" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="345" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r6c" value="정본은 코드이고 문서가 뜻을 적는다. web/ 은 DB 를 모른다. &lt;b&gt;2026-08-22 계약이 깨졌다&lt;/b&gt; — nodes→spots · sectors→folders · places→spot_titles." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="345" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="r7" value="S1 진행 화면의 자리 이름" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="60" y="390" width="310" height="40" as="geometry"/></mxCell>
+        <mxCell id="r7b" value="ProgressOut.spot_titles (같은 TREE)" style="text;html=1;align=left;verticalAlign=middle;fillColor=#e8e8e8;strokeColor=#222222;fontSize=11;spacing=6;fontStyle=1" vertex="1" parent="1"><mxGeometry x="380" y="390" width="390" height="40" as="geometry"/></mxCell>
+        <mxCell id="r7c" value="&lt;b&gt;두 화면이 같은 자리를 다르게 부르면 사용자가 다른 자리로 읽는다.&lt;/b&gt; S1 이 「이 파일이 Company/팀.md 를 채웠어요」라고 하면 S7 에도 그 이름이 있어야 한다." style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1"><mxGeometry x="780" y="390" width="680" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="fm" value="&lt;b&gt;파일 머리 — 기획 문서 §5 (ADR-0052 결정 4)&lt;/b&gt;&#xa;&#xa;---&#xa;path: Company/팀.md&#xa;title: 팀&#xa;company: c_dasiro&#xa;&lt;b&gt;grade: 1차&lt;/b&gt;&#xa;source: 사업계획서_2026_초기창업패키지.docx · 성남시_시범사업_신청서.hwpx · 피치덱_2026H2.pptx · 회사소개서_v3.pdf&#xa;source_path: c_dasiro/64/64ad2cfc… · c_dasiro/4a/4a814308… · …&#xa;base_date: 2026-08-31&#xa;updated_at: 2026-08-22&#xa;values: 4&#xa;statements: 3&#xa;---&#xa;&#xa;접힌 자리에는 collapsed: 가, 우리가 더한 자리에는 added_by: finnect 가 한 줄 더 붙는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="60" y="460" width="700" height="290" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="gr" value="&lt;b&gt;grade — 판정할 수 없는 등급을 지어내지 않는다&lt;/b&gt;&#xa;&#xa;기획 문서는 다섯을 적었다.  실측 | 1차 | 2차 | 가정 | 미정&#xa;&lt;b&gt;우리가 내는 것은 셋뿐이다.&lt;/b&gt;&#xa;&#xa;  실측   그 자리의 사실이 전부 source_type='user_stated'  ← 사용자가 직접 답한 값(ADR-0028)&#xa;  1차    사용자가 올린 문서에서 나왔다               ← 자기 자료가 1차 자료다&#xa;  미정   자리가 비었다&#xa;&#xa;  2차    외부 자료 인용        &lt;b&gt;못 낸다&lt;/b&gt;&#xa;  가정   추정값               &lt;b&gt;못 낸다&lt;/b&gt;&#xa;&#xa;&lt;b&gt;왜 못 내나.&lt;/b&gt; 「이 시장 규모가 KOSIS 인용인가 대표가 어림한 값인가」를 추출기가 안 묻는다. 없는 판정을 그럴듯한 등급으로 채우면 Market/ 값이 전부 2차 로 보이고, &lt;b&gt;기획이 이 필드를 만든 목적(심사에서 산출 근거를 대는 것)이 정확히 거기서 깨진다.&lt;/b&gt;&#xa;&#xa;그래서 지금 거의 전부 1차 다. 정보가 적은 필드이고 &lt;b&gt;그 사실을 숨기지 않는다&lt;/b&gt; — 자리를 만들어 두면 추출기가 출처를 판정하는 날 값이 늘고, 안 만들어 두면 그날 형식이 또 바뀐다.&#xa;&lt;b&gt;GRADES 표에는 다섯이 그대로 있다.&lt;/b&gt; 나중에 채울 자리를 지우지 않는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="780" y="460" width="680" height="290" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ver" value="&lt;b&gt;검증 (2026-08-22)&lt;/b&gt;&#xa;pytest 669 통과 · ruff 0 · tsc · next build 통과&#xa;uv run python -m finnect.wiki --company c_dasiro --wiki      → 자리 20/47 · 폴더별 셈이 합계와 맞는다&#xa;--export 를 두 번 돌려 diff -r  → 0 (만든 시각이 안 들어간다)&#xa;/api/wiki/c_dasiro  → spots 47 · folders 10 · filled 20 · 접힌 자리 17&#xa;&lt;b&gt;브라우저를 아직 안 봤다&lt;/b&gt; — 점 47개가 실제로 안 겹치는지는 거기서만 안다(plan/20 검증 4·5)." style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#222222;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="775" width="1400" height="110" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+</mxfile>

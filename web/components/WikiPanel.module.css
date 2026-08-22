@@ -31,23 +31,13 @@
   color: var(--ink-3);
 }
 
-/* 종류 점. **궤도의 도트와 같은 색이다** — 여기가 어느 궤도에서 왔는지 말한다 */
-.kind {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: var(--r-pill);
-  background: var(--kind);
-}
-
-.kind[data-kind="identity"] {
-  --kind: var(--n-identity);
-}
-.kind[data-kind="company"] {
-  --kind: var(--n-company);
-}
-.kind[data-kind="content"] {
-  --kind: var(--n-content);
+/* 자리의 경로. **이름이 곧 경로다**(기획 §4-3) — 폴더 라벨 옆에 원문 경로를 적는다.
+ * 집필 에이전트가 부르는 이름이 이것이고, 사용자가 내보낸 볼트에서 찾을 이름도 이것이다 */
+.path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-caption);
+  color: var(--ink-4);
+  word-break: break-all;
 }
 
 /* 자격 판별에 쓰는 자리. **색을 쓰지 않는다** — 경고가 아니라 사실이다 */

@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 
 from finnect.db import SessionFactory
 from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence, WikiFact, WikiPlace
-from finnect.wiki import build, export, service, storage, topics
+from finnect.wiki import build, export, merge, service, storage
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -281,51 +281,50 @@ def render_export(s, company_id: str, dest: Path) -> str:  # noqa: ANN001
 
 
 def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
-    """세워진 위키를 편다. **근거가 어느 파일 몇 쪽인지까지 나와야 한다**(ADR-0014)."""
-    slots = build.read_values(s, company_id)
-    if not any(v.current or v.history for v in slots):
+    """세워진 위키를 편다. **기획 트리 자리 마흔일곱이다**(ADR-0052 · plan/20 T-0115).
+
+    `--export` 와 **같은 `TREE` 를 읽는다.** 표가 하나라 둘이 갈릴 수 없다 — 화면과
+    CLI 가 각자 자리를 세면 「어디까지 됐나」에 답이 둘이 된다.
+
+    근거가 어느 파일 몇 쪽인지는 자리를 열어야 나온다(`--show` · `--export`). 여기는
+    **무엇이 차고 무엇이 비었나**를 한 화면에 보이는 것이 일이다.
+    """
+    pages = export.render(build.read_orbit(s, company_id))
+    filled = sum(1 for p in pages if p.filled)
+    if not filled:
         return f"[{company_id}] 아직 위키가 없어요. 파일을 올리고 --build 를 해 보세요"
 
-    out = [f"[{company_id} 사업 위키]", "", "─── 사업체 정보 (정형)"]
-    for v in slots:
-        mark = "!" if v.conflicted else ("·" if v.current else " ")
-        need = " *" if v.eligibility else "  "
-        if not v.current:
-            out.append(f"  {mark}{need} {v.label:14} —  아직 몰라요")
+    out = [f"[{company_id} 사업 위키]   자리 {filled}/{len(pages)}"]
+    last = ""
+    for page in pages:
+        spot = page.spot
+        if spot.folder != last:
+            last = spot.folder
+            kin = [p for p in pages if p.spot.folder == last]
+            done = sum(1 for p in kin if p.filled)
+            out += ["", f"─── {export.FOLDERS.get(last, last)} {last}   {done}/{len(kin)}"]
+
+        if not spot.filled:
+            #: 채울 topic 이 아예 없는 자리. **파일을 더 올려도 안 찬다**
+            out.append(f"  ✕ {spot.title:14} —  {spot.gap}")
             continue
-        for f in v.current:
-            when = f" ({f.as_of})" if f.as_of else ""
-            qual = f" [{f.qualifier}]" if f.qualifier else ""
-            out.append(f"  {mark}{need} {v.label:14} {f.value}{qual}{when}   {_ev(s, f)}")
-            mark, need = " ", "  "
-        for f in v.history:
-            when = f" ({f.as_of})" if f.as_of else ""
-            qual = f" [{f.qualifier}]" if f.qualifier else ""
-            out.append(f"      {'':14} └ 이전  {f.value}{qual}{when}   {_ev(s, f)}")
+        if not page.filled:
+            out.append(f"  ○ {spot.title:14} —  아직 없어요")
+            continue
+
+        bits = []
+        if page.values:
+            bits.append(f"값 {len(page.values)}")
+        if page.statements:
+            bits.append(f"사실 {len(page.statements)}")
+        bits.append(f"근거 {len(page.sources)}파일")
+        mark = "!" if any(v.status == merge.Status.CONFLICT for v in page.values) else "●"
+        out.append(f"  {mark} {spot.title:14} {' · '.join(bits)}   [{page.grade}]")
 
     out += [
         "",
-        "  * 는 자격 판별에 쓰는 자리예요. ! 는 값이 갈린 자리예요",
-        "",
-        "─── 사업 내용 (서술)",
+        "  ✕ 는 채울 topic 이 없는 자리예요 — plan/20 T-0116. ! 는 값이 갈린 자리예요",
     ]
-    for name, label in topics.EVENT_ORBITS.items():
-        facts = s.scalars(
-            select(WikiFact)
-            .where(
-                WikiFact.company_id == company_id,
-                WikiFact.place_kind == WikiPlace.EVENT,
-                WikiFact.place == name,
-            )
-            .order_by(WikiFact.id)
-        ).all()
-        if not facts:
-            out.append(f"  ○ {label}   —  아직 없어요")
-            continue
-        out.append(f"  ● {label}   사실 {len(facts)}개")
-        for f in facts:
-            out.append(f"      {f.text}")
-            out.append(f"        {_ev(s, f)}")
 
     un = s.scalars(
         select(WikiFact)

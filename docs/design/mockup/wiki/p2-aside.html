@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>P2 곁 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* P2 곁 — **궤도를 안 가리고 옆에 세운다.**
+       *
+       * `WikiBoard.tsx` 가 아래에 편 이유를 스스로 적어 뒀다 — **「근거를 펼치면
+       * 길어지는 패널을 900px 궤도 위에 겹치면 궤도가 통째로 가려 위치를 확인할 수
+       * 없다.」** 맞는 말이지만 그건 «겹친다»의 문제이지 «옆»의 문제가 아니다.
+       *
+       * 여기서는 궤도를 줄이고 오른쪽에 384px 을 상시로 준다. 스크롤이 따로 놀아서
+       * 근거를 아무리 펼쳐도 **궤도가 화면에 남는다** — 자리를 바꾸려고 위로 되돌아가지
+       * 않는다. 현행과 P1 의 셋째 대가가 여기서 없어진다.
+       *
+       * ── 대가 넷 ────────────────────────────────────────────
+       *  1. **궤도가 작아진다.** 1040 − 384 − 24 = 632px. 자리 이름이 붙는 폭까지
+       *     세면 실제로는 더 좁다 — 이 시안에서만 궤도 지름을 줄여야 한다
+       *  2. **좁은 화면에서 이 구조가 아예 없다.** 1024px 아래에서는 아래로 접어야
+       *     하고, 그러면 P1 과 같아진다. **폭에 따라 다른 물건이 되는 것**은
+       *     `r-adaptive` 가 이미 진 대가와 같은 종류다
+       *  3. **읽는 폭이 좁다.** 384px 에서 한글 본문이 22~24자다. §5 의 62ch 상한은
+       *     안 넘지만 하한이 없어서 문장이 잘게 끊긴다
+       *  4. **`notice/README` 가 「우측 드로어」를 이미 한 번 거절했다.** 다만 그건
+       *     목록 화면 이야기이고(«목록을 묶거나 상세를 곁으로 빼면 성격이 깨진다»)
+       *     위키는 목록이 아니라 그래프라 그 판단이 그대로 오지는 않는다.
+       *     **그래도 같은 안이 다시 올라온 것이므로 고를 때 그 문장을 먼저 읽어야 한다**
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 384px;
+        gap: var(--s5);
+        align-items: start;
+      }
+
+      .stage {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s4) var(--s3);
+      }
+
+      /* 궤도를 줄인다. **이 시안에서만 그렇다** */
+      .stage .cSvg { max-width: 560px; }
+
+      .aside {
+        position: sticky;
+        top: 108px;
+        max-height: calc(100vh - 132px);
+        overflow-y: auto;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s4);
+      }
+
+      .aHead { padding-bottom: var(--s3); border-bottom: 1px solid var(--line); }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        margin: 0;
+        color: var(--ink-3);
+        font-size: var(--t-caption);
+      }
+
+      .kind { width: 8px; height: 8px; flex: none; border-radius: var(--r-pill); background: var(--c); }
+
+      .aTitle {
+        margin: var(--s1) 0 0;
+        font-size: var(--t-lead);
+        font-weight: var(--w-medium);
+        line-height: var(--lh-lead);
+      }
+
+      .aMeta { margin: 2px 0 0; color: var(--ink-3); font-size: var(--t-caption); }
+      .warn { color: var(--blank); font-weight: var(--w-mid); }
+
+      .tag {
+        padding: 0 var(--s2);
+        border: 1px solid var(--line-2);
+        border-radius: var(--r-pill);
+        color: var(--ink-3);
+      }
+
+      .unit { padding: var(--s3) 0; border-top: 1px solid var(--line); }
+      .unit:first-of-type { border-top: 0; }
+
+      .uKey { margin: 0; color: var(--ink-3); font-size: var(--t-caption); }
+
+      .qual {
+        margin-left: var(--s2); padding: 0 var(--s2);
+        border-radius: var(--r-pill); background: var(--quiet);
+        color: var(--ink-2);
+      }
+
+      .uVal {
+        margin: 2px 0 0;
+        font-size: var(--t-lead);
+        font-weight: var(--w-medium);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .uTxt { margin: 0; font-size: var(--t-small); line-height: var(--lh-body); }
+
+      .asOf { margin-left: var(--s2); color: var(--ink-3); font-size: var(--t-caption); font-weight: var(--w-normal); }
+
+      .ahead {
+        display: inline-block; margin-top: 2px; padding: 0 var(--s2);
+        border: 1px solid var(--blank-line); border-radius: var(--r-pill);
+        background: var(--blank-bg); color: var(--blank);
+        font-size: var(--t-caption); font-weight: var(--w-normal);
+      }
+
+      .conflict {
+        margin: 0 0 var(--s2); padding: var(--s2);
+        background: var(--blank-bg); border: 1px solid var(--blank-line);
+        border-radius: var(--r-sm); color: var(--blank); font-size: var(--t-caption);
+      }
+
+      /* 근거. **좁아서 두 단이 안 선다** — 값 바로 아래에 세로로 쌓는다.
+       * 파일명을 줄이지 않는다. 줄이면 어느 파일인지 못 알아본다 */
+      .ev { margin: var(--s2) 0 0; padding: 0; list-style: none; }
+      .evItem { padding-left: var(--s2); border-left: 2px solid var(--line-2); }
+      .evItem + .evItem { margin-top: var(--s2); }
+      .evWhere { margin: 0; color: var(--ink-3); font-size: var(--t-caption); word-break: break-all; }
+      .evText { margin: 2px 0 0; color: var(--ink-2); font-size: var(--t-caption); line-height: 1.5; }
+      .evTable { margin: 2px 0 0; color: var(--ink-3); font-size: var(--t-caption); font-style: italic; }
+
+      .hist { margin-top: var(--s2); }
+      .histSum { color: var(--ink-3); font-size: var(--t-caption); cursor: pointer; }
+      .histList { margin: var(--s2) 0 0; padding: 0; list-style: none; color: var(--ink-2); font-size: var(--t-caption); }
+      .histList li { display: flex; gap: var(--s2); padding: 2px 0; font-variant-numeric: tabular-nums; }
+
+      .empty, .hint { margin: 0; color: var(--ink-3); font-size: var(--t-small); }
+      .hint { padding: var(--s5) 0; text-align: center; }
+
+      @media (max-width: 1023px) {
+        /* 이 구조가 아예 없다. 아래로 접힌다 — P1 과 같아진다 */
+        .split { grid-template-columns: 1fr; }
+        .aside { position: static; max-height: none; }
+        .stage .cSvg { max-width: 640px; }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, P = window.Parts, C = window.Current;
+        var picked = null;
+        var KIND_C = { identity: "var(--n-identity)", company: "var(--n-company)", content: "var(--n-content)" };
+
+        function evs(list) {
+          return (
+            '<ul class="ev">' +
+            list.map(function (e) {
+              return (
+                '<li class="evItem"><p class="evWhere">' + P.esc(e.filename) +
+                (e.page ? " · " + e.page + "쪽" : "") + "</p>" +
+                (P.quotable(e.quote)
+                  ? '<p class="evText">' + P.esc(e.quote) + "</p>"
+                  : '<p class="evTable">표에서 왔어요</p>') + "</li>"
+              );
+            }).join("") + "</ul>"
+          );
+        }
+
+        function panel(n) {
+          if (!n) {
+            return '<p class="hint">궤도에서 자리를 누르면<br>여기에 내용이 열려요.</p>';
+          }
+          var body = "";
+          n.values.forEach(function (v) {
+            v.current.forEach(function (c) {
+              body +=
+                '<div class="unit">' +
+                (v.conflict ? '<p class="conflict">값이 갈려요. 어느 쪽이 맞는지 정해야 해요.</p>' : "") +
+                '<p class="uKey">' + P.esc(v.label) +
+                (v.qualifier ? '<span class="qual">' + P.esc(v.qualifier) + "</span>" : "") + "</p>" +
+                '<p class="uVal">' + P.esc(c.display) +
+                (c.as_of ? '<span class="asOf">' + P.esc(c.as_of) + "</span>" : "") + "</p>" +
+                (P.future(c.as_of) ? '<span class="ahead">아직 안 온 날짜예요</span>' : "") +
+                evs(c.evidence) +
+                (v.history.length
+                  ? '<details class="hist"><summary class="histSum">이전 값 ' + v.history.length +
+                    '개</summary><ul class="histList">' +
+                    v.history.map(function (h) {
+                      return "<li><span>" + P.esc(h.display) + "</span><span>" + P.esc(h.as_of || "") + "</span></li>";
+                    }).join("") + "</ul></details>"
+                  : "") +
+                "</div>";
+            });
+          });
+          n.statements.forEach(function (s) {
+            body += '<div class="unit"><p class="uTxt">' + P.esc(s.text) + "</p>" + evs(s.evidence) + "</div>";
+          });
+
+          return (
+            '<div class="aHead"><p class="eyebrow">' +
+            '<i class="kind" style="--c:' + KIND_C[n.kind] + '"></i>' + P.esc(n.sectorLabel) +
+            (n.eligibility ? '<span class="tag">자격 판별</span>' : "") + "</p>" +
+            '<h2 class="aTitle">' + P.esc(n.label) + "</h2>" +
+            '<p class="aMeta" data-numeric>' +
+            (n.filled ? "근거 " + n.evidence_count + "개 · 파일 " + n.source_count + "개" : "아직 비어 있어요") +
+            (n.conflicted ? ' <span class="warn">값이 갈렸어요</span>' : "") + "</p></div>" +
+            (n.filled ? body : '<p class="empty" style="margin-top:16px">관련된 내용이 담긴 파일을 더 올리면 채워져요.</p>')
+          );
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<div class="split"><section class="stage" aria-label="궤도">' +
+              C.orbit(nodes, { selected: picked }) +
+              '<ul class="cLegend"><li data-kind="identity">우리가 하는 일</li>' +
+              '<li data-kind="company">사업체 정보</li><li data-kind="content">사업 내용</li>' +
+              '<li data-mark="blank">손봐야 해요</li><li data-mark="empty">아직 비었어요</li></ul></section>' +
+              '<aside class="aside" aria-label="고른 자리">' + panel(node) + "</aside></div>"
+          );
+
+          main.querySelectorAll(".cNode").forEach(function (g) {
+            function pick() {
+              picked = picked === g.dataset.key ? null : g.dataset.key;
+              window.__view.redraw();
+            }
+            g.addEventListener("click", pick);
+            g.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({ current: "p2", variants: window.VARIANTS, controls: window.CONTROLS(), persist: true });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,441 @@
+/* 현행 재현 스타일. **`web/components/Orbit.module.css` 와 `WikiPanel.module.css` 를
+ * 그대로 옮긴 것이다.** 클래스 이름에 `c` 를 붙인 것 말고는 값을 하나도 안 바꿨다.
+ *
+ * 대조군이 실제와 다르면 «좋아졌나» 판정이 통째로 무의미해진다. 이미 알고 있는 결함
+ * 둘도 그대로 둔다 — 빈 자리 이름표 대비 미달(`--ink-3` 2.65:1)과 구획 라벨이 바깥에만
+ * 있는 것. 고치면 대조군이 현행이 아니게 된다. */
+
+/* ══ 궤도 ═════════════════════════════════════════════════ */
+
+.cSvg {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible; /* 구획 라벨이 viewBox 밖으로 조금 나간다 */
+}
+
+/* 구조를 말하는 선이라 거의 안 보인다 — 장식이 아니다 */
+.cRing {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.cSpoke {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.cSector {
+  fill: var(--ink-3);
+  font-size: var(--t-caption);
+  font-weight: var(--w-medium);
+  text-anchor: middle;
+  letter-spacing: 0.02em;
+}
+
+.cNode {
+  cursor: pointer;
+}
+
+/* **색이 종류를 말한다.** 채워졌으면 속을 채우고, 비었으면 속을 비우고 점선을 두르되
+ * 테두리 색은 제 종류 색이다 */
+.cDot {
+  fill: var(--kind);
+  stroke: none;
+  transition: fill-opacity 120ms ease;
+}
+
+.cNode[data-kind="identity"] { --kind: var(--n-identity); }
+.cNode[data-kind="company"] { --kind: var(--n-company); }
+.cNode[data-kind="content"] { --kind: var(--n-content); }
+
+.cNode[data-filled="false"] .cDot {
+  fill: var(--surface);
+  stroke: var(--kind);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.cBadge {
+  fill: var(--blank);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+/* 고른 자리. **색을 하나 더 만들지 않고 근검정 링을 두른다** —
+ * 선택은 종류가 아니라 상태라 색으로 말하면 안 된다 */
+.cHalo {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.cLabel {
+  fill: var(--ink-2);
+  font-size: var(--t-small);
+}
+
+.cCenterLabel {
+  fill: var(--surface);
+  font-size: var(--t-caption);
+  font-weight: var(--w-bold);
+}
+
+.cNode:hover .cDot { fill-opacity: 0.82; }
+.cNode[data-filled="false"]:hover .cDot { fill: var(--quiet); fill-opacity: 1; }
+.cNode:hover .cLabel { fill: var(--ink); font-weight: var(--w-medium); }
+.cNode:focus { outline: none; }
+
+.cNode:focus-visible .cDot {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+
+.cNode:focus-visible .cLabel {
+  fill: var(--ink);
+  font-weight: var(--w-bold);
+}
+
+/* 범례 */
+.cLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: var(--s4) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.cLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.cLegend li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--kind, var(--ink-4));
+}
+
+.cLegend li[data-kind="identity"] { --kind: var(--n-identity); }
+.cLegend li[data-kind="company"] { --kind: var(--n-company); }
+.cLegend li[data-kind="content"] { --kind: var(--n-content); }
+.cLegend li[data-mark="blank"] { --kind: var(--blank); }
+.cLegend li[data-mark="empty"]::before {
+  background: var(--surface);
+  border: 1.5px dashed var(--ink-4);
+}
+
+.cHint {
+  margin: var(--s5) 0 0;
+  color: var(--ink-3);
+  font-size: var(--t-aux);
+}
+
+/* ══ 패널 ═════════════════════════════════════════════════
+ * 카드에 그림자를 주지 않는다 — 흐름 안에 있는 카드라 경계선을 쓴다.
+ * 색은 궤도가 다 썼다. 여기서 색이 나오는 곳은 종류 점 하나와 충돌 상자 하나뿐이다. */
+
+.cPanel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: var(--s5);
+}
+
+.cHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.cHeadText { min-width: 0; }
+
+.cEyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+/* 종류 점. **궤도의 도트와 같은 색이다** */
+.cKind {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--kind);
+}
+
+.cKind[data-kind="identity"] { --kind: var(--n-identity); }
+.cKind[data-kind="company"] { --kind: var(--n-company); }
+.cKind[data-kind="content"] { --kind: var(--n-content); }
+
+/* 자격 판별에 쓰는 자리. **색을 쓰지 않는다** — 경고가 아니라 사실이다 */
+.cTag {
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+}
+
+.cTitle {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--tracking-title);
+}
+
+.cMeta {
+  display: flex;
+  gap: var(--s3);
+  margin: var(--s1) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.cWarn {
+  color: var(--blank);
+  font-weight: var(--w-medium);
+}
+
+.cToggle {
+  margin-left: auto;
+  flex: none;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.cToggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-4);
+}
+
+.cEmpty {
+  margin-top: var(--s4);
+  color: var(--ink-2);
+}
+
+.cBlock { margin-top: var(--s4); }
+.cBlock + .cBlock { margin-top: var(--s5); }
+
+.cBlockTitle {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  font-weight: var(--w-medium);
+  color: var(--ink-3);
+}
+
+/* --- 정형 슬롯 --- */
+
+.cSlots { margin: 0; }
+
+.cSlot + .cSlot {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.cSlotName {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+.cQual {
+  padding: 0 var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font-size: var(--t-caption);
+}
+
+.cSlotBody { margin: var(--s1) 0 0; }
+
+/* 충돌. **마감(--urgent)이 아니라 --blank 계열이다** — 마감은 시간이 없다는 뜻이고
+ * 이건 사람이 정해야 한다는 뜻이라 다른 일이다 */
+.cConflict {
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--blank-bg);
+  border: 1px solid var(--blank-line);
+  border-radius: var(--r-sm);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--blank);
+}
+
+.cValue + .cValue { margin-top: var(--s3); }
+
+.cValueText {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+}
+
+.cAsOf {
+  font-size: var(--t-small);
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+}
+
+/* --- 서술 사실 --- */
+
+.cFacts { margin: 0; padding: 0; list-style: none; }
+
+.cFact + .cFact {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.cFactText {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  max-width: 62ch;
+}
+
+/* --- 근거 줄. 이 블록이 시그니처다 --- */
+
+.cSrc, .cSrcQuiet { margin-top: var(--s2); }
+
+.cSrcSummary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.cSrcSummary::-webkit-details-marker { display: none; }
+
+/* 펼침 표시. 삼각형 대신 부호 하나 — 행마다 반복되는 것이라 조용해야 한다 */
+.cSrcSummary::after { content: "＋"; color: var(--ink-4); }
+[open] > .cSrcSummary::after { content: "－"; }
+.cSrcSummary:hover { color: var(--ink-2); }
+
+.cSrcCount {
+  flex: none;
+  padding: 0 var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.cSrcWhere {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cSrcQuiet .cSrcCount { background: none; padding: 0; }
+
+.cQuotes {
+  margin: var(--s2) 0 0;
+  padding: 0 0 0 var(--s3);
+  border-left: 2px solid var(--line-2);
+  list-style: none;
+}
+
+.cQuote + .cQuote { margin-top: var(--s3); }
+
+.cQuoteWhere {
+  display: flex;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.cPage { font-variant-numeric: tabular-nums; }
+
+.cQuoteText {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.cNoSrc {
+  margin-top: var(--s2);
+  font-size: var(--t-small);
+  color: var(--urgent);
+}
+
+/* --- 이전 값. 지우지 않는다 (F1-1-7) --- */
+
+.cHistory { margin-top: var(--s3); }
+
+.cHistorySummary {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.cHistorySummary:hover { color: var(--ink-2); }
+
+.cHistoryList {
+  margin: var(--s2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+.cHistoryList > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+}
+
+.cHistoryList > li + li { border-top: 1px solid var(--line); }
+
+@media (max-width: 640px) {
+  .cPanel { padding: var(--s4); }
+  .cHead { flex-wrap: wrap; }
+  .cToggle { margin-left: 0; min-height: 44px; }
+  .cSrcSummary, .cHistorySummary { min-height: 44px; align-items: center; }
+}

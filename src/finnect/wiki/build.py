@@ -40,7 +40,7 @@ from finnect.models import (
     WikiFact,
     WikiPlace,
 )
-from finnect.wiki import markdown, merge, topics
+from finnect.wiki import export, markdown, merge, topics
 from finnect.wiki.extract import FactExtractor, FileView, UnknownFile, get_extractor
 
 
@@ -361,10 +361,14 @@ def read_values(session: Session, company_id: str) -> list[ValueView]:
 
 
 def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
-    """궤도 열다섯을 채워서 돌려준다. **빈 자리도 돌려준다.**
+    """저장 묶음 열다섯을 채워서 돌려준다. **빈 자리도 돌려준다.**
 
     비어 있는 것도 사실이고 물어야 할 자리다(ADR-0028). 화면이 자리를 지우면 사용자는
     무엇이 없는지 모른다 — `DESIGN.md` §7-5 가 "데이터 없음으로 끝내지 않는다"고 한 것.
+
+    **화면이 이 모양을 그대로 쓰지 않는다**(ADR-0052). `export.render()` 가 받아서
+    기획 트리 자리 47개로 다시 나눈다 — 여기 열다섯은 `wiki_fact.place` 가 드는
+    저장 묶음이다.
 
     쿼리를 자리마다 돌리지 않는다. 사실과 근거를 한 번씩 읽고 파이썬에서 묶는다 —
     열다섯 자리에 조인 서른 번은 화면 하나에 너무 많다.
@@ -376,7 +380,13 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
     ).all()
 
     rows = session.execute(
-        select(WikiEvidence.fact_id, UserFile.filename, Chunk.page, WikiEvidence.quote)
+        select(
+            WikiEvidence.fact_id,
+            UserFile.filename,
+            Chunk.page,
+            WikiEvidence.quote,
+            UserFile.sha256,
+        )
         .join(Chunk, Chunk.id == WikiEvidence.chunk_id)
         .join(UserFile, UserFile.id == WikiEvidence.user_file_id)
         .where(WikiEvidence.company_id == company_id)
@@ -384,8 +394,10 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
     ).all()
 
     by_fact: dict[int, list[markdown.Evidence]] = {}
-    for fact_id, filename, page, quote in rows:
-        by_fact.setdefault(fact_id, []).append(markdown.Evidence(filename, page, quote))
+    for fact_id, filename, page, quote, sha in rows:
+        by_fact.setdefault(fact_id, []).append(
+            markdown.Evidence(filename, page, quote, sha)
+        )
 
     value_facts: dict[str, list[WikiFact]] = {}
     node_facts: dict[str, list[WikiFact]] = {}
@@ -406,12 +418,20 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
                 as_of=f.as_of.isoformat() if f.as_of else None,
                 status=f.status or merge.Status.CURRENT,
                 evidence=tuple(by_fact.get(f.id, ())),
+                source_type=f.source_type,
+                updated_at=f.updated_at.date() if f.updated_at else None,
             )
             for slot in spot.value_topics
             for f in value_facts.get(slot, [])
         )
         statements = tuple(
-            markdown.Statement(text=f.text, topic=f.topic, evidence=tuple(by_fact.get(f.id, ())))
+            markdown.Statement(
+                text=f.text,
+                topic=f.topic,
+                evidence=tuple(by_fact.get(f.id, ())),
+                source_type=f.source_type,
+                updated_at=f.updated_at.date() if f.updated_at else None,
+            )
             for f in (node_facts.get(spot.event, []) if spot.event else [])
         )
         out.append(
@@ -419,7 +439,6 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
                 key=key,
                 label=spot.label,
                 kind=spot.kind,
-                sector=topics.SECTORS[spot.sector],
                 company_id=company_id,
                 values=values,
                 statements=statements,
@@ -429,35 +448,51 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
 
 
 def read_files(session: Session, company_id: str) -> list[tuple[UserFile, list[str]]]:
-    """올린 파일과 **그 파일이 만든 자리**(F1-4-7).
+    """올린 파일과 **그 파일이 채운 트리 자리**(F1-4-7). 자리는 `export.TREE` 의 경로다.
 
     "어느 파일을 지우면 무엇이 사라지나"를 보여 주는 자리다. 읽히지 않은 파일도 그대로
     돌려준다 — 실패를 안 보여 주면 사용자는 올린 줄 안다.
+
+    **2026-08-22 궤도 키에서 트리 경로로 바뀌었다**(ADR-0052). S1 진행 화면과 S7 위키가
+    같은 이름으로 자리를 불러야 한다 — 다르게 부르면 사용자가 그것을 다른 자리로 읽는다.
+
+    **value 는 `place` 로, event 는 `topic` 으로 찾는다.** 트리가 event 자리를 topic 단위로
+    가르기 때문이다(`Custom/특허/` 와 `Product/기능.md` 가 둘 다 orbit `solution` 이다) —
+    `place` 로 찾으면 특허 하나가 기능 자리까지 채운 것으로 보인다.
     """
     files = session.scalars(
         select(UserFile).where(UserFile.company_id == company_id).order_by(UserFile.filename)
     ).all()
 
     rows = session.execute(
-        select(WikiEvidence.user_file_id, WikiFact.place_kind, WikiFact.place)
+        select(WikiEvidence.user_file_id, WikiFact.place_kind, WikiFact.place, WikiFact.topic)
         .join(WikiFact, WikiFact.id == WikiEvidence.fact_id)
         .where(WikiEvidence.company_id == company_id)
     ).all()
 
-    #: 사실이 앉은 자리(value topic · orbit)를 궤도 자리로 되돌린다. 화면이 궤도로 말하기 때문이다
-    home: dict[tuple[str, str], str] = {}
-    for key, spot in topics.ORBIT.items():
-        for slot in spot.value_topics:
-            home[(WikiPlace.VALUE, slot)] = key
-        if spot.event:
-            home[(WikiPlace.EVENT, spot.event)] = key
-
     made: dict[int, set[str]] = {}
-    for file_id, kind, place in rows:
-        spot_key = home.get((kind, place))
-        if spot_key:
-            made.setdefault(file_id, set()).add(spot_key)
+    for file_id, kind, place, topic in rows:
+        key = place if kind == WikiPlace.VALUE else topic
+        spot = _HOME.get((kind, key))
+        if spot:
+            made.setdefault(file_id, set()).add(spot)
 
-    return [
-        (uf, sorted(made.get(uf.id, set()), key=list(topics.ORBIT).index)) for uf in files
-    ]
+    order = [s.path for s in export.TREE]
+    return [(uf, sorted(made.get(uf.id, set()), key=order.index)) for uf in files]
+
+
+def _tree_home() -> dict[tuple[str, str], str]:
+    """topic 하나 → 트리 자리 경로. **`export.TREE` 에서 만든다** — 손으로 적지 않는다.
+
+    한 topic 이 두 자리에 가지 않는다는 것은 `tests/test_wiki_export.py` 가 막아 둔다.
+    """
+    home: dict[tuple[str, str], str] = {}
+    for spot in export.TREE:
+        for slot in spot.values:
+            home[(WikiPlace.VALUE, slot)] = spot.path
+        for topic in spot.events:
+            home[(WikiPlace.EVENT, topic)] = spot.path
+    return home
+
+
+_HOME = _tree_home()

@@ -258,7 +258,7 @@ function Board({ progress: p, company }: { progress: Progress; company: string }
 
       <ul className={styles.files}>
         {p.files.map((f) => (
-          <Row key={f.filename} file={f} steps={p.steps} places={p.places} />
+          <Row key={f.filename} file={f} steps={p.steps} titles={p.spot_titles} />
         ))}
       </ul>
 
@@ -298,11 +298,12 @@ function Board({ progress: p, company }: { progress: Progress; company: string }
 function Row({
   file: f,
   steps,
-  places,
+  titles,
 }: {
   file: FileProgress;
   steps: Step[];
-  places: Record<string, string>;
+  /** 자리 경로 → 제목. **화면이 이름을 짓지 않는다**(ADR-0052) */
+  titles: Record<string, string>;
 }) {
   /** `null` 은 "아직 안 눌렀다"다. **`false` 로 두면 규칙이 죽는다** — 처음부터 접힌 것과
    *  사용자가 접은 것이 구분이 안 돼서, 도는 파일이 저절로 열리지 못한다. 한 번 누르면
@@ -353,10 +354,10 @@ function Row({
       )}
 
       {/* **이 화면의 요점.** 개수가 아니라 이름이다 — 이 파일이 무엇을 줬는지 말한다 */}
-      {f.nodes.length > 0 && (
+      {f.spots.length > 0 && (
         <ul className={styles.places} aria-label="이 파일이 채운 자리">
-          {f.nodes.map((key) => (
-            <li key={key}>{places[key] ?? key}</li>
+          {f.spots.map((path) => (
+            <li key={path}>{titles[path] ?? path}</li>
           ))}
         </ul>
       )}
@@ -435,7 +436,7 @@ function yieldOf(key: string, f: FileProgress): string | null {
     case "extract":
       return `사실 ${num(f.fact_count)}개`;
     case "link":
-      return `자리 ${f.nodes.length}곳`;
+      return `자리 ${f.spots.length}곳`;
     default:
       return null;
   }

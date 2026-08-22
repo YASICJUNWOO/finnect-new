@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>전환 — 내 사업 위키 시안</title>
+    <style>
+      /* 전환 뷰. **iframe 을 전부 띄워둔 채 `visibility` 로만 갈아끼운다** —
+       * 숨은 동안에도 스크롤과 펼침 상태가 남는다.
+       *
+       * `display: none` 을 쓰지 않는다. 레이아웃이 0폭으로 잡혀 **안쪽 미디어쿼리가
+       * 어긋난다** — 1024px 브레이크포인트가 걸린 이 하네스에서는 그게 치명적이다.
+       * 좁은 쪽 CSS 로 그려진 화면을 넓은 화면 시안이라고 보게 된다.
+       *
+       * ── 전환 조작기를 여기 두지 않는다 ─────────────────────
+       * **처음에 하단에 시안 버튼 줄을 하나 만들었다가 뺐다.** 각 시안 안에 이미
+       * `harness.js` 가 만든 바가 있고 그것도 하단 중앙 고정이라 **둘이 정확히 겹쳤다.**
+       *
+       * `harness.js` 가 이미 그 계약을 갖고 있다 — 프레임 안이면(`window.parent !== window`)
+       * 버튼이 `location.href` 대신 부모로 `hns-switch` 를 postMessage 한다. 부모는
+       * 그걸 받아 프레임만 갈아끼우면 되고, **그래야 각 시안의 스크롤·펼침 상태가 산다.**
+       * 여기 버튼을 또 두면 조작기가 둘이 되고 상태도 갈린다.
+       *
+       * 상단에는 **지금 보는 시안의 논지만** 둔다. 조작은 아래 바가 맡는다.
+       *
+       * `file://` 은 프레임마다 origin 이 null 이라 `contentDocument` 접근이 막히지만
+       * postMessage 는 통과한다. **origin 검사가 불가능하므로 payload 모양만 엄격히 본다.** */
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #0b0d10;
+        font: 400 13px/1.4 "IBM Plex Sans KR", Pretendard, -apple-system, sans-serif;
+        color: #c9d1d9;
+      }
+
+      .bar {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 38px;
+        padding: 0 14px;
+        border-bottom: 1px solid #1c2430;
+      }
+
+      .lb { flex: none; color: #fff; font-weight: 500; }
+
+      .axis {
+        flex: none;
+        padding: 1px 7px;
+        border: 1px solid #30363d;
+        border-radius: 999px;
+        color: #8b949e;
+        font-size: 11.5px;
+      }
+
+      .th {
+        flex: 1;
+        min-width: 0;
+        color: #8b949e;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .right { flex: none; display: flex; gap: 6px; }
+
+      .lnk {
+        padding: 4px 9px;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        color: #8b949e;
+        text-decoration: none;
+        font-size: 12px;
+      }
+
+      .lnk:hover { color: #e6edf3; border-color: #57606a; }
+
+      .stage { position: relative; flex: 1; min-height: 0; }
+
+      .stage iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #fff;
+        visibility: hidden;
+      }
+
+      .stage iframe[data-on="true"] { visibility: visible; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <span class="lb" id="lb">—</span>
+      <span class="axis" id="ax"></span>
+      <span class="th" id="th"></span>
+      <span class="right">
+        <a class="lnk" id="solo" href="#" target="_blank">단독 열기 ↗</a>
+        <a class="lnk" href="index.html">나란히 보기 ↗</a>
+      </span>
+    </div>
+    <div class="stage" id="stage"></div>
+
+    <script src="variants.js"></script>
+    <script>
+      (function () {
+        var V = window.VARIANTS;
+        var byId = {};
+        V.forEach(function (v) { byId[v.id] = v; });
+
+        var stage = document.getElementById("stage");
+        var AXIS = { "-": "대조군", graph: "그래프", panel: "패널" };
+
+        V.forEach(function (v) {
+          var f = document.createElement("iframe");
+          f.src = v.file;
+          f.title = v.label;
+          f.dataset.id = v.id;
+          stage.appendChild(f);
+        });
+
+        function show(id) {
+          var v = byId[id] || V[0];
+          document.getElementById("lb").textContent = v.label;
+          document.getElementById("ax").textContent = AXIS[v.axis] || v.axis;
+          document.getElementById("th").textContent = v.thesis;
+          document.getElementById("solo").href = v.file;
+          stage.querySelectorAll("iframe").forEach(function (f) {
+            f.dataset.on = String(f.dataset.id === v.id);
+          });
+          if (location.hash.slice(1) !== v.id) history.replaceState(null, "", "#" + v.id);
+        }
+
+        /* 각 시안 하단 바가 보내는 전환 요청. **origin 검사가 불가능하므로
+         * payload 모양만 엄격히 본다** — file:// 은 프레임 origin 이 null 이다 */
+        window.addEventListener("message", function (e) {
+          var d = e.data;
+          if (!d || d.type !== "hns-switch" || !byId[d.to]) return;
+          show(d.to);
+        });
+
+        window.addEventListener("hashchange", function () {
+          if (byId[location.hash.slice(1)]) show(location.hash.slice(1));
+        });
+
+        show(location.hash.slice(1));
+      })();
+    </script>
+  </body>
+</html>

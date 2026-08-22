@@ -64,7 +64,7 @@
   border-color: var(--ink-4);
 }
 
-/* --- 궤도 무대 --- */
+/* --- 방사형 무대 --- */
 
 .stage {
   display: flex;
@@ -72,8 +72,8 @@
   gap: var(--s5);
 }
 
-/* 5. 빈 화면 (§7). 궤도는 그대로 두고 위에 한 줄만 얹는다 —
- * **자리가 열다섯 있다는 것 자체가 안내다** */
+/* 5. 빈 화면 (§7). 그래프는 그대로 두고 위에 한 줄만 얹는다 —
+ * **자리가 마흔일곱 있다는 것 자체가 안내다** */
 .hole {
   padding: var(--s4);
   background: var(--surface);
@@ -89,7 +89,7 @@
   color: var(--ink-3);
 }
 
-/* 범례. **색이 무엇을 뜻하는지 화면이 말해야 한다** — 종류 셋과 표시 둘 */
+/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다**(ADR-0052) — 상태 셋과 표시 하나 */
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -118,23 +118,25 @@
   background: var(--sw, var(--ink-4));
 }
 
-.legend > li[data-kind="identity"] {
-  --sw: var(--n-identity);
-}
-.legend > li[data-kind="company"] {
-  --sw: var(--n-company);
-}
-.legend > li[data-kind="content"] {
-  --sw: var(--n-content);
+.legend > li[data-mark="filled"] {
+  --sw: var(--ink);
 }
 .legend > li[data-mark="blank"] {
   --sw: var(--blank);
 }
 
-/* 비어 있음은 점선 테두리로 말한다. 궤도의 도트와 같은 표시다 */
+/* 비어 있음은 점선 테두리로 말한다. 그래프의 점과 같은 표시다 */
 .legend > li[data-mark="empty"]::before {
   background: var(--surface);
   border: 1.5px dashed var(--ink-4);
+}
+
+/* 채울 topic 이 없는 자리는 더 작고 실선이다. **「아직」이 아니다** */
+.legend > li[data-mark="none"]::before {
+  width: 6px;
+  height: 6px;
+  background: var(--surface);
+  border: 1px solid var(--ink-4);
 }
 
 .hint {
@@ -194,7 +196,7 @@
   margin-top: var(--s3);
 }
 
-/* 이 파일이 만든 자리. 누르면 궤도로 돌아가 그 자리가 열린다 */
+/* 이 파일이 채운 자리. 누르면 그래프로 돌아가 그 자리가 열린다 */
 .chip {
   padding: var(--s1) var(--s3);
   border: 1px solid var(--line-2);

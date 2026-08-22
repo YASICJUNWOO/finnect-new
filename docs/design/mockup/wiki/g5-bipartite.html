@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>G5 이분 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* G5 이분 — **파일이 한 축이고 자리가 다른 축이다.**
+       *
+       * 나머지 넷은 「자리」를 그린다. 이것만 **연결 자체를 그린다** — 왼쪽에 올린 파일
+       * 일곱, 오른쪽에 자리 열다섯, 사이를 잇는 띠의 굵기가 근거 수다.
+       *
+       * ── 이 시안이 답하는 질문 ──────────────────────────────
+       * **「이 파일을 지우면 무엇이 사라지나」.** 현행 화면도 그걸 하려고 「원본 파일」 탭에
+       * 파일마다 자리 이름을 칩으로 달아 뒀는데(`WikiBoard.tsx` Files), 칩은 목록이라
+       * **한 파일씩 눌러 봐야** 안다. 여기서는 사업계획서 하나가 자리 아홉을 먹이고
+       * 사업자등록증이 자리 넷만 먹인다는 것이 **그림 자체**다.
+       *
+       * 위키가 공고문을 삼킨 사고(plan/12 T-0077)도 이 그림에서 먼저 보인다 — 회사 파일이
+       * 아닌 것이 자리 여럿에 굵은 띠를 걸고 있으면 눈에 띈다. **다른 넷에서는 그 파일이
+       * 근거 점 열다섯 개로 흩어져 안 보인다.**
+       *
+       * ── 대가 셋 ────────────────────────────────────────────
+       *  1. **그래프처럼 안 생겼다.** 사용자가 기대하는 「위키 그래프」의 인상이 아니고,
+       *     레퍼런스 셋 중 어느 것과도 안 닮았다
+       *  2. **자리끼리의 관계가 아예 없다.** 이분 그래프라 자리와 자리가 안 이어진다 —
+       *     구획도 안 보인다
+       *  3. **파일이 늘면 왼쪽이 길어진다.** 일곱이라 서지 지금이고, 실제 사용자는
+       *     수십 장을 던진다. 그때는 세로 스크롤이 되고 띠가 다 교차한다
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s4) var(--s3);
+      }
+
+      .gsvg { display: block; width: 100%; height: auto; }
+
+      /* 띠. **굵기가 근거 수다** — 색이 아니다. 색은 자리 종류가 이미 쓰고 있다 */
+      .band {
+        fill: none;
+        stroke: var(--c, var(--ink-4));
+        opacity: 0.3;
+        transition: opacity 140ms ease;
+      }
+
+      .band[data-hot="true"] { opacity: 0.85; }
+      .band[data-cold="true"] { opacity: 0.07; }
+
+      .colH {
+        fill: var(--ink-3);
+        font-size: var(--t-caption);
+        font-weight: var(--w-medium);
+        letter-spacing: 0.03em;
+      }
+
+      .file, .slot { cursor: pointer; }
+
+      .fileBox {
+        fill: var(--surface);
+        stroke: var(--line);
+        stroke-width: 1;
+        rx: 4;
+      }
+
+      .file:hover .fileBox, .file[data-sel="true"] .fileBox {
+        stroke: var(--ink);
+        stroke-width: 1.5;
+      }
+
+      /* 글자가 안 나온 파일. **숨기지 않는다** — 실패를 안 보여 주면 올린 줄 안다 */
+      .file[data-ok="false"] .fileBox { stroke-dasharray: 3 3; }
+
+      .fileName { fill: var(--ink); font-size: 12px; }
+      .file[data-ok="false"] .fileName { fill: var(--ink-3); }
+      .fileMeta { fill: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+      /* 채움은 `materials.js` 가 맡는다 */
+      .slotName { fill: var(--ink-2); font-size: 12px; }
+      .slot:hover .slotName, .slot[data-sel="true"] .slotName {
+        fill: var(--ink); font-weight: var(--w-mid);
+      }
+      .slotN { fill: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+      .sector {
+        fill: var(--ink-3);
+        font-size: 10.5px;
+        letter-spacing: 0.03em;
+      }
+
+      .badge { fill: var(--blank); stroke: var(--surface); stroke-width: 2; }
+
+      .file:focus, .slot:focus { outline: none; }
+      .file:focus-visible .fileBox, .slot:focus-visible .dot circle { stroke: var(--ink); stroke-width: 2; }
+
+      /* **62ch 를 건다.** 안 걸었더니 73ch 로 나왔다(§5 위반 · `measure.mjs`).
+       * 판이 940px 이라 그 아래 글이 판 너비를 따라간다 — 판을 넓히면 글도 넓어진다는
+       * 것이 이 시안의 함정이고, `common.css` 의 `data-bleed` 가 같은 이유로 있다 */
+      .cap {
+        margin: var(--s3) 0 0;
+        max-width: 62ch;
+        color: var(--ink-3);
+        font-size: var(--t-aux);
+      }
+
+      .panelWrap { margin-top: var(--s4); }
+
+      @media (prefers-reduced-motion: reduce) {
+        .band { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="materials.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, P = window.Parts, C = window.Current;
+        var VW = 940;
+        var picked = null;      /* 고른 자리 — 패널이 이걸 본다 */
+        var hoverFile = null;   /* 비춘 파일 */
+
+        var M = window.Materials;
+        var look = { material: "flat", palette: "kind" };
+
+        function color(n) {
+          return M.colorOf(n, { tone: "light", palette: look.palette, selected: picked === n.key });
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          var files = W.files(density);
+          if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+
+          /* 파일 × 자리 = 근거 수. **여기가 이 시안의 데이터다** */
+          var link = {};
+          nodes.forEach(function (n) {
+            var acc = {};
+            n.values.forEach(function (v) {
+              v.current.concat(v.history).forEach(function (c) {
+                c.evidence.forEach(function (e) { acc[e.filename] = (acc[e.filename] || 0) + 1; });
+              });
+            });
+            n.statements.forEach(function (s) {
+              s.evidence.forEach(function (e) { acc[e.filename] = (acc[e.filename] || 0) + 1; });
+            });
+            Object.keys(acc).forEach(function (f) { link[f + "|" + n.key] = acc[f]; });
+          });
+
+          var TOP = 44, ROW = 30, FX = 26, FW = 232, SX = 700;
+          var VH = TOP + Math.max(files.length * 68, nodes.length * ROW) + 34;
+
+          var fy = {}, sy = {};
+          files.forEach(function (f, i) { fy[f.filename] = TOP + 20 + i * 68; });
+          nodes.forEach(function (n, i) { sy[n.key] = TOP + 12 + i * ROW; });
+
+          var out = [];
+          out.push(M.defs(nodes.map(color), look.material, "light"));
+          out.push('<text class="colH" x="' + FX + '" y="26">올린 파일 ' + files.length + "</text>");
+          out.push('<text class="colH" x="' + SX + '" y="26">자리 ' + nodes.length + "</text>");
+
+          /* 띠. **굵은 것을 먼저 그린다** — 나중에 그린 것이 위에 오므로
+           * 가는 띠가 굵은 띠에 묻히지 않는다 */
+          var bands = [];
+          Object.keys(link).forEach(function (k) {
+            var parts = k.split("|");
+            var f = parts[0], s = parts[1];
+            if (fy[f] == null || sy[s] == null) return;
+            bands.push({ f: f, s: s, n: link[k] });
+          });
+          bands.sort(function (a, b) { return b.n - a.n; });
+
+          bands.forEach(function (b) {
+            var n = nodes.filter(function (x) { return x.key === b.s; })[0];
+            var x1 = FX + FW, y1 = fy[b.f], x2 = SX - 16, y2 = sy[b.s];
+            var mid = (x1 + x2) / 2;
+            var hot = hoverFile === b.f || picked === b.s;
+            var cold = (hoverFile || picked) && !hot;
+            out.push(
+              '<path class="band" data-hot="' + hot + '" data-cold="' + !!cold +
+              '" style="--c:' + color(n) + '" stroke-width="' + (0.8 + b.n * 0.9).toFixed(1) +
+              '" d="M ' + x1 + " " + y1 + " C " + mid + " " + y1 + ", " + mid + " " + y2 + ", " + x2 + " " + y2 + '"/>'
+            );
+          });
+
+          /* 왼쪽 — 파일 */
+          files.forEach(function (f) {
+            var y = fy[f.filename];
+            var ok = f.fact_count > 0;
+            var meta = [
+              f.parser ? f.parser : "안 읽혔어요",
+              f.page_count ? f.page_count + "쪽" : null,
+              "근거 " + f.fact_count,
+            ].filter(Boolean).join(" · ");
+            out.push(
+              '<g class="file" data-file="' + P.esc(f.filename) + '" data-ok="' + ok +
+              '" data-sel="' + (hoverFile === f.filename) +
+              '" role="button" tabindex="0" aria-label="' + P.esc(f.filename) + '">' +
+              '<rect class="fileBox" x="' + FX + '" y="' + (y - 22) + '" width="' + FW + '" height="44"/>' +
+              '<text class="fileName" x="' + (FX + 12) + '" y="' + (y - 3) + '">' +
+              P.esc(f.filename.length > 24 ? f.filename.slice(0, 23) + "…" : f.filename) + "</text>" +
+              '<text class="fileMeta" x="' + (FX + 12) + '" y="' + (y + 13) + '">' + P.esc(meta) + "</text></g>"
+            );
+          });
+
+          /* 오른쪽 — 자리. 구획이 바뀌는 곳에 이름을 적는다 */
+          var lastSector = null;
+          nodes.forEach(function (n) {
+            var y = sy[n.key];
+            if (n.sector !== lastSector) {
+              out.push('<text class="sector" x="' + (SX + 22) + '" y="' + (y - 13) + '">' +
+                P.esc(W.sectors[n.sector]) + "</text>");
+              lastSector = n.sector;
+            }
+            out.push(
+              '<g class="slot" data-key="' + n.key + '" data-filled="' + n.filled +
+              '" data-sel="' + (picked === n.key) +
+              '" role="button" tabindex="0" aria-label="' + P.esc(n.label) + '">' +
+              '<g class="dot">' + M.node(SX - 6, y, n.filled ? 4.5 : 4, color(n), {
+                material: look.material, tone: "light", empty: !n.filled,
+              }) + "</g>" +
+              (n.conflicted
+                ? '<circle class="badge" cx="' + (SX - 1) + '" cy="' + (y - 5) + '" r="3.4"/>'
+                : "") +
+              '<text class="slotName" x="' + (SX + 10) + '" y="' + (y + 4) + '">' + P.esc(n.label) + "</text>" +
+              '<text class="slotN" x="' + (VW - 20) + '" y="' + (y + 4) + '" text-anchor="end">' +
+              (n.filled ? n.evidence_count : "—") + "</text></g>"
+            );
+          });
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="파일과 자리">' +
+              '<svg class="gsvg" viewBox="0 0 ' + VW + " " + VH +
+              '" role="group" aria-label="올린 파일과 위키 자리를 잇는 그래프">' + out.join("") + "</svg>" +
+              '<p class="cap">띠가 굵을수록 그 파일이 그 자리에 준 근거가 많아요. ' +
+              "파일에 손을 올리면 무엇을 먹였는지, 자리를 누르면 무엇이 들었는지 보여요.</p></section>" +
+              '<div class="panelWrap">' + C.panel(node) + "</div>"
+          );
+
+          main.querySelectorAll(".file").forEach(function (el) {
+            function on() { hoverFile = el.dataset.file; window.__view.redraw(); }
+            function offf() { hoverFile = null; window.__view.redraw(); }
+            el.addEventListener("mouseenter", on);
+            el.addEventListener("mouseleave", offf);
+            el.addEventListener("focus", on);
+            el.addEventListener("blur", offf);
+            el.addEventListener("click", on);
+          });
+          main.querySelectorAll(".slot").forEach(function (el) {
+            function pick() {
+              picked = picked === el.dataset.key ? null : el.dataset.key;
+              window.__view.redraw();
+            }
+            el.addEventListener("click", pick);
+            el.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+        window.__look = M.controls(function () { window.__view.redraw(); }, look);
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "g5",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS().concat(window.__look),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

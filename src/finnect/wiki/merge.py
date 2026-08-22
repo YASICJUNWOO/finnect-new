@@ -38,7 +38,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 
-from finnect.wiki import topics
+from finnect.wiki import profile, tree
 from finnect.wiki.extract import Fact
 
 
@@ -55,83 +55,78 @@ class Status:
 
 @dataclass(frozen=True, slots=True)
 class Placement:
-    """사실 하나가 갈 자리."""
+    """사실 하나가 갈 곳(ADR-0056). **트랙이 둘이라 목적지도 둘이다.**
 
-    #: `slot` · `node` · `uncategorized`
+        kind="value"   트랙 B — `company_value` 로. `key` 가 고정 열넷 중 하나
+        kind="event"   트랙 A — `wiki_node` 로. `path` 가 노드 경로다
+
+    **`uncategorized` 가 없다.** 카테고리가 enum 열이라 갈 곳 없는 사실이 없고, 모르는
+    것은 `Custom/검토 대기` 라는 **진짜 자리**로 간다 — 옛 미분류는 트리에 자리가 없어서
+    화면 어디에도 안 나왔다.
+    """
+
     kind: str
-    #: value topic 이름 또는 orbit 이름. `uncategorized` 면 빈 문자열
-    name: str
-    #: 왜 uncategorized 인가. 검토 큐에서 사람이 읽는다
-    reason: str = ""
-
-    @property
-    def ok(self) -> bool:
-        return self.kind != topics.UNCATEGORIZED
+    #: `event` 일 때 노드 경로. `value` 면 빈 문자열
+    path: str = ""
+    #: `value` 면 고정 key, `event` 면 라벨이자 병합 열쇠
+    key: str = ""
+    #: 왜 검토 대기로 갔나. 제자리를 찾았으면 빈 문자열
+    why: str = ""
 
 
 def place(fact: Fact) -> Placement:
-    """사실 하나의 목적지. **모르면 버리지 않고 `uncategorized` 로 세운다**(구상도 ④ 예외)."""
-    if fact.topic == topics.UNCATEGORIZED:
-        return Placement(topics.UNCATEGORIZED, "", "온톨로지 밖 topic")
-
+    """사실 하나의 목적지. **값이면 트랙 B 로 샌다** — 트리에 안 앉는다."""
     if fact.kind == "value":
-        slot = topics.value_of(fact.key)
-        if slot is None:
-            return Placement(topics.UNCATEGORIZED, "", f"모르는 항목 이름 — {fact.key!r}")
+        key = profile.key_of(fact.key)
+        if key is None:
+            return _review(fact, f"모르는 항목 이름 — {fact.key!r}")
         if not (fact.value or "").strip():
-            return Placement(topics.UNCATEGORIZED, "", f"값이 비어 있음 — {fact.key!r}")
-        return Placement("value", slot)
+            return _review(fact, f"값이 비어 있음 — {fact.key!r}")
+        return Placement("value", key=key)
 
-    node = topics.orbit_of(fact.topic)
-    if node is None:
-        # `company_profile` · `application_history` 가 서술로 오면 여기다.
-        # 둘은 value topic 의 재료라 event topic 이 없다.
-        return Placement(topics.UNCATEGORIZED, "", f"orbit 이 없는 topic — {fact.topic}")
-    return Placement("event", node)
+    path = tree.EVENT_PATH.get(fact.topic or "")
+    if path is None:
+        #: `company_profile` · `application_history` 가 서술로 오면 여기다.
+        #: 둘은 매칭 정보의 재료라 노드 자리가 없다.
+        return _review(fact, f"자리가 없는 topic — {fact.topic}")
+    return Placement("event", path=path, key=_event_key(fact))
 
 
-def as_of_for(slot: str, as_of: dt.date | None) -> dt.date | None:
-    """value topic 이 시점을 갖는가에 따라 시점을 남기거나 뗀다."""
-    spec = topics.VALUE_SPECS.get(slot)
-    return as_of if (spec and spec.dated) else None
+def _review(fact: Fact, why: str) -> Placement:
+    """제자리를 못 찾았다. **버리지 않고 검토 대기 노드로 보낸다.**"""
+    return Placement("event", path=tree.REVIEW_PATH, key=_event_key(fact), why=why)
+
+
+def _event_key(fact: Fact) -> str:
+    """노드 안에서 이 사실을 부르는 이름. **라벨이자 병합 열쇠다**(ADR-0056 결정 3).
+
+    추출기가 아직 `fact_key`(`patent_offline_sync`)를 내므로 그것을 쓴다. 사람이 읽는
+    말로 바꾸는 것은 plan/22 T-0126 이다. 없으면 문장 자체가 키라 **안 묶인다** —
+    잘못 묶는 것보다 낫다.
+    """
+    return fact.fact_key or tree.norm(fact.text) or "사실"
 
 
 def dedupe_key(fact: Fact, spot: Placement) -> str:
     """같은 사실을 두 번 세우지 않게 하는 키.
 
-    **정형은 자리와 값이 같으면 같은 주장이다.** 사업자등록번호가 문서 넷에 있으면
-    행 하나에 근거 넷이다.
+    **값은 자리와 값이 같으면 같은 주장이다.** 사업자등록번호가 문서 넷에 있으면 행
+    하나에 근거 넷이다. 값이 키에 들어가는 것이 요점 — 시점이 같은데 값이 다르면 키가
+    달라 행이 둘이 되고 그게 곧 충돌이다.
 
-    **서술은 추출기가 준 `fact_key` 로 묶는다.** 같은 사실이 문서마다 다른 문장으로
-    쓰여 있어서(`재구매율이 51%로 올랐습니다` / `34% → 51%`) 문자열로는 못 묶는다.
-    `fact_key` 가 없으면 문장 자체가 키다 — 안 묶인다.
+    **서술은 `(노드, key)` 로 묶는다.** 같은 사실이 문서마다 다른 문장으로 쓰여 있어서
+    (`재구매율이 51%로 올랐습니다` / `34% → 51%`) 문장으로는 못 묶는다.
     """
     if spot.kind == "value":
-        d = as_of_for(spot.name, fact.as_of)
-        return f"value|{spot.name}|{fact.qualifier or ''}|{d or ''}|{_norm(fact.value)}"
-    if spot.kind == "event":
-        return f"event|{spot.name}|{fact.fact_key or _norm(fact.text)}"
-    return f"uncategorized|{fact.topic}|{_norm(fact.text)}"
-
-
-def _norm(s: str | None) -> str:
-    """비교용 정규화. **공백을 전부 지운다.**
-
-    OCR 이 `응용 소프트웨어개발및공급업` 을 내고 사업계획서가 `응용 소프트웨어 개발 및
-    공급업` 을 낸다. 띄어쓰기만 다른 같은 값이라 **공백을 지워야 하나로 모인다.**
-    지우지 않으면 OCR 노이즈가 전부 충돌로 둔갑한다.
-
-    단위와 표기(`24,100천원` → `24100000`)는 여기서 못 고친다. **그건 추출기의 일이다** —
-    `Fact.value` 가 정규화된 값이고 문서가 쓴 표현은 `Fact.text` 에 남는다.
-    """
-    return "".join((s or "").split())
+        return profile.dedupe_key(spot.key, fact.qualifier, fact.as_of, fact.value or "")
+    return f"event|{spot.path}|{spot.key}"
 
 
 @dataclass(frozen=True, slots=True)
 class Claim:
     """상태를 매길 때 보는 최소 단위. DB 행에서 이만큼만 꺼낸다."""
 
-    slot: str
+    key: str
     qualifier: str | None
     as_of: dt.date | None
     value: str
@@ -147,7 +142,7 @@ def decide(claims: list[Claim]) -> dict[Claim, str]:
     #: (value topic, 한정어) → {시점: {값}}
     groups: dict[tuple[str, str | None], dict[dt.date | None, set[str]]] = {}
     for c in claims:
-        groups.setdefault((c.slot, c.qualifier), {}).setdefault(c.as_of, set()).add(c.value)
+        groups.setdefault((c.key, c.qualifier), {}).setdefault(c.as_of, set()).add(c.value)
 
     latest: dict[tuple[str, str | None], dt.date | None] = {}
     for key, by_date in groups.items():
@@ -157,7 +152,7 @@ def decide(claims: list[Claim]) -> dict[Claim, str]:
         latest[key] = max(dated) if dated else None
 
     for c in claims:
-        key = (c.slot, c.qualifier)
+        key = (c.key, c.qualifier)
         if len(groups[key][c.as_of]) > 1:
             out[c] = Status.CONFLICT
         elif c.as_of == latest[key]:

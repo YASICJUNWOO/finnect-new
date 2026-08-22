@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>G2 성운 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* G2 성운 — **근거까지 전부 그린다.**
+       *
+       * 레퍼런스 셋이 좋아 보이는 첫째 이유는 재질이 아니라 **개수**다. 2,387 · 70 · 50.
+       * 현행은 15개를 그리고 근거 117개를 클릭 두 번 뒤에 숨긴다 — 재질을 어떻게 바꿔도
+       * 15개는 15개라 저렇게 안 보인다. 여기서는 있는 것을 다 올린다.
+       *
+       *   자리 15  +  표시 단위 47  +  근거 117  +  파일 7  =  186 노드 · 295 연결
+       *
+       * **근거가 파일과 자리를 동시에 잡고 있는 것이 이 그림의 요점이다.** 사업계획서
+       * 하나가 자리 여덟을 먹이고 있는 것이 구조로 보인다 — 현행에서는 「원본 파일」 탭을
+       * 따로 눌러야 알 수 있다.
+       *
+       * ── 힘 배치를 쓴다. ADR-0017 을 뒤집는다 ──────────────
+       * ADR-0017 이 거절한 이유는 **「열 때마다 모양이 달라진다」**였다. 그 반론은
+       * 시드를 고정하면 사라진다 — `layout.js` 가 `Math.random` 을 안 쓰고 mulberry32 를
+       * 쓰므로 같은 입력에 같은 그림이 나온다. 스크린샷을 바이트로 비교할 수 있다.
+       *
+       * **남는 반론 하나는 시드로 안 풀린다.** 파일을 하나 더 올리면 노드가 늘고 배치가
+       * 통째로 다시 잡힌다 — 「두 번째 볼 때 찾는다」가 깨진다. 그 대가를 이 시안이 진다.
+       * 완화로 자리 열다섯의 **이름표는 늘 떠 있게** 했다. 자리를 눈이 아니라 글자로 찾는다.
+       *
+       * ── 다크로 간다. DESIGN.md §7 을 이 판에서만 뒤집는다 ──
+       * 186개를 흰 면에 얹으면 옅은 에지가 안 보이고, 보이게 진하게 하면 그물이 된다.
+       * 레퍼런스 셋 중 둘이 어두운 것이 우연이 아니다. **판만 어둡고 패널과 나머지 화면은
+       * 라이트다** — 그 이음매가 이 시안의 대가이고 README 에 실측으로 적는다.
+       *
+       * ── 색 여섯을 여기서만 시험한다 ────────────────────────
+       * §2 는 노드 분류색이 **셋**(종류)이라고 정했다. 186개에서 셋은 덩어리가 안 갈린다.
+       * 「구획 6색」 노브로 갈아 끼워 보고 **어느 쪽이 읽히는지 눈으로 잰다.** 6색을 고르면
+       * §2 를 고쳐야 하고, 그건 이 시안의 값이 아니라 결정이다.
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        position: relative;
+        background: #0d1117;
+        border: 1px solid #1c2430;
+        border-radius: var(--r);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 248px 1fr;
+        min-height: 660px;
+      }
+
+      /* 좌측 조작기. **범례가 아니라 조작기다** — 레퍼런스 이미지 2 가 카운트 달린
+       * 토글로 두었고, 그게 「무엇이 몇 개인가」와 「무엇을 끌 것인가」를 한 자리에서 준다 */
+      .ctl {
+        padding: var(--s4);
+        border-right: 1px solid #1c2430;
+        color: #8b949e;
+        font-size: var(--t-small);
+        line-height: var(--lh-small);
+        overflow-y: auto;
+        max-height: 720px;
+      }
+
+      .ctlH {
+        margin: 0 0 var(--s1);
+        color: #e6edf3;
+        font-size: var(--t-aux);
+        font-weight: var(--w-medium);
+      }
+
+      .ctlStat {
+        margin: 0 0 var(--s4);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .ctlStat b { color: #e6edf3; font-weight: var(--w-mid); }
+
+      .ctlGroup { margin-top: var(--s4); }
+
+      .ctlLabel {
+        margin: 0 0 var(--s2);
+        color: #8b949e;
+        font-size: var(--t-caption);
+        letter-spacing: 0.03em;
+      }
+
+      .tog {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        width: 100%;
+        padding: var(--s1) var(--s2);
+        border: 0;
+        border-radius: var(--r-sm);
+        background: none;
+        color: #c9d1d9;
+        font-size: var(--t-small);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .tog:hover { background: #161b22; }
+      /* 꺼진 축. **회색이라도 글자는 글자다** — #4d5560 은 2.51:1 이었다 */
+      .tog[aria-pressed="false"] { color: #7d8590; }
+      .tog[aria-pressed="false"] .swatch { opacity: 0.25; }
+
+      .swatch {
+        width: 9px;
+        height: 9px;
+        flex: none;
+        border-radius: var(--r-pill);
+        background: var(--sw);
+      }
+
+      .togN {
+        margin-left: auto;
+        color: #8b949e;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .canvasWrap { position: relative; }
+
+      .gsvg { display: block; width: 100%; height: 100%; }
+
+      /* 에지. **거의 안 보인다** — 레퍼런스 셋이 전부 이렇게 둔다.
+       * 보이게 진하게 하면 186개에서 그물이 되고 노드가 안 읽힌다 */
+      .edge { stroke: #30363d; stroke-width: 0.6; opacity: 0.5; fill: none; }
+      .edge[data-to="file"] { stroke: #2d333b; opacity: 0.34; }
+      .edge[data-hot="true"] { stroke: #e6edf3; opacity: 0.55; stroke-width: 1; }
+
+      .n { cursor: pointer; }
+      .n circle { transition: opacity 140ms ease; }
+
+      /* 근거. 가장 작고 가장 어둡다 — 세는 것이지 읽는 것이 아니다 */
+      .n[data-t="ev"] circle { fill: var(--c); opacity: 0.42; }
+      /* 표시 단위 */
+      .n[data-t="item"] circle { fill: var(--c); opacity: 0.78; }
+      /* 자리 */
+      .n[data-t="slot"] circle { fill: var(--c); }
+      .n[data-t="slot"][data-filled="false"] circle {
+        fill: none; stroke: var(--c); stroke-width: 1.4; stroke-dasharray: 3 3;
+      }
+      /* 파일. **종류색을 안 쓴다** — 파일은 종류가 없다. 무채색이 그것을 말한다 */
+      .n[data-t="file"] circle { fill: none; stroke: #768390; stroke-width: 1.6; }
+
+      .n:hover circle, .n[data-sel="true"] circle { opacity: 1; }
+
+      .halo { fill: none; stroke: #e6edf3; stroke-width: 1.6; }
+
+      .badge { fill: #d29922; stroke: #0d1117; stroke-width: 1.6; }
+
+      /* 이름표. **자리 열다섯과 파일 일곱에만 붙인다** — 186개에 다 붙이면 못 읽는다.
+       * 레퍼런스 셋이 공통으로 쓰는 선택적 라벨링이고, 그것이 밀도를 견디게 한다 */
+      .lb {
+        fill: #c9d1d9;
+        font-size: 11.5px;
+        paint-order: stroke;
+        stroke: #0d1117;
+        stroke-width: 3.5;
+        stroke-linejoin: round;
+        pointer-events: none;
+      }
+
+      .lb[data-t="file"] { fill: #8b949e; font-size: 10.5px; }
+      .n:hover .lb, .n[data-sel="true"] .lb { fill: #fff; }
+
+      .dim { opacity: 0.16; }
+
+      /* 힌트. **배경을 깐다** — 안 깔면 노드 이름표와 겹쳐 둘 다 못 읽는다 */
+      .hint {
+        position: absolute;
+        left: var(--s3);
+        bottom: var(--s3);
+        margin: 0;
+        padding: 3px 8px;
+        border-radius: var(--r-sm);
+        background: rgba(13, 17, 23, 0.86);
+        color: #8b949e;
+        font-size: var(--t-caption);
+      }
+
+      .panelWrap { margin-top: var(--s4); }
+
+      @media (max-width: 1023px) {
+        .stage { grid-template-columns: 1fr; min-height: 0; }
+        .ctl { border-right: 0; border-bottom: 1px solid #1c2430; max-height: none; }
+        .gsvg { height: 520px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .n circle { transition: none; }
+      }
+    </style>
+  </head>
+  <body data-bleed="full">
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="materials.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, L = window.Layout, P = window.Parts, C = window.Current;
+        var VW = 1180, VH = 680;
+        var M = window.Materials;
+        var picked = null;
+        var off = {}; /* 꺼 둔 축 */
+        /* **재질과 색을 화면 안 조작기에 두지 않는다.** 저건 제품 UI 흉내이고
+         * 이건 우리가 고르고 끝낼 값이라 하네스 바가 맡는다(하네스 규칙 3) */
+        var look = { material: "flat", palette: "kind" };
+
+        /* 값은 `materials.js` 가 든다. **어두운 면 팔레트를 쓴다** —
+         * 같은 값을 밝은 면과 공유하면 한쪽이 반드시 죽는다 */
+        var DARK = M.PALETTES.dark;
+
+        function color(d) {
+          if (d.t === "file") return "#8b949e";
+          return M.colorOf(d, { tone: "dark", palette: look.palette, selected: picked === d.key });
+        }
+
+        /* 그래프를 짓는다. **한 곳에서만 짓는다** — 노드 정의가 시안의 논지라
+         * 여기가 흐려지면 무엇을 비교하는지 모르게 된다 */
+        function build(density) {
+          var nodes = W.nodes(density);
+          var files = W.files(density);
+          var items = [], links = [];
+
+          nodes.forEach(function (n) {
+            items.push({
+              id: "s:" + n.key, t: "slot", key: n.key, label: n.label,
+              kind: n.kind, sector: n.sector, filled: n.filled,
+              conflicted: n.conflicted, r: n.kind === "identity" ? 13 : 6 + Math.sqrt(n.evidence_count) * 1.7,
+            });
+            /* 중심에서 각 자리로. 구조의 뼈대라 이것만 조금 진하다 */
+            if (n.kind !== "identity") links.push({ source: "s:identity", target: "s:" + n.key, weight: 1.7 });
+
+            n.values.concat(n.statements).forEach(function (it, i) {
+              var iid = "i:" + n.key + ":" + i;
+              items.push({ id: iid, t: "item", key: n.key, kind: n.kind, sector: n.sector, r: 4.2 });
+              links.push({ source: "s:" + n.key, target: iid, weight: 1.2 });
+
+              (it.current || []).concat(it.history || []).concat(it.evidence ? [it] : [])
+                .forEach(function (holder) {
+                  (holder.evidence || []).forEach(function (e, j) {
+                    var eid = iid + ":e" + j + ":" + e.filename;
+                    items.push({ id: eid, t: "ev", key: n.key, kind: n.kind, sector: n.sector, r: 2.1 });
+                    links.push({ source: iid, target: eid, weight: 0.9 });
+                    /* **근거가 파일을 잡는다.** 이 한 줄이 이 그림의 요점이다 */
+                    links.push({ source: eid, target: "f:" + e.filename, weight: 0.35, to: "file" });
+                  });
+                });
+            });
+          });
+
+          files.forEach(function (f) {
+            items.push({
+              id: "f:" + f.filename, t: "file", label: f.filename.replace(/\.[^.]+$/, ""),
+              r: 5 + Math.sqrt(f.fact_count) * 1.5,
+            });
+          });
+
+          return { items: items, links: links, nodes: nodes, files: files };
+        }
+
+        function render(main, density) {
+          var g = build(density);
+          if (picked && !g.nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = g.nodes.filter(function (n) { return n.key === picked; })[0] || null;
+          var s = W.summary(density);
+
+          L.force(g.items, g.links, { width: VW, height: VH, seed: 20260821, spread: 0.62 });
+          /* **틀을 내용에 맞춘다.** 힘 배치는 어디까지 퍼질지 미리 모른다 —
+           * 틀을 먼저 고정했더니 이름표가 오른쪽에서 잘렸다(피치덱·회사소개서) */
+          var box = L.fit(g.items, { right: 132 });
+
+          var pos = {};
+          g.items.forEach(function (it) { pos[it.id] = it; });
+
+          function visible(it) {
+            return !off[it.t];
+          }
+
+          var svg = [];
+          svg.push(M.defs(g.items.map(color), look.material, "dark"));
+          g.links.forEach(function (l) {
+            var a = pos[l.source], b = pos[l.target];
+            if (!a || !b || !visible(a) || !visible(b)) return;
+            var hot = picked && (a.key === picked || b.key === picked);
+            svg.push(
+              '<line class="edge' + (picked && !hot ? " dim" : "") + '" data-to="' + (l.to || "") +
+              '" data-hot="' + !!hot + '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) +
+              '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '"/>'
+            );
+          });
+
+          /* 그리는 순서가 곧 쌓임 순서다. 근거 → 단위 → 파일 → 자리.
+           * **자리가 맨 위여야 한다** — 이름표가 근거에 덮이면 유일한 길이 막힌다 */
+          ["ev", "item", "file", "slot"].forEach(function (t) {
+            g.items.filter(function (it) { return it.t === t && visible(it); }).forEach(function (it) {
+              var sel = picked && it.key === picked;
+              var dim = picked && !sel && it.t !== "file";
+              svg.push(
+                '<g class="n' + (dim ? " dim" : "") + '" data-t="' + it.t +
+                '" data-kind="' + (it.kind || "") + '" data-filled="' + (it.filled !== false) +
+                '" data-sel="' + !!sel + '"' +
+                (it.t === "slot" ? ' data-key="' + it.key + '" role="button" tabindex="0" aria-label="' +
+                  P.esc(it.label) + '"' : "") +
+                ' style="--c:' + color(it) + '">' +
+                (sel && it.t === "slot"
+                  ? '<circle class="halo" cx="' + it.x.toFixed(1) + '" cy="' + it.y.toFixed(1) +
+                    '" r="' + (it.r + 5).toFixed(1) + '"/>'
+                  : "") +
+                /* 파일은 무채색 테두리 원 그대로 둔다 — 종류가 없는 것이라 재질도 안 입힌다 */
+                (it.t === "file"
+                  ? '<circle cx="' + it.x.toFixed(1) + '" cy="' + it.y.toFixed(1) +
+                    '" r="' + it.r.toFixed(1) + '"/>'
+                  : M.node(it.x.toFixed(1), it.y.toFixed(1), it.r, color(it), {
+                      material: look.material, tone: "dark", empty: it.filled === false,
+                    })) +
+                (it.conflicted
+                  ? '<circle class="badge" cx="' + (it.x + it.r * 0.75).toFixed(1) +
+                    '" cy="' + (it.y - it.r * 0.75).toFixed(1) + '" r="3.6"/>'
+                  : "") +
+                (it.label
+                  ? '<text class="lb" data-t="' + it.t + '" x="' + (it.x + it.r + 5).toFixed(1) +
+                    '" y="' + (it.y + 4).toFixed(1) + '">' + P.esc(it.label) + "</text>"
+                  : "") +
+                "</g>"
+              );
+            });
+          });
+
+          var counts = {
+            slot: g.items.filter(function (i) { return i.t === "slot"; }).length,
+            item: g.items.filter(function (i) { return i.t === "item"; }).length,
+            ev: g.items.filter(function (i) { return i.t === "ev"; }).length,
+            file: g.items.filter(function (i) { return i.t === "file"; }).length,
+          };
+
+          function tog(t, label, sw) {
+            return (
+              '<button type="button" class="tog" data-tog="' + t + '" aria-pressed="' + !off[t] + '">' +
+              '<i class="swatch" style="--sw:' + sw + '"></i>' + label +
+              '<span class="togN" data-numeric>' + counts[t] + "</span></button>"
+            );
+          }
+
+          /* 범례. **조작기가 아니다** — 색을 무엇으로 쓸지는 하네스 바가 정한다 */
+          var axisRows = (look.palette === "sector"
+            ? Object.keys(W.sectors).map(function (k) {
+                return { c: DARK.sector[k], label: W.sectors[k],
+                  n: g.nodes.filter(function (n) { return n.sector === k; }).length };
+              })
+            : look.palette === "mono"
+            ? [{ c: DARK.mono, label: "전부 같은 색", n: g.nodes.length }]
+            : [
+                { c: DARK.kind.identity, label: "우리가 하는 일", n: 1 },
+                { c: DARK.kind.company, label: "사업체 정보", n: 5 },
+                { c: DARK.kind.content, label: "사업 내용", n: 9 },
+              ]
+          ).map(function (r) {
+            return (
+              '<div class="tog" aria-pressed="true"><i class="swatch" style="--sw:' + r.c +
+              '"></i>' + P.esc(r.label) + '<span class="togN" data-numeric>' + r.n + "</span></div>"
+            );
+          }).join("");
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="위키 그래프">' +
+              '<div class="ctl"><p class="ctlH">사업 위키</p>' +
+              '<p class="ctlStat" data-numeric>노드 <b>' + g.items.length +
+              "</b> · 연결 <b>" + g.links.length + "</b> · 근거 <b>" + s.evidence + "</b></p>" +
+              '<div class="ctlGroup"><p class="ctlLabel">무엇을 그릴까요</p>' +
+              tog("slot", "자리", "#c9d1d9") +
+              tog("item", "값과 문장", "#8b949e") +
+              tog("ev", "근거", "#586069") +
+              tog("file", "원본 파일", "#768390") +
+              "</div>" +
+              '<div class="ctlGroup"><p class="ctlLabel">' +
+              (look.palette === "sector" ? "구획 여섯" : look.palette === "mono" ? "단색" : "종류 셋") +
+              "</p>" + axisRows + "</div>" +
+              "</div>" +
+              '<div class="canvasWrap"><svg class="gsvg" viewBox="' + box.str +
+              '" role="group" preserveAspectRatio="xMidYMid meet" aria-label="사업 위키 그래프">' +
+              svg.join("") + "</svg>" +
+              '<p class="hint">자리를 누르면 그 갈래만 남고 아래에 내용이 열려요.</p></div>' +
+              "</section>" +
+              '<div class="panelWrap">' + C.panel(node) + "</div>"
+          );
+
+          main.querySelectorAll("[data-key]").forEach(function (el) {
+            function pick() {
+              picked = picked === el.dataset.key ? null : el.dataset.key;
+              window.__view.redraw();
+            }
+            el.addEventListener("click", pick);
+            el.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+          main.querySelectorAll("[data-tog]").forEach(function (el) {
+            el.addEventListener("click", function () {
+              off[el.dataset.tog] = !off[el.dataset.tog];
+              window.__view.redraw();
+            });
+          });
+        }
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+        window.__look = M.controls(function () { window.__view.redraw(); }, look);
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({
+        current: "g2",
+        variants: window.VARIANTS,
+        controls: window.CONTROLS().concat(window.__look),
+        persist: true,
+      });
+    </script>
+  </body>
+</html>

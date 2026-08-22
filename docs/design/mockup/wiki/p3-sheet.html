@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>P3 시트 — 내 사업 위키</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="current.css" />
+    <style>
+      /* P3 시트 — **누른 자리 위에서 자란다.**
+       *
+       * `SPEC.md` §5.3 이 원래 적은 것이 이것이다 — **「겹쳐 뜬다」.** `WikiBoard.tsx` 가
+       * 그걸 아래로 내리면서 이유를 적었는데(궤도가 통째로 가린다) **그건 패널이 화면을
+       * 다 먹었을 때 이야기다.** 여기서는 시트가 궤도의 절반만 덮고 나머지 절반에
+       * 고른 자리가 링과 함께 남는다.
+       *
+       * ── 어디에 뜨나 ────────────────────────────────────────
+       * 누른 자리의 **반대쪽**에 뜬다. 오른쪽 자리를 누르면 왼쪽에, 왼쪽을 누르면
+       * 오른쪽에. 그래야 자기가 누른 것이 안 가려진다 — 고정된 자리에 띄우면 절반의
+       * 확률로 방금 누른 것을 덮는다.
+       *
+       * ── 좁은 화면에서는 바텀 시트다 ─────────────────────────
+       * ≤640px 에서 아래에서 올라온다. **`viewportFit: "cover"` 와 `env(safe-area-inset-bottom)`
+       * 이 여기서 실제로 필요하다** — 홈 인디케이터가 있는 기기에서 시트 바닥이 그 밑으로
+       * 들어간다. 그 값을 안 먹으면 로컬에서는 멀쩡하고 노치 기기에서만 틀린다.
+       *
+       * ── 대가 넷 ────────────────────────────────────────────
+       *  1. **길면 시트가 스크롤된다.** 근거 19개짜리 자리는 시트 안에서 스크롤인데,
+       *     화면 스크롤과 시트 스크롤이 둘이 되어 어느 쪽이 움직이는지 헷갈린다
+       *  2. **닫는 동작이 하나 더 생긴다.** 아래에 펴는 구조에는 «닫기»가 없다
+       *  3. **떠 있는 것이라 그림자가 필요하다.** §6 이 「실제로 위에 뜨는 것에만」
+       *     `--shadow-raised` 를 주라고 했고 이건 그 자리가 맞지만, **제품에서 처음으로
+       *     그림자가 켜지는 화면이 된다**
+       *  4. **인쇄와 딥링크가 나빠진다.** 시트는 상태이지 문서가 아니다
+       *
+       * 하단 검은 바는 **목업 전용이다.** */
+
+      .stage {
+        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: var(--s5) var(--s4);
+        overflow: hidden;
+      }
+
+      .sheet {
+        position: absolute;
+        top: var(--s4);
+        bottom: var(--s4);
+        width: min(420px, 46%);
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        /* §6 — 실제로 위에 뜨는 것이라 그림자를 준다 */
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .sheet[data-side="left"] { left: var(--s4); }
+      .sheet[data-side="right"] { right: var(--s4); }
+
+      .sHead {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--s3);
+        padding: var(--s4);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .eyebrow { display: flex; align-items: center; gap: var(--s2); margin: 0; color: var(--ink-3); font-size: var(--t-caption); }
+      .kind { width: 8px; height: 8px; flex: none; border-radius: var(--r-pill); background: var(--c); }
+      .sTitle { margin: var(--s1) 0 0; font-size: var(--t-lead); font-weight: var(--w-medium); line-height: var(--lh-lead); }
+      .sMeta { margin: 2px 0 0; color: var(--ink-3); font-size: var(--t-caption); }
+      .warn { color: var(--blank); font-weight: var(--w-mid); }
+      .tag { padding: 0 var(--s2); border: 1px solid var(--line-2); border-radius: var(--r-pill); color: var(--ink-3); }
+
+      /* 닫기. **44px 이다** — 아래에 펴는 구조에는 없던 조작 요소라 크기가 중요하다 */
+      .close {
+        margin-left: auto; flex: none;
+        width: 32px; height: 32px;
+        display: grid; place-items: center;
+        border: 1px solid var(--line-2); border-radius: var(--r-sm);
+        background: var(--surface); color: var(--ink-2);
+        cursor: pointer; line-height: 1;
+      }
+      .close:hover { color: var(--ink); border-color: var(--ink-4); }
+
+      .sBody { padding: 0 var(--s4) var(--s4); overflow-y: auto; }
+
+      .unit { padding: var(--s3) 0; border-top: 1px solid var(--line); }
+      .unit:first-child { border-top: 0; padding-top: var(--s3); }
+      .uKey { margin: 0; color: var(--ink-3); font-size: var(--t-caption); }
+      .qual { margin-left: var(--s2); padding: 0 var(--s2); border-radius: var(--r-pill); background: var(--quiet); color: var(--ink-2); }
+      .uVal { margin: 2px 0 0; font-size: var(--t-lead); font-weight: var(--w-medium); font-variant-numeric: tabular-nums; }
+      .uTxt { margin: 0; font-size: var(--t-small); line-height: var(--lh-body); }
+      .asOf { margin-left: var(--s2); color: var(--ink-3); font-size: var(--t-caption); font-weight: var(--w-normal); }
+      .ahead {
+        display: inline-block; margin-top: 2px; padding: 0 var(--s2);
+        border: 1px solid var(--blank-line); border-radius: var(--r-pill);
+        background: var(--blank-bg); color: var(--blank); font-size: var(--t-caption);
+      }
+      .conflict {
+        margin: 0 0 var(--s2); padding: var(--s2);
+        background: var(--blank-bg); border: 1px solid var(--blank-line);
+        border-radius: var(--r-sm); color: var(--blank); font-size: var(--t-caption);
+      }
+
+      .ev { margin: var(--s2) 0 0; padding: 0; list-style: none; }
+      .evItem { padding-left: var(--s2); border-left: 2px solid var(--line-2); }
+      .evItem + .evItem { margin-top: var(--s2); }
+      .evWhere { margin: 0; color: var(--ink-3); font-size: var(--t-caption); word-break: break-all; }
+      .evText { margin: 2px 0 0; color: var(--ink-2); font-size: var(--t-caption); line-height: 1.5; }
+      .evTable { margin: 2px 0 0; color: var(--ink-3); font-size: var(--t-caption); font-style: italic; }
+
+      .empty { margin: var(--s4) 0 0; color: var(--ink-2); font-size: var(--t-small); }
+      .hint { margin: var(--s4) 0 0; color: var(--ink-3); font-size: var(--t-aux); text-align: center; }
+
+      /* 좁은 화면 — 바텀 시트. **안전영역을 먹는다** */
+      @media (max-width: 640px) {
+        .stage { overflow: visible; }
+        .sheet {
+          position: fixed;
+          left: 0; right: 0; bottom: 0; top: auto;
+          width: auto;
+          max-height: 72vh;
+          border-radius: var(--r) var(--r) 0 0;
+          border-bottom: 0;
+          padding-bottom: env(safe-area-inset-bottom);
+          z-index: 30;
+        }
+        .sheet[data-side="left"], .sheet[data-side="right"] { left: 0; right: 0; }
+        .close { width: 44px; height: 44px; }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .sheet { animation: rise 140ms ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="data.js"></script>
+    <script src="layout.js"></script>
+    <script src="common-parts.js"></script>
+    <script src="current.js"></script>
+    <script>
+      (function () {
+        var W = window.WIKI, L = window.Layout, P = window.Parts, C = window.Current;
+        var picked = null;
+        var KIND_C = { identity: "var(--n-identity)", company: "var(--n-company)", content: "var(--n-content)" };
+
+        /* 누른 자리가 어느 쪽에 있나. **반대쪽에 띄운다** */
+        function sideOf(nodes, key) {
+          var g = L.orbit(nodes, { size: C.SIZE });
+          var p = g.placed.filter(function (x) { return x.node.key === key; })[0];
+          if (!p) return "right";
+          return p.x > g.cx ? "left" : "right";
+        }
+
+        function evs(list) {
+          return (
+            '<ul class="ev">' +
+            list.map(function (e) {
+              return (
+                '<li class="evItem"><p class="evWhere">' + P.esc(e.filename) +
+                (e.page ? " · " + e.page + "쪽" : "") + "</p>" +
+                (P.quotable(e.quote)
+                  ? '<p class="evText">' + P.esc(e.quote) + "</p>"
+                  : '<p class="evTable">표에서 왔어요</p>') + "</li>"
+              );
+            }).join("") + "</ul>"
+          );
+        }
+
+        function sheet(n, side) {
+          var body = "";
+          n.values.forEach(function (v) {
+            v.current.forEach(function (c) {
+              body +=
+                '<div class="unit">' +
+                (v.conflict ? '<p class="conflict">값이 갈려요. 어느 쪽이 맞는지 정해야 해요.</p>' : "") +
+                '<p class="uKey">' + P.esc(v.label) +
+                (v.qualifier ? '<span class="qual">' + P.esc(v.qualifier) + "</span>" : "") + "</p>" +
+                '<p class="uVal">' + P.esc(c.display) +
+                (c.as_of ? '<span class="asOf">' + P.esc(c.as_of) + "</span>" : "") + "</p>" +
+                (P.future(c.as_of) ? '<span class="ahead">아직 안 온 날짜예요</span>' : "") +
+                evs(c.evidence) + "</div>";
+            });
+          });
+          n.statements.forEach(function (s) {
+            body += '<div class="unit"><p class="uTxt">' + P.esc(s.text) + "</p>" + evs(s.evidence) + "</div>";
+          });
+
+          return (
+            '<div class="sheet" data-side="' + side + '" role="dialog" aria-label="' + P.esc(n.label) + '">' +
+            '<div class="sHead"><div><p class="eyebrow">' +
+            '<i class="kind" style="--c:' + KIND_C[n.kind] + '"></i>' + P.esc(n.sectorLabel) +
+            (n.eligibility ? '<span class="tag">자격 판별</span>' : "") + "</p>" +
+            '<h2 class="sTitle">' + P.esc(n.label) + "</h2>" +
+            '<p class="sMeta" data-numeric>' +
+            (n.filled ? "근거 " + n.evidence_count + "개 · 파일 " + n.source_count + "개" : "아직 비어 있어요") +
+            (n.conflicted ? ' <span class="warn">값이 갈렸어요</span>' : "") + "</p></div>" +
+            '<button type="button" class="close" data-close aria-label="닫기">×</button></div>' +
+            '<div class="sBody">' +
+            (n.filled ? body : '<p class="empty">관련된 내용이 담긴 파일을 더 올리면 채워져요.</p>') +
+            "</div></div>"
+          );
+        }
+
+        function render(main, density) {
+          var nodes = W.nodes(density);
+          if (picked && !nodes.some(function (n) { return n.key === picked; })) picked = null;
+          var node = nodes.filter(function (n) { return n.key === picked; })[0] || null;
+
+          main.insertAdjacentHTML(
+            "beforeend",
+            '<section class="stage" aria-label="궤도">' +
+              C.orbit(nodes, { selected: picked }) +
+              '<ul class="cLegend"><li data-kind="identity">우리가 하는 일</li>' +
+              '<li data-kind="company">사업체 정보</li><li data-kind="content">사업 내용</li>' +
+              '<li data-mark="blank">손봐야 해요</li><li data-mark="empty">아직 비었어요</li></ul>' +
+              (node ? sheet(node, sideOf(nodes, node.key)) : "") +
+              "</section>" +
+              (node ? "" : '<p class="hint">자리를 누르면 그 옆에서 내용이 열려요.</p>')
+          );
+
+          main.querySelectorAll(".cNode").forEach(function (g) {
+            function pick() {
+              picked = picked === g.dataset.key ? null : g.dataset.key;
+              window.__view.redraw();
+            }
+            g.addEventListener("click", pick);
+            g.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+          var x = main.querySelector("[data-close]");
+          if (x) x.addEventListener("click", function () { picked = null; window.__view.redraw(); });
+        }
+
+        /* Esc 로 닫힌다. **떠 있는 것에는 이 길이 있어야 한다** */
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && picked) { picked = null; window.__view.redraw(); }
+        });
+
+        window.__view = Parts.mount({ crumb: "사업 위키", render: render });
+      })();
+    </script>
+
+    <script src="assets/harness.js"></script>
+    <script src="variants.js"></script>
+    <script>
+      Harness.mount({ current: "p3", variants: window.VARIANTS, controls: window.CONTROLS(), persist: true });
+    </script>
+  </body>
+</html>

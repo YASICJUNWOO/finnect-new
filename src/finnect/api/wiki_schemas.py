@@ -67,32 +67,57 @@ class TopicGroupOut(BaseModel):
     statements: list[StatementOut]
 
 
-class WikiNodeOut(BaseModel):
-    """궤도 위의 자리 하나. **빈 자리도 온다** — 비어 있다는 것도 보여야 한다."""
+class WikiSpotOut(BaseModel):
+    """기획 트리의 자리 하나. **빈 자리도 온다** — 비어 있다는 것도 보여야 한다.
 
-    key: str
-    label: str
-    #: `identity` · `company` · `content`. **색은 이것만 말한다**(DESIGN.md §4.1)
-    kind: str
-    sector: str
+    **`path` 가 이 자리의 이름이다**(기획 문서 §4-3 "경로가 곧 노드 제목이다"). 화면과
+    집필 에이전트와 기획 문서가 같은 문자열을 쓴다 — 2026-08-22 까지는 화면만 궤도
+    이름(「솔루션과 기술」)으로 따로 불렀다(ADR-0052).
+    """
+
+    #: `Company/팀.md`. **기획 문서가 적은 그대로다** — `{}` 가 남아 있으면 동적 자리다
+    path: str
+    title: str
+    #: 최상위 폴더 키. 라벨은 `WikiOut.folders` 가 준다
+    folder: str
     #: 자격 판별(M1)의 입력을 담은 자리인가. 비면 물어야 한다(ADR-0028)
     eligibility: bool
     values: list[ValueOut]
     statements: list[StatementOut]
-    #: 위 `statements` 를 topic 별로 묶은 것. **순서는 표가 정한다**(`topics.ORBIT_TOPICS`)
+    #: 위 `statements` 를 topic 별로 묶은 것. **순서는 표가 정한다**(`export.TREE`)
     groups: list[TopicGroupOut]
-    #: 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리 다섯만 true** 다
+    #: 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리만 true** 다
     grouped: bool
     #: 근거로 쓰인 **파일 수**. 근거 개수가 아니다
     source_count: int
+    #: 이 자리에 사실이 앉았나
     filled: bool
     conflicted: bool
+    #: 우리가 더한 자리인가. **기획 문서에 없다**
+    ours: bool
+    #: 채울 topic 이 아예 없는 자리의 사유. 있으면 파일을 더 올려도 안 찬다
+    gap: str
+    #: 접혔으면 원래 경로. **조용히 접지 않는다** — `Competitor/{업체명}.md`
+    collapsed: str | None
+
+    # --- 기획 문서 §5 의 파일 머리 (ADR-0052 결정 4) ---
+    #: `실측` · `1차` · `미정`. **`2차`·`가정` 은 안 나온다** — 추출기가 출처를 판정 안 한다
+    grade: str
+    #: 근거가 된 파일 이름들
+    source: list[str]
+    #: 그 파일들의 저장 위치. **`source` 와 같은 순서다**
+    source_path: list[str]
+    #: 값들의 `as_of` 중 가장 늦은 것
+    base_date: str | None
+    #: 사실들의 `updated_at` 중 가장 늦은 것. **만든 시각이 아니다**
+    updated_at: str | None
+
     #: 이 자리 한 장의 마크다운. **저장된 것이 아니라 매번 만든 것이다**
     markdown: str
 
 
 class WikiFileOut(BaseModel):
-    """올린 파일 하나와 **그 파일이 만든 자리**(F1-4-7)."""
+    """올린 파일 하나와 **그 파일이 채운 자리**(F1-4-7)."""
 
     filename: str
     ext: str | None
@@ -104,19 +129,19 @@ class WikiFileOut(BaseModel):
     parse_error: str | None
     chunk_count: int | None
     page_count: int | None
-    #: 이 파일이 근거가 된 궤도 자리들
-    nodes: list[str]
+    #: 이 파일이 근거가 된 트리 자리들. **경로다** — 이름은 `spots[].title` 이 준다
+    spots: list[str]
 
 
 class WikiOut(BaseModel):
-    """S7 한 장. **궤도 열다섯이 항상 온다.**"""
+    """S7 한 장. **자리 마흔일곱이 항상 온다**(ADR-0052)."""
 
     company_id: str
-    #: 궤도 자리 열다섯. 순서가 곧 배치 순서다(ADR-0017)
-    nodes: list[WikiNodeOut]
+    #: 기획 트리 자리 47. **순서가 곧 기획 문서 §2 의 순서다**
+    spots: list[WikiSpotOut]
     files: list[WikiFileOut]
-    #: 구획 이름. 궤도 위에 얹는 라벨(ADR-0017 결정 2)
-    sectors: dict[str, str]
+    #: 폴더 키 → 한국어 이름. 열 개 고정이다. **화면이 이름을 짓지 않는다**
+    folders: dict[str, str]
 
     # --- 채움 상태 (F1-4-2). **막대를 만들지 않는다** — 숫자로만 말한다 ---
     filled: int
@@ -175,8 +200,8 @@ class FileProgressOut(BaseModel):
     #: 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다** — 병합된 사실은 근거가 여럿이라
     #: 두 파일에서 각각 한 번 세어진다. **다 더해도 위키의 사실 수가 아니다**
     fact_count: int
-    #: 이 파일이 근거가 된 궤도 자리들. 비어 있으면 아직 아무것도 못 채웠다
-    nodes: list[str]
+    #: 이 파일이 채운 트리 자리들. **경로다.** 비어 있으면 아직 아무것도 못 채웠다
+    spots: list[str]
 
 
 class ProgressOut(BaseModel):
@@ -190,9 +215,12 @@ class ProgressOut(BaseModel):
     #: 단계 정의 다섯. 순서가 곧 진행 순서다
     steps: list[StepOut]
     files: list[FileProgressOut]
-    #: 궤도 자리 키 → 라벨. **`files[].nodes` 가 키라서 이게 없으면 화면이 이름을 짓는다**
-    #: (`WikiOut.sectors` 와 같은 이유). 열다섯 개 고정이라 매번 보내도 값이 싸다
-    places: dict[str, str]
+    #: 트리 자리 경로 → 제목. **`files[].spots` 가 경로라서 이게 없으면 화면이 이름을 짓는다**
+    #: (`WikiOut.folders` 와 같은 이유). 마흔일곱 개 고정이라 매번 보내도 값이 싸다
+    #:
+    #: **S7 과 같은 이름이어야 한다**(ADR-0052). 두 화면이 같은 자리를 다르게 부르면
+    #: 사용자가 그것을 다른 자리로 읽는다
+    spot_titles: dict[str, str]
 
     # --- 셈 (F1-1-9). **막대를 만들지 않는다** — 숫자로만 말한다 ---
     total: int

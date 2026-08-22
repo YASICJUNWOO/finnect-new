@@ -49,6 +49,17 @@ def abs_path(company_id: str, sha: str) -> Path:
     return _company_dir(company_id) / rel_path(sha)
 
 
+def source_path(company_id: str, sha: str) -> str:
+    """기획 문서 §5 의 `source_path` — **저장 루트 기준 상대 경로다**(ADR-0052 결정 4).
+
+    `abs_path()` 를 안 쓰는 이유는 그 값이 API 응답에 실려 나가기 때문이다. 절대 경로는
+    서버의 디렉터리 구조를 밖으로 흘리고, 사용자에게는 `settings.user_file_dir` 앞부분이
+    아무 뜻도 없다. **`rel_path()` 도 안 쓴다** — 저기는 회사 디렉터리 안쪽만 가리켜서
+    회사가 둘이면 같은 문자열이 나온다.
+    """
+    return f"{company_id}/{rel_path(sha)}"
+
+
 def writable() -> bool:
     """여기에 파일을 쓸 수 있나. **올리기를 받기 전에 물어본다**(plan/15 · ADR-0034).
 

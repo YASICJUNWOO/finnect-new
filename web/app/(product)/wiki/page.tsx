@@ -3,7 +3,7 @@ import { DEFAULT_COMPANY, getWiki } from "@/lib/wiki";
 import { WikiBoard } from "@/components/WikiBoard";
 import styles from "./page.module.css";
 
-type Search = { company?: string; node?: string };
+type Search = { company?: string; spot?: string };
 
 /** S7 내 사업 위키.
  *
@@ -13,7 +13,8 @@ type Search = { company?: string; node?: string };
  * **추출기가 스텁이라 픽스처 회사 밖에서는 자리만 비어서 온다**(ADR-0031). 그 사실을
  * 화면이 숨기지 않는다 — 아래 `note` 가 무엇이 뽑았는지 적는다.
  *
- * `?node=` 는 궤도에서 고른 자리다. **주소에 남겨야 딥링크가 되고 새로고침해도 살아 있다.** */
+ * `?spot=` 은 그래프에서 고른 자리이고 값이 **기획 트리 경로**다(ADR-0052).
+ * **주소에 남겨야 딥링크가 되고 새로고침해도 살아 있다.** */
 export default async function WikiPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const company = sp.company?.trim() || DEFAULT_COMPANY;
@@ -54,7 +55,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         </p>
       </header>
 
-      <WikiBoard wiki={wiki} initial={sp.node ?? null} company={sp.company?.trim() || undefined} />
+      <WikiBoard wiki={wiki} initial={sp.spot ?? null} company={sp.company?.trim() || undefined} />
 
       {/* **무엇이 뽑았는지 밝힌다.** 스텁이 뽑은 값을 진짜 추출 결과처럼 보이게 두지 않는다 */}
       {wiki.extractor?.startsWith("stub") && (

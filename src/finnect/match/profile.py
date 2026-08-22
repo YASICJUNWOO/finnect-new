@@ -35,10 +35,10 @@ from sqlalchemy.orm import Session
 from finnect.models import WikiFact
 from finnect.wiki import topics
 
-#: 자격 판별의 입력. `topics.SLOTS` 의 `eligibility=True` 여덟 개다.
+#: 자격 판별의 입력. `topics.VALUE_SPECS` 의 `eligibility=True` 여덟 개다.
 #: **여기 목록을 손으로 적지 않는다** — 슬롯 표가 정본이다
 ELIGIBILITY_SLOTS: tuple[str, ...] = tuple(
-    k for k, v in topics.SLOTS.items() if v.eligibility
+    k for k, v in topics.VALUE_SPECS.items() if v.eligibility
 )
 
 #: ④ 분야 대조가 읽는 노드. **"지금 무엇이 필요한가" 를 말하는 자리들이다**
@@ -121,9 +121,9 @@ def load(s: Session, company_id: str, *, on: dt.date | None = None) -> CompanyPr
     slots: dict[str, list[WikiFact]] = {}
     nodes: list[NodeFact] = []
     for r in rows:
-        if r.place_kind == "slot" and r.place in ELIGIBILITY_SLOTS:
+        if r.place_kind == "value" and r.place in ELIGIBILITY_SLOTS:
             slots.setdefault(r.place, []).append(r)
-        elif r.place_kind == "node" and r.place:
+        elif r.place_kind == "event" and r.place:
             nodes.append(NodeFact(fact_id=r.id, place=r.place, text=r.text))
 
     return CompanyProfile(

@@ -15,9 +15,9 @@
 
 | | 짝 기준 | 왜 |
 |---|---|---|
-| 정형 슬롯 | `(슬롯, 정규화된 값, 시점)` | 값이 다르면 다른 사실이다.
+| value topic | `(value topic, 정규화된 값, 시점)` | 값이 다르면 다른 사실이다.
   `24,100천원` 과 `24100000` 이 같아야 한다 |
-| 서술 노드 | `(노드, 앵커가 겹치는가)` | 문장은 표현이 달라도 같은 사실일 수 있다.
+| event topic | `(orbit, 앵커가 겹치는가)` | 문장은 표현이 달라도 같은 사실일 수 있다.
   **원문의 같은 자리**를 가리키면 같은 것으로 본다 |
 
 **정확도 하나로 말하지 않는다.** 재현율(정답 중 몇 개를 찾았나)과 정밀도(낸 것 중
@@ -49,8 +49,8 @@ def _squash(s: str) -> str:
     return re.sub(r"\s+", "", s)
 
 
-def _slot_key(f: Fact) -> tuple:
-    return ("slot", f.slot, (f.value or "").strip(), f.as_of, (f.qualifier or "").strip())
+def _value_key(f: Fact) -> tuple:
+    return ("value", f.value_topic, (f.value or "").strip(), f.as_of, (f.qualifier or "").strip())
 
 
 @dataclass(slots=True)
@@ -129,7 +129,7 @@ def _views(gold: dict, corpus: Path) -> dict[str, FileView]:
     **그게 가짜 과제였다.** 앵커 더미는 문서가 아니라 조각 더미다.
 
     2026-08-20 실측 — 문서 작성일(`2025. 08. 22. 기준`)이 앵커 밖에 있어서
-    모델이 볼 수가 없었다. 시점 있는 슬롯 22건이 그것 하나로 어긋났고, 그건
+    모델이 볼 수가 없었다. 시점 있는 value topic 22건이 그것 하나로 어긋났고, 그건
     **모델이 못한 게 아니라 우리가 안 보여 준 것**이다.
 
     파서는 [plan/12](../../../docs/plan/12-사업-위키-구축.md) 가 따로 검증했다.
@@ -192,15 +192,15 @@ def run(
 
 def _find(want: Fact, pool: list[Fact]) -> Fact | None:
     """정답 하나에 짝을 찾는다. **찾으면 그 출력은 소비된다** — 하나가 둘을 못 맞춘다."""
-    if want.kind == "slot":
-        key = _slot_key(want)
-        return next((g for g in pool if g.kind == "slot" and _slot_key(g) == key), None)
+    if want.kind == "value":
+        key = _value_key(want)
+        return next((g for g in pool if g.kind == "value" and _value_key(g) == key), None)
     # 서술은 **원문의 같은 자리**를 가리키면 같은 것으로 본다
     node = topics.orbit_of(want.topic)
     a = _squash(want.anchor)
     best, score = None, 0.0
     for g in pool:
-        if g.kind != "node" or topics.orbit_of(g.topic) != node:
+        if g.kind != "event" or topics.orbit_of(g.topic) != node:
             continue
         r = _overlap(a, _squash(g.anchor))
         if r > score:

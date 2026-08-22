@@ -28,7 +28,7 @@ def _node(**kw) -> NodeView:  # noqa: ANN003
 
 
 def _V(slot: str, value: str) -> Value:
-    return Value(slot, topics.SLOTS[slot].label, value, None, None, Status.CURRENT, (E1,))
+    return Value(slot, topics.VALUE_SPECS[slot].label, value, None, None, Status.CURRENT, (E1,))
 
 
 E1 = Evidence("사업계획서.docx", None, "시드 투자 3억원")
@@ -222,6 +222,6 @@ def test_topic_이름이_orbit_이름과_안_겹친다():
 
 def test_node_어휘가_orbit_과_한_벌이다():
     """**노드 이름은 orbit 키와 같다.** ADR-0048 결정 3 이 마이그레이션을 안 하는 근거다."""
-    assert set(topics.EVENT_ORBITS) == {k for k, o in topics.ORBIT.items() if o.node}
+    assert set(topics.EVENT_ORBITS) == {k for k, o in topics.ORBIT.items() if o.event}
     assert all(topics.EVENT_ORBITS[k] == topics.ORBIT[k].label for k in topics.EVENT_ORBITS)
-    assert all(o.node == k for k, o in topics.ORBIT.items() if o.node)
+    assert all(o.event == k for k, o in topics.ORBIT.items() if o.event)

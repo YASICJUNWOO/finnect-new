@@ -1,4 +1,4 @@
-"""청크 → 사실 → 노드. **파이프라인의 아래 절반이다**(plan/12 T-0045 · T-0046).
+"""청크 → 사실 → 자리. **파이프라인의 아래 절반이다**(plan/12 T-0045 · T-0046).
 
 `service.py` 가 파일 → 청크까지 하고, 여기가 그 뒤를 받는다. 순서는 이렇다.
 
@@ -56,8 +56,8 @@ class BuildReport:
     #: 이미 있어서 근거만 더 붙은 것
     merged: int = 0
     evidence: int = 0
-    slots: int = 0
-    nodes: int = 0
+    value_topics: int = 0
+    event_orbits: int = 0
     uncategorized: int = 0
     conflicts: int = 0
     status: Counter[str] = field(default_factory=Counter)
@@ -133,7 +133,7 @@ def build_company(
     #
     # 스텁 때는 안전했다. 같은 파일에서 같은 사실 118건이 나오고 `dedupe_key` 가 같아서
     # **아무것도 안 늘었다.** LLM 으로 바뀌자 깨졌다 — 같은 문서를 매번 다르게 쪼개서
-    # 키가 달라지고 **다른 사실로 앉는다.** 서술 노드의 분해 단위가 흔들리는 그 성질이다.
+    # 키가 달라지고 **다른 사실로 앉는다.** event topic 의 분해 단위가 흔들리는 그 성질이다.
     #
     # 다시 읽는 길은 `--rebuild` 다. `clear()` 가 `done` 을 `chunked` 로 되돌리므로
     # 여기가 `chunked` 만 봐도 재추출이 된다 — **지우고 세우니 늘어나지 않는다.**
@@ -160,8 +160,8 @@ def build_company(
     counts = session.execute(
         select(WikiFact.place_kind, WikiFact.place).where(WikiFact.company_id == company_id)
     ).all()
-    report.slots = len({p for k, p in counts if k == WikiPlace.SLOT})
-    report.nodes = len({p for k, p in counts if k == WikiPlace.NODE})
+    report.value_topics = len({p for k, p in counts if k == WikiPlace.VALUE})
+    report.event_orbits = len({p for k, p in counts if k == WikiPlace.EVENT})
     report.uncategorized = sum(1 for k, _ in counts if k == WikiPlace.UNCATEGORIZED)
     for uf in files:
         report.status[uf.status] += 1
@@ -239,7 +239,7 @@ def _build_file(
                 slot_key=fact.key,
                 value=fact.value,
                 qualifier=fact.qualifier,
-                as_of=merge.as_of_for(spot.name, fact.as_of) if spot.kind == "slot" else None,
+                as_of=merge.as_of_for(spot.name, fact.as_of) if spot.kind == "value" else None,
                 source_type=str(SourceType.DOCUMENT),
                 extractor=ex.name,
             )
@@ -275,14 +275,14 @@ def _build_file(
 
 
 def restate(session: Session, company_id: str) -> int:
-    """정형 슬롯에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
+    """value topic 에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
 
     돌려주는 값은 충돌 건수다. 부분만 보고 매기면 틀린다 — 어느 시점이 가장 늦은지는
     전체를 봐야 안다.
     """
     rows = session.scalars(
         select(WikiFact).where(
-            WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.SLOT
+            WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.VALUE
         )
     ).all()
     claims = [
@@ -316,8 +316,8 @@ def clear(session: Session, company_id: str) -> int:
 
 
 @dataclass(frozen=True, slots=True)
-class SlotView:
-    """화면에 넘길 슬롯 하나. 값 하나와 이력·충돌이 같이 온다."""
+class ValueView:
+    """화면에 넘길 value topic 하나. 값 하나와 이력·충돌이 같이 온다."""
 
     name: str
     label: str
@@ -332,21 +332,24 @@ class SlotView:
         return any(f.status == merge.Status.CONFLICT for f in self.current)
 
 
-def read_slots(session: Session, company_id: str) -> list[SlotView]:
-    """정형 슬롯을 `topics.SLOTS` 순서로 편다. **빈 슬롯도 자리를 지킨다** — 물어야 한다."""
+def read_values(session: Session, company_id: str) -> list[ValueView]:
+    """value topic 을 `topics.VALUE_SPECS` 순서로 편다.
+
+    **빈 value topic 도 자리를 지킨다** — 물어야 한다.
+    """
     rows = session.scalars(
         select(WikiFact)
-        .where(WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.SLOT)
+        .where(WikiFact.company_id == company_id, WikiFact.place_kind == WikiPlace.VALUE)
         .order_by(WikiFact.place, WikiFact.qualifier, WikiFact.as_of)
     ).all()
 
     out = []
-    for name, spec in topics.SLOTS.items():
+    for name, spec in topics.VALUE_SPECS.items():
         mine = [r for r in rows if r.place == name]
         cur = [r for r in mine if r.status in (merge.Status.CURRENT, merge.Status.CONFLICT)]
         old = [r for r in mine if r.status == merge.Status.SUPERSEDED]
         out.append(
-            SlotView(
+            ValueView(
                 name=name,
                 label=spec.label,
                 eligibility=spec.eligibility,
@@ -384,12 +387,12 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
     for fact_id, filename, page, quote in rows:
         by_fact.setdefault(fact_id, []).append(markdown.Evidence(filename, page, quote))
 
-    slot_facts: dict[str, list[WikiFact]] = {}
+    value_facts: dict[str, list[WikiFact]] = {}
     node_facts: dict[str, list[WikiFact]] = {}
     for f in facts:
-        if f.place_kind == WikiPlace.SLOT:
-            slot_facts.setdefault(f.place, []).append(f)
-        elif f.place_kind == WikiPlace.NODE:
+        if f.place_kind == WikiPlace.VALUE:
+            value_facts.setdefault(f.place, []).append(f)
+        elif f.place_kind == WikiPlace.EVENT:
             node_facts.setdefault(f.place, []).append(f)
 
     out = []
@@ -397,19 +400,19 @@ def read_orbit(session: Session, company_id: str) -> list[markdown.NodeView]:
         values = tuple(
             markdown.Value(
                 slot=f.place,
-                label=topics.SLOTS[f.place].label,
+                label=topics.VALUE_SPECS[f.place].label,
                 value=f.value or "",
                 qualifier=f.qualifier,
                 as_of=f.as_of.isoformat() if f.as_of else None,
                 status=f.status or merge.Status.CURRENT,
                 evidence=tuple(by_fact.get(f.id, ())),
             )
-            for slot in spot.slots
-            for f in slot_facts.get(slot, [])
+            for slot in spot.value_topics
+            for f in value_facts.get(slot, [])
         )
         statements = tuple(
             markdown.Statement(text=f.text, topic=f.topic, evidence=tuple(by_fact.get(f.id, ())))
-            for f in (node_facts.get(spot.node, []) if spot.node else [])
+            for f in (node_facts.get(spot.event, []) if spot.event else [])
         )
         out.append(
             markdown.NodeView(
@@ -441,13 +444,13 @@ def read_files(session: Session, company_id: str) -> list[tuple[UserFile, list[s
         .where(WikiEvidence.company_id == company_id)
     ).all()
 
-    #: 사실이 앉은 자리(슬롯·노드)를 궤도 자리로 되돌린다. 화면이 궤도로 말하기 때문이다
+    #: 사실이 앉은 자리(value topic · orbit)를 궤도 자리로 되돌린다. 화면이 궤도로 말하기 때문이다
     home: dict[tuple[str, str], str] = {}
     for key, spot in topics.ORBIT.items():
-        for slot in spot.slots:
-            home[(WikiPlace.SLOT, slot)] = key
-        if spot.node:
-            home[(WikiPlace.NODE, spot.node)] = key
+        for slot in spot.value_topics:
+            home[(WikiPlace.VALUE, slot)] = key
+        if spot.event:
+            home[(WikiPlace.EVENT, spot.event)] = key
 
     made: dict[int, set[str]] = {}
     for file_id, kind, place in rows:

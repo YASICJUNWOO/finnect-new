@@ -62,9 +62,9 @@ def test_마크다운과_라우팅이_순수_파이썬이다():
 
 def test_궤도가_슬롯과_노드를_하나도_안_빠뜨린다():
     """**표에 구멍이 있으면 사실이 화면에서 통째로 사라진다.** 여기서 잡는다."""
-    used_slots = {s for o in topics.ORBIT.values() for s in o.slots}
-    used_nodes = {o.node for o in topics.ORBIT.values() if o.node}
-    assert used_slots == set(topics.SLOTS)
+    used_values = {s for o in topics.ORBIT.values() for s in o.value_topics}
+    used_nodes = {o.event for o in topics.ORBIT.values() if o.event}
+    assert used_values == set(topics.VALUE_SPECS)
     assert used_nodes == set(topics.EVENT_ORBITS)
 
 

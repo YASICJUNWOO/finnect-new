@@ -24,7 +24,7 @@ TABLES = [WikiFact]
 
 def _fact(**kw) -> WikiFact:  # noqa: ANN003
     kw.setdefault("company_id", COMPANY)
-    kw.setdefault("place_kind", "slot")
+    kw.setdefault("place_kind", "value")
     kw.setdefault("topic", "company_profile")
     kw.setdefault("text", "")
     kw.setdefault("extractor", "stub/v1")
@@ -63,11 +63,11 @@ def s():  # noqa: ANN201
                 _fact(place="gov_program", value="280000000", qualifier="시드",
                       as_of=dt.date(2025, 9, 30), status="conflict"),
                 # 서술 노드
-                _fact(place_kind="node", place="roadmap", topic="roadmap",
+                _fact(place_kind="event", place="roadmap", topic="roadmap",
                       text="2단계 2026. 07. ~ 12. — 경기 남부 지역 영업망 구축",
-                      dedupe_key="node|roadmap|a"),
-                _fact(place_kind="node", place="identity", topic="identity",
-                      text="소상공인용 재고관리 소프트웨어", dedupe_key="node|identity|b"),
+                      dedupe_key="event|roadmap|a"),
+                _fact(place_kind="event", place="identity", topic="identity",
+                      text="소상공인용 재고관리 소프트웨어", dedupe_key="event|identity|b"),
                 # **자격 슬롯이 아닌 슬롯은 안 담는다**
                 _fact(place="revenue", value="86400000",
                       as_of=dt.date(2025, 12, 31), status="current"),

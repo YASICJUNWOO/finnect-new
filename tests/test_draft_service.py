@@ -125,7 +125,7 @@ def db(monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
         s.flush()
         for text, place in [("철강 경기로 수주가 끊겼다", "problem"),
                             ("설비 노후로 불량률이 올랐다", "problem")]:
-            fact = WikiFact(company_id=COMPANY, place_kind="node", place=place,
+            fact = WikiFact(company_id=COMPANY, place_kind="event", place=place,
                             dedupe_key=text, topic="customer_problem", text=text,
                             extractor="stub/v1")
             s.add(fact)

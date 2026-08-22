@@ -101,7 +101,7 @@ def _node(n: markdown.NodeView) -> WikiNodeOut:
         label=n.label,
         kind=n.kind,
         sector=spot.sector,
-        eligibility=any(topics.SLOTS[s].eligibility for s in spot.slots),
+        eligibility=any(topics.VALUE_SPECS[s].eligibility for s in spot.value_topics),
         values=[
             ValueOut(
                 slot=v.slot,

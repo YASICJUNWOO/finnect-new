@@ -60,22 +60,24 @@ class Fact:
 
     #: `topics.TOPICS` 안의 라벨. 밖이면 `uncategorized` 로 선다
     topic: str
-    #: `slot` 정형 · `node` 서술. **한 문장이 둘 다이면 사실을 둘로 낸다**
+    #: `slot`=value topic · `node`=event topic. **스키마 값 그대로다** —
+    #: ADR-0048 이 층 이름만 바꿨고 프롬프트·스키마는 안 바꿨다.
+    #: 한 문장이 둘 다이면 사실을 둘로 낸다
     kind: str
-    #: 사실 문장. 서술 노드는 이게 내용이고, 정형 슬롯은 사람이 읽는 설명이다
+    #: 사실 문장. event topic 은 이게 내용이고, value topic 은 사람이 읽는 설명이다
     text: str
     #: 원문에 그대로 있는 조각. **이걸 담은 청크가 근거가 된다**
     anchor: str
 
-    #: 같은 사실을 문서 여럿에서 묶는 식별자. **서술 노드에서만 쓴다.**
+    #: 같은 사실을 문서 여럿에서 묶는 식별자. **event topic 에서만 쓴다.**
     #:
     #: 재구매율 34→51% 가 코퍼스 네 문서에 다른 문장으로 있다. 문자열로는 못 묶어서
     #: 추출기가 같은 키를 준다 — **사실 하나에 근거 넷이어야 하고 사실 넷이 되면
     #: 틀렸다**(픽스처 README 3번). 없으면 문장 자체가 키라 안 묶인다.
     fact_key: str | None = None
 
-    # --- 정형 슬롯일 때만 ---
-    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수` — 슬롯은 `topics.slot_of` 가 정한다
+    # --- value topic 일 때만 ---
+    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수` — value topic 은 `topics.value_of` 가 정한다
     key: str | None = None
     #: **정규화된 값이다.** 문서가 쓴 표현은 `text` 에 남는다.
     #:
@@ -85,16 +87,16 @@ class Fact:
     value: str | None = None
     #: 언제 기준의 값인가. **없으면 시점 없는 값이다**(사업자등록번호)
     as_of: dt.date | None = None
-    #: 같은 슬롯 안의 종류. `시드` · `정책자금` · `예비창업패키지`
+    #: 같은 value topic 안의 종류. `시드` · `정책자금` · `예비창업패키지`
     qualifier: str | None = None
 
     @property
-    def slot(self) -> str | None:
-        return topics.slot_of(self.key) if self.kind == "slot" else None
+    def value_topic(self) -> str | None:
+        return topics.value_of(self.key) if self.kind == "value" else None
 
     @property
-    def node(self) -> str | None:
-        return topics.orbit_of(self.topic) if self.kind == "node" else None
+    def orbit(self) -> str | None:
+        return topics.orbit_of(self.topic) if self.kind == "event" else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,21 +182,21 @@ _SYSTEM_TEMPLATE = """\
 너는 한국 창업기업 문서에서 **사실**을 뽑는 추출기다. 요약하지 말고 문서에 적힌 것만 낸다.
 
 ## 두 종류
-- `slot` — 정형 값. 아래 `key` 목록에 있는 것
-- `node` — 서술 문장. 문제 인식·솔루션·목표 고객·시장·팀·로드맵 등
+- `value` — 정형 값. 아래 `key` 목록에 있는 것
+- `event` — 서술 문장. 문제 인식·솔루션·목표 고객·시장·팀·로드맵 등
 
 한 문장이 둘 다이면 **사실을 둘로 낸다.**
 
-## key — 아래 한국어 이름 중 하나를 쓴다 (slot 일 때만)
+## key — 아래 한국어 이름 중 하나를 쓴다 (value 일 때만)
 
-{slot_vocab}
+{value_vocab}
 
-**영어나 snake_case 를 쓰지 마라.** 우리 슬롯 표가 한국어 표현으로 돼 있어서
+**영어나 snake_case 를 쓰지 마라.** 우리 자리 표가 한국어 표현으로 돼 있어서
 `company_name` 같은 것을 주면 어느 자리인지 못 찾고 그 사실이 미분류로 떨어진다.
 
 문서가 위 목록에 없는 이름을 쓰면 **문서가 쓴 그대로** 준다. 억지로 끼워 맞추지 마라.
 
-**업력과 만 나이는 슬롯이 아니다.** 개업연월일과 생년월일만 낸다 —
+**업력과 만 나이는 value 가 아니다.** 개업연월일과 생년월일만 낸다 —
 업력은 공고마다 기준일이 달라 저장하면 틀린 값이 된다.
 
 ## anchor — 가장 중요하다
@@ -202,7 +204,7 @@ _SYSTEM_TEMPLATE = """\
 띄어쓰기·조사·괄호·숫자 표기를 손대면 그 사실은 근거를 잃고 **버려진다.**
 10~60자 정도로, 그 사실이 실제로 적힌 자리를 잡아라.
 
-## value — 정규화한다 (slot 일 때만)
+## value — 정규화한다 (value 일 때만)
 
 **숫자만 정규화한다.**
 - 금액: `24,100천원` → `24100000` · `2,410만원` → `24100000` · `3억원` → `300000000`
@@ -216,12 +218,12 @@ _SYSTEM_TEMPLATE = """\
   `경기도성남시분당구판교로255,3층(삼평동)` → `경기도 성남시 분당구 판교로 255, 3층 (삼평동)`
   **뭉갠 채로 두면 다른 문서의 같은 값과 안 맞아 없는 충돌이 생긴다.**
 
-**한 슬롯에 값을 둘 넣지 마라.** 문서가 두 칸으로 준 것은 사실 둘이다.
-- 업태와 종목은 **다른 슬롯**이다. `정보통신업 / 응용 소프트웨어 개발 및 공급업` 처럼
+**한 자리에 값을 둘 넣지 마라.** 문서가 두 칸으로 준 것은 사실 둘이다.
+- 업태와 종목은 **다른 자리**다. `정보통신업 / 응용 소프트웨어 개발 및 공급업` 처럼
   붙이면 안 된다 — 업태 `정보통신업` · 종목 `응용 소프트웨어 개발 및 공급업` 둘로 낸다
 - 상호에 영문 병기를 넣지 마라. `주식회사 다시로 (DASIRO Inc.)` 가 아니라 `주식회사 다시로`
 
-## qualifier — 같은 슬롯 안의 종류 (slot 일 때만)
+## qualifier — 같은 자리 안의 종류 (value 일 때만)
 
 조달액과 정부지원 이력은 건이 여럿이라 **무엇인지를 `qualifier` 에 적고 금액을
 `value` 에 적는다.** `예비창업패키지 38,000천원` 이면
@@ -230,11 +232,11 @@ _SYSTEM_TEMPLATE = """\
 
 문서가 쓴 표현은 `text` 에 남긴다. **단위·쉼표·한글 수사를 value 에 넣지 마라.**
 
-## as_of — 언제 기준 값인가 (slot 일 때만)
+## as_of — 언제 기준 값인가 (value 일 때만)
 
 `2024년 매출` 이면 `2024-12-31` · `2025. 08. 기준` 이면 `2025-08-31`.
 
-**문서 어딘가에 작성 기준일이 있으면 시점 있는 슬롯 전부에 그 날짜를 쓴다.**
+**문서 어딘가에 작성 기준일이 있으면 시점 있는 자리 전부에 그 날짜를 쓴다.**
 `작성 기준일: 2025. 08. 22.` · `2026년 1월 현재` 같은 것이다. 소재지·업태·종목·
 직원 수·자본금·매출액은 **언제 기준인지가 값의 일부다** — 비워 두면 나중에 다른
 문서의 값과 어느 쪽이 최신인지 못 가린다.
@@ -242,10 +244,10 @@ _SYSTEM_TEMPLATE = """\
 값 옆에 더 구체적인 날짜가 있으면 그쪽이 이긴다.
 어디에도 날짜가 없으면 비운다. **지어내지 마라.**
 
-시점이 없는 슬롯도 있다 — 사업자등록번호·법인등록번호·상호·대표자·개업연월일.
+시점이 없는 자리도 있다 — 사업자등록번호·법인등록번호·상호·대표자·개업연월일.
 이것들은 비운다.
 
-## fact_key — 같은 사실 묶기 (node 일 때만)
+## fact_key — 같은 사실 묶기 (event 일 때만)
 같은 내용이 문서 여럿에 다른 문장으로 있으면 **같은 키**를 준다(`retention_34_to_51` 처럼).
 확신이 없으면 비운다. 잘못 묶는 것보다 안 묶는 것이 낫다.
 
@@ -255,18 +257,18 @@ _SYSTEM_TEMPLATE = """\
 - 신뢰도 점수를 매기지 않는다
 """
 
-def _slot_vocab() -> str:
-    """`SLOT_ALIASES` 에서 만든다. **손으로 적으면 표와 어긋난다.**"""
+def _value_vocab() -> str:
+    """`VALUE_ALIASES` 에서 만든다. **손으로 적으면 표와 어긋난다.**"""
     by: dict[str, list[str]] = {}
-    for alias, slot in topics.SLOT_ALIASES.items():
+    for alias, slot in topics.VALUE_ALIASES.items():
         by.setdefault(slot, []).append(alias)
     # **별칭만 보인다.** 라벨(`업종(종목)`)을 왼쪽에 두면 모델이 그걸 key 로 쓰는데
-    # 라벨은 `SLOT_ALIASES` 에 없어서 슬롯이 `None` 으로 떨어진다. 실측으로 겪었다.
+    # 라벨은 `VALUE_ALIASES` 에 없어서 value topic 이 `None` 으로 떨어진다. 실측으로 겪었다.
     return "\n".join(f"- {' · '.join(names)}" for names in by.values())
 
 
 def system_prompt() -> str:
-    return _SYSTEM_TEMPLATE.format(slot_vocab=_slot_vocab())
+    return _SYSTEM_TEMPLATE.format(value_vocab=_value_vocab())
 
 
 _SCHEMA = {
@@ -285,7 +287,7 @@ _SCHEMA = {
                 ],
                 "properties": {
                     "topic": {"type": "string", "enum": sorted(topics.TOPICS)},
-                    "kind": {"type": "string", "enum": ["slot", "node"]},
+                    "kind": {"type": "string", "enum": ["value", "event"]},
                     "text": {"type": "string"},
                     "anchor": {"type": "string"},
                     "fact_key": {"type": ["string", "null"]},
@@ -366,18 +368,18 @@ def _fact_from_llm(d: dict) -> Fact:
         parsed = dt.date.fromisoformat(as_of) if as_of else None
     except ValueError:
         parsed = None  # 날짜가 아니면 시점 없는 값으로 둔다. 지어내지 않는다
-    kind = d["kind"] if d.get("kind") in ("slot", "node") else "node"
+    kind = d["kind"] if d.get("kind") in ("value", "event") else "event"
     return Fact(
         topic=d["topic"] if d.get("topic") in topics.TOPICS else topics.UNCATEGORIZED,
         kind=kind,
         text=(d.get("text") or "").strip(),
         anchor=(d.get("anchor") or "").strip(),
-        # **서술 노드에서만 쓴다.** 슬롯에 오면 병합 키가 어긋난다
-        fact_key=(d.get("fact_key") or None) if kind == "node" else None,
-        key=(d.get("key") or None) if kind == "slot" else None,
-        value=(d.get("value") or None) if kind == "slot" else None,
-        as_of=parsed if kind == "slot" else None,
-        qualifier=(d.get("qualifier") or None) if kind == "slot" else None,
+        # **event topic 에서만 쓴다.** value topic 에 오면 병합 키가 어긋난다
+        fact_key=(d.get("fact_key") or None) if kind == "event" else None,
+        key=(d.get("key") or None) if kind == "value" else None,
+        value=(d.get("value") or None) if kind == "value" else None,
+        as_of=parsed if kind == "value" else None,
+        qualifier=(d.get("qualifier") or None) if kind == "value" else None,
     )
 
 

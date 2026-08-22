@@ -116,7 +116,7 @@ def test_서술_노드가_전부_찬다(built):  # noqa: ANN001
     **구상도의 topic 22개로는 둘이 빈다** — 지역 연계와 로드맵. 그래서 둘을 더했다.
     정체성은 2026-08-18 하나 더 붙었다(ADR-0033)."""
     factory, _ = built
-    filled = {f.place for f in _facts(factory, place_kind=WikiPlace.NODE)}
+    filled = {f.place for f in _facts(factory, place_kind=WikiPlace.EVENT)}
     assert filled == set(topics.EVENT_ORBITS)
 
 
@@ -128,8 +128,8 @@ def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001
     """
     factory, _ = built
     with factory() as s:
-        views = {v.name: v for v in build.read_slots(s, COMPANY)}
-    need = [n for n, spec in topics.SLOTS.items() if spec.eligibility]
+        views = {v.name: v for v in build.read_values(s, COMPANY)}
+    need = [n for n, spec in topics.VALUE_SPECS.items() if spec.eligibility]
     empty = [n for n in need if not views[n].current]
     assert not empty, f"자격 판별 입력이 비었다: {empty}"
 
@@ -199,7 +199,7 @@ def test_수혜_이력_셋이_hwpx_에서만_나온다(built):  # noqa: ANN001
 def test_문서에_박힌_업력은_슬롯에_안_들어간다(built):  # noqa: ANN001
     """`업력 1년 6개월` 은 2025-08 기준이라 지금은 틀렸다. **버리지도 않는다.**"""
     factory, _ = built
-    assert "tenure" not in topics.SLOTS
+    assert "tenure" not in topics.VALUE_SPECS
     un = _facts(factory, place_kind=WikiPlace.UNCATEGORIZED)
     assert any("업력" in r.text for r in un)
 
@@ -336,7 +336,7 @@ class _Drifting:
         return [
             Fact(
                 topic="team",
-                kind="node",
+                kind="event",
                 text=f"{anchor} 를 {self.calls}번째로 읽은 문장이다.",
                 anchor=anchor,
             )

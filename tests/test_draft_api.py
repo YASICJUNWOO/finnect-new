@@ -71,9 +71,9 @@ def db():  # noqa: ANN201
             s.add(DocumentItem(id=i + 1, document_id=1, parent_id=pid, ordinal=i,
                                number=no, title=title, instruction=ins,
                                limit_text=limit, input_kind="narrative"))
-        s.add(ItemNeed(document_item_id=2, place="revenue", place_kind="slot", required=True))
-        s.add(ItemNeed(document_item_id=3, place="revenue", place_kind="slot", required=True))
-        s.add(ItemNeed(document_item_id=4, place="team", place_kind="node", required=True))
+        s.add(ItemNeed(document_item_id=2, place="revenue", place_kind="value", required=True))
+        s.add(ItemNeed(document_item_id=3, place="revenue", place_kind="value", required=True))
+        s.add(ItemNeed(document_item_id=4, place="team", place_kind="event", required=True))
 
         f = UserFile(company_id=COMPANY, sha256="f" * 64, filename="소개서.pdf",
                      ext="pdf", byte_size=1, status="built")
@@ -83,7 +83,7 @@ def db():  # noqa: ANN201
                   text="2025년 매출은 8,640만원이다", chars=17, char_start=0, char_end=17)
         s.add(c)
         s.flush()
-        fact = WikiFact(id=1, company_id=COMPANY, place_kind="slot", place="revenue",
+        fact = WikiFact(id=1, company_id=COMPANY, place_kind="value", place="revenue",
                         dedupe_key="k", topic="revenue", text="2025년 매출 8,640만원",
                         extractor="stub/v1")
         s.add(fact)

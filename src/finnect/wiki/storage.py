@@ -90,7 +90,7 @@ def read(company_id: str, sha: str) -> bytes:
 
 
 def delete(company_id: str, sha: str) -> bool:
-    """원본 하나를 지운다. **노드는 여기서 안 지운다**(ADR-0029 5번)."""
+    """원본 하나를 지운다. **자리는 여기서 안 지운다**(ADR-0029 5번)."""
     target = abs_path(company_id, sha)
     if not target.exists():
         return False

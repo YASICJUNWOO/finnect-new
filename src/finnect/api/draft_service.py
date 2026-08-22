@@ -166,7 +166,7 @@ def _missing(place: str, required: bool) -> MissingOut:  # noqa: FBT001
 
 def _label(place: str) -> str:
     """`topics.py` 가 정본이다. **화면이 한국어를 짓지 않는다.**"""
-    spec = topics.SLOTS.get(place)
+    spec = topics.VALUE_SPECS.get(place)
     if spec is not None:
         return spec.label
     return topics.EVENT_ORBITS.get(place, place)

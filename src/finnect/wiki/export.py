@@ -19,7 +19,7 @@
 
 `Competitor/{업체명}.md` 처럼 회사마다 개수가 다른 자리가 12개다. 진짜로 가르려면
 사실마다 인스턴스 이름(업체명·특허번호)을 알아야 하는데 **`fact_key` 가 컬럼으로
-없다** — `dedupe_key` 안에 `node|market|<fact_key>` 로 묶여 들어가 있고, `fact_key`
+없다** — `dedupe_key` 안에 `event|market|<fact_key>` 로 묶여 들어가 있고, `fact_key`
 가 없으면 정규화된 문장이 그 자리를 채워서 둘을 구분할 수 없다.
 
 그래서 지금은 폴더 하나에 파일 하나로 접는다(`Competitor/경쟁사.md`). 컬럼을 붙이는
@@ -119,7 +119,7 @@ TREE: tuple[Spot, ...] = (
     Spot("Product/{서비스명}/화면/{화면명}.md", "화면", gap="와이어프레임을 안 읽는다"),
     # ── Market ───────────────────────────────────────────────
     Spot("Market/시장규모.md", "시장 규모", events=("market_size",)),
-    Spot("Market/산출식-TAM.md", "산출식 TAM", gap="곱셈 과정을 노드 텍스트로 못 담는다"),
+    Spot("Market/산출식-TAM.md", "산출식 TAM", gap="곱셈 과정을 자리 텍스트로 못 담는다"),
     Spot("Market/산출식-SAM.md", "산출식 SAM", gap="같음"),
     Spot("Market/산출식-SOM.md", "산출식 SOM", gap="같음"),
     Spot("Market/트렌드.md", "트렌드", events=("market_trend",)),
@@ -183,18 +183,18 @@ def render(nodes: list[markdown.NodeView]) -> list[Page]:
     빈 자리를 빼면 사용자가 무엇이 없는지 모른다. 화면에서 자리를 지우지 않는 것과
     같은 규칙이다(`DESIGN.md` §7-5).
     """
-    by_slot: dict[str, list[markdown.Value]] = {}
+    by_value: dict[str, list[markdown.Value]] = {}
     by_topic: dict[str, list[markdown.Statement]] = {}
     for n in nodes:
         for v in n.values:
-            by_slot.setdefault(v.slot, []).append(v)
+            by_value.setdefault(v.slot, []).append(v)
         for s in n.statements:
             by_topic.setdefault(s.topic, []).append(s)
 
     company = nodes[0].company_id if nodes else ""
     out = []
     for spot in TREE:
-        values = [v for s in spot.values for v in by_slot.get(s, [])]
+        values = [v for s in spot.values for v in by_value.get(s, [])]
         statements = [st for t in spot.events for st in by_topic.get(t, [])]
         out.append(
             Page(

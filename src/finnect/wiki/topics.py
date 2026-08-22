@@ -7,21 +7,21 @@ B 로 가서 위키가 돌릴 때마다 달라진다. 라우팅이 결정론인 
 
 두 층으로 가른다. **병합 키가 다르기 때문이다**(plan/12 T-0044).
 
-  정형 슬롯   키가 (이름, 한정어, 시점). 같은 키에 값이 둘이면 **충돌**이다
-  서술 노드   키가 없다. 근거 청크를 쌓기만 한다
+  value topic   키가 (이름, 한정어, 시점). 같은 키에 값이 둘이면 **충돌**이다
+  event topic   키가 없다. 근거 청크를 쌓기만 한다
 
 ## 구상도와 다른 곳 셋
 
-1. **`topic` 22개로는 서술 노드 아홉 중 둘에 못 닿는다.** `region_link`(지역 연계)와
+1. **`topic` 22개로는 event topic 아홉 중 둘에 못 닿는다.** `region_link`(지역 연계)와
    `roadmap`(로드맵)이 도면의 목록에 없다. 둘 다 `SPEC.md` F1-2 의 아홉에 있고
    코퍼스에도 풍부하다 — 성남산업진흥원 입주·상인회 3개소, 1·2·3단계 사업화 일정.
    지역 연계는 **지자체 공고 매칭에 직결된다.** 그래서 둘을 더했다.
 2. **이벤트 계열 넷 중 `application_history` 하나만 쓴다.** `meeting`·`decision`·
    `action_item` 은 사업계획서·IR·재무제표에서 나오지 않는다. 도면이 스스로 적은
    `선형 증가` 가 F1-4 의 "노드가 열다섯이라 검색이 필요 없다"를 첫날부터 깬다.
-3. **`company_profile` 하나를 슬롯 여럿으로 가른다.** 도면은 이걸 topic 하나로 뒀는데,
-   자격 판별(M1)은 사업자등록번호·개업일·소재지·업종을 **각각** 본다. 어느 슬롯인지는
-   LLM 이 아니라 아래 `SLOT_ALIASES` 가 정한다.
+3. **`company_profile` 하나를 value topic 여럿으로 가른다.** 도면은 이걸 topic 하나로 뒀는데,
+   자격 판별(M1)은 사업자등록번호·개업일·소재지·업종을 **각각** 본다. 어느 value topic 인지는
+   LLM 이 아니라 아래 `VALUE_ALIASES` 가 정한다.
 
 ## 별칭 표가 이 파일의 요점이다
 
@@ -30,7 +30,7 @@ B 로 가서 위키가 돌릴 때마다 달라진다. 라우팅이 결정론인 
     상시 근로자 7명 (2025-08) · 종업원 수 8명 (2025-11)
     구성원 10명 (2026-01) · 임직원 15명 (2026-08)
 
-**문자열이 다르다고 슬롯이 갈리면 안 된다.** 넷이 `headcount` 하나로 모이고, 시점이
+**문자열이 다르다고 자리가 갈리면 안 된다.** 넷이 `headcount` 하나로 모이고, 시점이
 달라서 시계열이 된다. 별칭 표에 없는 이름은 **버리지 않고** `uncategorized` 로 세운다.
 """
 
@@ -39,13 +39,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # ─────────────────────────────────────────────────────────────────
-# 정형 슬롯
+# value topic
 # ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True, slots=True)
-class SlotSpec:
-    """슬롯 하나의 성질."""
+class ValueSpec:
+    """value topic 하나의 성질."""
 
     #: 화면에 쓰는 이름. 해요체가 아니라 명사다 — 라벨이다
     label: str
@@ -54,7 +54,7 @@ class SlotSpec:
     #: `True` 면 시점이 다른 값이 나란히 선다(직원 수 7 → 8 → 10 → 15).
     #: `False` 면 시점과 무관하게 값이 하나여야 한다(사업자등록번호).
     dated: bool
-    #: 한정어를 갖는가. 같은 슬롯에 종류가 여럿인 것
+    #: 한정어를 갖는가. 같은 value topic 에 종류가 여럿인 것
     #: (조달 — 시드 · 정책자금 / 수혜 이력 — 예비창업패키지 · 소상공인 정책자금)
     qualified: bool = False
     #: 자격 판별(M1)의 입력인가. **못 채운 자리에서 묻는다**(ADR-0028)
@@ -69,36 +69,36 @@ class SlotSpec:
 
 #: **업력과 만 나이는 여기 없다.** 개업일과 생년월일만 저장하고 판정 시점에 계산한다 —
 #: 공고마다 기준일이 다르다(`SPEC.md` F1-2). 코퍼스의 성남시 신청서에 `업력 1년 6개월`
-#: 이 박혀 있는데 2025-08 기준 값이라 지금은 틀렸다. 그걸 슬롯에 넣으면 안 된다.
-SLOTS: dict[str, SlotSpec] = {
-    "company_name": SlotSpec("상호", dated=False),
-    "business_no": SlotSpec("사업자등록번호", dated=False, eligibility=True),
-    "corp_no": SlotSpec("법인등록번호", dated=False),
-    "founded_on": SlotSpec("개업연월일", dated=False, eligibility=True),
-    "ceo_name": SlotSpec("대표자", dated=False),
-    "ceo_birth": SlotSpec("대표자 생년월일", dated=False, eligibility=True),
-    "location": SlotSpec("소재지", dated=True, eligibility=True),
-    #: **업태와 종목을 한 슬롯에 넣으면 안 된다.** 사업자등록증은 두 칸으로 주고
+#: 이 박혀 있는데 2025-08 기준 값이라 지금은 틀렸다. 그걸 value topic 에 넣으면 안 된다.
+VALUE_SPECS: dict[str, ValueSpec] = {
+    "company_name": ValueSpec("상호", dated=False),
+    "business_no": ValueSpec("사업자등록번호", dated=False, eligibility=True),
+    "corp_no": ValueSpec("법인등록번호", dated=False),
+    "founded_on": ValueSpec("개업연월일", dated=False, eligibility=True),
+    "ceo_name": ValueSpec("대표자", dated=False),
+    "ceo_birth": ValueSpec("대표자 생년월일", dated=False, eligibility=True),
+    "location": ValueSpec("소재지", dated=True, eligibility=True),
+    #: **업태와 종목을 한 value topic 에 넣으면 안 된다.** 사업자등록증은 두 칸으로 주고
     #: 사업계획서도 두 줄로 쓴다. 하나로 접으면 `정보통신업` 과 `응용 소프트웨어 개발 및
     #: 공급업` 이 같은 자리에 값 둘로 앉아 **없는 충돌이 생긴다.**
-    "industry": SlotSpec("업종(업태)", dated=True, eligibility=True),
-    "industry_item": SlotSpec("업종(종목)", dated=True, eligibility=True),
-    "headcount": SlotSpec("직원 수", dated=True, eligibility=True, unit="count"),
-    "capital": SlotSpec("자본금", dated=True, unit="money"),
-    "revenue": SlotSpec("매출액", dated=True, unit="money"),
-    "funding": SlotSpec("조달액", dated=True, qualified=True, unit="money"),
+    "industry": ValueSpec("업종(업태)", dated=True, eligibility=True),
+    "industry_item": ValueSpec("업종(종목)", dated=True, eligibility=True),
+    "headcount": ValueSpec("직원 수", dated=True, eligibility=True, unit="count"),
+    "capital": ValueSpec("자본금", dated=True, unit="money"),
+    "revenue": ValueSpec("매출액", dated=True, unit="money"),
+    "funding": ValueSpec("조달액", dated=True, qualified=True, unit="money"),
     #: 중복수혜 제한 판정의 입력. 도면의 `application_history` 가 여기로 온다
-    "gov_program": SlotSpec(
+    "gov_program": ValueSpec(
         "정부지원 수혜 이력", dated=True, qualified=True, eligibility=True, unit="money"
     ),
 }
 
 
-#: 원문 표현 → 슬롯. **왼쪽은 문서가 쓴 말이고 오른쪽은 우리 이름이다.**
+#: 원문 표현 → value topic. **왼쪽은 문서가 쓴 말이고 오른쪽은 우리 이름이다.**
 #:
 #: 코퍼스 7건에 실제로 나온 표현만 담았다. 없는 표현을 미리 넣지 않는다 —
 #: 새 문서에서 새 이름이 나오면 `uncategorized` 로 서고, 그때 여기 한 줄을 더한다.
-SLOT_ALIASES: dict[str, str] = {
+VALUE_ALIASES: dict[str, str] = {
     # 상호
     "상호": "company_name",
     "기업명": "company_name",
@@ -181,10 +181,10 @@ EVENT_ORBITS: dict[str, str] = {
 }
 
 
-#: topic → 서술 노드. **여기 없는 topic 은 서술로 안 간다.**
+#: topic → event topic. **여기 없는 topic 은 서술로 안 간다.**
 #:
-#: `company_profile` 과 `application_history` 가 일부러 빠져 있다. 둘은 정형 슬롯의
-#: 재료라 서술로 오면 `uncategorized` 다. 라벨이 세밀할수록 좋고 노드는 집필 단위와
+#: `company_profile` 과 `application_history` 가 일부러 빠져 있다. 둘은 value topic 의
+#: 재료라 서술로 오면 `uncategorized` 다. 라벨이 세밀할수록 좋고 orbit 은 집필 단위와
 #: 맞아야 해서 25 → 9 로 모은다.
 TOPIC_ORBIT: dict[str, str] = {
     "customer_problem": "problem",
@@ -256,7 +256,7 @@ TOPIC_LABELS: dict[str, str] = {
 #:
 #: `revenue` 와 `funding` 이 **양쪽에 다 있다.** 매출액(값)과 매출(문장)이 다른 것이고
 #: 조달액과 자금조달이 다른 것이다 — 타입이 갈라서 코드에서는 안 부딪힌다.
-VALUE_TOPICS: frozenset[str] = frozenset(SLOTS)
+VALUE_TOPICS: frozenset[str] = frozenset(VALUE_SPECS)
 EVENT_TOPICS: frozenset[str] = frozenset(TOPIC_ORBIT)
 
 
@@ -283,11 +283,11 @@ UNCATEGORIZED = "uncategorized"
 #: `match/sectors.py` 가 공백을 지우면 안 되는 것과 여기가 지워야 하는 것은 다른 문제다.
 #: 저쪽은 본문에서 어휘를 **찾는** 것이라 `결손금이 자본금을 초과` 에서 `이자` 가 걸리고,
 #: 이쪽은 항목 이름 하나를 표에서 **꺼내는** 것이라 걸릴 것이 없다.
-_ALIAS_TIGHT: dict[str, str] = {"".join(k.split()): v for k, v in SLOT_ALIASES.items()}
+_ALIAS_TIGHT: dict[str, str] = {"".join(k.split()): v for k, v in VALUE_ALIASES.items()}
 
 
-def slot_of(key: str | None) -> str | None:
-    """원문 표현 하나를 슬롯 이름으로. 모르면 `None` — **추측하지 않는다.**
+def value_of(key: str | None) -> str | None:
+    """원문 표현 하나를 value topic 이름으로. 모르면 `None` — **추측하지 않는다.**
 
     **공백을 지운 뒤 한 번 더 찾는다.** HWP 표와 OCR 이 `상시근로자` · `직원수` 처럼
     띄어쓰기를 지워서 내보내는데, 별칭 표에는 `상시 근로자` · `직원 수` 로 적혀 있어서
@@ -296,7 +296,7 @@ def slot_of(key: str | None) -> str | None:
     if not key:
         return None
     k = " ".join(key.split()).strip().strip(":·").strip()
-    return SLOT_ALIASES.get(k) or _ALIAS_TIGHT.get("".join(k.split()))
+    return VALUE_ALIASES.get(k) or _ALIAS_TIGHT.get("".join(k.split()))
 
 
 def display(slot: str, value: str) -> str:
@@ -305,7 +305,7 @@ def display(slot: str, value: str) -> str:
     정규화된 값(`120000000`)이 병합의 재료라 손대면 충돌 판정이 깨진다. 사람이 읽는
     것은 여기서만 만든다 — 화면·마크다운·API 가 같은 함수를 쓴다.
     """
-    spec = SLOTS.get(slot)
+    spec = VALUE_SPECS.get(slot)
     if spec is None or spec.unit == "text":
         return value
     try:
@@ -329,12 +329,12 @@ def orbit_of(topic: str | None) -> str | None:
 # 궤도 배치 (ADR-0017 · SPEC §5.3)
 # ─────────────────────────────────────────────────────────────────
 
-#: `SPEC.md` F1-2 가 센 열다섯은 **슬롯 열넷과 다른 셈이다.** 저기는 화면의 단위이고
-#: 여기는 병합의 단위다. 사업체 정보 다섯은 슬롯 여럿을 묶은 것이다.
+#: `SPEC.md` F1-2 가 센 열다섯은 **value topic 열넷과 다른 셈이다.** 저기는 화면의 단위이고
+#: 여기는 병합의 단위다. 사업체 정보 다섯은 value topic 여럿을 묶은 것이다.
 #:
 #:     정체성 1  +  사업체 정보 5  +  사업 내용 9  =  15
 #:
-#: **남는 슬롯 넷(직원 수·자본금·매출액·조달액)은 사업체 정보가 아니라 사업 내용으로 간다.**
+#: **남는 value topic 넷(직원 수·자본금·매출액·조달액)은 사업체 정보가 아니라 사업 내용으로 간다.**
 #: `SPEC.md` F1-2 의 다섯에 그것들이 없고, 실제로 팀 구성·매출과 성과·자금 현황을 읽을 때
 #: 같이 봐야 하는 값이다.
 
@@ -349,10 +349,10 @@ class Orbital:
     kind: str
     #: 구획. 각도가 의미를 갖는다
     sector: str
-    #: 이 자리에 딸린 정형 슬롯
-    slots: tuple[str, ...] = ()
-    #: 이 자리에 딸린 서술 노드
-    node: str | None = None
+    #: 이 자리에 딸린 value topic
+    value_topics: tuple[str, ...] = ()
+    #: 이 자리가 event topic 을 받나. 값은 제 orbit 키다 (ADR-0048)
+    event: str | None = None
 
 
 #: 구획 여섯. **사업 내용 넷 · 사업체 정보 둘**(ADR-0017 결정 2).
@@ -370,7 +370,7 @@ SECTORS: dict[str, str] = {
 ORBIT: dict[str, Orbital] = {
     # 중심 — 사업 한 줄 정의. 그래프의 중심이다
     "identity": Orbital(
-        "우리가 하는 일", "identity", "registration", ("company_name",), node="identity"
+        "우리가 하는 일", "identity", "registration", ("company_name",), event="identity"
     ),
     # 안쪽 궤도 — 사업체 정보 다섯. M1 자격 판별의 입력
     "biz": Orbital(
@@ -382,17 +382,17 @@ ORBIT: dict[str, Orbital] = {
     "who": Orbital("대표자", "company", "principal", ("ceo_name", "ceo_birth")),
     "grants": Orbital("수령 이력", "company", "principal", ("gov_program",)),
     # 바깥 궤도 — 사업 내용 아홉. M2 적합도와 G 집필의 입력
-    "problem": Orbital("문제 인식", "content", "problem_solution", node="problem"),
-    "solution": Orbital("솔루션과 기술", "content", "problem_solution", node="solution"),
-    "customer": Orbital("목표 고객", "content", "market_customer", node="customer"),
-    "market": Orbital("시장과 경쟁", "content", "market_customer", node="market"),
-    "region": Orbital("지역 연계", "content", "market_customer", node="region"),
+    "problem": Orbital("문제 인식", "content", "problem_solution", event="problem"),
+    "solution": Orbital("솔루션과 기술", "content", "problem_solution", event="solution"),
+    "customer": Orbital("목표 고객", "content", "market_customer", event="customer"),
+    "market": Orbital("시장과 경쟁", "content", "market_customer", event="market"),
+    "region": Orbital("지역 연계", "content", "market_customer", event="region"),
     "traction": Orbital(
-        "매출과 성과", "content", "result_money", ("revenue",), node="traction"
+        "매출과 성과", "content", "result_money", ("revenue",), event="traction"
     ),
     "finance": Orbital(
-        "자금 현황", "content", "result_money", ("capital", "funding"), node="finance"
+        "자금 현황", "content", "result_money", ("capital", "funding"), event="finance"
     ),
-    "team": Orbital("팀 구성", "content", "team_plan", ("headcount",), node="team"),
-    "roadmap": Orbital("로드맵", "content", "team_plan", node="roadmap"),
+    "team": Orbital("팀 구성", "content", "team_plan", ("headcount",), event="team"),
+    "roadmap": Orbital("로드맵", "content", "team_plan", event="roadmap"),
 }

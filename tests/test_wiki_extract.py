@@ -77,7 +77,7 @@ def test_정형_사실의_항목_이름이_전부_별칭_표에_있다(table: di
         f["key"]
         for e in _entries(table)
         for f in e["facts"]
-        if f["kind"] == "slot" and topics.slot_of(f.get("key")) is None
+        if f["kind"] == "value" and topics.value_of(f.get("key")) is None
     }
     assert unknown == {"업력"}
 
@@ -108,13 +108,13 @@ def test_픽스처가_심어_둔_함정이_표에_들어_있다(table: dict):
     """코퍼스 README 가 기대값으로 적어 둔 것들. **빠지면 T-0046 이 검증되지 않는다.**"""
     facts = [f for e in _entries(table) for f in e["facts"]]
 
-    heads = sorted(f["value"] for f in facts if topics.slot_of(f.get("key")) == "headcount")
+    heads = sorted(f["value"] for f in facts if topics.value_of(f.get("key")) == "headcount")
     assert heads == ["10", "15", "7", "8"], "직원 수 넷이 다 있어야 한다"
 
     seed = sorted({f["value"] for f in facts if f.get("qualifier") == "시드"})
     assert seed == ["280000000", "300000000"], "시드 3억과 2.8억이 둘 다 있어야 한다"
 
-    programs = {f["qualifier"] for f in facts if topics.slot_of(f.get("key")) == "gov_program"}
+    programs = {f["qualifier"] for f in facts if topics.value_of(f.get("key")) == "gov_program"}
     assert len(programs) == 3, "정부지원 수혜 이력 셋 — HWPX 에만 있다"
 
     retention = [f for f in facts if f.get("fact_key") == "pilot_retention_34_51"]

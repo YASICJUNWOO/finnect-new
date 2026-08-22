@@ -644,12 +644,12 @@ class WikiPlace(enum.StrEnum):
     """사실 하나가 간 자리(plan/12 T-0045).
 
     **셋을 섞지 않는 것이 이 컬럼의 존재 이유다.** 병합 키가 다르다 —
-    정형은 (슬롯, 한정어, 시점)이 키고, 서술은 키가 없어 근거만 쌓이며,
+    value 는 (이름, 한정어, 시점)이 키고, event 는 키가 없어 근거만 쌓이며,
     분류 못 한 것은 **버리지 않고** 검토 큐에 선다(구상도 ④ 예외).
     """
 
-    SLOT = "slot"
-    NODE = "node"
+    VALUE = "value"
+    EVENT = "event"
     UNCATEGORIZED = "uncategorized"
 
 
@@ -670,9 +670,9 @@ class WikiFact(Base):
     ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
     로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
 
-    `dedupe_key` 가 병합의 전부다. 정형은 `slot|이름|한정어|시점|값` 이라 문서 넷이
+    `dedupe_key` 가 병합의 전부다. value 는 `value|이름|한정어|시점|값` 이라 문서 넷이
     같은 사업자등록번호를 말하면 **행 하나에 근거 넷**이 된다. 서술은
-    `node|이름|fact_key` 라, 같은 사실이 문서마다 다른 문장으로 쓰여 있어도 묶인다.
+    `event|이름|fact_key` 라, 같은 사실이 문서마다 다른 문장으로 쓰여 있어도 묶인다.
     """
 
     __tablename__ = "wiki_fact"

@@ -60,8 +60,8 @@ class Test자리:
 
     def test_슬롯과_노드를_가른다(self) -> None:
         """화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다."""
-        assert nd.PLACE_KIND["revenue"] == "slot"
-        assert nd.PLACE_KIND["problem"] == "node"
+        assert nd.PLACE_KIND["revenue"] == "value"
+        assert nd.PLACE_KIND["problem"] == "event"
 
     def test_목록_밖의_이름은_버리고_센다(self) -> None:
         """**지어낸 자리를 요구하면 그 항목은 영원히 "못 채움" 이다.**"""
@@ -94,7 +94,7 @@ class Test자리:
 
     def test_자리_목록이_위키와_같다(self) -> None:
         """**갈리면 여기서 통과한 자리가 위키에 없다.**"""
-        assert set(nd.PLACES) == set(topics.SLOTS) | set(topics.EVENT_ORBITS)
+        assert set(nd.PLACES) == set(topics.VALUE_SPECS) | set(topics.EVENT_ORBITS)
         assert len(nd.PLACES) == 24
 
 

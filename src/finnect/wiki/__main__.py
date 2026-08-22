@@ -1,7 +1,7 @@
 """사업 위키 CLI — 파일을 던지면 위키가 선다(plan/12).
 
     uv run python -m finnect.wiki --company c_001 tests/fixtures/wiki/*
-    uv run python -m finnect.wiki --company c_001 --build       # 청크 → 사실 → 노드
+    uv run python -m finnect.wiki --company c_001 --build       # 청크 → 사실 → 자리
     uv run python -m finnect.wiki --company c_001 --wiki        # 세워진 위키를 본다
     uv run python -m finnect.wiki --company c_001 --show 회사소개  # 원문 청크를 본다
     uv run python -m finnect.wiki --company c_001 --rechunk     # 청킹 규칙을 고쳤을 때
@@ -241,8 +241,8 @@ def render_build(r: build.BuildReport) -> str:
         f"  읽은 파일      {r.built} / {r.files}",
         f"  사실           {r.facts}건   (이미 있어서 근거만 더 붙은 것 {r.merged}건)",
         f"  근거 연결      {r.evidence}개",
-        f"  정형 슬롯      {r.slots}개",
-        f"  서술 노드      {r.nodes}개",
+        f"  value topic   {r.value_topics}개",
+        f"  event orbit   {r.event_orbits}개",
     ]
     if r.conflicts:
         lines.append(f"  충돌           {r.conflicts}건  ← 값이 갈려요. 물어봐야 해요")
@@ -282,7 +282,7 @@ def render_export(s, company_id: str, dest: Path) -> str:  # noqa: ANN001
 
 def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
     """세워진 위키를 편다. **근거가 어느 파일 몇 쪽인지까지 나와야 한다**(ADR-0014)."""
-    slots = build.read_slots(s, company_id)
+    slots = build.read_values(s, company_id)
     if not any(v.current or v.history for v in slots):
         return f"[{company_id}] 아직 위키가 없어요. 파일을 올리고 --build 를 해 보세요"
 
@@ -314,7 +314,7 @@ def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
             select(WikiFact)
             .where(
                 WikiFact.company_id == company_id,
-                WikiFact.place_kind == WikiPlace.NODE,
+                WikiFact.place_kind == WikiPlace.EVENT,
                 WikiFact.place == name,
             )
             .order_by(WikiFact.id)

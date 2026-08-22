@@ -5,10 +5,10 @@
 
 ## 충돌이냐 시계열이냐 — 규칙 하나로 가른다
 
-    자리 = (슬롯, 한정어, 시점)
+    자리 = (value topic, 한정어, 시점)
 
     한 자리에 서로 다른 값이 둘 이상   →  전부 conflict
-    한 자리에 값이 하나                →  같은 (슬롯, 한정어) 중 시점이 가장 늦으면
+    한 자리에 값이 하나                →  같은 (value topic, 한정어) 중 시점이 가장 늦으면
                                           current, 아니면 superseded
 
 **코퍼스의 함정 둘이 이 한 줄로 갈린다.**
@@ -24,11 +24,11 @@
 
 ## 시점 없는 값
 
-`dated=False` 슬롯(사업자등록번호 등)은 시점을 **떼어 버린다.** 문서마다 발급일이
+`dated=False` value topic(사업자등록번호 등)은 시점을 **떼어 버린다.** 문서마다 발급일이
 달라도 사업자등록번호는 하나여야 하고, 시점을 남기면 같은 번호가 자리 둘로 갈려
 충돌이 안 잡힌다.
 
-`dated=True` 슬롯인데 시점이 없는 값은 **가장 오래된 것으로 놓는다.** 시점 있는 값이
+`dated=True` value topic인데 시점이 없는 값은 **가장 오래된 것으로 놓는다.** 시점 있는 값이
 하나라도 있으면 current 가 되지 못한다 — 언제 것인지 모르는 값이 아는 값을 밀어내면
 안 된다.
 """
@@ -43,9 +43,9 @@ from finnect.wiki.extract import Fact
 
 
 class Status:
-    """정형 슬롯 주장 하나의 상태. **서술 노드에는 붙지 않는다.**"""
+    """value topic 주장 하나의 상태. **event topic에는 붙지 않는다.**"""
 
-    #: 이 슬롯의 지금 값
+    #: 이 value topic 의 지금 값
     CURRENT = "current"
     #: 더 늦은 시점의 값이 있다. **지우지 않는다** — 이력이다
     SUPERSEDED = "superseded"
@@ -59,7 +59,7 @@ class Placement:
 
     #: `slot` · `node` · `uncategorized`
     kind: str
-    #: 슬롯 이름 또는 노드 이름. `uncategorized` 면 빈 문자열
+    #: value topic 이름 또는 orbit 이름. `uncategorized` 면 빈 문자열
     name: str
     #: 왜 uncategorized 인가. 검토 큐에서 사람이 읽는다
     reason: str = ""
@@ -74,25 +74,25 @@ def place(fact: Fact) -> Placement:
     if fact.topic == topics.UNCATEGORIZED:
         return Placement(topics.UNCATEGORIZED, "", "온톨로지 밖 topic")
 
-    if fact.kind == "slot":
-        slot = topics.slot_of(fact.key)
+    if fact.kind == "value":
+        slot = topics.value_of(fact.key)
         if slot is None:
             return Placement(topics.UNCATEGORIZED, "", f"모르는 항목 이름 — {fact.key!r}")
         if not (fact.value or "").strip():
             return Placement(topics.UNCATEGORIZED, "", f"값이 비어 있음 — {fact.key!r}")
-        return Placement("slot", slot)
+        return Placement("value", slot)
 
     node = topics.orbit_of(fact.topic)
     if node is None:
         # `company_profile` · `application_history` 가 서술로 오면 여기다.
-        # 둘은 정형 슬롯의 재료라 서술 노드가 없다.
-        return Placement(topics.UNCATEGORIZED, "", f"서술 노드가 없는 topic — {fact.topic}")
-    return Placement("node", node)
+        # 둘은 value topic 의 재료라 event topic 이 없다.
+        return Placement(topics.UNCATEGORIZED, "", f"orbit 이 없는 topic — {fact.topic}")
+    return Placement("event", node)
 
 
 def as_of_for(slot: str, as_of: dt.date | None) -> dt.date | None:
-    """슬롯이 시점을 갖는가에 따라 시점을 남기거나 뗀다."""
-    spec = topics.SLOTS.get(slot)
+    """value topic 이 시점을 갖는가에 따라 시점을 남기거나 뗀다."""
+    spec = topics.VALUE_SPECS.get(slot)
     return as_of if (spec and spec.dated) else None
 
 
@@ -106,11 +106,11 @@ def dedupe_key(fact: Fact, spot: Placement) -> str:
     쓰여 있어서(`재구매율이 51%로 올랐습니다` / `34% → 51%`) 문자열로는 못 묶는다.
     `fact_key` 가 없으면 문장 자체가 키다 — 안 묶인다.
     """
-    if spot.kind == "slot":
+    if spot.kind == "value":
         d = as_of_for(spot.name, fact.as_of)
-        return f"slot|{spot.name}|{fact.qualifier or ''}|{d or ''}|{_norm(fact.value)}"
-    if spot.kind == "node":
-        return f"node|{spot.name}|{fact.fact_key or _norm(fact.text)}"
+        return f"value|{spot.name}|{fact.qualifier or ''}|{d or ''}|{_norm(fact.value)}"
+    if spot.kind == "event":
+        return f"event|{spot.name}|{fact.fact_key or _norm(fact.text)}"
     return f"uncategorized|{fact.topic}|{_norm(fact.text)}"
 
 
@@ -138,13 +138,13 @@ class Claim:
 
 
 def decide(claims: list[Claim]) -> dict[Claim, str]:
-    """주장들에 상태를 매긴다. **한 회사의 정형 슬롯 전부를 한 번에 넣는다.**
+    """주장들에 상태를 매긴다. **한 회사의 value topic 전부를 한 번에 넣는다.**
 
     부분만 넣으면 틀린다 — 어느 시점이 가장 늦은지는 전체를 봐야 안다.
     """
     out: dict[Claim, str] = {}
 
-    #: (슬롯, 한정어) → {시점: {값}}
+    #: (value topic, 한정어) → {시점: {값}}
     groups: dict[tuple[str, str | None], dict[dt.date | None, set[str]]] = {}
     for c in claims:
         groups.setdefault((c.slot, c.qualifier), {}).setdefault(c.as_of, set()).add(c.value)

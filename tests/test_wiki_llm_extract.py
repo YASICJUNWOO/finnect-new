@@ -47,14 +47,14 @@ VIEW = FileView(
 
 
 def _f(**kw) -> dict:
-    base = {"topic": "company_profile", "kind": "node", "text": "", "anchor": "",
+    base = {"topic": "company_profile", "kind": "event", "text": "", "anchor": "",
             "fact_key": None, "key": None, "value": None, "as_of": None, "qualifier": None}
     return {**base, **kw}
 
 
 def test_앵커가_원문에_있으면_통과한다() -> None:
     ex = LlmExtractor(client=가짜클라이언트([
-        _f(kind="slot", key="개업연월일", value="2024-03-05", as_of=None,
+        _f(kind="value", key="개업연월일", value="2024-03-05", as_of=None,
            text="2024년 3월 5일 개업", anchor="2024년 3월 5일에 문을 열었다"),
     ]))
     got = ex.extract(VIEW)
@@ -100,7 +100,7 @@ def test_모르는_라벨은_uncategorized_로_간다() -> None:
 def test_날짜가_아니면_시점_없는_값이_된다() -> None:
     """**지어내지 않는다.** `2024년쯤` 을 날짜로 만들면 없는 시계열이 생긴다."""
     ex = LlmExtractor(client=가짜클라이언트([
-        _f(kind="slot", key="매출액", value="100", as_of="2024년쯤",
+        _f(kind="value", key="매출액", value="100", as_of="2024년쯤",
            text="x", anchor="재구매율이 34%"),
     ]))
     assert ex.extract(VIEW)[0].as_of is None
@@ -108,7 +108,7 @@ def test_날짜가_아니면_시점_없는_값이_된다() -> None:
 
 def test_날짜가_맞으면_파싱한다() -> None:
     ex = LlmExtractor(client=가짜클라이언트([
-        _f(kind="slot", key="매출액", value="100", as_of="2024-12-31",
+        _f(kind="value", key="매출액", value="100", as_of="2024-12-31",
            text="x", anchor="재구매율이 34%"),
     ]))
     assert ex.extract(VIEW)[0].as_of == dt.date(2024, 12, 31)
@@ -117,7 +117,7 @@ def test_날짜가_맞으면_파싱한다() -> None:
 def test_서술_노드에는_슬롯_필드가_안_붙는다() -> None:
     """`value` 가 서술에 붙으면 병합 키가 어긋난다."""
     ex = LlmExtractor(client=가짜클라이언트([
-        _f(kind="node", text="x", anchor="재구매율이 34%",
+        _f(kind="event", text="x", anchor="재구매율이 34%",
            key="매출액", value="100", qualifier="시드"),
     ]))
     f = ex.extract(VIEW)[0]
@@ -127,7 +127,7 @@ def test_서술_노드에는_슬롯_필드가_안_붙는다() -> None:
 def test_정형_슬롯에는_fact_key_가_안_붙는다() -> None:
     """`fact_key` 는 서술 전용이다. 슬롯에 오면 `dedupe_key` 가 어긋난다."""
     ex = LlmExtractor(client=가짜클라이언트([
-        _f(kind="slot", key="매출액", value="100", fact_key="rev",
+        _f(kind="value", key="매출액", value="100", fact_key="rev",
            text="x", anchor="재구매율이 34%"),
     ]))
     assert ex.extract(VIEW)[0].fact_key is None

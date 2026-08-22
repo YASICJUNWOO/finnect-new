@@ -1,4 +1,4 @@
-"""노드 한 장을 마크다운으로 — **뷰다. 저장하지 않는다**(plan/12 `구상도와의 차이`).
+"""자리 한 장을 마크다운으로 — **뷰다. 저장하지 않는다**(plan/12 `구상도와의 차이`).
 
 구상도는 ⑥에서 마크다운을 만들고 ⑦에서 SQL 로도 저장한다. **우리는 저장하지 않는다.**
 `SPEC.md` §2-1 이 "소스가 갈라지면 불일치가 생긴다"고 적었고, 사실이 `wiki_fact` 에
@@ -18,7 +18,7 @@
 "출처는 문자열이 아니라 연결이다"(F1-3)라고 한 그 연결의 마크다운 표현이다.
 
 F1-6(밖으로 꺼내기)이 이걸 그대로 쓴다. 옵시디언에서 열리는 것이 목표라 프론트매터는
-YAML 이고 노드 사이 링크는 `[[제목]]` 이다.
+YAML 이고 자리 사이 링크는 `[[제목]]` 이다.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class Evidence:
 
 @dataclass(frozen=True, slots=True)
 class Value:
-    """정형 슬롯의 주장 하나."""
+    """value topic 의 주장 하나."""
 
     slot: str
     label: str
@@ -61,7 +61,7 @@ class Value:
 
 @dataclass(frozen=True, slots=True)
 class Statement:
-    """서술 노드의 사실 하나."""
+    """event topic 의 사실 하나."""
 
     text: str
     topic: str
@@ -101,7 +101,7 @@ class NodeView:
 
 
 def render(node: NodeView) -> str:
-    """노드 한 장. **빈 노드도 만든다** — 비어 있다는 것도 사실이고, 물어야 할 자리다."""
+    """자리 한 장. **빈 자리도 만든다** — 비어 있다는 것도 사실이고, 물어야 할 자리다."""
     out = [_front_matter(node), "", f"# {node.label}", ""]
 
     if not node.filled:
@@ -146,15 +146,15 @@ def _front_matter(node: NodeView) -> str:
 
 
 def _values(values: tuple[Value, ...]) -> list[str]:
-    """정형 슬롯. **현재값을 먼저 쓰고 이전값을 밑에 접는다.** 지우지 않는다(F1-1-7)."""
+    """value topic. **현재값을 먼저 쓰고 이전값을 밑에 접는다.** 지우지 않는다(F1-1-7)."""
     out: list[str] = []
-    # (슬롯, 한정어) 로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
+    # (value topic, 한정어) 로 묶는다. 한정어가 다르면 다른 것이다 — 시드와 정책자금
     groups: dict[tuple[str, str | None], list[Value]] = {}
     for v in values:
         groups.setdefault((v.slot, v.qualifier), []).append(v)
 
     for (slot, qualifier), items in groups.items():
-        label = topics.SLOTS[slot].label if slot in topics.SLOTS else slot
+        label = topics.VALUE_SPECS[slot].label if slot in topics.VALUE_SPECS else slot
         head = f"{label} [{qualifier}]" if qualifier else label
         out += [f"## {head}", ""]
 
@@ -229,7 +229,7 @@ def _sources(evidence: list[Evidence]) -> list[str]:
 def bundle(nodes: list[NodeView]) -> str:
     """전부를 한 파일로. 화면에서 통째로 보거나 복사할 때 쓴다.
 
-    **F1-6(밖으로 꺼내기)이 아니다.** 저기는 노드마다 `.md` 파일 하나로 떨어져 옵시디언
+    **F1-6(밖으로 꺼내기)이 아니다.** 저기는 자리마다 `.md` 파일 하나로 떨어져 옵시디언
     볼트가 되는 것이고, 여기는 한 덩어리다. 파일로 떨어뜨리는 것은 그 태스크에서 한다.
     """
     company = nodes[0].company_id if nodes else ""

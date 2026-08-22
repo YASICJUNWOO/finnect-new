@@ -110,16 +110,16 @@ def db(monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
                             content_hash="hOLD"))
 
         s.add_all([
-            _fact(place_kind="slot", place="location", status="current",
+            _fact(place_kind="value", place="location", status="current",
                   value="경기도 성남시 분당구 판교로 255", text="소재지",
                   as_of=dt.date(2026, 1, 31)),
-            _fact(place_kind="slot", place="founded_on", status="current",
+            _fact(place_kind="value", place="founded_on", status="current",
                   value="2024-03-11", text="개업"),
-            _fact(place_kind="node", place="identity",
+            _fact(place_kind="event", place="identity",
                   text="소상공인용 재고관리 소프트웨어"),
-            _fact(place_kind="node", place="roadmap",
+            _fact(place_kind="event", place="roadmap",
                   text="2단계 경기 남부 지역 영업망 구축, 유료 전환 매장 300곳"),
-            _fact(place_kind="node", place="finance",
+            _fact(place_kind="event", place="finance",
                   text="정부지원금 집행 계획 합계 7,000만원 — 인건비 3,600만원"),
         ])
         s.commit()
@@ -259,9 +259,9 @@ def test_회사가_늘어도_정규화_호출이_안_늘어난다(db) -> None:  
 
     with db() as s:
         s.add(WikiFact(
-            company_id="c_other", place_kind="node", place="identity",
+            company_id="c_other", place_kind="event", place="identity",
             topic="identity", text="소상공인용 배달 대행 서비스",
-            extractor="stub/v1", dedupe_key="node|identity|other",
+            extractor="stub/v1", dedupe_key="event|identity|other",
         ))
         s.commit()
     service.run(COMPANY, today=TODAY)
@@ -277,13 +277,13 @@ def test_회사마다_다른_추천이_나온다(db) -> None:  # noqa: ANN001
     service.normalize(today=TODAY, normalizer=가짜정규화기())
     with db() as s:
         s.add_all([
-            WikiFact(company_id="c_daegu", place_kind="slot", place="location",
+            WikiFact(company_id="c_daegu", place_kind="value", place="location",
                      status="current", value="대구광역시 수성구 알파시티1로",
                      topic="company_profile", text="소재지", extractor="stub/v1",
                      dedupe_key="location|대구", as_of=dt.date(2026, 1, 31)),
-            WikiFact(company_id="c_daegu", place_kind="node", place="identity",
+            WikiFact(company_id="c_daegu", place_kind="event", place="identity",
                      topic="identity", text="기업 전용 통신망 구축 서비스",
-                     extractor="stub/v1", dedupe_key="node|identity|daegu"),
+                     extractor="stub/v1", dedupe_key="event|identity|daegu"),
         ])
         s.commit()
 

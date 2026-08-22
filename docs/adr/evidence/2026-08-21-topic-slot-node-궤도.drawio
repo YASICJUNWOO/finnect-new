@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="1. 네 층 — 세는 단위가 다르다">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1500" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p1t" value="네 층 — topic 25 · slot 14 · node 10 · orbit 15" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1s" value="2026-08-21 · 개수는 uv run python 으로 세어 맞췄다. 코드 자리는 src/finnect/wiki/{extract,merge,build,topics}.py 와 web/components/Orbit.tsx 다." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1200" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f0" value="LLM 이 낸 사실 하나&#xa;wiki/extract.py Fact" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="110" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="f0a" value="&lt;b&gt;topic&lt;/b&gt; · &lt;b&gt;kind&lt;/b&gt;('slot' 또는 'node') · text · &lt;b&gt;anchor&lt;/b&gt; · fact_key · key · value · as_of · qualifier&#xa;&lt;b&gt;confidence 가 없다.&lt;/b&gt; 0.9 와 0.7 을 가를 눈금이 없어서 뺐다 — 대신 근거 청크 유무 · source_type · 충돌 여부 셋으로 말한다.&#xa;&lt;b&gt;anchor 가 원문에 없으면 그 사실은 버려진다.&lt;/b&gt; 근거 없는 wiki_fact 행을 만들지 않기 때문이다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="380" y="105" width="1060" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="① topic — 25개&#xa;LLM 이 정하는 유일한 분류" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="f1a" value="&lt;b&gt;TOPICS = frozenset(TOPIC_NODE) | {company_profile, application_history}&lt;/b&gt; — topics.py:222&#xa;&lt;b&gt;자유 생성 금지.&lt;/b&gt; 이 스물다섯 밖의 라벨은 uncategorized 로 선다. 프롬프트가 목록을 그대로 준다.&#xa;&lt;b&gt;여기까지가 LLM 의 몫이다.&lt;/b&gt; 목적지는 안 정한다 — 정하게 하면 같은 사실이 어제는 A 오늘은 B 로 간다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="380" y="215" width="1060" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f2" value="② 라우팅 — merge.place()&#xa;사람이 만든 dict 둘" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="330" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="f2a" value="&lt;b&gt;SLOT_ALIASES&lt;/b&gt; 43줄(원문 표현 → 슬롯) · &lt;b&gt;TOPIC_NODE&lt;/b&gt; 23줄(topic → 노드). 둘 다 topics.py 안의 코드다.&#xa;&lt;b&gt;결정론이다.&lt;/b&gt; 같은 파일을 두 번 넣으면 같은 자리에 앉는다 — 2쪽에 판정 순서가 있다.&#xa;LLM 은 이 표를 못 바꾼다. 표에 없는 이름은 &lt;b&gt;버리지 않고&lt;/b&gt; 이유를 달아 uncategorized 로 세운다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="380" y="325" width="1060" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f3a" value="slot — 14개&#xa;값의 자리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="440" width="180" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3b" value="node — 10개&#xa;문장의 자리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="440" width="180" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3c" value="uncategorized&#xa;검토 대기" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="440" width="180" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3d" value="&lt;b&gt;셋의 병합 키가 다르다. 그게 층을 가른 이유다.&lt;/b&gt;&#xa;&lt;b&gt;slot&lt;/b&gt;  키 = (이름, 한정어, 시점). 같은 키에 값이 둘 이상이면 &lt;b&gt;충돌&lt;/b&gt; 이고 둘 다 보관한다. dated 한 칸이 시계열과 충돌을 가른다.&#xa;&lt;b&gt;node&lt;/b&gt;  &lt;b&gt;병합 키가 없다.&lt;/b&gt; fact_key 로만 묶고 근거 청크를 쌓는다 — 다른 말을 하는 청크가 나란히 매달린다.&#xa;&lt;b&gt;uncategorized&lt;/b&gt;  이유를 함께 적는다. 온톨로지 밖 topic · 모르는 항목 이름 · 값이 비어 있음 · 서술 노드가 없는 topic 넷." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="680" y="435" width="760" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f4" value="③ 저장 — wiki_fact.place_kind 는 셋뿐이다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="570" width="580" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="f4a" value="models.py:680 — String(16) 에 'slot' · 'node' · 'uncategorized' 만 들어간다.&#xa;&lt;b&gt;여기에 orbit 이 없다.&lt;/b&gt; 사실은 슬롯 이름이나 노드 이름으로만 앉는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="680" y="565" width="760" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f5" value="④ orbit — 15자리 · 읽을 때 만든다" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8e8fb;strokeColor=#5b5bd6;fontStyle=1;fontColor=#332f7a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="680" width="580" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="f5a" value="&lt;b&gt;저장에 없는 층이다.&lt;/b&gt; build.read_orbit() 이 슬롯 14 와 노드 10 을 &lt;b&gt;화면 자리 15개&lt;/b&gt; 로 다시 묶는다.&#xa;되돌리는 표도 같은 함수 안에 있다 — home[(place_kind, place)] → 궤도 키(build.py:391).&#xa;&lt;b&gt;빈 자리도 돌려준다.&lt;/b&gt; 비어 있는 것도 사실이고 물어야 할 자리다 — 지우면 무엇이 없는지 모른다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="680" y="675" width="760" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e01" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f0" target="f1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f1" target="f2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2a" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f2" target="f3a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f2" target="f3b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2c" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f2" target="f3c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3a" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f3a" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f3b" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3c" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="f3c" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e45" value="읽을 때" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="f4" target="f5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sum" value="네 층 한 줄 요약" style="text;html=1;fontSize=13;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="790" width="400" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="sum1" value="&lt;b&gt;topic 25&lt;/b&gt;   누가 정하나 &lt;b&gt;LLM&lt;/b&gt;   ·   병합 키 없음   ·   DB 에 wiki_fact.topic 으로 남는다   ·   코드 topics.TOPICS   ·   &lt;b&gt;라벨이다. 자리가 아니다&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="820" width="1380" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="sum2" value="&lt;b&gt;slot 14&lt;/b&gt;   누가 정하나 &lt;b&gt;사람 표 SLOT_ALIASES(43줄)&lt;/b&gt;   ·   병합 키 (이름, 한정어, 시점)   ·   place_kind='slot'   ·   코드 topics.SLOTS   ·   &lt;b&gt;충돌이 생기는 유일한 층&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="860" width="1380" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="sum3" value="&lt;b&gt;node 10&lt;/b&gt;   누가 정하나 &lt;b&gt;사람 표 TOPIC_NODE(23줄)&lt;/b&gt;   ·   병합 키 없다 (fact_key 로만 묶는다)   ·   place_kind='node'   ·   코드 topics.NODES   ·   &lt;b&gt;근거를 쌓기만 한다&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="900" width="1380" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="sum4" value="&lt;b&gt;orbit 15&lt;/b&gt;   누가 정하나 &lt;b&gt;사람 표 ORBIT&lt;/b&gt;   ·   병합 키 없음   ·   &lt;b&gt;DB 에 없다 — 읽기 뷰다&lt;/b&gt;   ·   코드 topics.ORBIT + Orbit.tsx   ·   &lt;b&gt;화면의 단위이고 병합의 단위가 아니다&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fillColor=#ffffff;strokeColor=#5b5bd6;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="940" width="1380" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="sumn" value="&lt;b&gt;네 숫자가 하나도 안 맞는다.&lt;/b&gt; 25 → 23 → 10 이고 43 → 14 이고, 그 24개가 15자리에 앉는다. 어디서 어긋나는지는 4쪽에 있다." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="984" width="1380" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="2. 라우팅 — 표 둘이 목적지를 정한다">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1600" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p2t" value="라우팅 — 사실 하나가 어디로 가나" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2s" value="src/finnect/wiki/merge.py place() — 판정 순서가 이 순서다. 오른쪽 표 둘이 topics.py 에 있는 사람이 만든 dict 다. LLM 은 이 표를 못 바꾼다." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1300" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r0" value="사실 하나&#xa;(topic, kind, key, value)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="110" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r1" value="topic 이 TOPICS 안에 있나?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="210" width="260" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="u1" value="uncategorized&#xa;&quot;온톨로지 밖 topic&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="450" y="220" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r2" value="kind 가 'slot' 인가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="340" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s1" value="slot_of(key) 가 찾나?&#xa;SLOT_ALIASES 조회" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="480" width="260" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="u2" value="uncategorized&#xa;&quot;모르는 항목 이름 — {key!r}&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="500" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s2" value="value 가 비었나?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="620" width="260" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="u3" value="uncategorized&#xa;&quot;값이 비어 있음 — {key!r}&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="635" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s3" value="Placement('slot', slot)&#xa;슬롯 14 중 하나" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="760" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n1" value="node_of(topic) 가 찾나?&#xa;TOPIC_NODE 조회" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="480" width="260" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="u4" value="uncategorized&#xa;&quot;서술 노드가 없는 topic&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="640" width="260" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="u4n" value="&lt;b&gt;company_profile&lt;/b&gt; 과 &lt;b&gt;application_history&lt;/b&gt; 둘이 여기다. 정형 슬롯의 재료라 서술 노드를 안 만들었다 — 서술 문장으로 오면 갈 곳이 없다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="700" y="710" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="n2" value="Placement('node', node)&#xa;노드 10 중 하나" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="710" y="800" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="er01" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="r0" target="r1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er1u" value="아니다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="r1" target="u1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er12" value="맞다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="r1" target="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er2s" value="맞다 — 정형" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="r2" target="s1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er2n" value="아니다 — 서술" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="r2" target="n1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es1u" value="못 찾는다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="s1" target="u2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es12" value="찾는다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es2u" value="비었다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="s2" target="u3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es23" value="있다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en1u" value="못 찾는다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="n1" target="u4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en12" value="찾는다" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="n1" target="n2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1030" y="530" />
+              <mxPoint x="1030" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="tb1h" value="SLOT_ALIASES — 43줄 → 슬롯 14개" style="text;html=1;fontSize=13;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="110" width="480" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="tb1" value="&lt;b&gt;왼쪽은 문서가 쓴 말, 오른쪽은 우리 이름이다.&lt;/b&gt; 정확 일치 dict 조회다 — 부분 문자열이 아니라서 오탐이 없다.&#xa;&#xa;상시 근로자 · 종업원 수 · 구성원 · 임직원 · 직원 수&#xa;    →  &lt;b&gt;headcount&lt;/b&gt;&#xa;소재지 · 사업장소재지 · 본사 · 본점소재지 · 주소&#xa;    →  &lt;b&gt;location&lt;/b&gt;&#xa;개업연월일 · 개업일 · 설립일 · 설립연월일&#xa;    →  &lt;b&gt;founded_on&lt;/b&gt;&#xa;&#xa;&lt;b&gt;표현이 넷 다 달라도 한 슬롯으로 모인다.&lt;/b&gt; 문자열이 다르다고 슬롯이 갈리면 직원 수 넷이 네 자리에 앉아 성장이 사라진다.&#xa;&#xa;코퍼스 7건에 &lt;b&gt;실제로 나온 표현만&lt;/b&gt; 담았다 — 없는 표현을 미리 넣지 않는다. 새 이름은 uncategorized 로 서고 그때 한 줄을 더한다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="140" width="480" height="300" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tb2h" value="TOPIC_NODE — 23줄 → 노드 10개" style="text;html=1;fontSize=13;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="460" width="480" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="tb2" value="customer_problem · customer_evidence  →  &lt;b&gt;problem&lt;/b&gt;&#xa;vision  →  &lt;b&gt;identity&lt;/b&gt;   ← 한 줄뿐이다&#xa;service_overview · service_feature · service_differentiator ·&#xa;development_status · technology · patent · certification&#xa;    →  &lt;b&gt;solution&lt;/b&gt;   ← 일곱이 여기로 모인다&#xa;target_customer  →  &lt;b&gt;customer&lt;/b&gt;&#xa;market_size · market_trend · competitor  →  &lt;b&gt;market&lt;/b&gt;&#xa;region_link  →  &lt;b&gt;region&lt;/b&gt;&#xa;revenue · revenue_model · pricing · go_to_market  →  &lt;b&gt;traction&lt;/b&gt;&#xa;cost · funding  →  &lt;b&gt;finance&lt;/b&gt;&#xa;team  →  &lt;b&gt;team&lt;/b&gt;      roadmap  →  &lt;b&gt;roadmap&lt;/b&gt;&#xa;&#xa;&lt;b&gt;라벨이 세밀할수록 좋고 노드는 집필 단위와 맞아야 한다.&lt;/b&gt; 그래서 25 를 10 으로 모은다 — 한쪽을 줄이면 다른 쪽이 무너진다.&#xa;&#xa;&lt;b&gt;TOPICS 25 − TOPIC_NODE 23 = 둘.&lt;/b&gt; company_profile · application_history 는 일부러 빠져 있다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="490" width="480" height="360" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2n" value="&lt;b&gt;네 갈래 다 버리지 않는다.&lt;/b&gt; uncategorized 는 이유를 함께 들고 화면에 &quot;검토 대기&quot; 로 뜬다 — 다시로 6건 · 나린데이터 12건." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="880" width="900" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2n2" value="&lt;b&gt;슬롯 판정이 노드 판정보다 먼저다.&lt;/b&gt; 한 문장이 값과 서술을 둘 다 담으면 추출기가 사실을 둘로 낸다 — 여기서 가르는 것이 아니다." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="905" width="900" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="3. 궤도 — 15자리로 다시 묶는다">
+    <mxGraphModel dx="1700" dy="1100" grid="1" gridSize="10" page="1" pageWidth="1700" pageHeight="1060" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p3t" value="궤도 — 슬롯 14 와 노드 10 이 자리 15개에 앉는다" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1000" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3s" value="각도는 web/components/Orbit.tsx 의 실제 배치식으로 계산했다 — step = (360 − 구획수 × GAP) / 노드수, 12시에서 시작해 시계 방향, GAP 14°. 반지름 안쪽 132 · 바깥 258." style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1300" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ringo" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d4d4d4;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="133" y="183" width="774" height="774" as="geometry"/>
+        </mxCell>
+        <mxCell id="ringi" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d4d4d4;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="322" y="372" width="396" height="396" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="o12" value="12시 · 시계 방향" style="text;html=1;fontSize=11;align=center;verticalAlign=middle;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="450" y="130" width="140" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="oc" value="우리가 하는 일&#xa;identity · 중심" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e8e8fb;strokeColor=#5b5bd6;fontColor=#332f7a;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="450" y="545" width="140" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="oa1" value="사업자 정보&#xa;biz" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeae2;strokeColor=#9a3412;fontColor=#7a2a0e;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="400" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="oa2" value="소재지&#xa;where" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeae2;strokeColor=#9a3412;fontColor=#7a2a0e;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="610" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="oa3" value="업종&#xa;what" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeae2;strokeColor=#9a3412;fontColor=#7a2a0e;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="750" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="oa4" value="대표자&#xa;who" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeae2;strokeColor=#9a3412;fontColor=#7a2a0e;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="270" y="610" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="oa5" value="수령 이력&#xa;grants" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeae2;strokeColor=#9a3412;fontColor=#7a2a0e;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="330" y="400" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ob1" value="문제 인식&#xa;problem" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="610" y="200" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob2" value="솔루션과 기술&#xa;solution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="340" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob3" value="목표 고객&#xa;customer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="650" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob4" value="시장과 경쟁&#xa;market" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="710" y="840" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob5" value="지역 연계&#xa;region" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="500" y="930" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob6" value="매출과 성과&#xa;traction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="840" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob7" value="자금 현황&#xa;finance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="650" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob8" value="팀 구성&#xa;team" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="130" y="340" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ob9" value="로드맵&#xa;roadmap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2ef;strokeColor=#0f766e;fontColor=#0b5a54;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="310" y="200" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sec1" value="문제와 해결" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fontColor=#0b5a54;" vertex="1" parent="1">
+          <mxGeometry x="650" y="170" width="140" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec2" value="시장과 고객" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fontColor=#0b5a54;" vertex="1" parent="1">
+          <mxGeometry x="800" y="805" width="140" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec3" value="성과와 자금" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fontColor=#0b5a54;" vertex="1" parent="1">
+          <mxGeometry x="60" y="910" width="140" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec4" value="팀과 계획" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fontColor=#0b5a54;" vertex="1" parent="1">
+          <mxGeometry x="100" y="300" width="140" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="secn" value="&lt;b&gt;구획 라벨이 바깥 궤도에만 있다.&lt;/b&gt; 안쪽 다섯(등록 정보 · 대표와 이력)은 지름이 작아 라벨을 얹으면 노드 이름과 겹친다 — 대신 구획 사이를 각도로 벌렸다. 안쪽 구획 이름은 누르면 패널이 적는다. ADR-0017 결정 2 에서 이 하나를 덜 했다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#d4d4d4;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="960" width="880" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="t3a" value="자리 15개 — 무엇을 담나" style="text;html=1;fontSize=13;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="110" width="560" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3b" value="&lt;b&gt;중심 하나 — kind 'identity'&lt;/b&gt;&#xa;identity  우리가 하는 일   슬롯 company_name   노드 identity&#xa;&lt;b&gt;슬롯과 노드를 둘 다 가진 유일한 중심이다.&lt;/b&gt; sector 값('registration')은 안 쓰인다 — 중심은 링에 안 앉는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#5b5bd6;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="140" width="560" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3c" value="&lt;b&gt;안쪽 다섯 — kind 'company' · M1 자격 판별의 입력&lt;/b&gt;&#xa;biz     사업자 정보   등록 정보     슬롯 business_no · corp_no · founded_on&#xa;where   소재지        등록 정보     슬롯 location&#xa;what    업종          등록 정보     슬롯 industry · industry_item&#xa;who     대표자        대표와 이력   슬롯 ceo_name · ceo_birth&#xa;grants  수령 이력     대표와 이력   슬롯 gov_program&#xa;&#xa;&lt;b&gt;다섯 다 서술 노드가 없다. 값만 앉는다.&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#9a3412;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="245" width="560" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3d" value="&lt;b&gt;바깥 아홉 — kind 'content' · M2 적합도와 G 집필의 입력&lt;/b&gt;&#xa;problem   문제 인식      문제와 해결   노드 problem&#xa;solution  솔루션과 기술  문제와 해결   노드 solution&#xa;customer  목표 고객      시장과 고객   노드 customer&#xa;market    시장과 경쟁    시장과 고객   노드 market&#xa;region    지역 연계      시장과 고객   노드 region&#xa;traction  매출과 성과    성과와 자금   노드 traction  + 슬롯 revenue&#xa;finance   자금 현황      성과와 자금   노드 finance   + 슬롯 capital · funding&#xa;team      팀 구성        팀과 계획     노드 team      + 슬롯 headcount&#xa;roadmap   로드맵         팀과 계획     노드 roadmap&#xa;&#xa;&lt;b&gt;아홉 다 노드가 있고 그중 셋이 슬롯도 갖는다.&lt;/b&gt; 직원 수 · 자본금 · 매출액 · 조달액 넷은 SPEC F1-2 의 &apos;사업체 정보 다섯&apos; 에 없어서 안쪽이 아니라 바깥으로 온다 — 팀 구성 · 매출과 성과 · 자금 현황을 읽을 때 같이 봐야 하는 값이다." style="text;html=1;align=left;verticalAlign=top;fillColor=#ffffff;strokeColor=#0f766e;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="440" width="560" height="290" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3e" value="&lt;b&gt;색은 kind 만 말한다&lt;/b&gt; — identity #5b5bd6 · company #9a3412 · content #0f766e (DESIGN.md §2).&#xa;신뢰도나 상태를 색조로 말하지 않는다. 빈 자리는 속을 비우고 점선을 두르되 &lt;b&gt;테두리 색은 제 종류 색&lt;/b&gt; 이고, 손봐야 하는 자리는 오른쪽 위에 배지 점을 하나 더 붙인다.&#xa;&#xa;&lt;b&gt;힘 기반 배치를 쓰지 않는다&lt;/b&gt;(ADR-0017). 자리가 고정돼야 두 번째 볼 때 찾는다 — 물리 배치는 열 때마다 모양이 달라진다.&#xa;&#xa;&lt;b&gt;노드 사이 선이 없다.&lt;/b&gt; 연결이 아직 데이터에 없어서다. 같은 구획에 있다고 이어 버리면 사용자가 근거 있는 연결로 읽는다." style="text;html=1;align=left;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="745" width="560" height="200" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

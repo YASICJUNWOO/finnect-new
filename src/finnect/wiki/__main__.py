@@ -248,6 +248,15 @@ def render_build(r: build.BuildReport) -> str:
         lines.append(f"  충돌           {r.conflicts}건  ← 값이 갈려요. 물어봐야 해요")
     if r.review:
         lines.append(f"  검토 대기      {r.review}건  ← Custom/검토 대기 에 있어요")
+    if r.per_file:
+        #: **총계로는 갈라지는 것을 못 본다**(T-0128). 첫 파일이 트리를 세우고 뒤가
+        #: 거기 붙는 것이 정상이다 — 뒤쪽 파일이 계속 새 노드를 만들면 이름이 갈리는 중이다
+        lines.append("")
+        lines.append("  [파일마다 트리에 한 일]")
+        lines += [
+            f"    {name}  —  새로 {made}개 · 기존에 {used}개"
+            for name, made, used in r.per_file
+        ]
     if r.problems:
         lines.append("")
         lines.append("  [못 세운 것]")

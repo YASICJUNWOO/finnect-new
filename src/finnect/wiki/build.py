@@ -106,6 +106,13 @@ class BuildReport:
     nodes: int = 0
     #: **이번에 새로 만든 노드.** 갑자기 늘면 이름이 갈리는 중이다(plan/22 T-0128)
     nodes_new: int = 0
+    #: 파일마다 `(파일명, 새로 만든 노드, 기존에 붙인 노드)`.
+    #:
+    #: **총계만으로는 갈라지는 것을 못 본다.** 파일 다섯을 한 번에 올리면 첫 파일이
+    #: 트리를 세우고 나머지가 거기 붙는 것이 정상인데, 총계는 그것과 「다섯이 각자
+    #: 제 트리를 세웠다」를 같은 숫자로 보여 준다. 뒤쪽 파일이 계속 새 노드를 만들면
+    #: **이름이 갈리는 중이다** — 그 판정을 여기서만 할 수 있다(T-0128).
+    per_file: list[tuple[str, int, int]] = field(default_factory=list)
     #: 제자리를 못 찾아 `Custom/검토 대기` 로 간 사실 수. **버린 것이 아니다**
     review: int = 0
     conflicts: int = 0
@@ -302,6 +309,10 @@ def _build_file(
         chunks=tuple((c.ordinal, c.text) for c in chunks),
     )
     known = known_names(session, uf.company_id)
+    #: **이 파일이 들어오기 전의 노드 수.** 뒤에서 「새로 만든 것」을 빼는 기준이다
+    made_before = report.nodes_new
+    touched: set[int] = set()
+
     #: **트랙 A 를 먼저 부른다.** 순서가 결과를 바꾸지는 않지만, A 가 터지면 B 호출값을
     #: 안 쓰고 버리게 되므로 비싼 쪽을 먼저 실패시킨다
     node_facts = ex.nodes.extract(view, known)
@@ -358,6 +369,7 @@ def _build_file(
 
         #: 트랙 A — 노드에 앉는다. **조상까지 만든다**
         node = _ensure_node(session, uf.company_id, fact.path, report)
+        touched.add(node.id)
         key = merge.node_key(fact)
         row = session.scalar(
             select(WikiFact).where(WikiFact.company_id == uf.company_id, WikiFact.dedupe_key == key)
@@ -374,7 +386,11 @@ def _build_file(
                 text=fact.text if not fact.why else f"{fact.text}  [{fact.why}]",
                 value=fact.value if is_value else None,
                 qualifier=fact.qualifier if is_value else None,
-                as_of=fact.as_of if is_value else None,
+                #: **서술에도 시점을 남긴다**(ADR-0057 결정 2). 여기서 버리고 있었다 —
+                #: 컬럼도 있고 추출기도 들고 오는데 **저장 직전에 `None` 으로 지웠다.**
+                #: 그래서 EVENT 31행이 전부 `as_of` NULL 이었고, 이력을 세울 축이 없으니
+                #: 추출기가 시점을 이름에 박아 도망쳤다(`team_roles_2026_08`)
+                as_of=fact.as_of,
                 source_type=str(SourceType.DOCUMENT),
                 extractor=ex.nodes.name,
             )
@@ -384,6 +400,14 @@ def _build_file(
         else:
             report.merged += 1
         _attach(session, WikiEvidence, "fact_id", row.id, uf, hit, fact, report)
+
+    #: **이 파일이 새로 만든 노드와 남의 노드에 붙은 수**(T-0128).
+    #:
+    #: 새로 만든 것은 조상까지 포함한다 — `Custom/특허/등록-10-2025` 하나가 노드 셋을
+    #: 세우고, 그게 「트리가 자랐다」의 실제 크기다. 붙은 것은 **이 파일이 사실을 얹은
+    #: 노드 중 이미 있던 것**만 센다(`touched` 에서 새로 만든 몫을 뺀다).
+    made = report.nodes_new - made_before
+    report.per_file.append((uf.filename, made, max(len(touched) - made, 0)))
 
     # **근거를 못 찾은 것이 있으면 done 이 아니다.** 사람이 봐야 한다.
     uf.status = UserFileStatus.NEEDS_REVIEW if missing else UserFileStatus.DONE
@@ -653,10 +677,16 @@ def read_nodes(session: Session, company_id: str) -> list[NodeView]:
                     facts=tuple(
                         markdown.Statement(
                             text=f.text,
-                            topic=f.key,
+                            key=f.key,
                             evidence=tuple(by_fact.get(f.id, ())),
                             source_type=f.source_type,
                             updated_at=f.updated_at.date() if f.updated_at else None,
+                            #: **값 칸 셋을 같이 싣는다.** 안 실으면 뷰가 `text` 만 보고
+                            #: `직원 수 — 15` 를 문장 한 줄로 뭉갠다
+                            kind=f.kind,
+                            value=f.value,
+                            qualifier=f.qualifier,
+                            as_of=f.as_of,
                         )
                         for f in by_node.get(n.id, [])
                     ),

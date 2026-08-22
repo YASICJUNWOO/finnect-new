@@ -160,12 +160,18 @@ def test_자리를_안_고르면_검토_대기로_간다() -> None:
     assert got.why
 
 
-def test_서술에는_값_필드가_안_붙는다() -> None:
-    """`value` 가 서술에 붙으면 병합 키가 어긋난다."""
+def test_서술에는_값_필드가_안_붙지만_시점은_남는다() -> None:
+    """`value` 와 한정어가 서술에 붙으면 병합 키가 어긋난다.
+
+    **시점은 다르다**([ADR-0057](../docs/adr/0057-서술을-쌓고-시점을-남긴다.md) 결정 2).
+    서술의 병합 키가 `(노드, key, 시점)` 이라 여기서 떨어뜨리면 이력이 안 서고, 추출기가
+    시점을 key 이름에 박게 된다(`team_roles_2026_08`).
+    """
     ex = _nodes([_n(kind="event", value="100", as_of="2024-12-31", qualifier_new="시드",
                     text="x", anchor="재구매율이 34%")])
     f = ex.extract(VIEW, Known())[0]
-    assert (f.value, f.as_of, f.qualifier) == (None, None, None)
+    assert (f.value, f.qualifier) == (None, None)
+    assert f.as_of == dt.date(2024, 12, 31)
 
 
 def test_값이면_값_필드가_붙는다() -> None:

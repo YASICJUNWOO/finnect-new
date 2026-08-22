@@ -1,8 +1,8 @@
 """사업 위키 응답 모양(S7).
 
-**필드 이름을 새로 짓지 않는다.** `wiki/topics.py` 와 `wiki/markdown.py` 가 쓰는 이름을
-그대로 쓴다. 공고 쪽이 `views.py` 의 이름을 그대로 쓰는 것과 같은 이유다 — 이름이 한 번
-더 바뀌면 화면에서 본 값이 DB 의 어느 칸인지 추적이 끊긴다.
+**필드 이름을 새로 짓지 않는다.** `wiki/tree.py`·`wiki/profile.py`·`wiki/markdown.py` 가
+쓰는 이름을 그대로 쓴다. 공고 쪽이 `views.py` 의 이름을 그대로 쓰는 것과 같은 이유다 —
+이름이 한 번 더 바뀌면 화면에서 본 값이 DB 의 어느 칸인지 추적이 끊긴다.
 
 **저장값과 표시값을 둘 다 낸다.** `value` 는 `120000000`, `display` 는 `120,000,000원` 이다.
 프론트가 단위를 붙이면 슬롯마다 규칙을 한 벌 더 들게 되고, 그 규칙이 서버와 갈린다.
@@ -28,11 +28,26 @@ class EvidenceOut(BaseModel):
 
 
 class StatementOut(BaseModel):
-    """서술 노드의 사실 하나."""
+    """노드에 앉은 사실 하나(트랙 A).
+
+    **`key` 가 이 사실의 이름이다**(ADR-0056 결정 3) — 라벨이자 병합 열쇠다. 옛 이름은
+    `topic` 이었고 「목적지는 `wiki/topics.py` 가 정한다」는 뜻이었는데 **그 모듈은
+    없어졌고**(ADR-0056) 추출기가 자리를 알고 나온다. 이름을 DB 와 맞췄다.
+    """
 
     text: str
-    #: LLM 이 붙인 라벨. **목적지가 아니다** — 목적지는 `wiki/topics.py` 가 정했다
-    topic: str
+    #: 노드 안에서 이 사실을 부르는 이름. **화면이 이걸 절 제목으로 쓴다**
+    key: str
+    #: `value` 또는 `event`. **병합 규칙을 이게 정한다**
+    kind: str
+    #: 정규화된 저장값. `event` 면 null 이다. **화면이 이걸 고쳐 쓰지 않는다** — 병합의 재료다
+    #:
+    #: **`display` 짝이 없다.** 단위표(`profile.PROFILE_KEYS`)는 매칭 정보 열넷의 것이고
+    #: 트랙 A 의 key 는 자유 문자열이라 거기 없다 — 없는 단위를 붙이면 값이 거짓이 된다
+    value: str | None
+    #: `시드` · `정책자금`. **자유 문자열이다**
+    qualifier: str | None
+    as_of: str | None
     evidence: list[EvidenceOut]
 
 
@@ -54,6 +69,13 @@ class WikiNodeOut(BaseModel):
     #: 몇 번째 층인가. 0 이 카테고리다
     depth: int
 
+    #: 절의 순서. **중복이 없고 `statements` 의 묶음 순서와 같다**(ADR-0057 결정 4).
+    #:
+    #: 화면은 이걸 돌며 같은 `key` 의 사실을 고른다. **정렬 규칙을 프론트에 안 적으려고**
+    #: 서버가 순서를 정해 준다 — key 순서는 처음 나온 순, 묶음 안은 시점 내림차순이다.
+    #: 한 key 에 사실이 여럿일 수 있어서(이력·충돌) `statements` 보다 짧을 수 있다
+    keys: list[str]
+    #: **`keys` 의 묶음 순서로 이미 정렬돼 있다.** 그래프는 이 길이를 점 개수로 쓴다
     statements: list[StatementOut]
     #: 근거로 쓰인 **파일 수**. 근거 개수가 아니다
     source_count: int

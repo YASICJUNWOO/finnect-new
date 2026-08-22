@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evidence, WikiNode, WikiStatement } from "@/lib/wiki";
+import type { Evidence, WikiNode } from "@/lib/wiki";
 import styles from "./WikiPanel.module.css";
 
 /** 자리 한 장(SPEC F1-3). **이 화면의 시그니처는 근거 줄이다.**
@@ -75,38 +75,51 @@ export function WikiPanel({
           이 자리를 채우려면 관련된 내용이 담긴 파일을 더 올리면 돼요.
         </p>
       ) : (
-        <Facts statements={node.statements} />
+        <Facts node={node} />
       )}
     </article>
   );
 }
 
 
-/** 사실 목록. **사실마다 이름(`key`)이 먼저 서고 그 아래 근거 줄이 붙는다.**
+/** `key` 마다 한 절, 그 안에 사실 여럿(ADR-0057 결정 4).
  *
  * 2026-08-22 까지 이 목록이 `text` 만 뿌렸다. 한 자리에 사실이 셋이면 **이름 없는 문단
- * 셋**이 되어서, 위에서 「같은 key 면 같은 사실」로 묶어 놓은 것을 화면에서 확인할 방법이
+ * 셋**이 되어서, 「같은 key 면 같은 사실」로 묶어 놓은 것을 화면에서 확인할 방법이
  * 없었다. 사용자가 찾는 것은 문장이 아니라 「직원 수가 어디 있나」다.
  *
- * **key 로 묶지 않는다.** 값이 갈린 자리는 같은 이름이 값 둘로 나란히 서야 하고, 그것이
- * 충돌의 표현이다 — 접으면 값 하나가 조용히 사라진다(`wiki/markdown.py` `render_facts`). */
-function Facts({ statements }: { statements: WikiStatement[] }) {
+ * **한 절에 사실이 여럿인 것이 정상이다.** 서술은 시점마다 쌓이고(이력), 값은 같은
+ * 자리에 둘이면 그것이 곧 충돌이다 — 어느 쪽도 접지 않는다.
+ *
+ * **묶는 순서를 여기서 정하지 않는다.** `keys` 와 `statements` 둘 다 서버가 정한 순서로
+ * 오고(`wiki/markdown.py` `group`), 여기서는 고르기만 한다. */
+function Facts({ node }: { node: WikiNode }) {
   return (
-    <ul className={styles.facts}>
-      {statements.map((s, i) => (
-        <li key={i} className={styles.fact}>
-          <p className={styles.factKey}>
-            <span className={styles.keyName}>{s.key}</span>
-            {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
-            {/* **단위를 안 붙인다.** 트랙 A 의 key 는 자유 문자열이라 아는 단위가 없다 */}
-            {s.value && <span className={styles.factValue}>{s.value}</span>}
-            {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
-          </p>
-          {s.text && <p className={styles.factText}>{s.text}</p>}
-          <Sources evidence={s.evidence} />
-        </li>
+    <div className={styles.facts}>
+      {node.keys.map((key) => (
+        <section key={key} className={styles.keyGroup}>
+          <h3 className={styles.keyName}>{key}</h3>
+          <ul className={styles.keyFacts}>
+            {node.statements
+              .filter((s) => s.key === key)
+              .map((s, i) => (
+                <li key={i} className={styles.fact}>
+                  {(s.value || s.qualifier || s.as_of) && (
+                    <p className={styles.factMeta}>
+                      {/* **단위를 안 붙인다.** 트랙 A 의 key 는 자유 문자열이라 아는 단위가 없다 */}
+                      {s.value && <span className={styles.factValue}>{s.value}</span>}
+                      {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
+                      {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
+                    </p>
+                  )}
+                  {s.text && <p className={styles.factText}>{s.text}</p>}
+                  <Sources evidence={s.evidence} />
+                </li>
+              ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 

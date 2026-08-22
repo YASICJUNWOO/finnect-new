@@ -148,6 +148,13 @@ def _page(page: Page, company: str) -> str:
         lines.append(f"updated_at: {page.updated_at}")
     if page.children:
         lines.append(f"children: {' · '.join(page.children)}")
+    #: **이 장에 무엇이 들어 있나를 이름으로 낸다.** `facts: 3` 만으로는 셋이 뭔지 모르고,
+    #: 볼트에서 검색하는 사람이 보는 것은 본문이 아니라 이 머리다.
+    #:
+    #: **절 목록이라 중복이 없다.** 한 key 에 사실이 여럿일 수 있으므로(이력·충돌)
+    #: `facts` 와 수가 다른 것이 정상이다 — 그 차이가 곧 「쌓인 자리가 있다」는 뜻이다
+    if node.facts:
+        lines.append(f"keys: {' · '.join(k for k, _ in markdown.group(node.facts))}")
     lines.append(f"facts: {len(node.facts)}")
     lines.append("---")
 

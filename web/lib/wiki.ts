@@ -55,6 +55,13 @@ export type WikiNode = {
   /** 몇 번째 층인가. 0 이 카테고리다 */
   depth: number;
 
+  /** 절의 순서. **중복이 없고 `statements` 의 묶음 순서와 같다**(ADR-0057 결정 4).
+   *
+   * 이걸 돌며 같은 `key` 의 사실을 고른다. **정렬 규칙을 여기 적지 않는다** — key 순서는
+   * 처음 나온 순, 묶음 안은 시점 내림차순이고 **둘 다 서버가 정한다.**
+   * 한 key 에 사실이 여럿일 수 있어(이력·충돌) `statements` 보다 짧을 수 있다 */
+  keys: string[];
+  /** **`keys` 의 묶음 순서로 이미 정렬돼 온다** */
   statements: WikiStatement[];
   /** 근거로 쓰인 **파일 수**. 근거 개수가 아니다 */
   source_count: number;

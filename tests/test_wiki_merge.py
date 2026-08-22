@@ -180,15 +180,35 @@ def test_시점_없는_슬롯은_시점이_와도_떨어진다():
 
 
 def test_key_가_같으면_문장이_달라도_한_사실이다():
-    """재구매율이 네 문서에 다른 문장으로 있다. **사실 넷이 되면 틀렸다.**
+    """재구매율이 네 문서에 다른 문장으로 있다. **사실 넷이 되면 틀렸다**(픽스처 README §3).
 
-    `key` 가 **라벨이자 병합 열쇠다**(ADR-0056 결정 3). 옛 `fact_key` 가 이 자리다.
+    `key` 가 **라벨이자 병합 열쇠다**(ADR-0056 결정 3). **문장을 병합 키에 넣지 않는다** —
+    같은지 아닌지를 정하는 것은 추출기가 준 `key` 이고, 코드가 문장을 비교해 그 판단을
+    뒤집으면 `key` 를 병합 키로 둔 결정이 통째로 무의미해진다
+    ([ADR-0057](../docs/adr/0057-서술을-쌓고-시점을-남긴다.md) 결정 1).
     """
     a = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
                  text="월 재구매율이 34%에서 51%로 올랐습니다")
     b = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
                  text="34% → 51%")
     assert merge.node_key(a) == merge.node_key(b)
+
+
+def test_서술도_시점이_병합_키에_들어간다():
+    """**시점이 다르면 다른 기록이다**(ADR-0057 결정 1·2).
+
+    이게 없어서 `팀 구성` 2026-08 과 2025-11 이 한 행으로 접혔고, 추출기가 그걸 피하려고
+    시점을 이름에 박았다 — `team_roles_2026_08` / `team_roles_2025_11`.
+    """
+    a = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
+                 text="개발 8명", as_of=D(2026, 8, 31))
+    b = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
+                 text="개발 4명", as_of=D(2025, 11, 30))
+    assert merge.node_key(a) != merge.node_key(b)
+    #: 시점이 같으면 문장이 달라도 하나다 — 위 테스트와 짝이다
+    c = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
+                 text="개발 여덟 명", as_of=D(2026, 8, 31))
+    assert merge.node_key(a) == merge.node_key(c)
 
 
 def test_노드가_다르면_같은_key_라도_다른_자리다():

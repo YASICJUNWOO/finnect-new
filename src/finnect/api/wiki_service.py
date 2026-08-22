@@ -148,14 +148,24 @@ def get_markdown(session: Session, company_id: str) -> str | None:
 
 
 def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
-    """노드 하나를 응답 모양으로. **빈 뼈대는 장이 없다.**"""
+    """노드 하나를 응답 모양으로. **빈 뼈대는 장이 없다.**
+
+    **묶는 규칙을 프론트에 다시 적지 않는다.** `markdown.group` 이 key 순서와 묶음 안의
+    시점 정렬(ADR-0057 결정 3)을 정하고, 응답은 **그 순서로 편 목록 + key 순서**를 낸다.
+    화면은 `keys` 를 돌며 같은 `key` 를 고르기만 하면 된다 — 정렬 규칙이 TS 에 안 산다.
+
+    **묶은 모양을 통째로 또 보내지 않는다.** 같은 사실이 두 번 실려 위키 응답이 배로
+    커진다. 그래프는 `statements` 의 길이를 그대로 쓴다(점 개수).
+    """
+    groups = markdown.group(n.facts)
     return WikiNodeOut(
         path=n.path,
         name=n.name,
         category=n.category,
         parent=n.parent,
         depth=n.depth,
-        statements=[_statement(f) for f in n.facts],
+        keys=[k for k, _ in groups],
+        statements=[_statement(s) for _, mine in groups for s in mine],
         source_count=n.source_count,
         filled=n.filled,
         grade=page.grade if page else export.GRADE_UNKNOWN,
@@ -167,7 +177,15 @@ def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
 
 
 def _statement(s: markdown.Statement) -> StatementOut:
-    return StatementOut(text=s.text, topic=s.topic, evidence=[_evidence(e) for e in s.evidence])
+    return StatementOut(
+        text=s.text,
+        key=s.key,
+        kind=s.kind,
+        value=s.value,
+        qualifier=s.qualifier,
+        as_of=s.as_of.isoformat() if s.as_of else None,
+        evidence=[_evidence(e) for e in s.evidence],
+    )
 
 
 def _evidence(e: markdown.Evidence) -> EvidenceOut:
@@ -190,8 +208,11 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
     nodes = build.read_nodes(session, company_id)
 
     # **칸마다 무엇이 나왔는지 같이 낸다**(plan/15 T-0062). 넷은 컬럼에서 오는데
-    # 사실 수만 근거에서 온다 — `wiki_evidence` 가 파일과 사실을 잇는 유일한 자리다.
+    # 사실 수만 근거에서 온다 — 근거 표가 파일과 사실을 잇는 유일한 자리다.
     # `distinct` 인 것은 한 사실이 같은 파일의 청크 여럿을 근거로 들 수 있기 때문이다.
+    #
+    # **트랙 둘을 더한다**(plan/22). 사용자에게는 「이 파일에서 몇 개가 나왔나」 하나이고,
+    # 그것이 노드에 앉았는지 회사 정보 칸에 앉았는지는 우리 사정이다.
     facts = dict(
         session.execute(
             select(WikiEvidence.user_file_id, func.count(func.distinct(WikiEvidence.fact_id)))
@@ -199,16 +220,30 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
             .group_by(WikiEvidence.user_file_id)
         ).all()
     )
+    values = dict(
+        session.execute(
+            select(ValueEvidence.user_file_id, func.count(func.distinct(ValueEvidence.value_id)))
+            .where(ValueEvidence.company_id == company_id)
+            .group_by(ValueEvidence.user_file_id)
+        ).all()
+    )
 
     rows: list[FileProgressOut] = []
     for uf, made in files:
+        #: **트랙 B 만 낸 파일이 「못 찾았어요」가 되면 안 된다.** 사업자등록증이 정확히
+        #: 그 파일이다 — 트리에 아무것도 안 앉히고 매칭 정보 일곱 칸을 채운다(실측
+        #: `c_dasiro`: A=0 · B=7). 자격 판별 입력 다섯 중 넷이 거기서 나오는데 화면이
+        #: 「사업 정보를 못 찾았어요」라고 말하면 사용자는 파일을 더 올리려 든다.
+        #: T-0095 가 닫은 증상이 트랙이 갈리면서 이 경로로 돌아왔다.
+        got_values = values.get(uf.id, 0)
         stage = progress.stage_of(
             uf.status,
             running=running,
             failed=bool(uf.extract_error),
             #: **자리를 셈의 기준으로 쓴다.** 사실 수가 아니다 — 사실은 파일 사이에
-            #: 겹치지만 자리는 "이 파일이 위키에 무엇을 보탰나" 다
-            empty=not made,
+            #: 겹치지만 자리는 "이 파일이 위키에 무엇을 보탰나" 다. 트랙 B 는 트리에
+            #: 자리가 없어서 칸 수로 대신 센다
+            empty=not made and not got_values,
         )
         rows.append(
             FileProgressOut(
@@ -227,7 +262,7 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
                 page_count=uf.page_count,
                 text_chars=uf.text_chars,
                 parser=uf.parser,
-                fact_count=facts.get(uf.id, 0),
+                fact_count=facts.get(uf.id, 0) + got_values,
                 spots=made,
             )
         )

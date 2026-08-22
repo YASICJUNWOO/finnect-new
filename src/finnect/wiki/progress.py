@@ -66,6 +66,16 @@ _MID: dict[str, tuple[int, str, str]] = {
 #:
 #: **`needs_review` 와 `failed` 가 같은 칸에서 끝난다.** 둘 다 글자를 못 얻은 것이라
 #: 진행 칸으로는 구분이 안 된다 — 무엇이 달랐는지는 글자가 말한다(DESIGN.md §4.1).
+#: 끝났고 성공인데 **아무 자리도 안 채운 파일**(plan/15 T-0095).
+#:
+#: 2026-08-21 예비군 훈련 안내문을 넣어 보니 `done` · 사실 0 이 됐다. **추출기가 옳게
+#: 답한 것이다** — 회사 얘기가 아니니 0건이 맞다. 그런데 화면이 「다 됐어요」라고만 해서
+#: 「이 문서에 회사 얘기가 없다」와 「추출기가 놓쳤다」를 사용자가 못 갈랐다.
+#:
+#: **`ok` 는 True 로 둔다.** 파이프라인은 성공했다 — 실패로 칠하면 T-0093 이 남기는
+#: 진짜 실패와 섞인다. 달라지는 것은 한 마디뿐이다.
+EMPTY_LABEL = "사업 정보를 못 찾았어요"
+
 _END: dict[str, tuple[int, str, bool]] = {
     UserFileStatus.NEEDS_REVIEW: (1, "글자가 안 나왔어요", False),
     UserFileStatus.DONE: (len(STEPS), "다 됐어요", True),
@@ -87,7 +97,9 @@ class Stage:
     ok: bool
 
 
-def stage_of(status: str | None, *, running: bool, failed: bool = False) -> Stage:
+def stage_of(
+    status: str | None, *, running: bool, failed: bool = False, empty: bool = False
+) -> Stage:
     """상태 하나를 단계로 옮긴다.
 
     `running` 은 이 회사의 빌드가 지금 도는 중인가다. 모르는 상태가 오면 0칸으로 두고
@@ -97,9 +109,14 @@ def stage_of(status: str | None, *, running: bool, failed: bool = False) -> Stag
     틀리는 자리가 있었다** — 되돌려진 파일 옆에서 다른 파일의 빌드가 돌고 있으면
     `running=True` 라 "사실을 뽑을 차례예요" 로 보이고 화면이 영영 물어본다. 이 값이
     있으면 `chunked` 의 뜻이 하나로 정해진다.
+
+    `empty` 는 **끝났는데 아무 자리도 안 채웠나**다(plan/15 T-0095). 「다 됐어요」와
+    가른다 — 성공은 맞지만 이 파일에서 나온 것이 없다.
     """
     if status in _END:
         reached, label, ok = _END[status]
+        if ok and empty:
+            label = EMPTY_LABEL
         return Stage(reached=reached, label=label, moving=False, ok=ok)
 
     if status in _MID:

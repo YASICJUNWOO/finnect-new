@@ -167,7 +167,12 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
     rows: list[FileProgressOut] = []
     for uf, made in files:
         stage = progress.stage_of(
-            uf.status, running=running, failed=bool(uf.extract_error)
+            uf.status,
+            running=running,
+            failed=bool(uf.extract_error),
+            #: **자리를 셈의 기준으로 쓴다.** 사실 수가 아니다 — 사실은 파일 사이에
+            #: 겹치지만 자리는 "이 파일이 위키에 무엇을 보탰나" 다
+            empty=not made,
         )
         rows.append(
             FileProgressOut(
@@ -179,9 +184,8 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
                 label=stage.label,
                 moving=stage.moving,
                 ok=stage.ok,
-                # **파서가 남긴 것만 낸다.** 사실을 못 뽑은 이유는 DB 에 자리가 없어서
-                # 여기서 지어내지 않는다 — 그건 `label` 이 말한다.
-                #: **해독 실패가 먼저다.** 글자를 못 얻었으면 사실을 못 뽑은 것은 그 결과다
+                #: **해독 실패가 먼저다.** 글자를 못 얻었으면 사실을 못 뽑은 것은 그
+                #: 결과다. 둘 다 비면 null 이고, 그때는 `label` 이 전부 말한다
                 detail=uf.parse_error or uf.extract_error or None,
                 chunk_count=uf.chunk_count,
                 page_count=uf.page_count,

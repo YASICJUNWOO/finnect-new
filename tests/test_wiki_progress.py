@@ -49,6 +49,32 @@ def test_모든_상태가_표에_있다():
     assert covered == set(UserFileStatus), f"표에 없는 상태: {set(UserFileStatus) - covered}"
 
 
+def test_다_됐지만_아무_자리도_안_채운_파일을_가른다():
+    """**추출기가 옳게 답해도 화면이 말할 것이 있다**(plan/15 T-0095).
+
+    2026-08-21 예비군 훈련 안내문이 `done` · 사실 0 이 됐다. 회사 얘기가 아니니 0건이
+    맞는데 화면은 「다 됐어요」라고만 했다 — 「이 문서에 회사 얘기가 없다」와 「추출기가
+    놓쳤다」를 사용자가 못 갈랐다.
+    """
+    full = progress.stage_of(UserFileStatus.DONE, running=False)
+    empty = progress.stage_of(UserFileStatus.DONE, running=False, empty=True)
+
+    assert empty.label == progress.EMPTY_LABEL != full.label
+    #: **성공은 성공이다.** 실패로 칠하면 T-0093 이 남기는 진짜 실패와 섞인다
+    assert empty.ok is full.ok is True
+    assert empty.reached == full.reached
+    assert empty.moving is False
+
+
+def test_못_읽은_파일에는_빈_자리_말을_안_쓴다():
+    """`failed`·`needs_review` 는 **글자를 못 얻은 것이다.** 「사업 정보를 못 찾았어요」로
+    바꿔 말하면 원인을 숨긴다."""
+    for status in (UserFileStatus.FAILED, UserFileStatus.NEEDS_REVIEW):
+        stage = progress.stage_of(status, running=False, empty=True)
+        assert stage.label != progress.EMPTY_LABEL
+        assert stage.ok is False
+
+
 def test_이유가_찼으면_도는_중이어도_멈춤이다():
     """**`running` 만으로는 틀리는 자리가 있었다**(plan/12 T-0093).
 

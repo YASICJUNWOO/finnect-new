@@ -23,7 +23,12 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 #: 그림 파일. PDF 는 여기 없다 — 텍스트 레이어를 먼저 보고 없을 때만 OCR 로 간다.
-IMAGE_EXTS = frozenset({"jpg", "png", "gif", "bmp", "tiff", "webp"})
+#:
+#: **`heic` 는 PIL 이 기본으로 못 연다**(T-0100). `pillow-heif` 가 붙어야 하고 그것은
+#: `ocr` 그룹에 있다 — 없으면 `from_image` 가 이유를 남기고 실패한다. **넣어 두는 이유는
+#: 아이폰 사진 기본 포맷이라서다** — 사업자등록증이 거의 사진이고 자격 판별 입력 다섯 중
+#: 넷이 거기서 나온다. 빼면 그 파일이 「지원 목록에 없는 포맷」으로 조용히 잘린다.
+IMAGE_EXTS = frozenset({"jpg", "png", "gif", "bmp", "tiff", "webp", "heic"})
 
 #: 렌더 해상도. 200 → 300 에서 실측 차이가 없었으나 300 이 안전한 쪽이다.
 DPI = 300
@@ -99,12 +104,44 @@ def upscale(im: PILImage) -> PILImage:
     return im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
 
 
+_heif: bool | None = None
+
+
+def heif_ready() -> bool:
+    """HEIC 를 PIL 에 붙인다. **한 번만 한다.**
+
+    없어도 다른 그림은 그대로 읽히므로 여기서 멈추지 않는다 — `rapidocr` 이 없는 것과
+    다른 사실이다. 저건 OCR 자체가 없는 것이고 이건 포맷 하나를 못 여는 것이다.
+    """
+    global _heif
+    if _heif is None:
+        try:
+            import pillow_heif
+
+            pillow_heif.register_heif_opener()
+            _heif = True
+        except ImportError:
+            log.info("pillow-heif 가 없다. HEIC 는 못 읽는다 — uv sync --group ocr")
+            _heif = False
+    return _heif
+
+
 def from_image(path: Path) -> str:
     import numpy as np
-    from PIL import Image
+    from PIL import Image, UnidentifiedImageError
 
-    with Image.open(path) as im:
-        return _read(np.array(upscale(im.convert("RGB"))))
+    registered = heif_ready()
+    try:
+        with Image.open(path) as im:
+            return _read(np.array(upscale(im.convert("RGB"))))
+    except UnidentifiedImageError:
+        # **왜 못 열었는지 남긴다.** 그냥 올려보내면 화면이 "cannot identify image file" 을
+        # 말하고, 사용자는 파일이 깨진 줄 안다. 실제로는 우리 쪽에 패키지가 없는 것이다.
+        if not registered:
+            raise OcrUnavailable(
+                "HEIC 일 수 있는데 pillow-heif 가 없다 — uv sync --group ocr"
+            ) from None
+        raise
 
 
 def pages_from_pdf(path: Path) -> list[str]:

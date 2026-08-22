@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     #: `jpg`·`png` 둘이라 나머지 넷이 OCR 분기에 닿기도 전에 잘렸다 — 파서가 있는데
     #: 설정이 막고 있었다. tiff 는 스캐너·팩스 기본 출력이고 webp 는 웹에서 저장한 그림의
     #: 기본이라 실제로 온다. **첨부 쪽은 안 연다** — 여는 순간 plan/07 을 다시 재야 한다.
-    user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx,jpg,png,gif,bmp,tiff,webp"
+    user_file_formats: str = "hwp,hwpx,docx,docm,pdf,xlsx,pptx,jpg,png,gif,bmp,tiff,webp,heic"
 
     #: 올리기 한 개 최대 크기(plan/15). **첨부(100MB)보다 작다** — 저쪽은 우리가 고른
     #: 공고 첨부라 크기를 알고 받지만, 이쪽은 사용자가 던지는 것이라 상한이 방어다.

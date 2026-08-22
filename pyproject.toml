@@ -31,6 +31,8 @@ ocr = [
     "onnxruntime>=1.20",
     "pypdfium2>=4.30",
     "pillow>=11.0",
+    # 아이폰 사진 기본 포맷(T-0100). PIL 이 기본으로 못 열어서 이것이 붙어야 한다.
+    "pillow-heif>=0.21",
 ]
 dev = [
     "pytest>=8.3",

@@ -30,8 +30,28 @@ MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"BM", "bmp"),
 )
 
-#: 시그니처를 볼 만큼. **12 이상이어야 한다** — RIFF 의 진짜 포맷이 8~12바이트에 있다.
+#: 시그니처를 볼 만큼. **12 이상이어야 한다** — RIFF 와 ISO-BMFF 의 진짜 포맷이
+#: 8~12바이트에 있다. 줄이면 webp 와 heic 가 조용히 파일명 판정으로 물러난다.
 HEAD_BYTES = 16
+
+#: ISO-BMFF 브랜드 → 확장자. **`ftyp` 이 오프셋 4 에 있어서 `MAGIC` 표에 못 넣는다** —
+#: 저 표는 `startswith` 다. 브랜드가 여럿인 것은 기기와 코덱이 골라 쓰기 때문이고
+#: **우리에게는 전부 한 가지다** — 사진이고 OCR 로 읽는다.
+#:
+#: **여기 없는 브랜드는 모른다고 한다.** MP4 도 같은 컨테이너라, 브랜드를 안 보고
+#: `ftyp` 만으로 판정하면 아이폰 동영상이 사업자등록증이 된다.
+ISOBMFF_BRANDS: dict[bytes, str] = {
+    b"heic": "heic",
+    b"heix": "heic",
+    b"heim": "heic",
+    b"heis": "heic",
+    b"hevc": "heic",
+    b"hevx": "heic",
+    b"hevm": "heic",
+    b"hevs": "heic",
+    b"mif1": "heic",  # 일반 HEIF. 아이폰이 편집본에 쓴다
+    b"msf1": "heic",
+}
 
 #: ZIP 안에 이 경로가 있으면 그 포맷이다.
 ZIP_MARKERS: tuple[tuple[str, str], ...] = (
@@ -63,6 +83,10 @@ def detect(path: Path, filename: str | None = None) -> str | None:
 
     kind = next((ext for sig, ext in MAGIC if head.startswith(sig)), None)
 
+    if kind is None:
+        # ISO-BMFF 는 앞 네 바이트가 박스 크기라 `MAGIC` 이 못 잡는다. 여기서 한 번 더 본다.
+        kind = _isobmff_kind(head)
+
     if kind == "zip":
         return _zip_kind(path) or "zip"
     if kind == "riff":
@@ -72,6 +96,13 @@ def detect(path: Path, filename: str | None = None) -> str | None:
         # OLE 는 HWP · DOC · XLS 가 공유한다. HWP 는 FileHeader 스트림에 시그니처가 있다.
         return "hwp" if _is_hwp(path) else (name_ext(filename) or "ole")
     return kind or name_ext(filename)
+
+
+def _isobmff_kind(head: bytes) -> str | None:
+    """ISO-BMFF 컨테이너의 브랜드가 진짜 포맷이다. **표에 없으면 모른다고 한다.**"""
+    if head[4:8] != b"ftyp":
+        return None
+    return ISOBMFF_BRANDS.get(head[8:12])
 
 
 def _riff_kind(head: bytes) -> str | None:

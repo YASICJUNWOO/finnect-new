@@ -115,15 +115,34 @@ def test_사용자_파일_그림_목록이_ocr_목록과_같다() -> None:
     assert settings.wiki_formats & ocr.IMAGE_EXTS == ocr.IMAGE_EXTS
 
 
-def test_시그니처_표에_없는_그림은_파일명에_기댄다(tmp_path: Path) -> None:
-    """**HEIC 가 여기 걸린다**(T-0100 · 아직 안 함).
+@pytest.mark.parametrize(
+    "brand",
+    [b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1"],
+)
+def test_heic를_이름_없이도_잡는다(tmp_path: Path, brand: bytes) -> None:
+    """**아이폰 사진 기본 포맷이다**(T-0100).
 
-    아이폰 사진 기본 포맷인데 `MAGIC` 에 시그니처가 없다. ISO-BMFF 라 `ftyp` 이
-    맨 앞이 아니라 **오프셋 4** 에 있어서 지금의 `startswith` 표로는 안 잡힌다.
-    이 테스트는 그 사실을 박아 두는 것이지 동작을 승인하는 것이 아니다.
+    위키 자격 판별 입력 다섯 중 넷이 사업자등록증에서 나오고 그건 거의 사진이다.
+    ISO-BMFF 라 `ftyp` 이 맨 앞이 아니라 **오프셋 4** 에 있어서 `MAGIC` 의
+    `startswith` 표로는 안 잡힌다 — 그래서 표를 따로 둔다.
+
+    브랜드가 여럿인 이유는 기기와 코덱이 골라 쓰기 때문이다. **전부 우리에게는
+    한 가지다** — 사진이고, OCR 로 읽는다.
     """
-    f = tmp_path / "사업자등록증.heic"
-    f.write_bytes(b"\x00\x00\x00\x20ftypheic" + b"\x00" * 32)
+    f = tmp_path / "사업자등록증"
+    f.write_bytes(b"\x00\x00\x00\x20ftyp" + brand + b"\x00" * 32)
 
-    assert formats.detect(f, "사업자등록증.heic") == "heic"  # 파일명이 맞았을 때만
-    assert formats.detect(f) is None  # 이름이 없으면 못 잡는다
+    # 이름이 없어도 내용으로 잡는다. 그것이 이 모듈의 존재 이유다.
+    assert formats.detect(f) == "heic"
+
+
+def test_같은_ftyp_인_동영상을_사진이라고_안_한다(tmp_path: Path) -> None:
+    """**MP4 도 ISO-BMFF 다.** 브랜드를 안 보면 아이폰 동영상이 사업자등록증이 된다.
+
+    RIFF 를 `_riff_kind` 로 더 가르는 것과 같은 이유다. 컨테이너는 포맷이 아니다.
+    """
+    f = tmp_path / "현장.mp4"
+    f.write_bytes(b"\x00\x00\x00\x20ftypisom" + b"\x00" * 32)
+
+    assert formats.detect(f, "현장.mp4") == "mp4"  # 이름으로 물러난다
+    assert formats.detect(f) is None  # 이름이 없으면 모른다고 한다

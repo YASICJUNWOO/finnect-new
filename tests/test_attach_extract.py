@@ -205,16 +205,19 @@ def test_이미지는_실패가_아니라_미지원이다(tmp_path: Path) -> Non
         ("사진.webp", b"RIFF\x00\x00\x00\x00WEBP", "webp"),
         ("도면.bmp", b"BM\x36\x00\x00\x00", "bmp"),
         ("표.gif", b"GIF89a", "gif"),
+        # 이름을 일부러 안 맞췄다. **내용으로 잡아야 한다**(T-0100)
+        ("사업자등록증", b"\x00\x00\x00\x20ftypheic", "heic"),
     ],
 )
-def test_사용자_그림_넷이_ocr_문턱까지_간다(
+def test_사용자_그림이_ocr_문턱까지_간다(
     tmp_path: Path, name: str, head: bytes, ext: str
 ) -> None:
-    """**문전에서 잘린 것과 그림이라 OCR 이 필요한 것은 다른 사실이다**(T-0097).
+    """**문전에서 잘린 것과 그림이라 OCR 이 필요한 것은 다른 사실이다**(T-0097 · T-0100).
 
     `ocr.IMAGE_EXTS` 는 여섯인데 `user_file_formats` 가 `jpg`·`png` 둘만 열어 둬서
     나머지 넷이 `ext not in allowed` 에서 잘렸다. **파서가 있는데 설정이 막고 있었다** —
     tiff 는 스캐너·팩스 기본 출력이고 webp 는 웹에서 저장한 그림의 기본이다.
+    heic 는 아이폰 사진 기본 포맷이라 사업자등록증이 그 모양으로 온다.
 
     이유를 보는 것이 요점이다. 두 경로가 상태는 같고(`UNSUPPORTED`) 뜻이 다르다.
     """

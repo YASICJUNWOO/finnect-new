@@ -2,21 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Install } from "@/components/Install";
 import styles from "./layout.module.css";
 
 /** 제품 껍데기. 내비는 **3축이다**([ADR-0016](../../../docs/adr/0016-LNB-내-사업-축.md)).
  *
- * **폭에 따라 3축의 자리가 바뀐다**(ADR-0042 · ADR-0047 · DESIGN.md §5).
+ * **폭에 따라 3축의 자리가 바뀐다**(ADR-0042 · ADR-0047 · ADR-0050 · DESIGN.md §5).
  *
- * | 폭 | 3축 | 상단 |
- * |---|---|---|
- * | ≥1024px | 좌측 레일 60px | 2단 — 브랜드·운영 도구 / 현재 위치 |
- * | 641~1023px | 상단 막대 | 1단 |
- * | ≤640px | 하단 탭 바 | 1단 |
+ * | 폭 | 3축 | 상단 | 브랜드 |
+ * |---|---|---|---|
+ * | ≥1024px | 좌측 사이드바 200px | **1단** — 현재 위치·운영 도구 | 사이드바 위 |
+ * | 641~1023px | 상단 막대 | 1단 | 상단 막대 |
+ * | ≤640px | 하단 탭 바 | 1단 | 상단 막대 |
  *
  * **같은 메뉴가 화면에 두 번 있으면 안 된다.** 자리가 셋이 됐으므로 둘은 반드시 꺼진다.
  * 규칙은 CSS 한 곳(`layout.module.css`)에 있고 여기서는 셋을 다 그린다.
+ * **브랜드도 같은 자다** — 넓은 화면에서는 사이드바 것만, 그 아래는 막대 것만 켜진다.
+ *
+ * 2026-08-22 **상단 2단을 1단으로 합쳤다**(ADR-0050). 브랜드가 사이드바 위로
+ * 올라가면서 첫째 단에 남는 것이 운영 도구 하나였고, 둘째 단이 들고 있던 현재 위치를
+ * 그 줄로 올리면 88px 이 56px 이 된다. **사이드바도 60 → 200px 로 넓혔다** — 60px 은
+ * 12px 두 줄이 겨우 드는 폭이라 브랜드 문구가 들어갈 자리가 없었다.
  *
  * 2026-08-21 좌측 레일이 생겼다. **여기 있던 "§5 가 금지한 다섯 조합의 첫째다" 주석을
  * 지웠다** — 그 금지는 옛 판 §5.4 에 있었고 clean-slate 로 다시 쓰면서 빠졌는데(ADR-0041)
@@ -82,7 +87,9 @@ function Axes({ path }: { path: string }) {
   );
 }
 
-/** 상단 2단의 둘째 줄에 적을 현재 위치. 넓은 화면에서만 뜬다.
+/** 상단 막대에 적을 현재 위치. 넓은 화면에서만 뜬다.
+ *
+ * **2026-08-22 까지는 둘째 단이었다**(ADR-0050). 자리만 바뀌었고 규칙은 그대로다.
  *
  * **모르는 경로에서는 null 이고 화면은 둘째 칸을 아예 안 그린다.** 새 화면이 생겼을 때
  * 틀린 이름을 보여 주는 것보다 안 보여 주는 쪽이 낫다 — 여기는 경로를 아는 유일한
@@ -116,14 +123,18 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className={styles.app}>
-      {/* 좌측 레일. **넓은 화면에서만 뜬다.**
+      {/* 좌측 사이드바. **넓은 화면에서만 뜬다.**
         *
         * 아이콘을 그리지 않고 글자로 둔다 — 세 축의 그림글자를 새로 정하는 것은
         * DESIGN.md §1 이 미정으로 남긴 '시그니처 요소'를 결정 없이 채우는 일이다.
-        * 앱 아이콘에서 둘째 글리프를 안 만든 것과 같은 이유다(ADR-0042). */}
+        * 앱 아이콘에서 둘째 글리프를 안 만든 것과 같은 이유다(ADR-0042).
+        *
+        * 2026-08-22 브랜드가 여기 위로 올라왔다(ADR-0050). 상단 막대의 것과 **같은
+        * 마크업이고 폭마다 하나만 켜진다** — 3축과 같은 자다. */}
       <aside className={styles.rail}>
-        <Link href="/" className={styles.railMark} aria-label="라스트마일 홈">
+        <Link href="/" className={styles.railBrand}>
           <i className={styles.mark} aria-hidden />
+          라스트마일
         </Link>
         <nav className={styles.railNav} aria-label="주요 메뉴">
           <Axes path={path} />
@@ -131,26 +142,26 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
       </aside>
 
       <div className={styles.col}>
+        {/* 상단 막대. **한 단이다**(ADR-0050).
+          *
+          * 넓은 화면에서는 현재 위치와 운영 도구뿐이다 — 브랜드와 3축이 사이드바로
+          * 내려가서다. 그 아래 폭에서는 브랜드와 3축이 여기로 돌아오고 현재 위치가
+          * 꺼진다. **켜고 끄는 규칙은 전부 CSS 한 곳에 있다.** */}
         <header className={styles.bar}>
           <div className={styles.inner}>
+            {/* 브랜드. ≤1023px 에서만 뜬다 — 위로는 사이드바가 맡는다 */}
             <Link href="/" className={styles.brand}>
               <i className={styles.mark} aria-hidden />
               라스트마일
             </Link>
 
-            {/* 3축. 641~1023px 에서만 뜬다 — 위로는 레일이, 아래로는 탭 바가 맡는다 */}
+            {/* 3축. 641~1023px 에서만 뜬다 — 위로는 사이드바가, 아래로는 탭 바가 맡는다 */}
             <nav className={styles.menu} aria-label="주요 메뉴">
               <Axes path={path} />
             </nav>
 
-            <Link href={ADMIN} className={styles.admin}>
-              운영 도구
-            </Link>
-          </div>
-
-          {/* 둘째 단. 넓은 화면에서만 뜬다 — 축이 레일로 내려가 첫째 단이 비어서다 */}
-          {axis && (
-            <div className={styles.tier2}>
+            {/* 현재 위치. 넓은 화면에서만 뜬다 — 축이 내려가 이 줄이 비어서다 */}
+            {axis && (
               <span className={styles.crumb}>
                 {axis}
                 {where && (
@@ -162,11 +173,13 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
                   </>
                 )}
               </span>
-            </div>
-          )}
-        </header>
+            )}
 
-        <Install />
+            <Link href={ADMIN} className={styles.admin}>
+              운영 도구
+            </Link>
+          </div>
+        </header>
 
         <main className={styles.main}>{children}</main>
 

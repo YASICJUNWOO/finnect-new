@@ -14,12 +14,12 @@
 
 /* ── 껍데기 ─────────────────────────────────────────── */
 
-/* 좁은 화면에서는 그리드가 아니다. 레일이 없으니 칸도 없다 */
+/* 좁은 화면에서는 그리드가 아니다. 사이드바가 없으니 칸도 없다 */
 .app {
   display: block;
 }
 
-/* 레일은 넓은 화면에서만 뜬다. **기본이 꺼짐이다** */
+/* 사이드바는 넓은 화면에서만 뜬다. **기본이 꺼짐이다** */
 .rail {
   display: none;
 }
@@ -46,7 +46,11 @@
   padding-top: env(safe-area-inset-top);
 }
 
-/* 첫째 단. 브랜드 · 3축(중간 폭에서만) · 운영 도구 */
+/* 막대 속. **한 단이다**(ADR-0050) — 브랜드 · 3축(중간 폭) · 현재 위치(넓은 폭) ·
+ * 운영 도구가 전부 이 한 줄에 들어오고 폭마다 켜지는 것이 다르다.
+ *
+ * 2026-08-22 까지는 둘째 단(`.tier2`)이 현재 위치를 따로 들고 있었다. 브랜드가
+ * 사이드바로 올라가면서 이 줄에 남는 것이 운영 도구 하나가 되어 합쳤다. */
 .inner {
   max-width: 1040px;
   margin: 0 auto;
@@ -58,14 +62,20 @@
   gap: var(--s6);
 }
 
-/* 둘째 단. **넓은 화면에서만 뜬다** — 축이 레일로 내려가 첫째 단이 비어서다 */
-.tier2 {
+/* 현재 위치. **넓은 화면에서만 뜬다** — 축과 브랜드가 사이드바로 내려가 줄이 비어서다.
+ * 기본이 꺼짐인 이유는 `.rail` 과 같다 — 모바일 우선이라 넓은 쪽이 아래에서 얹힌다 */
+.crumb {
   display: none;
 }
 
 /* 시연은 17px / -.03em 이다. 스케일에 17 이 없어서 --t-lead(16px) 를 쓴다.
- * 자간은 로고타입이라 24px 미만에도 준다 — §3 의 본문 규칙과 다른 물건이다 */
-.brand {
+ * 자간은 로고타입이라 24px 미만에도 준다 — §3 의 본문 규칙과 다른 물건이다.
+ *
+ * **두 자리가 같은 모양을 쓴다**(ADR-0050) — 상단 막대(`.brand`)와 사이드바 위
+ * (`.railBrand`). 3축과 같이 폭마다 하나만 켜지므로 화면에는 언제나 하나뿐이다.
+ * 모양을 갈라 두면 1024px 을 넘나들 때 브랜드가 다른 것으로 읽힌다. */
+.brand,
+.railBrand {
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -91,7 +101,7 @@
 }
 
 /* 3축이 상단에 있는 폭은 641~1023px 하나뿐이다.
- * 위로는 레일이, 아래로는 탭 바가 맡는다 */
+ * 위로는 사이드바가, 아래로는 탭 바가 맡는다 */
 .menu {
   display: flex;
   gap: var(--s5);
@@ -288,25 +298,36 @@
   }
 }
 
-/* ── ≥1024px 좌측 레일 + 상단 2단 ────────────────────── */
+/* ── ≥1024px 좌측 사이드바 + 상단 1단 ─────────────────── */
 
-/* 1024 는 관측 밖 값이다. 근거는 산수뿐 — 레일 60 + 콘텐츠 992 = 1052 가 들어갈
- * 최소 폭(ADR-0047). 여기서 껍데기·행 구조·글자 크기가 한꺼번에 바뀐다. */
+/* 1024 는 관측 밖 값이다. 근거는 산수뿐이었다 — 레일 60 + 콘텐츠 992 = 1052 가
+ * 들어갈 최소 폭(ADR-0047). **그 산수는 사이드바가 200px 이 되면서 안 맞는다**
+ * (ADR-0050) — 1024px 창에서 콘텐츠가 992 가 아니라 824px 이다. **경계는 그대로
+ * 둔다.** 올리면 1024~1239px 이 상단 막대로 떨어지는데, 거기가 노트북과 가로 태블릿
+ * 이라 사이드바를 가장 많이 볼 폭이다. 여기서 껍데기·행 구조·글자 크기가 한꺼번에
+ * 바뀐다. */
 @media (min-width: 1024px) {
   .app {
     display: grid;
     /* 안전영역을 칸 폭에 더한다. 노치 있는 태블릿을 가로로 두면 왼쪽이 잘린다 */
-    grid-template-columns: calc(60px + env(safe-area-inset-left)) 1fr;
+    grid-template-columns: calc(200px + env(safe-area-inset-left)) 1fr;
     min-height: 100vh;
   }
 
+  /* 200px 이다. **60px 이었다**(ADR-0050) — 그 폭은 12px 두 줄이 겨우 드는 자리라
+   * 브랜드 문구가 들어갈 데가 없었고, 축 이름도 '신청 / 현황' 으로 접혔다.
+   *
+   * 세로 여백이 --s5 인 것은 브랜드와 축 사이를 벌리기 위해서다. 축끼리는
+   * `.railNav` 가 --s1 로 붙인다 — 한 덩어리로 읽혀야 한다. */
   .rail {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--s1);
-    padding: var(--s3) 0;
-    padding-left: env(safe-area-inset-left);
+    gap: var(--s5);
+    padding: var(--s3);
+    padding-left: max(var(--s3), env(safe-area-inset-left));
+    /* 설치본에서 상태 막대 밑으로 들어가지 않게. 상단 막대(`.bar`)와 같은 처리이고,
+     * 브라우저에서는 이 값이 0 이라 아무 일도 안 일어난다 */
+    padding-top: max(var(--s3), env(safe-area-inset-top));
     border-right: 1px solid var(--line);
     background: var(--surface);
     /* 목록이 길어도 축은 따라온다. 그리드 칸이 전체 높이라 그 안에서 붙는다 */
@@ -315,37 +336,39 @@
     height: 100vh;
   }
 
-  .railMark {
-    display: block;
-    margin-bottom: var(--s4);
+  /* 브랜드가 사이드바 위에 선다(ADR-0050). **글자 왼쪽이 축 이름과 맞아야 한다** —
+   * 그래서 안여백이 축 항목과 같은 --s3 이고, 둘 다 사이드바 가장자리에서 24px 이다.
+   * 44px 은 §5 터치 타깃 하한이다 */
+  .railBrand {
+    min-height: 44px;
+    padding: 0 var(--s3);
+    color: var(--ink);
   }
 
   .railNav {
-    display: contents;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
   }
 
-  /* 44px 은 터치 타깃 하한이다(§5). 60px 레일에서 글자가 쓸 수 있는 폭은
-   * 좌우 4px 을 뺀 52px 이다.
+  /* 44px 은 터치 타깃 하한이다(§5).
    *
-   * **`word-break: keep-all` 이 요점이다.** 없으면 한글이 아무 글자에서나 접혀
-   * '지원사' / '업' 이 된다. 걸어 두면 띄어쓰기에서만 접히므로 '신청 현황' 은
-   * '신청' / '현황' 두 줄이 되고 '지원사업' 은 한 줄로 남는다.
-   *
-   * 12px 은 시안의 11px 을 한 칸 올린 값이다. 11px 은 타입 스케일에 없는 단계이고,
-   * 그 단계를 쓰는 자리가 이 레일 하나뿐이라 만들지 않았다(ADR-0042). */
+   * **글자가 16px 왼쪽 정렬 한 줄이다.** 60px 레일일 때는 12px 가운데 정렬 두 줄
+   * 이었고 `word-break: keep-all` 로 '신청 / 현황' 을 만들었다 — 200px 에서는 셋 다
+   * 한 줄에 들어서 접을 일이 없다. 16px 은 `.menu` · `.tabs` 와 같은 값이다.
+   * **표시 방법이 자리마다 다르면 같은 메뉴로 안 읽힌다**(ADR-0042 결정 2). */
   .rail > .railNav > a,
   .rail > .railNav > span {
     width: 100%;
     min-height: 44px;
-    display: grid;
-    place-items: center;
-    padding: 0 var(--s1);
+    display: flex;
+    align-items: center;
+    padding: 0 var(--s3);
     border-radius: var(--r-md);
-    font-size: var(--t-caption);
-    line-height: var(--lh-caption);
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
     font-weight: var(--w-normal);
     color: var(--ink-3);
-    text-align: center;
     text-decoration: none;
     word-break: keep-all;
   }
@@ -365,34 +388,42 @@
     background: none;
   }
 
-  /* 3축이 레일로 내려갔다. **상단에서 반드시 꺼진다** */
-  .menu {
+  /* 3축과 브랜드가 사이드바로 내려갔다. **상단에서 반드시 꺼진다** */
+  .menu,
+  .brand {
     display: none;
   }
 
-  /* 두 단 다 화면 끝까지 간다. `main` 만 1040px 로 묶인다 —
-   * 막대는 크롬이고 본문은 읽는 것이라 같은 자를 안 댄다 */
+  /* 막대는 화면 끝까지 간다. `main` 만 1040px 로 묶인다 —
+   * 막대는 크롬이고 본문은 읽는 것이라 같은 자를 안 댄다.
+   *
+   * **높이를 56px 그대로 둔다.** 2단일 때는 44+44 였다(ADR-0050 이전). 한 단이
+   * 됐으니 좁은 화면과 같은 56px 이고, 껍데기가 88px 에서 56px 로 줄어든다 */
   .inner {
     max-width: none;
-    height: 44px;
   }
 
-  .tier2 {
+  /* 현재 위치가 이 줄로 올라왔다(ADR-0050). **16px 이다** — 둘째 단일 때는
+   * --t-aux(여기서 13px)였는데, 그때는 축 이름 아래 딸린 보조 줄이었고 지금은
+   * 막대에서 화면 이름을 말하는 유일한 글자다. 13px 로 두면 56px 막대가 빈다.
+   *
+   * 굵기는 --w-mid(500)다. --w-medium(600)은 20px 섹션 제목의 굵기라 16px 에
+   * 걸면 계층이 섞인다 — ADR-0045 가 목록 제목에서 같은 판단을 했다 */
+  .crumb {
     display: flex;
     align-items: center;
-    gap: var(--s4);
-    height: 44px;
-    padding-left: max(var(--s5), env(safe-area-inset-left));
-    padding-right: max(var(--s5), env(safe-area-inset-right));
-    border-top: 1px solid var(--line);
-    font-size: var(--t-aux);
-    line-height: var(--lh-aux);
-    color: var(--ink-2);
+    min-width: 0;
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+    color: var(--ink-3);
+    white-space: nowrap;
   }
 
   .crumb b {
     color: var(--ink);
-    font-weight: var(--w-medium);
+    font-weight: var(--w-mid);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .sep {

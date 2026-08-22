@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from sqlalchemy import delete, func, or_, select
@@ -151,6 +152,14 @@ def _classify(text: str) -> DocumentKind:
 # 파서를 한 줄 고칠 때마다 7,717번을 다시 물어야 한다.
 # ─────────────────────────────────────────────────────────────────
 
+#: 몇 건마다 커밋하고 진행을 찍나. **끝에 한 번만 커밋하면 안 된다** —
+#: 3,112회를 도는 작업에서 마지막 하나가 죽으면 앞의 전부가 롤백된다.
+#: `match/service.py` 가 1,790건에서 같은 것을 겪고 고쳤다(2026-08-20).
+#:
+#: **커밋과 진행 표시가 같은 자리인 것이 요점이다.** 커밋 전에는 다른 세션에서
+#: `document` 를 세도 0 이라, 이 줄이 진행을 말하는 유일한 자리다.
+_COMMIT_EVERY = 50
+
 
 @dataclass(slots=True)
 class ClassifyReport:
@@ -220,6 +229,13 @@ def classify_unknown(
             q = q.where(Document.title.ilike(f"%{title_like}%"))
         docs = s.scalars(q.order_by(Document.sha256, Document.seq)).all()
 
+        if docs and not dry:
+            # **후보 수를 먼저 말한다.** 첫 커밋까지 `_COMMIT_EVERY` 회가 걸리는데
+            # 그동안 화면이 비어 있으면 안 도는 것과 구분이 안 된다.
+            print(f"[판정] 후보 {len(docs):,} 구간 · {_COMMIT_EVERY}건마다 커밋한다", flush=True)
+
+        t0 = time.monotonic()
+        since = 0
         texts: dict[str, str | None] = {}
         for doc in docs:
             if limit is not None and report.asked >= limit:
@@ -249,6 +265,15 @@ def classify_unknown(
             if dry:
                 print(f"  {str(verdict.kind):<10} {doc.title[:44]:<46} {verdict.reason[:70]}")
                 continue
+
+            # **`unclear` 로 되돌린 것도 여기서 센다.** 아래 `continue` 뒤에 두면
+            # 거절이 몰릴 때 진행이 멎은 것처럼 보인다.
+            since += 1
+            if since >= _COMMIT_EVERY:
+                s.commit()
+                since = 0
+                _tick(report, len(docs), t0)
+
             if verdict.kind is DocumentKind.UNKNOWN:
                 continue  # 판정기가 모른다고 했다. **`none` 으로 밀지 않는다**
 
@@ -268,6 +293,21 @@ def classify_unknown(
         else:
             s.commit()
     return report
+
+
+def _tick(report: ClassifyReport, total: int, t0: float) -> None:
+    """진행 한 줄. **남은 시간은 추정이고 조금 길게 나온다** — 속도를 물어본 건수로
+    재는데 남은 것에는 안 묻고 지나가는 짧은 구간이 섞여 있다. 짧게 나오는 것보다 낫다.
+    """
+    seen = report.asked + report.too_short + report.unreadable
+    elapsed = time.monotonic() - t0
+    rate = report.asked / elapsed if elapsed > 0 else 0.0
+    left = (total - seen) / rate / 60 if rate > 0 else 0.0
+    print(
+        f"  … {seen:,}/{total:,} · 물음 {report.asked:,} · 바뀜 {report.changed:,} · "
+        f"{rate * 60:,.0f}건/분 · 남은 ~{left:,.0f}분",
+        flush=True,
+    )
 
 
 def _text_of(s: Session, sha: str) -> str | None:

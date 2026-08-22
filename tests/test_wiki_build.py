@@ -27,7 +27,7 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import build, extract_nodes, merge, profile, service, tree
+from finnect.wiki import build, extract_nodes, merge, profile, service, spots, tree
 from finnect.wiki.extract_nodes import NodeFact
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
@@ -182,15 +182,29 @@ def test_시드_금액은_충돌로_선다(built):  # noqa: ANN001
     assert all(r.status == merge.Status.CONFLICT for r in seed)
 
 
-def test_같은_사실은_하나로_서고_근거만_쌓인다(built):  # noqa: ANN001
-    """재구매율 34→51% 가 네 문서에 있다. **사실 넷이 되면 틀렸다**(픽스처 README 3번)."""
+def test_똑같은_문장은_하나로_서고_근거만_쌓인다(built):  # noqa: ANN001
+    """**중복 방지가 트랙 A 에 남은 전부다**(ADR-0058).
+
+    재구매율 34→51% 가 네 문서에 있는데 **문장이 넷 다 다르다**(`올랐다`·`상승했다`·
+    `올랐습니다`·`34% → 51%`). 옛 `key` 가 그 넷을 하나로 묶었고, key 를 없애면서
+    묶는 근거가 사라졌다 — **넷으로 서는 것이 결정이고 사고가 아니다**
+    (`tests/test_wiki_merge.py::test_다르게_쓰인_같은_사실은_둘로_선다`).
+
+    여기서 보는 것은 **똑같이 쓰인 것이 두 번 안 선다**는 것이다.
+    """
     factory, _ = built
     rows = [r for r in _facts(factory) if "재구매율" in r.text]
-    assert len(rows) == 1
+    assert len(rows) > 1, "묶을 근거가 없어졌으니 문장 수만큼 선다"
+    #: **문장이 겹치는 행이 없다.** 겹치면 dedupe 가 안 도는 것이다
+    bodies = ["".join(r.text.split()) for r in rows]
+    assert len(set(bodies)) == len(bodies)
 
     with factory() as s:
-        n = len(s.scalars(select(WikiEvidence).where(WikiEvidence.fact_id == rows[0].id)).all())
-    assert n == 4
+        total = sum(
+            len(s.scalars(select(WikiEvidence).where(WikiEvidence.fact_id == r.id)).all())
+            for r in rows
+        )
+    assert total >= 4, "근거는 문서 수만큼 있어야 한다"
 
 
 def test_매출액은_표기가_달라도_한_값이다(built):  # noqa: ANN001
@@ -224,7 +238,7 @@ def test_문서에_박힌_업력은_슬롯에_안_들어간다(built):  # noqa: 
     """`업력 1년 6개월` 은 2025-08 기준이라 지금은 틀렸다. **버리지도 않는다.**"""
     factory, _ = built
     assert "tenure" not in profile.PROFILE_KEYS
-    un = _facts(factory, path=tree.REVIEW_PATH)
+    un = _facts(factory, path=spots.REVIEW.path)
     assert any("업력" in r.text for r in un)
 
 
@@ -360,7 +374,6 @@ class _Drifting:
         return [
             NodeFact(
                 path="Company/팀",
-                key=f"{self.calls}번째",
                 kind="event",
                 text=f"{anchor} 를 {self.calls}번째로 읽은 문장이다.",
                 anchor=anchor,

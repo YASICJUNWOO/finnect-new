@@ -1,12 +1,12 @@
-"""갈라짐을 막는 장치 — plan/22 T-0127 · ADR-0056 결정 6.
+"""자리를 고르는 법과 갈라짐을 막는 장치 — ADR-0058.
 
-동적 이름의 유일한 위험은 **같은 얘기가 여러 자리로 흩어지는 것**이다
-(`기능` · `주요기능` · `핵심 기능`). 사용자는 노드가 셋인 게 정상인지 모른다.
+자리표가 **마흔여섯 고정**이 되면서 이 파일이 잠그는 것이 바뀌었다.
 
-막는 방법이 둘이고 **둘 다 쓴다.**
+    옛  LLM 이 경로를 짓는다  →  `기능`·`주요기능`·`핵심 기능` 이 전부 새 자리
+    새  LLM 이 번호를 고른다  →  고정 자리는 갈릴 수가 없다
 
-1. **번호로 답하게 한다.** 프롬프트에 지금 있는 것을 번호와 함께 싣는다
-2. **코드가 마지막 그물이다.** 새 이름이 와도 정규화 후 기존과 정확히 같으면 기존으로
+**남은 위험은 인스턴스 이름 하나다.** `{…}` 가 있는 자리 열일곱에서 같은 경쟁사가
+`배달의민족` 과 `배달의 민족` 으로 두 자리에 앉는 것 — 그 자리만 그물이 걸린다.
 
 **유사도를 안 쓴다.** 쓰면 같은 문서를 두 번 올릴 때 다른 자리로 가서 비결정론이 된다 —
 이 파일의 마지막 절이 그것을 잠근다.
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from finnect.wiki import port, tree
+from finnect.wiki import port, spots
 from finnect.wiki.extract_nodes import LlmNodes
 from finnect.wiki.port import Known, Roster
 
@@ -26,6 +26,11 @@ VIEW = port.FileView(
     chunks=((0, "우리 제품의 기능은 셋이다. 재구매율이 34%에서 51%로 올랐다."),),
 )
 ANCHOR = "재구매율이 34%에서 51%로"
+
+
+def num(path: str) -> int:
+    """자리표에서 번호를 찾는다. **숫자를 손으로 적지 않는다** — 표에 한 줄이 끼면 밀린다."""
+    return next(i for i, s in enumerate(spots.SPOTS, 1) if s.path == path)
 
 
 class 가짜클라이언트:
@@ -42,124 +47,113 @@ class 가짜클라이언트:
 
 def _n(**kw) -> dict:
     base = {
-        "node_ref": None, "node_category": None, "node_path": None,
-        "key_ref": None, "key_new": "사실",
-        "qualifier_ref": None, "qualifier_new": None,
-        "kind": "event", "text": "x", "value": None, "as_of": None, "anchor": ANCHOR,
+        "spot": None, "instance": None,
+        "kind": "event", "text": "x", "value": None, "qualifier": None,
+        "as_of": None, "grade": "1차", "source": None, "anchor": ANCHOR,
     }
     return {**base, **kw}
 
 
-def _paths(facts: list[dict], known: Known) -> list[str]:
-    return [f.path for f in LlmNodes(client=가짜클라이언트(facts)).extract(VIEW, known)]
+def _paths(facts: list[dict], known: Known | None = None) -> list[str]:
+    ex = LlmNodes(client=가짜클라이언트(facts))
+    return [f.path for f in ex.extract(VIEW, known or Known())]
 
 
 # ─────────────────────────────────────────────────────────────────
-# 번호 — 경로를 다시 쓰게 하지 않는다
+# 번호 — 자리를 짓게 하지 않는다
 # ─────────────────────────────────────────────────────────────────
 
 
-def test_번호가_이름으로_풀린다():
-    """자유 문자열로 받으면 `Product/기능`·`기능`·`Product/ 기능` 이 전부 새 자리가 된다."""
-    known = Known.of(nodes=["Company/기본정보", "Company/팀", "Product/기능"])
-    assert _paths([_n(node_ref=3)], known) == ["Product/기능"]
+def test_번호가_자리로_풀린다():
+    """경로를 다시 쓰게 하면 `Product/기능`·`기능`·`Product/ 기능` 이 전부 새 자리가 된다."""
+    assert _paths([_n(spot=num("Company/팀"))]) == ["Company/팀"]
 
 
-def test_번호가_새_이름을_이긴다():
-    """둘 다 오면 번호가 이긴다. 모델이 번호를 쓰라는 것이 이 장치의 뜻이다."""
-    known = Known.of(nodes=["Product/기능"])
-    got = _paths([_n(node_ref=1, node_category="Market", node_path="시장규모")], known)
-    assert got == ["Product/기능"]
+def test_고정_자리는_인스턴스를_무시한다():
+    """**딸려 온 이름이 고정 자리를 흔들면 안 된다.**"""
+    assert _paths([_n(spot=num("Financial/매출"), instance="아무거나")]) == ["Financial/매출"]
 
 
 def test_없는_번호는_지어내지_않는다():
-    """**모델이 범위 밖 번호를 낼 수 있다.** 이름을 만들어 주면 엉뚱한 자리에 앉는다."""
-    known = Known.of(nodes=["Product/기능"])
-    #: 새 이름이 같이 왔으면 그쪽으로 떨어진다
-    assert _paths([_n(node_ref=9, node_category="Market", node_path="시장규모")], known) == [
-        "Market/시장규모"
-    ]
-    #: 새 이름도 없으면 검토 대기다. **버리지 않는다**
-    assert _paths([_n(node_ref=9)], known) == [tree.REVIEW_PATH]
+    """모델이 범위 밖 번호를 낼 수 있다. 자리를 만들어 주면 엉뚱한 데 앉는다."""
+    for bad in (0, 47, 999, None):
+        assert _paths([_n(spot=bad)]) == [spots.REVIEW.path]
 
 
-def test_현재_상태가_프롬프트에_번호와_함께_실린다():
-    c = 가짜클라이언트([])
-    known = Known.of(nodes=["Company/팀"], keys=["팀 구성"], qualifiers=["시드"])
-    LlmNodes(client=c).extract(VIEW, known)
-    system = c.calls[0]["system"]
-    assert "[1] Company/팀" in system
-    assert "[1] 팀 구성" in system
-    assert "[1] 시드" in system
-
-
-def test_아무것도_없으면_없다고_적는다():
-    """빈 목록을 그냥 두면 프롬프트에 제목만 남아서 모델이 잘린 줄 안다."""
-    c = 가짜클라이언트([])
-    LlmNodes(client=c).extract(VIEW, Known())
-    assert "(아직 없다)" in c.calls[0]["system"]
-    assert Roster().render() == "(아직 없다)"
+def test_자리를_못_골라도_버리지_않는다():
+    """검토 대기가 **자리로 산다.** 옛 미분류는 트리에 자리가 없어 화면에 안 나왔다."""
+    got = LlmNodes(client=가짜클라이언트([_n(spot=None)])).extract(VIEW, Known())
+    assert got[0].path == spots.REVIEW.path
+    assert got[0].why  # 왜 거기 갔는지 남는다
 
 
 # ─────────────────────────────────────────────────────────────────
-# 코드 그물 — 기존과 한 번
+# 인스턴스 — 짓게 하는 것은 이름뿐이다
 # ─────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("written", ["기 능", "기능 ", "기·능", "기(능)"])
-def test_정규화가_같으면_기존_자리로_돌린다(written: str):
-    """**모델이 번호를 안 써도 여기서 걸린다.** 마지막 그물이다."""
-    known = Known.of(nodes=["Product/기능"])
-    assert _paths([_n(node_category="Product", node_path=written)], known) == ["Product/기능"]
+def test_인스턴스가_템플릿을_채운다():
+    got = _paths([
+        _n(spot=num("Competitor/{업체명}"), instance="배달의민족"),
+        _n(spot=num("Custom/특허/{상태}-{번호}"), instance="등록-10-2025-0114882"),
+    ])
+    assert got == ["Competitor/배달의민족", "Custom/특허/등록-10-2025-0114882"]
 
 
-def test_key_와_한정어도_같은_그물을_쓴다():
-    known = Known.of(keys=["팀 구성"], qualifiers=["예비창업패키지"])
-    ex = LlmNodes(client=가짜클라이언트([
-        _n(kind="value", key_new="팀구성", qualifier_new="예비 창업 패키지", value="15"),
-    ]))
-    got = ex.extract(VIEW, known)[0]
-    assert (got.key, got.qualifier) == ("팀 구성", "예비창업패키지")
+def test_구멍이_둘이면_슬래시로_나눈다():
+    """자리표에서 이 모양은 하나뿐이다 — `Product/{서비스명}/화면/{화면명}`."""
+    got = _paths([_n(spot=num("Product/{서비스명}/화면/{화면명}"), instance="다시로/주문화면")])
+    assert got == ["Product/다시로/화면/주문화면"]
 
 
-def test_부르는_쪽의_상태를_안_늘린다():
-    """**추출이 실패한 파일이 다음 파일의 자리 목록을 오염시키면 안 된다.**
-
-    `build.py` 는 파일마다 DB 에서 다시 읽지만, 한 `Known` 을 두 번 넘기는 코드가
-    생기는 날 이 성질이 없으면 조용히 어긋난다.
-    """
-    known = Known.of(nodes=["Product/기능"])
-    _paths([_n(node_category="Market", node_path="시장규모")], known)
-    assert known.nodes.names == ["Product/기능"]
+def test_이름이_안_오면_리터럴_폴더를_안_만든다():
+    """`Competitor/{업체명}` 이 그대로 서면 **그 글자가 사용자가 보는 자리 이름이 된다.**"""
+    assert _paths([_n(spot=num("Competitor/{업체명}"))]) == [spots.REVIEW.path]
+    #: 구멍이 둘인데 하나만 와도 같다
+    assert _paths([
+        _n(spot=num("Product/{서비스명}/화면/{화면명}"), instance="다시로")
+    ]) == [spots.REVIEW.path]
 
 
 # ─────────────────────────────────────────────────────────────────
-# 코드 그물 — 같은 호출 결과 안에서 한 번
+# 코드 그물 — 인스턴스 이름에만 걸린다
 # ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("written", ["배달의 민족", "배달의민족 ", "배달의·민족", "배달의(민족)"])
+def test_정규화가_같으면_기존_이름으로_돌린다(written: str):
+    known = Known.of(spots=["Competitor/배달의민족"])
+    got = _paths([_n(spot=num("Competitor/{업체명}"), instance=written)], known)
+    assert got == ["Competitor/배달의민족"]
 
 
 def test_한_호출_안에서_갈린_이름도_모인다():
-    """**프롬프트에 있는 건 이전 상태다.** 한 파일에서 둘 다 만들 수 있다(결정 6 마지막 문단)."""
-    got = _paths(
-        [
-            _n(node_category="Product", node_path="기능"),
-            _n(node_category="Product", node_path="기 능"),
-        ],
-        Known(),
-    )
-    assert got == ["Product/기능", "Product/기능"]
+    """**프롬프트에 있는 건 이전 상태다.** 한 파일에서 둘 다 만들 수 있다."""
+    n = num("Competitor/{업체명}")
+    got = _paths([_n(spot=n, instance="배달의민족"), _n(spot=n, instance="배달의 민족")])
+    assert got == ["Competitor/배달의민족"] * 2
 
 
 def test_먼저_온_표기가_이긴다():
     """뒤엣것이 이기면 같은 파일을 두 번 넣을 때 이름이 흔들린다."""
-    got = _paths(
-        [
-            _n(node_category="Product", node_path="주요 기능"),
-            _n(node_category="Product", node_path="주요기능"),
-        ],
-        Known(),
-    )
-    assert got == ["Product/주요 기능"] * 2
+    n = num("Competitor/{업체명}")
+    got = _paths([_n(spot=n, instance="요기 요"), _n(spot=n, instance="요기요")])
+    assert got == ["Competitor/요기 요"] * 2
+
+
+def test_한정어도_같은_그물을_쓴다():
+    known = Known.of(qualifiers=["예비창업패키지"])
+    ex = LlmNodes(client=가짜클라이언트([
+        _n(spot=num("Financial/자금계획"), kind="value", qualifier="예비 창업 패키지", value="15"),
+    ]))
+    assert ex.extract(VIEW, known)[0].qualifier == "예비창업패키지"
+
+
+def test_부르는_쪽의_상태를_안_늘린다():
+    """**추출이 실패한 파일이 다음 파일의 자리 목록을 오염시키면 안 된다.**"""
+    known = Known.of(spots=["Competitor/배달의민족"])
+    _paths([_n(spot=num("Competitor/{업체명}"), instance="쿠팡이츠")], known)
+    assert known.spots.names == ["Competitor/배달의민족"]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -168,19 +162,46 @@ def test_먼저_온_표기가_이긴다():
 
 
 def test_비슷하기만_한_이름은_다른_자리다():
-    """`기능` 과 `주요기능` 은 다른 자리다. 접으면 다시 비결정론이다(ADR-0056 결정 6)."""
-    known = Known.of(nodes=["Product/기능"])
-    assert _paths([_n(node_category="Product", node_path="주요기능")], known) == [
-        "Product/주요기능"
+    """`배민` 은 `배달의민족` 으로 안 접힌다. 접으면 다시 비결정론이다."""
+    known = Known.of(spots=["Competitor/배달의민족"])
+    assert _paths([_n(spot=num("Competitor/{업체명}"), instance="배민")], known) == [
+        "Competitor/배민"
     ]
 
 
 def test_마디가_다르면_안_섞인다():
     """통째로 정규화하면 `A/BC` 와 `AB/C` 가 같아진다 — 다른 자리인데 하나로 묶인다."""
-    known = Known.of(nodes=["Company/기본정보"])
-    assert _paths([_n(node_category="Company", node_path="기본/정보")], known) == [
-        "Company/기본/정보"
-    ]
+    r = Roster.of(["Company/기본정보"], norm=port.tree.norm_path)
+    assert r.fold("Company/기본/정보") == "Company/기본/정보"
+
+
+# ─────────────────────────────────────────────────────────────────
+# 프롬프트 — 표와 현재 상태가 같이 실린다
+# ─────────────────────────────────────────────────────────────────
+
+
+def test_자리표_전체가_프롬프트에_번호와_함께_실린다():
+    c = 가짜클라이언트([])
+    LlmNodes(client=c).extract(VIEW, Known())
+    system = c.calls[0]["system"]
+    for i, s in enumerate(spots.SPOTS, 1):
+        assert f"[{i}] {s.path}" in system
+    #: **「담는 것」도 같이 간다** — 경로만 주면 어디에 넣을지 고를 근거가 없다
+    assert spots.SPOTS[0].holds in system
+
+
+def test_지금_있는_자리가_실린다():
+    c = 가짜클라이언트([])
+    LlmNodes(client=c).extract(VIEW, Known.of(spots=["Competitor/배달의민족"]))
+    assert "[1] Competitor/배달의민족" in c.calls[0]["system"]
+
+
+def test_아무것도_없으면_없다고_적는다():
+    """빈 목록을 그냥 두면 프롬프트에 제목만 남아서 모델이 잘린 줄 안다."""
+    c = 가짜클라이언트([])
+    LlmNodes(client=c).extract(VIEW, Known())
+    assert "(아직 없다)" in c.calls[0]["system"]
+    assert Roster().render() == "(아직 없다)"
 
 
 # ─────────────────────────────────────────────────────────────────

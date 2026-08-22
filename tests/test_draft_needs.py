@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from finnect.draft import needs as nd
-from finnect.wiki import profile, tree
+from finnect.wiki import profile, spots
 
 
 class 가짜클라이언트:
@@ -94,7 +94,7 @@ class Test자리:
 
     def test_자리_목록이_위키와_같다(self) -> None:
         """**갈리면 여기서 통과한 자리가 위키에 없다.**"""
-        assert set(nd.PLACES) == set(profile.PROFILE_KEYS) | set(tree.CATEGORIES)
+        assert set(nd.PLACES) == set(profile.PROFILE_KEYS) | set(spots.FOLDERS)
         assert len(nd.PLACES) == 24
 
 

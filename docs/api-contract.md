@@ -438,82 +438,74 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 사업 위키 한 장(S7). **정본은 [`api/wiki_schemas.py`](../src/finnect/api/wiki_schemas.py) 다.**
 
-**위키가 없어도 200 이고 자리 마흔일곱이 온다**([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)). 404 나 빈 목록으로 답하면 화면이 "데이터 없음"으로 끝난다 — `DESIGN.md` §7-5 가 빈 화면에 첫 동작을 안내하라고 한 자리다. 자리가 있어야 사용자가 무엇이 없는지 안다.
+**위키가 없어도 200 이고 폴더 열이 온다.** 404 나 빈 목록으로 답하면 화면이 "데이터 없음"으로 끝난다 — `DESIGN.md` §7-5 가 빈 화면에 첫 동작을 안내하라고 한 자리다. 자리가 있어야 사용자가 무엇이 없는지 안다.
+
+**자리는 기획 문서 §2 의 마흔여섯 고정이다**([ADR-0058](adr/0058-자리표를-기획-트리로-고정하고-key-를-없앤다.md) · 정본은 `wiki/spots.py`). 그중 열일곱은 `{…}` 를 들고 있어 **인스턴스 이름만 문서가 정한다**(`Competitor/배달의민족`).
 
 ```json
 {
   "company_id": "c_dasiro",
   "nodes": [
     {
-      "path": "Financial/자금계획.md", "title": "자금 계획", "folder": "Financial",
-      "eligibility": false,
-      "values": [
-        {
-          "slot": "funding", "label": "조달액",
-          "value": "300000000", "display": "300,000,000원",
-          "qualifier": "시드", "as_of": "2025-09-30", "status": "conflict",
-          "evidence": [
-            {"filename": "재무제표_2025.xlsx", "page": null,
-             "quote": "자본잉여금 3억원은 2025.09 시드 라운드 유치액입니다"}
-          ]
-        }
-      ],
+      "path": "Financial/자금계획", "name": "자금계획",
+      "category": "Financial", "parent": "Financial", "depth": 1,
       "statements": [
-        {"text": "2025년말 현금 1억 8,270만원…", "topic": "cost",
-         "evidence": [{"filename": "피치덱_2026H2.pptx", "page": 11, "quote": "…"}]}
+        {"text": "2025년 9월 시드 라운드 3억원을 유치했다.",
+         "kind": "value", "value": "300000000", "qualifier": "시드",
+         "as_of": "2025-09-30", "grade": "1차", "source": "",
+         "evidence": [
+           {"filename": "재무제표_2025.xlsx", "page": null,
+            "quote": "자본잉여금 3억원은 2025.09 시드 라운드 유치액입니다"}
+         ]}
       ],
-      "groups": [
-        {"topic": "cost", "label": "비용 구조",
-         "statements": [{"text": "2025년말 현금 1억 8,270만원…", "topic": "cost", "evidence": [{"…": "…"}]}]},
-        {"topic": "funding", "label": "자금 조달", "statements": []}
-      ],
-      "grouped": true,
-      "source_count": 4, "filled": true, "conflicted": true,
-      "ours": false, "gap": "", "collapsed": null,
+      "source_count": 4, "filled": true,
       "grade": "1차",
       "source": ["재무제표_2025.xlsx", "피치덱_2026H2.pptx"],
       "source_path": ["c_dasiro/9e/9eaf74…", "c_dasiro/e8/e843d0…"],
-      "base_date": "2025-09-30", "updated_at": "2026-08-22",
-      "markdown": "---\npath: Financial/자금계획.md\n…"
+      "updated_at": "2026-08-22",
+      "markdown": "---\npath: Financial/자금계획\n…"
     }
   ],
   "files": [
     {"filename": "재무제표_2025.xlsx", "ext": "xlsx", "byte_size": 10700,
      "status": "done", "parse_status": "ok", "parser": "xlsx/openpyxl",
      "parse_error": null, "chunk_count": 4, "page_count": null,
-     "nodes": ["Company/회사소개.md", "Financial/자금계획.md", "Financial/매출.md"]}
+     "spots": ["Financial/매출", "Financial/자금계획"]}
   ],
   "categories": {"Company": "회사", "Product": "제품", "…": "…"},
-  "filled": 20, "total": 47, "conflicts": 2, "uncategorized": 1,
+  "filled": 17, "total": 30, "review": 9,
   "extractor": "stub/v1"
 }
 ```
 
 | 필드 | 뜻 |
 |---|---|
-| `nodes` | **노드 전부.** 순서가 기획 문서 §2 의 순서이고 곧 배치 순서다 — 프론트가 이 순서로 각도를 나눈다 |
+| `nodes` | **사실이 앉은 자리 + 비어도 서는 폴더 열.** 순서는 `spots.FOLDERS` 표가 정하고 그 안에서는 경로순이다 — 프론트가 이 순서로 각도를 나눈다 |
 | `path` | **자리의 이름이다**(기획 §4-3 「경로가 곧 노드 제목이다」). 화면·기획 문서·집필 에이전트가 같은 문자열을 쓴다 |
-| `folder` | 최상위 폴더 키 = **각도 구획**. 라벨은 `folders` 가 준다. `sector` 여섯을 대신한다([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)) |
-| `gap` | 채울 topic 이 **아예 없는** 자리의 사유. 있으면 파일을 더 올려도 안 찬다 — 「아직 비었다」와 다른 말이다 |
-| `collapsed` | 접혔으면 원래 경로. **조용히 접지 않는다** — `Competitor/{업체명}.md` |
-| `grade` | 자료 등급. **`실측`·`1차`·`미정` 셋만 온다** — `2차`·`가정` 은 추출기가 출처를 판정하지 않아 못 낸다([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md) 결정 4) |
-| `source` / `source_path` | 근거 파일 이름과 저장 위치. **순서가 같다** — 짝이 어긋나면 위치가 거짓말이 된다 |
-| `updated_at` | 사실이 바뀐 시각. **만든 시각이 아니다** — 같은 DB 면 같은 값이라 두 응답을 바이트로 비교할 수 있다 |
-| `value` / `display` | 저장값과 표시값. **둘 다 준다** — 프론트가 단위를 붙이면 규칙이 두 벌이 되고 갈린다 |
-| `status` | `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다. **셋 다 화면에 남는다** — 지우지 않는다(F1-1-7) |
+| `category` | 최상위 폴더 키 = **각도 구획**. 라벨은 `categories` 가 준다 |
+| `depth` | 몇 번째 층인가. `0` 이 폴더다 |
+| `statements` | 그 자리에 앉은 사실들. **시점 내림차순으로 이미 정렬돼 온다**([ADR-0057](adr/0057-서술을-쌓고-시점을-남긴다.md) 결정 3) — 시점 없는 것이 뒤다. **정렬 규칙을 프론트에 안 적으려고** 서버가 순서를 정한다 |
+| `statements[].kind` | `value` 값 하나로 적을 수 있다 · `event` 못 적는다 |
+| `statements[].value` | 정규화된 저장값(`300000000`). **`display` 짝이 없다** — 단위표는 매칭 정보 열넷의 것이고 트랙 A 의 값은 자유롭게 와서 거기 없다. **프론트가 단위를 지어 붙이면 안 된다** |
+| `statements[].qualifier` | 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`. **`key` 가 없어지면서 이것이 값을 가르는 유일한 축이 됐다**([ADR-0058](adr/0058-자리표를-기획-트리로-고정하고-key-를-없앤다.md) 결정 3) |
+| `statements[].grade` | 기획 §5 의 자료 등급. `1차`·`2차`·`가정`. **화면은 `1차` 를 안 낸다** — 기본값이라 전부 적으면 정작 눈에 띄어야 할 `가정` 이 안 보인다 |
+| `statements[].source` | `2차` 일 때 문서가 밝힌 기관 이름. **다른 등급에서는 빈 문자열이다** — 밝히지 않은 인용에 기관을 붙이면 심사에서 그 값이 깨진다 |
 | `evidence` | **출처는 문자열이 아니라 연결이다**(SPEC F1-3). `filename` 과 `page` 를 따로 주는 것은 화면이 "3쪽"을 다르게 쓸 수 있어서다 |
 | `page` | PDF · PPTX 만 찬다. **다른 포맷에는 쪽이라는 것이 없다** |
-| `groups` | `statements` 를 **event topic 별로 묶은 것**([ADR-0048](adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)). 순서는 서버의 표(`export.TREE`)가 정하고 **빈 것도 온다** — 화면이 "무엇이 없는지"를 말할 수 있어야 한다 |
-| `groups[].label` | topic 한국어 이름. **화면이 한국어를 짓지 않는다** — `display` 와 같은 규율이다 |
-| `grouped` | 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리만 `true`** 다. `false` 면 화면이 `statements` 를 통째로 뿌린다. **판정을 서버가 하는 이유는 규칙을 두 곳에 적지 않으려는 것이다** |
+| `grade`(자리) | 이 장의 등급. **한 장에 사실이 여럿이면 가장 약한 것이다** — 머리가 본문보다 세게 말하면 안 된다 |
+| `source` / `source_path` | 출처와 저장 위치. **순서가 같다** — 짝이 어긋나면 위치가 거짓말이 된다. **외부 기관이 앞에 오고 그 자리의 `source_path` 는 빈 문자열이다** |
+| `updated_at` | 사실이 바뀐 시각. **만든 시각이 아니다** — 같은 DB 면 같은 값이라 두 응답을 바이트로 비교할 수 있다 |
 | `source_count` | 근거로 쓰인 **파일 수**. 근거 개수가 아니다 |
 | `markdown` | 그 자리 한 장. **저장된 것이 아니라 매번 만든 것이다** |
 | `files[].spots` | 그 파일이 근거가 된 자리들의 **경로**(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** |
+| `review` | `Custom/검토 대기` 에 선 사실 수. **버려진 것이 아니라 사람이 봐야 하는 것이다** |
 | `extractor` | 무엇이 사실을 뽑았나. `stub/v1` 이면 픽스처 밖에서는 안 돈 것이다([ADR-0031](adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **화면이 이걸 숨기지 않는다** |
 
-**`statements` 와 `groups` 가 같은 것을 두 번 준다.** `groups` 는 묶기만 한 것이고 사실은 같다 — 프론트가 묶는 규칙을 다시 구현하지 않게 하려고 서버가 두 모양을 다 준다.
+**`key` 와 `keys` 가 없다.** 2026-08-22 까지 사실마다 이름이 붙고 화면이 그것을 절 제목으로 썼다. 자리가 곧 이름이라(`Company/팀` 은 팀 얘기다) 이름을 한 번 더 짓는 것이 모호했고, 그 모호함이 자리를 다시 갈랐다([ADR-0058](adr/0058-자리표를-기획-트리로-고정하고-key-를-없앤다.md) 결정 3).
 
-**`confidence` 가 없다.** 구상도는 사실마다 0.9 를 붙이는데 0.9 와 0.7 을 가를 눈금이 없다. 대신 근거 유무 · `status` · `source_count` 셋으로 말한다.
+**`status` 가 없다.** 트랙 A 는 `current`·`superseded`·`conflict` 를 안 매긴다 — 한 자리 안에서 무엇과 무엇을 견줄지가 정해지지 않아서(`Market/시장규모` 의 TAM·SAM·SOM 이 전부 충돌로 뜬다) 껐다. **어긋난 값은 두 줄로 나란히 서고 사용자가 읽는다.** 값 쪽 판정이 필요하면 매칭 정보(`/company`)를 본다 — 거기는 key 가 열넷 고정이라 축이 있다.
+
+**`confidence` 가 없다.** 구상도는 사실마다 0.9 를 붙이는데 0.9 와 0.7 을 가를 눈금이 없다. 대신 근거 유무 · `grade` · `source_count` 셋으로 말한다.
 
 **`company_id` 를 경로로 받는다.** 인증이 아직 없어서 세션에서 꺼낼 자리가 없다 — 지금은 부르는 쪽이 누구인지 말한다. **격리가 이 인자 하나에 걸려 있고, 이 API 는 누구의 위키든 열어 준다.**
 

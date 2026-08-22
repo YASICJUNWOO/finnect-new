@@ -63,62 +63,64 @@ class Evidence:
 
 @dataclass(frozen=True, slots=True)
 class Statement:
-    """노드에 앉은 사실 하나.
+    """자리에 앉은 사실 하나.
 
-    **`key` 가 이 사실의 이름이다**(ADR-0056 결정 3) — 라벨이자 병합 열쇠다. 2026-08-22
-    까지 이 필드가 `topic` 이었고 「`draft/` 와 `match/` 가 읽어서 못 바꾼다」고 적혀
-    있었는데, **그 둘은 `WikiFact` 를 직접 읽지 이 모양을 안 쓴다.** 유일한 소비자가
-    `api/wiki_service.py` 하나라 이름을 DB 와 맞췄다.
+    **`key` 가 없어졌다**(2026-08-22). 자리가 곧 이름이라(`Company/팀` 은 팀 얘기다)
+    사실마다 이름을 한 번 더 짓는 것이 모호했다 — 같은 것을 두 어휘로 부르게 되고,
+    그 모호함이 자리를 다시 갈랐다. 자세한 것은 `extract_nodes.py` 첫 문단.
     """
 
     text: str
-    #: 노드 안에서 이 사실을 부르는 이름. **`WikiFact.key` 가 여기 온다**
-    key: str
     evidence: tuple[Evidence, ...]
     source_type: str = "document"
     updated_at: dt.date | None = None
 
-    # --- kind == "value" 일 때만 찬다 ---
-    #: `value` 또는 `event`. **병합 규칙을 이게 정한다**(`merge.node_key`)
+    #: `value` 또는 `event`
     kind: str = "event"
-    #: **정규화된 값이다**(`120000000`). 병합의 재료라 읽는 쪽이 고쳐 쓰지 않는다
+
+    # --- kind == "value" 일 때만 찬다 ---
+    #: **정규화된 값이다**(`120000000`). 읽는 쪽이 고쳐 쓰지 않는다
     value: str | None = None
-    #: 같은 key 안의 종류. `시드` · `예비창업패키지`
+    #: 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`
     qualifier: str | None = None
+
     as_of: dt.date | None = None
 
+    #: 기획 §5 의 자료 등급. `1차` · `2차` · `가정`. 빈 문자열이면 안 매겨진 것이다
+    grade: str = ""
+    #: `2차` 일 때 인용한 기관·자료 이름
+    source: str = ""
 
-def group(items: tuple[Statement, ...] | list[Statement]) -> list[tuple[str, list[Statement]]]:
-    """`key` 로 묶고 묶음 안에서 **시점 내림차순**으로 세운다(ADR-0057 결정 3·4).
 
-    **이력은 상태 컬럼이 아니라 이 정렬이 만든다.** EVENT 에는 `status` 가 없다 — 옛
-    서술은 밀려난 것이 아니라 그때의 기록이라 흐리지도 지우지도 않고 아래에 둔다.
+def group(items: tuple[Statement, ...] | list[Statement]) -> list[Statement]:
+    """**시점 내림차순**으로 세운다(ADR-0057 결정 3).
 
-    시점이 없는 것은 뒤로 보낸다. **언제 것인지 모르는 서술이 아는 것을 밀어내면 안
+    **이력은 상태 컬럼이 아니라 이 정렬이 만든다.** 트랙 A 에는 `status` 가 없다 —
+    옛 서술은 밀려난 것이 아니라 그때의 기록이라 흐리지도 지우지도 않고 아래에 둔다.
+
+    시점이 없는 것은 뒤로 보낸다. **언제 것인지 모르는 사실이 아는 것을 밀어내면 안
     된다** — `merge` 가 시점 없는 값을 가장 오래된 것으로 놓는 것과 같은 규칙이다.
+    시점이 같은 것들끼리는 **처음 나온 순서**다. 가나다순으로 다시 세우면 문서가 말한
+    순서가 사라진다.
 
-    key 의 순서는 **처음 나온 순서**다. 정렬하지 않는 이유는 그것이 곧 추출 순서이고,
-    가나다순으로 다시 세우면 문서가 말한 순서가 사라져서다.
+    2026-08-22 까지 이 함수가 `key` 로 묶어 `(key, 사실들)` 을 돌려줬다. key 가
+    없어지면서 **묶음이 아니라 줄 세우기만 남았다.**
     """
-    by_key: dict[str, list[Statement]] = {}
-    for s in items:
-        by_key.setdefault(s.key, []).append(s)
-
-    out = []
-    for key, mine in by_key.items():
-        dated = sorted((s for s in mine if s.as_of), key=lambda s: s.as_of, reverse=True)  # type: ignore[arg-type,return-value]
-        out.append((key, [*dated, *(s for s in mine if not s.as_of)]))
-    return out
+    dated = sorted((s for s in items if s.as_of), key=lambda s: s.as_of, reverse=True)  # type: ignore[arg-type,return-value]
+    return [*dated, *(s for s in items if not s.as_of)]
 
 
 def _meta(s: Statement) -> str:
-    """사실 한 줄의 머리. `**300000000** — 시드 · 2025-09-30 기준`. 없으면 빈 문자열.
+    """사실 한 줄의 머리. `**300000000** — 시드 · 2025-09-30 기준 · 가정`. 없으면 빈 문자열.
 
-    **값과 시점이 절 제목이 아니라 여기 온다.** 한 절 안에 사실이 여럿이라(이력·충돌)
-    제목에 넣으면 둘 중 하나만 실린다.
+    **값과 시점이 절 제목이 아니라 여기 온다.** 한 장에 사실이 여럿이라(이력) 제목에
+    넣으면 둘 중 하나만 실린다.
 
     **단위를 안 붙인다.** `profile.display()` 의 단위표는 매칭 정보 열넷의 것이고 트랙 A
-    의 key 는 자유 문자열이라 거기 없다 — **아는 척 `원`·`명` 을 붙이면 값이 거짓이 된다.**
+    의 값은 자유롭게 오니 거기 없다 — **아는 척 `원`·`명` 을 붙이면 값이 거짓이 된다.**
+
+    **등급은 `1차` 가 아닐 때만 적는다.** 자기 문서에서 나온 것이 기본값이라, 전부
+    적으면 `1차` 가 모든 줄에 붙어서 정작 눈에 띄어야 할 `가정` 이 안 보인다.
     """
     bits = []
     if s.value:
@@ -127,36 +129,33 @@ def _meta(s: Statement) -> str:
         bits.append(s.qualifier)
     if s.as_of:
         bits.append(f"{s.as_of.isoformat()} 기준")
+    if s.grade and s.grade != "1차":
+        bits.append(f"{s.grade}{f' · {s.source}' if s.source else ''}")
     #: 값이 없으면 시점만 남아 문장처럼 보이므로 기울인다
     line = " · ".join(bits)
     return line if s.value else (f"*{line}*" if line else "")
 
 
 def render_facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:
-    """`key` 마다 한 절, 그 안에 사실 여럿(ADR-0057 결정 4).
+    """자리 한 장의 본문. **사실이 시점 내림차순으로 쭉 선다.**
 
-    2026-08-22 까지 이 함수가 `text` 와 근거 줄만 냈다. `key` 가 라벨이자 병합 열쇠인데
-    **찍는 자리가 어디에도 없어서** 한 장에 사실 셋이 이름 없는 문단 셋으로 섰다 —
-    프롬프트는 「같은 key 면 같은 사실」이라고 시켜 놓고 그 key 를 화면·마크다운·API
-    어디에도 안 내보냈다. 값형의 `value`·`as_of` 도 같이 떨어지고 있었다.
+    2026-08-22 까지 `key` 마다 절 제목(`## 직원 수`)이 섰다. key 가 없어지면서 절도
+    없어졌고 **한 장이 사실 목록 하나다** — 기획 §5 가 파일 머리와 본문만 정하고 절
+    구조를 안 정한 것과 같은 모양이다.
 
-    **한 절 안에 사실이 여럿인 것이 정상이다.** EVENT 는 시점마다 쌓이고(이력), VALUE 는
-    같은 자리에 값이 둘이면 그것이 곧 충돌이다 — **어느 쪽도 접지 않는다.** 접으면 하나가
-    조용히 사라지고, 그것이 [ADR-0057](../../../docs/adr/0057-서술을-쌓고-시점을-남긴다.md)
-    이 고친 병이다.
+    **쌓인 것을 접지 않는다.** 시점이 다른 같은 얘기는 이력이고, 시점이 같은데 값이
+    다른 것은 사용자가 봐야 할 어긋남이다 — 어느 쪽도 하나로 고르지 않는다(F1-1-7).
 
     **한 사실에 근거가 여럿이다** — 문서 넷이 같은 말을 하면 줄 하나에 근거 넷.
     """
     out: list[str] = []
-    for key, mine in group(items):
-        out += [f"## {key}", ""]
-        for s in mine:
-            if meta := _meta(s):
-                out += [meta, ""]
-            if s.text:
-                out += [s.text, ""]
-            where = " · ".join(str(e) for e in s.evidence)
-            out += [f"> 근거 {len(s.evidence)} — {where}", ""]
+    for s in group(items):
+        if meta := _meta(s):
+            out += [meta, ""]
+        if s.text:
+            out += [s.text, ""]
+        where = " · ".join(str(e) for e in s.evidence)
+        out += [f"> 근거 {len(s.evidence)} — {where}", ""]
     return out
 
 

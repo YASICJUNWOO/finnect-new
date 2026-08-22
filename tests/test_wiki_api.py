@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from finnect.api.wiki_schemas import ProfileOut, WikiOut
-from finnect.wiki import profile, tree
+from finnect.wiki import profile, spots
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "finnect"
 
@@ -60,26 +60,32 @@ def test_마크다운과_라우팅이_순수_파이썬이다():
         assert not any(m.startswith("finnect.attach") for m in got), name
 
 
-def test_목적지_표가_트리에_없다():
-    """**T-0126 이 지운 것이다.** 이제 추출기가 경로를 직접 낸다(ADR-0056 결정 2).
+def test_자리표가_한_곳에만_있다():
+    """**표가 `spots.py` 하나다**(ADR-0058).
 
-    되살리면 「자리를 미리 안 세운다」가 깨진다 — 고정 표가 돌아오면 사업이 표를
-    앞지를 때마다 빈 자리가 다시 생긴다(ADR-0056 맥락 ①).
-
-    픽스처의 옛 어휘를 옮기는 표는 `extract_nodes.FIXTURE_PATH` 로 살아 있고,
-    그 표에 구멍이 없는지는 `tests/test_wiki_merge.py` 가 본다.
+    2026-08-22 아침까지 이 표가 없었고(추출기가 경로를 지었다), 그 전에는
+    `export.TREE` 와 `tree.EVENT_PATH` 두 곳에 있었다. 둘로 갈리면 화면이 세운 자리와
+    추출이 앉히는 자리가 어긋나고, **어긋나면 사실이 화면에 없는 자리에 앉는다.**
     """
+    from finnect.wiki import export, tree
+
     assert not hasattr(tree, "EVENT_PATH")
+    assert not hasattr(tree, "CATEGORIES")
+    assert not hasattr(export, "TREE")
 
 
-def test_고정된_것이_둘뿐이다():
-    """**카테고리 열과 매칭 정보 열넷**(ADR-0056). 나머지는 문서가 정한다."""
-    assert len(tree.CATEGORIES) == 10
+def test_고정된_것이_셋이다():
+    """**폴더 열 · 자리 마흔여섯 · 매칭 정보 열넷**(ADR-0058).
+
+    자리 안에서 문서가 정하는 것은 `{…}` 열일곱의 인스턴스 이름뿐이다.
+    """
+    assert len(spots.FOLDERS) == 10
+    assert len(spots.SPOTS) == 46
     assert len(profile.PROFILE_KEYS) == 14
 
 
 def test_옛_어휘가_없어졌다():
-    """`sector`·`orbit`·`topic`·`place_kind` 는 되살리지 않는다."""
+    """`sector`·`orbit`·`topic`·`place_kind`·`key` 는 되살리지 않는다."""
     import importlib
 
     for name in ("finnect.wiki.topics",):
@@ -119,12 +125,12 @@ def test_위키가_없어도_카테고리_열이_온다(client) -> None:  # noqa
     r = client.get("/api/wiki/c_없는회사")
     assert r.status_code == 200
     body = WikiOut.model_validate(r.json())
-    assert body.total == len(tree.CATEGORIES)
-    assert {n.path for n in body.nodes} == set(tree.CATEGORIES)
+    assert body.total == len(spots.FOLDERS)
+    assert {n.path for n in body.nodes} == set(spots.FOLDERS)
     assert body.filled == 0
     assert all(n.depth == 0 for n in body.nodes)
     #: 카테고리 라벨이 같이 온다 — **화면이 이름을 짓지 않는다**
-    assert set(body.categories) == set(tree.CATEGORIES)
+    assert set(body.categories) == set(spots.FOLDERS)
 
 
 def test_마크다운은_없으면_404다(client) -> None:  # noqa: ANN001

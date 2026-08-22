@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 
 from finnect.db import SessionFactory
 from finnect.models import Chunk, UserFile, UserFileStatus, WikiEvidence
-from finnect.wiki import build, export, service, storage, tree
+from finnect.wiki import build, export, service, spots, storage
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -305,7 +305,7 @@ def render_wiki(s, company_id: str) -> str:  # noqa: ANN001
             last = n.category
             kin = [x for x in nodes if x.category == last]
             done = sum(1 for x in kin if x.filled)
-            out += ["", f"─── {tree.CATEGORIES.get(last, last)} {last}   {done}/{len(kin)}"]
+            out += ["", f"─── {spots.FOLDERS.get(last, last)} {last}   {done}/{len(kin)}"]
         if n.depth == 0:
             continue
         pad = "  " * n.depth

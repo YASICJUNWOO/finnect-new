@@ -56,7 +56,7 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import extract_nodes, extract_profile, markdown, merge, profile, tree
+from finnect.wiki import extract_nodes, extract_profile, markdown, merge, profile, spots, tree
 from finnect.wiki.extract_nodes import NodeExtractor
 from finnect.wiki.extract_profile import ProfileExtractor
 from finnect.wiki.port import FileView, Known, UnknownFile
@@ -224,7 +224,7 @@ def build_company(
         select(WikiNode).where(WikiNode.company_id == company_id)
     ).all()
     report.nodes = len(nodes)
-    review = next((n for n in nodes if n.path == tree.REVIEW_PATH), None)
+    review = next((n for n in nodes if n.path == spots.REVIEW.path), None)
     report.review = (
         session.scalar(
             select(func.count()).select_from(WikiFact).where(WikiFact.node_id == review.id)
@@ -261,22 +261,16 @@ def _shelve(uf: UserFile, report: BuildReport, why: str) -> None:
 
 
 def known_names(session: Session, company_id: str) -> Known:
-    """지금 있는 노드·key·한정어. **프롬프트에 번호와 함께 실린다**(ADR-0056 결정 6).
+    """지금 있는 자리와 한정어. **프롬프트에 실려 같은 이름을 다시 쓰게 한다.**
 
-    **파일마다 새로 읽는다.** 앞 파일이 만든 노드를 다음 파일이 봐야 거기 붙는다 —
-    한 번만 읽고 재사용하면 같은 빌드 안에서 이름이 갈린다.
+    **파일마다 새로 읽는다.** 앞 파일이 만든 자리를 다음 파일이 봐야 거기 붙는다 —
+    한 번만 읽고 재사용하면 같은 빌드 안에서 인스턴스 이름이 갈린다.
 
     한정어는 트랙 둘이 같이 쓴다. 트랙 A 의 값(`Financial/매출` 의 `시드`)과 트랙 B 의
     `funding` 한정어가 같은 말이라, 나눠서 주면 한쪽이 다른 표기를 만든다.
     """
-    nodes = session.scalars(
+    paths = session.scalars(
         select(WikiNode.path).where(WikiNode.company_id == company_id).order_by(WikiNode.path)
-    ).all()
-    keys = session.scalars(
-        select(WikiFact.key)
-        .where(WikiFact.company_id == company_id)
-        .distinct()
-        .order_by(WikiFact.key)
     ).all()
     quals = [
         *session.scalars(
@@ -290,7 +284,7 @@ def known_names(session: Session, company_id: str) -> Known:
             .distinct()
         ).all(),
     ]
-    return Known.of(nodes=nodes, keys=keys, qualifiers=sorted(set(quals)))
+    return Known.of(spots=paths, qualifiers=sorted(set(quals)))
 
 
 def _build_file(
@@ -380,17 +374,17 @@ def _build_file(
                 company_id=uf.company_id,
                 node_id=node.id,
                 kind=str(FactKind.VALUE if is_value else FactKind.EVENT),
-                key=fact.key,
-                norm_key=tree.norm(fact.key),
                 dedupe_key=key,
                 text=fact.text if not fact.why else f"{fact.text}  [{fact.why}]",
                 value=fact.value if is_value else None,
                 qualifier=fact.qualifier if is_value else None,
-                #: **서술에도 시점을 남긴다**(ADR-0057 결정 2). 여기서 버리고 있었다 —
-                #: 컬럼도 있고 추출기도 들고 오는데 **저장 직전에 `None` 으로 지웠다.**
-                #: 그래서 EVENT 31행이 전부 `as_of` NULL 이었고, 이력을 세울 축이 없으니
-                #: 추출기가 시점을 이름에 박아 도망쳤다(`team_roles_2026_08`)
+                #: **서술에도 시점을 남긴다**(ADR-0057 결정 2). 값 필드와 달리 시점은
+                #: 종류를 안 가린다 — 있으면 한 자리 안에서 이력으로 쌓인다
                 as_of=fact.as_of,
+                #: 기획 §5 의 자료 등급. **`실측` 과 `미정` 은 여기 안 온다** —
+                #: 저 둘은 사용자 답변(ADR-0028)과 빈 자리가 정한다
+                grade=fact.grade or None,
+                source=fact.source or None,
                 source_type=str(SourceType.DOCUMENT),
                 extractor=ex.nodes.name,
             )
@@ -476,17 +470,18 @@ def _ensure_node(session: Session, company_id: str, path: str, report: BuildRepo
 
 
 def restate(session: Session, company_id: str) -> int:
-    """값에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
+    """매칭 정보에 상태를 다시 매긴다. **한 회사 전부를 한 번에 본다.**
 
     돌려주는 값은 충돌 건수다. 부분만 보고 매기면 틀린다 — 어느 시점이 가장 늦은지는
     전체를 봐야 안다.
 
-    **트랙 둘을 따로 매긴다.** 자리가 다르기 때문이다 — 트랙 B 의 `headcount` 와 트랙 A
-    의 `Company/팀 · 직원 수` 는 같은 말을 담을 수 있어도 병합 자리가 아니다. 한 통에
-    넣으면 호출 둘이 낸 값이 서로를 `superseded` 로 밀어낸다(ADR-0056 「포기하는 것 ②」
-    가 이미 인정한 어긋남을 여기서 충돌로 둔갑시키게 된다).
+    **트랙 A 는 여기 안 들어온다.** `key` 가 없어지면서 한 자리 안에서 무엇과 무엇을
+    견줄지가 정해지지 않는다 — `Market/시장규모` 의 TAM·SAM·SOM 은 같은 시점에 값이
+    셋이고 그건 충돌이 아니라 원래 셋이다. 자리만 보고 판정하면 셋 다 `conflict` 가
+    된다. 그래서 **트랙 A 값의 `status` 는 NULL 이고**, 화면은 시점 내림차순으로만
+    세운다(`markdown.group`).
     """
-    return _restate_values(session, company_id) + _restate_node_values(session, company_id)
+    return _restate_values(session, company_id)
 
 
 def _restate_values(session: Session, company_id: str) -> int:
@@ -496,33 +491,6 @@ def _restate_values(session: Session, company_id: str) -> int:
     ).all()
     claims = [
         merge.Claim(key=r.key, qualifier=r.qualifier, as_of=r.as_of, value=r.value or "")
-        for r in rows
-    ]
-    verdict = merge.decide(claims)
-    conflicts = 0
-    for row, claim in zip(rows, claims, strict=True):
-        row.status = verdict[claim]
-        conflicts += row.status == merge.Status.CONFLICT
-    return conflicts
-
-
-def _restate_node_values(session: Session, company_id: str) -> int:
-    """트랙 A 의 값. **자리에 노드가 하나 더 붙는다.**
-
-    `Company/팀` 의 `직원 수` 와 `Financial/매출` 의 `직원 수` 는 다른 자리다. 노드를
-    안 끼우면 트리 어디에 있든 같은 이름이면 서로를 밀어낸다.
-
-    `event` 사실은 안 건드린다 — 상태가 NULL 인 것이 그 종류의 정의다.
-    """
-    rows = session.scalars(
-        select(WikiFact).where(
-            WikiFact.company_id == company_id, WikiFact.kind == str(FactKind.VALUE)
-        )
-    ).all()
-    claims = [
-        merge.Claim(
-            key=f"{r.node_id}|{r.key}", qualifier=r.qualifier, as_of=r.as_of, value=r.value or ""
-        )
         for r in rows
     ]
     verdict = merge.decide(claims)
@@ -626,10 +594,10 @@ class NodeView:
 
 
 def read_nodes(session: Session, company_id: str) -> list[NodeView]:
-    """노드 트리 전부. **비어 있는 카테고리도 돌려준다.**
+    """자리 트리 전부. **비어 있는 폴더도 돌려준다.**
 
-    카테고리 열은 사실이 없어도 선다 — 무엇이 없는지 보여야 한다(`DESIGN.md` §7-5).
-    순서는 `CATEGORIES` 표가 정하고 그 안에서는 경로순이다. **표가 정하고 데이터가
+    폴더 열은 사실이 없어도 선다 — 무엇이 없는지 보여야 한다(`DESIGN.md` §7-5).
+    순서는 `spots.FOLDERS` 표가 정하고 그 안에서는 경로순이다. **표가 정하고 데이터가
     정하지 않는다.**
 
     쿼리를 노드마다 돌리지 않는다. 사실과 근거를 한 번씩 읽고 파이썬에서 묶는다.
@@ -658,10 +626,10 @@ def read_nodes(session: Session, company_id: str) -> list[NodeView]:
     for f in facts:
         by_node.setdefault(f.node_id, []).append(f)
 
-    #: 있는 노드 + **비어도 서는 카테고리 열**
+    #: 있는 노드 + **비어도 서는 폴더 열**
     seen = {n.path: n for n in nodes}
     out: list[NodeView] = []
-    for cat in tree.CATEGORIES:
+    for cat in spots.FOLDERS:
         mine = sorted(
             (n for n in nodes if n.category == cat), key=lambda n: (n.path.count("/"), n.path)
         )
@@ -677,16 +645,19 @@ def read_nodes(session: Session, company_id: str) -> list[NodeView]:
                     facts=tuple(
                         markdown.Statement(
                             text=f.text,
-                            key=f.key,
                             evidence=tuple(by_fact.get(f.id, ())),
                             source_type=f.source_type,
                             updated_at=f.updated_at.date() if f.updated_at else None,
                             #: **값 칸 셋을 같이 싣는다.** 안 실으면 뷰가 `text` 만 보고
-                            #: `직원 수 — 15` 를 문장 한 줄로 뭉갠다
+                            #: `유료 매장 — 102` 를 문장 한 줄로 뭉갠다
                             kind=f.kind,
                             value=f.value,
                             qualifier=f.qualifier,
                             as_of=f.as_of,
+                            #: 기획 §5 파일 머리의 재료. **장 하나가 여러 사실을 받으니
+                            #: 등급도 여럿이고, 하나로 고르는 것은 `export.grade_of` 다**
+                            grade=f.grade or "",
+                            source=f.source or "",
                         )
                         for f in by_node.get(n.id, [])
                     ),

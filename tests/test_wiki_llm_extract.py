@@ -24,7 +24,7 @@ import datetime as dt
 import pytest
 
 from finnect import llm
-from finnect.wiki import build, extract_nodes, extract_profile, port, profile
+from finnect.wiki import build, extract_nodes, extract_profile, port, profile, spots
 from finnect.wiki.extract_nodes import LlmNodes
 from finnect.wiki.extract_profile import LlmProfile
 from finnect.wiki.port import FileView, Known
@@ -52,13 +52,17 @@ VIEW = FileView(
 )
 
 
+def _spot(path: str) -> int:
+    """자리표에서 번호를 찾는다. **숫자를 손으로 적지 않는다.**"""
+    return next(i for i, s in enumerate(spots.SPOTS, 1) if s.path == path)
+
+
 def _n(**kw) -> dict:
     """트랙 A 사실 하나. 스키마의 모든 칸이 온다(`strict: true`)."""
     base = {
-        "node_ref": None, "node_category": "Customer", "node_path": "검증",
-        "key_ref": None, "key_new": "재구매율 상승",
-        "qualifier_ref": None, "qualifier_new": None,
-        "kind": "event", "text": "", "value": None, "as_of": None, "anchor": "",
+        "spot": _spot("Customer/검증/{활동}-{결과}"), "instance": "파일럿-12개소",
+        "kind": "event", "text": "", "value": None, "qualifier": None,
+        "as_of": None, "grade": "1차", "source": None, "anchor": "",
     }
     return {**base, **kw}
 
@@ -87,7 +91,7 @@ def test_앵커가_원문에_있으면_통과한다() -> None:
     ex = _nodes([_n(text="재구매율이 올랐다", anchor="재구매율이 34%에서 51%로")])
     got = ex.extract(VIEW, Known())
     assert len(got) == 1
-    assert got[0].key == "재구매율 상승"
+    assert got[0].path == "Customer/검증/파일럿-12개소"
     assert ex.dropped == []
 
 
@@ -131,30 +135,31 @@ def test_앵커_비교가_build_와_같은_규칙이다() -> None:
 # ─────────────────────────────────────────────────────────────────
 
 
-def test_카테고리와_경로가_한_자리로_붙는다() -> None:
-    """`node_category` 와 `node_path` 가 함께 `node_new` 다. 붙인 것이 노드 경로다."""
-    ex = _nodes([_n(node_category="Market", node_path="시장규모",
+def test_번호가_자리표의_경로가_된다() -> None:
+    """**경로를 다시 쓰게 하지 않는다**(ADR-0058). 번호가 표를 가리킨다."""
+    ex = _nodes([_n(spot=_spot("Market/시장규모"), instance=None,
                     anchor="재구매율이 34%에서 51%로")])
     assert ex.extract(VIEW, Known())[0].path == "Market/시장규모"
 
 
-def test_깊이가_자유다() -> None:
-    """`Custom/특허/등록-10-…`. **트리가 두 층으로 고정이 아니다**(ADR-0056 결정 2)."""
-    ex = _nodes([_n(node_category="Custom", node_path="특허/등록-10-2025-0114882",
-                    anchor="재구매율이 34%")])
+def test_인스턴스가_깊은_자리를_채운다() -> None:
+    """`Custom/특허/{상태}-{번호}`. **깊이는 표가 정하고 이름만 문서에서 온다.**"""
+    ex = _nodes([_n(spot=_spot("Custom/특허/{상태}-{번호}"),
+                    instance="등록-10-2025-0114882", anchor="재구매율이 34%")])
     assert ex.extract(VIEW, Known())[0].path == "Custom/특허/등록-10-2025-0114882"
 
 
-def test_카테고리_밖이면_Custom_밑으로_민다() -> None:
-    """**LLM 이 enum 을 어겨도 사실이 안 사라진다.** `Custom` 이 탈출구다."""
-    ex = _nodes([_n(node_category="없는카테고리", node_path="무엇", anchor="재구매율이 34%")])
-    assert ex.extract(VIEW, Known())[0].path == "Custom/없는카테고리/무엇"
+def test_표_밖의_번호는_검토_대기로_간다() -> None:
+    """**사실이 안 사라진다.** 표 밖으로 나가는 길이 이제 없다."""
+    ex = _nodes([_n(spot=99, anchor="재구매율이 34%")])
+    got = ex.extract(VIEW, Known())[0]
+    assert got.path == "Custom/검토 대기"
+    assert got.why
 
 
 def test_자리를_안_고르면_검토_대기로_간다() -> None:
     """**버리지 않는다.** 검토 대기가 트리의 진짜 자리라 화면에 뜬다."""
-    ex = _nodes([_n(node_ref=None, node_category=None, node_path=None,
-                    text="무엇", anchor="재구매율이 34%")])
+    ex = _nodes([_n(spot=None, instance=None, text="무엇", anchor="재구매율이 34%")])
     got = ex.extract(VIEW, Known())[0]
     assert got.path == "Custom/검토 대기"
     assert got.why
@@ -167,7 +172,7 @@ def test_서술에는_값_필드가_안_붙지만_시점은_남는다() -> None:
     서술의 병합 키가 `(노드, key, 시점)` 이라 여기서 떨어뜨리면 이력이 안 서고, 추출기가
     시점을 key 이름에 박게 된다(`team_roles_2026_08`).
     """
-    ex = _nodes([_n(kind="event", value="100", as_of="2024-12-31", qualifier_new="시드",
+    ex = _nodes([_n(kind="event", value="100", as_of="2024-12-31", qualifier="시드",
                     text="x", anchor="재구매율이 34%")])
     f = ex.extract(VIEW, Known())[0]
     assert (f.value, f.qualifier) == (None, None)
@@ -175,8 +180,8 @@ def test_서술에는_값_필드가_안_붙지만_시점은_남는다() -> None:
 
 
 def test_값이면_값_필드가_붙는다() -> None:
-    ex = _nodes([_n(kind="value", value="100", as_of="2024-12-31", qualifier_new="시드",
-                    key_new="매출", text="x", anchor="재구매율이 34%")])
+    ex = _nodes([_n(kind="value", value="100", as_of="2024-12-31", qualifier="시드",
+                    text="x", anchor="재구매율이 34%")])
     f = ex.extract(VIEW, Known())[0]
     assert f.kind == "value"
     assert (f.value, f.as_of, f.qualifier) == ("100", dt.date(2024, 12, 31), "시드")
@@ -188,10 +193,22 @@ def test_날짜가_아니면_시점_없는_값이_된다() -> None:
     assert ex.extract(VIEW, Known())[0].as_of is None
 
 
-def test_key_가_안_오면_문장이_키가_된다() -> None:
-    """**안 묶인다. 잘못 묶는 것보다 낫다.**"""
-    ex = _nodes([_n(key_new=None, text="재구매율이 올랐다", anchor="재구매율이 34%")])
-    assert ex.extract(VIEW, Known())[0].key == "재구매율이 올랐다"
+def test_등급과_출처가_실린다() -> None:
+    """기획 §5 — **`source` 는 `2차` 일 때만 산다.**
+
+    다른 등급에 기관 이름이 붙으면 프론트매터가 「이 값은 통계청 것」이라고 말하는데
+    문서는 그런 적이 없게 된다.
+    """
+    cited = _nodes([_n(grade="2차", source="통계청", text="x", anchor="재구매율이 34%")])
+    f = cited.extract(VIEW, Known())[0]
+    assert (f.grade, f.source) == ("2차", "통계청")
+
+    ours = _nodes([_n(grade="1차", source="통계청", text="x", anchor="재구매율이 34%")])
+    assert ours.extract(VIEW, Known())[0].source == ""
+
+    #: 모르는 등급이 오면 `1차` 다. **`실측`·`미정` 은 추출기가 낼 수 없다**
+    odd = _nodes([_n(grade="실측", text="x", anchor="재구매율이 34%")])
+    assert odd.extract(VIEW, Known())[0].grade == "1차"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -242,22 +259,22 @@ def test_트랙_B_는_노드를_안_만든다() -> None:
 def test_원문과_현재_상태만_넘긴다() -> None:
     """사용자 프롬프트는 파일 이름과 원문뿐이다. **현재 상태는 시스템 쪽에 있다.**"""
     c = 가짜클라이언트({"facts": []})
-    LlmNodes(client=c).extract(VIEW, Known.of(nodes=["Company/팀"]))
+    LlmNodes(client=c).extract(VIEW, Known.of(spots=["Competitor/배달의민족"]))
     user, system = c.calls[0]["user"], c.calls[0]["system"]
     assert "회사소개서.pdf" in user
     assert "재구매율이 34%" in user
-    assert "Company/팀" not in user
-    assert "[1] Company/팀" in system
+    assert "배달의민족" not in user
+    assert "[1] Competitor/배달의민족" in system
 
 
-def test_카테고리_열이_프롬프트와_스키마에_같이_있다() -> None:
-    """**갈리면 모델이 프롬프트에 있는 이름을 내고 스키마가 튕긴다.**"""
-    from finnect.wiki import tree
-
-    enum = extract_nodes.SCHEMA["properties"]["facts"]["items"]["properties"]["node_category"]
-    assert set(enum["enum"]) == {*tree.CATEGORIES, None}
+def test_자리표_전체가_프롬프트에_있다() -> None:
+    """**스키마가 번호를 안 막는다**(정수 하나다). 표가 프롬프트에만 있으므로 전부 실려야 한다."""
     system = extract_nodes.system_prompt(Known())
-    assert all(f"`{c}`" in system for c in tree.CATEGORIES)
+    for i, s in enumerate(spots.SPOTS, 1):
+        assert f"[{i}] {s.path}" in system, s.path
+    #: 등급 셋만 낼 수 있다 — `실측`·`미정` 은 추출이 정하는 것이 아니다
+    grade = extract_nodes.SCHEMA["properties"]["facts"]["items"]["properties"]["grade"]
+    assert grade["enum"] == ["1차", "2차", "가정"]
 
 
 def test_트랙_B_프롬프트가_별칭을_힌트로만_싣는다() -> None:

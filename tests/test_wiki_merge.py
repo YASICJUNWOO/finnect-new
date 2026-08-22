@@ -15,7 +15,7 @@ import datetime as dt
 
 import pytest
 
-from finnect.wiki import extract_nodes, extract_profile, merge, profile, tree
+from finnect.wiki import extract_nodes, extract_profile, merge, profile, spots, tree
 from finnect.wiki.extract_nodes import NodeFact
 from finnect.wiki.extract_profile import ProfileFact
 from finnect.wiki.merge import Claim, Status
@@ -116,7 +116,7 @@ def test_모르는_이름은_버리지_않고_검토_대기로_간다():
     #: 트랙 A 가 **값으로** 받는다. 버리지 않는다
     got = extract_nodes.from_fixture(d)
     assert got is not None
-    assert (got.path, got.kind) == (tree.REVIEW_PATH, "value")
+    assert (got.path, got.kind) == (spots.REVIEW.path, "value")
     assert "업력" in got.why
 
 
@@ -125,7 +125,7 @@ def test_서술_노드가_없는_topic_은_검토_대기로_간다():
     got = extract_nodes.from_fixture(
         {"kind": "event", "topic": "company_profile", "text": "회사 개요", "anchor": "회사 개요"}
     )
-    assert got.path == tree.REVIEW_PATH
+    assert got.path == spots.REVIEW.path
 
 
 def test_트랙이_갈리고_한_사실이_양쪽에_안_간다():
@@ -136,18 +136,31 @@ def test_트랙이_갈리고_한_사실이_양쪽에_안_간다():
     assert extract_nodes.from_fixture(d) is None
 
 
-def test_모든_픽스처_topic_이_갈_노드가_있다():
-    """**표에 구멍이 있으면 사실이 통째로 검토 대기에 쌓인다.** 여기서 잡는다.
+def test_모든_픽스처_topic_이_갈_자리가_있거나_왜_없는지_적혀_있다():
+    """**표에 구멍이 있으면 사실이 조용히 검토 대기에 쌓인다.** 여기서 잡는다.
 
-    `company_profile` 과 `application_history` 는 일부러 없다 — 매칭 정보의 재료라
-    노드 자리가 없고, 서술로 오면 `Custom/검토 대기` 로 간다.
+    셋만 일부러 자리가 없다.
+
+    - `company_profile` · `application_history` — 매칭 정보의 재료라 자리가 없다
+    - `FIXTURE_GAP` 셋 — 기획 트리에 자리가 없거나(지역 연계) 픽스처에 인스턴스
+      이름이 없다(인증명·기술명). **이유가 `FIXTURE_GAP` 에 적혀 있어야 한다**
     """
     value_only = {"company_profile", "application_history"}
     for topic in extract_nodes.FIXTURE_TOPICS - value_only:
+        if topic in extract_nodes.FIXTURE_GAP:
+            assert extract_nodes.FIXTURE_GAP[topic], topic
+            continue
         path = extract_nodes.FIXTURE_PATH.get(topic)
         assert path, topic
-        #: **카테고리가 표 안에 있어야 한다.** 밖이면 화면이 그 자리를 잃는다
-        assert tree.category_of(path) in tree.CATEGORIES, path
+        #: **자리표 안에 실재해야 한다.** 밖이면 화면이 그 자리를 잃는다
+        assert spots.spot_of(path) is not None, path
+        assert tree.category_of(path) in spots.FOLDERS, path
+
+
+def test_픽스처_경로에_채우다_만_구멍이_없다():
+    """`Custom/인증/{인증명}` 같은 것이 표에 남으면 **그 글자가 자리 이름이 된다.**"""
+    for topic, path in extract_nodes.FIXTURE_PATH.items():
+        assert "{" not in path, (topic, path)
 
 
 def test_별칭이_가리키는_슬롯이_전부_실재한다():
@@ -179,59 +192,76 @@ def test_시점_없는_슬롯은_시점이_와도_떨어진다():
     assert merge.value_key(f).endswith("||501-86-33271")
 
 
-def test_key_가_같으면_문장이_달라도_한_사실이다():
-    """재구매율이 네 문서에 다른 문장으로 있다. **사실 넷이 되면 틀렸다**(픽스처 README §3).
+def test_똑같은_것은_두_번_안_선다():
+    """**중복 방지가 트랙 A 에 남은 전부다**(ADR-0058).
 
-    `key` 가 **라벨이자 병합 열쇠다**(ADR-0056 결정 3). **문장을 병합 키에 넣지 않는다** —
-    같은지 아닌지를 정하는 것은 추출기가 준 `key` 이고, 코드가 문장을 비교해 그 판단을
-    뒤집으면 `key` 를 병합 키로 둔 결정이 통째로 무의미해진다
-    ([ADR-0057](../docs/adr/0057-서술을-쌓고-시점을-남긴다.md) 결정 1).
+    같은 자리 · 같은 시점 · 같은 문장이면 한 행이고 근거만 쌓인다. 파서마다 줄바꿈이
+    달라서 공백을 지운 뒤 비교한다 — 안 지우면 `--rechunk` 뒤에 같은 문장이 또 앉는다.
     """
-    a = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
-                 text="월 재구매율이 34%에서 51%로 올랐습니다")
-    b = NodeFact(path="Customer/검증", key="재구매율 상승", kind="event", anchor="",
-                 text="34% → 51%")
+    a = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+                 text="월 재구매율이 34%에서 51%로 올랐다")
+    b = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+                 text="월 재구매율이\n34%에서 51%로  올랐다")
     assert merge.node_key(a) == merge.node_key(b)
 
 
-def test_서술도_시점이_병합_키에_들어간다():
-    """**시점이 다르면 다른 기록이다**(ADR-0057 결정 1·2).
+def test_다르게_쓰인_같은_사실은_둘로_선다():
+    """**이 테스트가 ADR-0058 의 대가를 잠근다.**
 
-    이게 없어서 `팀 구성` 2026-08 과 2025-11 이 한 행으로 접혔고, 추출기가 그걸 피하려고
-    시점을 이름에 박았다 — `team_roles_2026_08` / `team_roles_2025_11`.
+    재구매율 하나가 네 문서에 `올랐다`·`상승했다`·`올랐습니다`·`34% → 51%` 로 있다.
+    옛 `key` 가 그 넷을 하나로 묶었고, `key` 를 없애면서 **묶는 근거가 사라졌다.**
+
+    묶으려면 문장 유사도밖에 없는데 그건 같은 문서를 두 번 올릴 때 다른 답을 내서
+    비결정론이다. **둘로 서는 것이 결정이고 사고가 아니다** — 여기가 뒤집히면
+    누군가 유사도를 넣은 것이다.
     """
-    a = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
-                 text="개발 8명", as_of=D(2026, 8, 31))
-    b = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
-                 text="개발 4명", as_of=D(2025, 11, 30))
-    assert merge.node_key(a) != merge.node_key(b)
-    #: 시점이 같으면 문장이 달라도 하나다 — 위 테스트와 짝이다
-    c = NodeFact(path="Company/팀", key="팀 구성", kind="event", anchor="",
-                 text="개발 여덟 명", as_of=D(2026, 8, 31))
-    assert merge.node_key(a) == merge.node_key(c)
-
-
-def test_노드가_다르면_같은_key_라도_다른_자리다():
-    """`Company/팀` 의 `직원 수` 와 `Financial/매출` 의 `직원 수` 는 다른 자리다.
-
-    노드를 병합 키에서 빼면 트리 어디에 있든 이름만 같으면 하나로 접힌다.
-    """
-    a = NodeFact(path="Company/팀", key="직원 수", kind="event", anchor="", text="x")
-    b = NodeFact(path="Financial/매출", key="직원 수", kind="event", anchor="", text="x")
+    a = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+                 text="월 재구매율이 34%에서 51%로 올랐습니다")
+    b = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+                 text="34% → 51%")
     assert merge.node_key(a) != merge.node_key(b)
 
 
-def test_노드_값도_값이_키에_들어간다():
-    """시점이 같은데 값이 다르면 **행이 둘이 되고 그게 곧 충돌이다.**"""
-    a = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
-                 value="300000000", as_of=D(2025, 9, 30))
-    b = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
-                 value="280000000", as_of=D(2025, 9, 30))
+def test_시점이_다르면_다른_기록이다():
+    """**쌓이는 축이 시점이다**(ADR-0057 결정 1·2). 한 자리 안에서 이력이 된다."""
+    a = NodeFact(path="Company/팀", kind="event", anchor="", text="개발 8명",
+                 as_of=D(2026, 8, 31))
+    b = NodeFact(path="Company/팀", kind="event", anchor="", text="개발 8명",
+                 as_of=D(2025, 11, 30))
+    assert merge.node_key(a) != merge.node_key(b)
+
+
+def test_자리가_다르면_같은_문장이라도_다른_사실이다():
+    """자리를 키에서 빼면 트리 어디에 있든 같은 문장이 하나로 접힌다."""
+    a = NodeFact(path="Company/팀", kind="event", anchor="", text="열다섯 명이다")
+    b = NodeFact(path="Financial/매출", kind="event", anchor="", text="열다섯 명이다")
+    assert merge.node_key(a) != merge.node_key(b)
+
+
+def test_값은_값이_키에_들어간다():
+    """같은 자리·같은 시점에 값이 둘이면 **행이 둘로 서고 사용자가 본다.**
+
+    어느 하나를 고르지 않는다(F1-1-7). 트랙 A 에는 `status` 가 없어서 `conflict` 라는
+    이름표가 안 붙을 뿐, 둘 다 남는 것은 같다.
+    """
+    a = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
+                 qualifier="시드", value="300000000", as_of=D(2025, 9, 30))
+    b = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
+                 qualifier="시드", value="280000000", as_of=D(2025, 9, 30))
     assert merge.node_key(a) != merge.node_key(b)
     #: 공백만 다른 값은 하나다 — 트랙 B 와 같은 규칙이어야 한다
-    c = NodeFact(path="Financial/매출", key="시드", kind="value", anchor="", text="",
-                 value="300 000 000", as_of=D(2025, 9, 30))
+    c = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
+                 qualifier="시드", value="300 000 000", as_of=D(2025, 9, 30))
     assert merge.node_key(a) == merge.node_key(c)
+
+
+def test_한정어가_값을_가른다():
+    """**`key` 가 없어지면서 한정어가 그 일을 받았다.** TAM·SAM·SOM 이 한 자리에 산다."""
+    tam = NodeFact(path="Market/시장규모", kind="value", anchor="", text="",
+                   qualifier="TAM", value="100000000000", as_of=D(2025, 12, 31))
+    sam = NodeFact(path="Market/시장규모", kind="value", anchor="", text="",
+                   qualifier="SAM", value="20000000000", as_of=D(2025, 12, 31))
+    assert merge.node_key(tam) != merge.node_key(sam)
 
 
 def test_공백_지운_항목_이름도_슬롯을_찾는다():

@@ -24,7 +24,7 @@ from sqlalchemy.exc import OperationalError
 
 from finnect.api.wiki_schemas import ProgressOut
 from finnect.models import UserFileStatus
-from finnect.wiki import progress, tree
+from finnect.wiki import progress, spots
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "finnect"
 
@@ -221,7 +221,7 @@ def test_아무것도_안_올려도_단계와_자리가_온다(client) -> None: 
     assert body.total == 0
     assert body.files == []
     assert [s.key for s in body.steps] == [s.key for s in progress.STEPS]
-    assert body.slots == len(tree.CATEGORIES)
+    assert body.slots == len(spots.FOLDERS)
     assert body.running is False
 
 
@@ -232,7 +232,7 @@ def test_자리_이름을_전부_준다(client) -> None:  # noqa: ANN001
     그것을 다른 자리로 읽는다.
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_없는회사/progress").json())
-    assert set(body.spot_titles) == set(tree.CATEGORIES)
+    assert set(body.spot_titles) == set(spots.FOLDERS)
     assert all(v for v in body.spot_titles.values())
 
 

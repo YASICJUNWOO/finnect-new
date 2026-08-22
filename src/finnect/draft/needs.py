@@ -18,7 +18,7 @@
 
 ## 자리 이름을 자유 생성하지 않는다
 
-`place` 는 **매칭 정보 key 14**(`wiki/profile.py`)와 **카테고리 열**(`wiki/tree.py`)
+`place` 는 **매칭 정보 key 14**(`wiki/profile.py`)와 **폴더 열**(`wiki/spots.py`)
 안에서만 고른다. 밖의 이름이 오면 **버리고 센다** — 위키에 없는 자리를 요구하면 그
 항목은 영원히 "못 채움" 이 된다.
 """
@@ -27,21 +27,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from finnect.wiki import profile, tree
+from finnect.wiki import profile, spots
 
-#: 고를 수 있는 자리. **매칭 정보 14 + 카테고리 10 = 24.** 회사가 커져도 안 늘어난다.
+#: 고를 수 있는 자리. **매칭 정보 14 + 폴더 10 = 24.** 회사가 커져도 안 늘어난다.
 #:
-#: **동적 노드 경로를 여기 넣지 않는다**(ADR-0056). `item_need` 에 `company_id` 가
-#: 없어서 — 양식을 한 번 읽으면 그 양식을 쓰는 **모든 회사가 쓴다.** 회사마다 다른
-#: 경로를 가리키면 그 성질이 깨진다. 카테고리 열은 회사와 무관하게 존재가 보장된다.
+#: **자리 마흔여섯을 여기 넣지 않는다.** 그중 열일곱이 `{…}` 를 들고 있어 회사마다
+#: 경로가 다른데, `item_need` 에 `company_id` 가 없다 — 양식을 한 번 읽으면 그 양식을
+#: 쓰는 **모든 회사가 쓴다.** 폴더 열은 회사와 무관하게 존재가 보장된다.
+#:
+#: **고정 자리 스물아홉을 더할 수는 있다**(`Financial/매출` 은 회사와 무관하다).
+#: 안 더한 이유는 그러면 모델이 `Financial` 과 `Financial/매출` 중 무엇을 고를지가
+#: 흔들리고, **재료가 좁아지는 쪽이 넓어지는 쪽보다 나쁘기** 때문이다 —
+#: 넓어진 대가를 재는 것이 [plan/22](../../../docs/plan/22-동적-노드-트리와-매칭-정보.md)
+#: T-0136 이고, 그 실측 뒤에 정한다.
 PLACES: dict[str, str] = {
     **{k: v.label for k, v in profile.PROFILE_KEYS.items()},
-    **tree.CATEGORIES,
+    **spots.FOLDERS,
 }
 #: 값인가 글인가. 화면이 "값이 비었다" 와 "글이 비었다" 를 다르게 말한다
 PLACE_KIND: dict[str, str] = {
     **{k: "value" for k in profile.PROFILE_KEYS},
-    **{k: "event" for k in tree.CATEGORIES},
+    **{k: "event" for k in spots.FOLDERS},
 }
 
 #: 지시문을 프롬프트에 넣을 때의 상한. 최장이 2,031자다(plan/11 실측)
@@ -260,7 +266,7 @@ def _dedupe(needs: list[Need]) -> list[Need]:
 
 def _place_list() -> str:
     slots = " · ".join(f"`{k}` {v.label}" for k, v in profile.PROFILE_KEYS.items())
-    nodes = " · ".join(f"`{k}` {v}" for k, v in tree.CATEGORIES.items())
+    nodes = " · ".join(f"`{k}` {v}" for k, v in spots.FOLDERS.items())
     return f"정형 값 — {slots}\n서술 글 — {nodes}"
 
 

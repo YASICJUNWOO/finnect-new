@@ -36,7 +36,7 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import build, export, markdown, profile, progress, tree
+from finnect.wiki import build, export, markdown, profile, progress, spots
 
 
 def get_wiki(session: Session, company_id: str) -> WikiOut:
@@ -53,7 +53,7 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
         select(func.count())
         .select_from(WikiFact)
         .join(WikiNode, WikiNode.id == WikiFact.node_id)
-        .where(WikiFact.company_id == company_id, WikiNode.path == tree.REVIEW_PATH)
+        .where(WikiFact.company_id == company_id, WikiNode.path == spots.REVIEW.path)
     )
     extractor = session.scalar(
         select(WikiFact.extractor).where(WikiFact.company_id == company_id).limit(1)
@@ -77,7 +77,7 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
             )
             for uf, made in files
         ],
-        categories=dict(tree.CATEGORIES),
+        categories=dict(spots.FOLDERS),
         filled=sum(n.filled for n in nodes),
         total=len(nodes),
         review=review or 0,
@@ -148,24 +148,19 @@ def get_markdown(session: Session, company_id: str) -> str | None:
 
 
 def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
-    """노드 하나를 응답 모양으로. **빈 뼈대는 장이 없다.**
+    """자리 하나를 응답 모양으로. **빈 뼈대는 장이 없다.**
 
-    **묶는 규칙을 프론트에 다시 적지 않는다.** `markdown.group` 이 key 순서와 묶음 안의
-    시점 정렬(ADR-0057 결정 3)을 정하고, 응답은 **그 순서로 편 목록 + key 순서**를 낸다.
-    화면은 `keys` 를 돌며 같은 `key` 를 고르기만 하면 된다 — 정렬 규칙이 TS 에 안 산다.
-
-    **묶은 모양을 통째로 또 보내지 않는다.** 같은 사실이 두 번 실려 위키 응답이 배로
-    커진다. 그래프는 `statements` 의 길이를 그대로 쓴다(점 개수).
+    **정렬 규칙을 프론트에 다시 적지 않는다.** `markdown.group` 이 시점 내림차순을
+    정하고(ADR-0057 결정 3) 응답은 그 순서 그대로다 — 화면은 받은 순서로 그리기만
+    하면 되고, 정렬 규칙이 TS 에 안 산다.
     """
-    groups = markdown.group(n.facts)
     return WikiNodeOut(
         path=n.path,
         name=n.name,
         category=n.category,
         parent=n.parent,
         depth=n.depth,
-        keys=[k for k, _ in groups],
-        statements=[_statement(s) for _, mine in groups for s in mine],
+        statements=[_statement(s) for s in markdown.group(n.facts)],
         source_count=n.source_count,
         filled=n.filled,
         grade=page.grade if page else export.GRADE_UNKNOWN,
@@ -179,11 +174,12 @@ def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
 def _statement(s: markdown.Statement) -> StatementOut:
     return StatementOut(
         text=s.text,
-        key=s.key,
         kind=s.kind,
         value=s.value,
         qualifier=s.qualifier,
         as_of=s.as_of.isoformat() if s.as_of else None,
+        grade=s.grade,
+        source=s.source,
         evidence=[_evidence(e) for e in s.evidence],
     )
 

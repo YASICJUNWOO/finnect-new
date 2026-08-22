@@ -82,44 +82,40 @@ export function WikiPanel({
 }
 
 
-/** `key` 마다 한 절, 그 안에 사실 여럿(ADR-0057 결정 4).
+/** 이 자리에 앉은 사실들. **시점 내림차순으로 쭉 선다.**
  *
- * 2026-08-22 까지 이 목록이 `text` 만 뿌렸다. 한 자리에 사실이 셋이면 **이름 없는 문단
- * 셋**이 되어서, 「같은 key 면 같은 사실」로 묶어 놓은 것을 화면에서 확인할 방법이
- * 없었다. 사용자가 찾는 것은 문장이 아니라 「직원 수가 어디 있나」다.
+ * 2026-08-22 까지 `key` 마다 절 제목이 섰다. key 가 없어지면서(ADR-0058) 절도 없어졌고
+ * **한 자리가 사실 목록 하나**다 — 자리 이름이 이미 「무엇에 대한 얘기인가」를 말한다.
  *
- * **한 절에 사실이 여럿인 것이 정상이다.** 서술은 시점마다 쌓이고(이력), 값은 같은
- * 자리에 둘이면 그것이 곧 충돌이다 — 어느 쪽도 접지 않는다.
+ * **쌓인 것을 접지 않는다.** 시점이 다른 같은 얘기는 이력이고, 시점이 같은데 값이 다른
+ * 것은 사용자가 봐야 할 어긋남이다.
  *
- * **묶는 순서를 여기서 정하지 않는다.** `keys` 와 `statements` 둘 다 서버가 정한 순서로
- * 오고(`wiki/markdown.py` `group`), 여기서는 고르기만 한다. */
+ * **정렬을 여기서 하지 않는다.** 서버가 정한 순서로 온다(`wiki/markdown.py` `group`). */
 function Facts({ node }: { node: WikiNode }) {
   return (
-    <div className={styles.facts}>
-      {node.keys.map((key) => (
-        <section key={key} className={styles.keyGroup}>
-          <h3 className={styles.keyName}>{key}</h3>
-          <ul className={styles.keyFacts}>
-            {node.statements
-              .filter((s) => s.key === key)
-              .map((s, i) => (
-                <li key={i} className={styles.fact}>
-                  {(s.value || s.qualifier || s.as_of) && (
-                    <p className={styles.factMeta}>
-                      {/* **단위를 안 붙인다.** 트랙 A 의 key 는 자유 문자열이라 아는 단위가 없다 */}
-                      {s.value && <span className={styles.factValue}>{s.value}</span>}
-                      {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
-                      {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
-                    </p>
-                  )}
-                  {s.text && <p className={styles.factText}>{s.text}</p>}
-                  <Sources evidence={s.evidence} />
-                </li>
-              ))}
-          </ul>
-        </section>
+    <ul className={styles.facts}>
+      {node.statements.map((s, i) => (
+        <li key={i} className={styles.fact}>
+          {(s.value || s.qualifier || s.as_of || s.grade) && (
+            <p className={styles.factMeta}>
+              {/* **단위를 안 붙인다.** 트랙 A 의 값은 자유롭게 와서 아는 단위가 없다 */}
+              {s.value && <span className={styles.factValue}>{s.value}</span>}
+              {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
+              {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
+              {/* **`1차` 는 안 낸다.** 기본값이라 모든 줄에 붙으면 `가정` 이 안 보인다 */}
+              {s.grade && s.grade !== "1차" && (
+                <span className={styles.grade}>
+                  {s.grade}
+                  {s.source && ` · ${s.source}`}
+                </span>
+              )}
+            </p>
+          )}
+          {s.text && <p className={styles.factText}>{s.text}</p>}
+          <Sources evidence={s.evidence} />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 

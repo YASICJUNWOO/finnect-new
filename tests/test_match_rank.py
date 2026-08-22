@@ -221,12 +221,12 @@ def test_모든_서술_노드가_표에_있다() -> None:
     경로 키(`Company/비전` 같은 것)는 더 구체적인 순위를 주려고 얹은 것이라 늘어도 된다 —
     `_rank` 가 앞자리부터 찾아서 없으면 카테고리로 떨어진다(ADR-0056).
     """
-    from finnect.wiki import tree
+    from finnect.wiki import spots, tree
 
-    assert set(tree.CATEGORIES) - set(rk.NODE_RANK) == set()
+    assert set(spots.FOLDERS) - set(rk.NODE_RANK) == set()
     #: 경로 키의 카테고리도 표 안에 있어야 한다
     for key in rk.NODE_RANK:
-        assert tree.category_of(key) in tree.CATEGORIES, key
+        assert tree.category_of(key) in spots.FOLDERS, key
 
 
 # ─────────────── ④ 분야가 만드는 이유 (T-0076) ───────────────

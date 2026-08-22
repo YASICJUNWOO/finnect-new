@@ -55,7 +55,7 @@ from finnect.models import (
     WikiFact,
     WikiNode,
 )
-from finnect.wiki import profile, tree
+from finnect.wiki import profile, spots
 
 
 def notice_draft(
@@ -267,7 +267,7 @@ def _label(place: str) -> str:
         return spec.label
     if "/" in place:
         return place
-    return tree.CATEGORIES.get(place) or UNKNOWN_PLACE
+    return spots.FOLDERS.get(place) or UNKNOWN_PLACE
 
 
 def _facts(s: Session, item_ids: list[int]) -> dict[int, list[tuple[int, EvidenceOut]]]:

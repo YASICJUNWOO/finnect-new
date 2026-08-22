@@ -16,16 +16,18 @@
 
 ## 갈라짐을 막는 장치가 이 파일의 요점이다
 
-동적 이름의 유일한 위험은 **같은 얘기가 여러 자리로 흩어지는 것**이다
-(`기능` · `주요기능` · `핵심 기능`). 막는 방법이 둘이고 **둘 다 쓴다**(ADR-0056 결정 6).
+**자리표가 고정되면서 이 장치가 쓰이는 범위가 줄었다.** 자리 마흔여섯은 번호로
+오니까 갈릴 수가 없다. 남은 위험은 **`{…}` 가 있는 자리 열일곱의 인스턴스 이름**
+하나다 — 같은 경쟁사가 `배달의민족` 과 `배민` 으로 두 자리에 앉는 것.
 
-1. **번호로 답하게 한다.** 프롬프트에 지금 있는 것을 번호와 함께 싣고 `node_ref: 3`
-   으로 받는다. 자유 문자열로 받으면 `Product/기능`·`기능`·`Product/ 기능` 이 전부
-   새 자리가 된다
-2. **코드가 마지막 그물이다.** 새 이름이 와도 정규화 후 기존과 정확히 같으면 조용히
-   기존으로 돌린다(`Roster.fold`)
+막는 방법이 둘이고 **둘 다 쓴다.**
+
+1. **지금 있는 이름을 프롬프트에 싣는다.** 「같은 대상이면 똑같은 이름을 써라」
+2. **코드가 마지막 그물이다.** 새 이름이 와도 정규화(공백·구두점 제거) 후 기존과
+   정확히 같으면 조용히 기존으로 돌린다(`Roster.fold`)
 
 **유사도를 안 쓴다.** 쓰면 같은 문서를 두 번 올릴 때 다른 자리로 가서 비결정론이 된다.
+그래서 `배민` 은 안 접힌다 — **접을 수 없는 것을 접는 척하지 않는다.**
 """
 
 from __future__ import annotations
@@ -135,28 +137,29 @@ class Roster:
 
 @dataclass(frozen=True, slots=True)
 class Known:
-    """지금 있는 이름들. **번호로 답하게 하려고 프롬프트에 싣는다.**
+    """지금 있는 이름들. **프롬프트에 실어 같은 이름을 다시 쓰게 한다.**
+
+    `spots` 는 **이미 사실이 앉은 자리 경로**다. 고정 자리는 여기 있든 없든 번호로
+    오니 상관없고, 실제로 쓰이는 것은 인스턴스가 채워진 경로다
+    (`Competitor/배달의민족` · `Custom/특허/등록-10-2025-0114882`).
 
     **트랙 B 는 `qualifiers` 만 읽는다.** 거기 key 는 고정 열넷이라 enum 이 막아 주고
-    노드가 없다. 그래도 같은 타입을 쓰는 이유는 `build.py` 가 파일마다 하나만 만들면
+    자리가 없다. 그래도 같은 타입을 쓰는 이유는 `build.py` 가 파일마다 하나만 만들면
     되기 때문이다 — 둘로 나누면 같은 조회를 두 번 한다.
     """
 
-    nodes: Roster = field(default_factory=lambda: Roster(norm=tree.norm_path))
-    keys: Roster = field(default_factory=Roster)
+    spots: Roster = field(default_factory=lambda: Roster(norm=tree.norm_path))
     qualifiers: Roster = field(default_factory=Roster)
 
     @classmethod
     def of(
         cls,
         *,
-        nodes: Iterable[str] = (),
-        keys: Iterable[str] = (),
+        spots: Iterable[str] = (),
         qualifiers: Iterable[str] = (),
     ) -> Known:
         return cls(
-            nodes=Roster.of(nodes, norm=tree.norm_path),
-            keys=Roster.of(keys),
+            spots=Roster.of(spots, norm=tree.norm_path),
             qualifiers=Roster.of(qualifiers),
         )
 

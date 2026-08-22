@@ -678,17 +678,18 @@ class SourceType(enum.StrEnum):
 
 
 class WikiNode(Base):
-    """위키 트리의 자리 하나(ADR-0056 결정 2). **경로가 정체성이다.**
+    """위키 트리의 자리 하나. **경로가 정체성이다.**
 
-    최상위 카테고리 열만 고정이고 그 아래는 전부 LLM 이 만든다 — 하위 카테고리 ·
-    이름 · 깊이. `Custom` 이 탈출구라 **갈 곳 없는 사실이 없다.**
+    자리는 **기획 문서 §2 의 마흔여섯 중 하나**다(`wiki/spots.py`). 추출기가 번호로
+    고르고 경로를 짓지 않는다 — 지을 수 있는 것은 `{…}` 가 있는 자리 열일곱의
+    인스턴스 이름뿐이다(경쟁사 실명·특허 번호처럼 늘어나는 것).
 
-    **사실이 붙은 노드가 `.md` 다. 자식이 있든 없든**(결정 4). 「잎만 `.md`」로 하면
-    지금 잎인 노드에 자식이 생기는 날 그 내용이 갈 곳을 잃는다 — 사용자가 보고 있던
-    자리가 사라지는 일이라 안 한다.
+    **사실이 붙은 노드가 `.md` 다. 자식이 있든 없든.** 「잎만 `.md`」로 하면 지금 잎인
+    노드에 자식이 생기는 날 그 내용이 갈 곳을 잃는다 — 사용자가 보고 있던 자리가
+    사라지는 일이라 안 한다.
 
     **정규화 정확 일치로만 묶는다.** 유사도를 쓰면 같은 문서를 두 번 올릴 때 다른
-    자리로 가서 비결정론이 된다(결정 6).
+    자리로 가서 비결정론이 된다.
     """
 
     __tablename__ = "wiki_node"
@@ -703,7 +704,7 @@ class WikiNode(Base):
 
     #: `Company/팀` · `Custom/특허/등록-10-2025-0114882`. **이게 이 자리의 이름이다**
     path: Mapped[str] = mapped_column(Text)
-    #: 최상위 카테고리. **고정 열 중 하나**(`wiki/tree.py` `CATEGORIES`)
+    #: 최상위 폴더. **고정 열 중 하나**(`wiki/spots.py` `FOLDERS`)
     category: Mapped[str] = mapped_column(String(32), index=True)
     #: 경로의 마지막 마디. 화면에 쓰는 이름
     name: Mapped[str] = mapped_column(Text)
@@ -719,20 +720,23 @@ class WikiNode(Base):
 
 
 class WikiFact(Base):
-    """노드에 붙은 사실 하나(트랙 A). **값이 아니라 주장이다** — 충돌하면 둘 다 남는다.
+    """자리에 붙은 사실 하나(트랙 A). **값이 아니라 주장이다** — 어긋나도 둘 다 남는다.
 
     ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
     로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
 
-    `key` 하나가 **라벨이자 병합 키다**(ADR-0056 결정 3). `fact_key` 라고 부르지 않는
-    이유는 VALUE 쪽에서 거짓말이 되기 때문이다 — 「직원 수」는 행 넷(7·8·10·15명)이
-    공유해서 그것만으로 사실이 정해지지 않는다. 병합 규칙은 `kind` 가 정한다.
+        dedupe_key = <kind>|<자리>|<한정어>|<시점>|<값 또는 문장>
 
-        value   dedupe_key = value|<node>|<key>|<한정어>|<시점>|<값>
-        event   dedupe_key = event|<node>|<key>
+    **`key` 가 없어졌다**(2026-08-22). 그 컬럼이 「이 둘은 다르게 쓰였지만 같은
+    사실이다」를 정하던 유일한 근거였고, 자리표를 고정하면서 같이 지웠다 — 자리가
+    곧 이름이라 사실마다 이름을 한 번 더 짓는 것이 모호했다. **대신할 것을 만들지
+    않았으므로 트랙 A 에 병합이 없다** — 다르게 쓰인 같은 사실은 둘로 선다
+    (`wiki/merge.py` 첫 문단).
 
-    **`topic` 과 `place` 가 없어졌다.** 목적지를 표가 정하던 시절의 컬럼이다
-    ([ADR-0056](../../docs/adr/0056-위키를-동적-노드-트리로-바꾸고-매칭-정보를-따로-뽑는다.md)).
+    **컬럼은 남겨 두고 안 쓴다.** nullable 로 내렸고 읽는 코드가 없다 — 지우면
+    되돌릴 때 값이 안 살아나고, 남겨 두는 값은 마이그레이션 하나다.
+
+    **`topic` 과 `place` 는 없다.** 목적지를 표가 정하던 시절의 컬럼이다.
     """
 
     __tablename__ = "wiki_fact"
@@ -750,13 +754,13 @@ class WikiFact(Base):
         _PK, ForeignKey("wiki_node.id", ondelete="CASCADE")
     )
 
-    #: `value` · `event`. **병합 규칙을 이게 정한다**
+    #: `value` · `event`
     kind: Mapped[str] = mapped_column(String(16))
-    #: `직원 수` · `팀 구성`. **사람이 읽는 말이다** — 화면·마크다운·병합이 같이 쓴다
-    key: Mapped[str] = mapped_column(Text)
-    #: 공백·구두점을 지운 `key`. 병합 그물이 이걸로 찾는다
-    norm_key: Mapped[str] = mapped_column(Text)
-    #: 병합 키. 위 docstring 참고
+    #: **안 쓴다.** 2026-08-22 까지 라벨이자 병합 열쇠였다 — 위 docstring 참고
+    key: Mapped[str | None] = mapped_column(Text)
+    #: **안 쓴다.** `key` 와 한 벌이다
+    norm_key: Mapped[str | None] = mapped_column(Text)
+    #: 중복 방지 키. 위 docstring 참고. **병합 키가 아니다**
     dedupe_key: Mapped[str] = mapped_column(Text)
 
     #: 사람이 읽는 문장. **event 일 때 내용이다**
@@ -764,11 +768,20 @@ class WikiFact(Base):
 
     # --- kind == value 일 때만 찬다 ---
     value: Mapped[str | None] = mapped_column(Text)
-    #: `시드` · `정책자금`. **자유 문자열이다** — 우리가 미리 못 안다
+    #: 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`. **자유 문자열이다**
     qualifier: Mapped[str | None] = mapped_column(Text)
     as_of: Mapped[dt.date | None] = mapped_column(Date)
-    #: current | superseded | conflict. **event 는 NULL 이다**
+    #: **트랙 A 는 항상 NULL 이다.** 상태를 매기려면 한 자리 안에서 무엇과 무엇을
+    #: 견줄지가 정해져야 하는데 `key` 가 없어지면서 그 축이 사라졌다 —
+    #: `Market/시장규모` 의 TAM·SAM·SOM 이 전부 충돌로 뜬다. 컬럼은 트랙 B 와 모양을
+    #: 맞추려고 남긴다(`wiki/build.py` `restate`)
     status: Mapped[str | None] = mapped_column(String(16))
+
+    #: 기획 §5 의 자료 등급. `1차` · `2차` · `가정`. **`실측` 은 `source_type` 이 말하고
+    #: `미정` 은 빈 자리가 말한다** — 그래서 이 컬럼에 그 둘이 안 앉는다
+    grade: Mapped[str | None] = mapped_column(String(8))
+    #: `2차` 일 때 문서가 밝힌 기관·자료 이름. **밝히지 않은 인용은 `1차` 라 여기가 빈다**
+    source: Mapped[str | None] = mapped_column(Text)
 
     source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
     #: `stub/v1` · `llm/<모델>`. 무엇이 뽑았는지 남긴다 — 바꿔 돌릴 때 차이를 본다

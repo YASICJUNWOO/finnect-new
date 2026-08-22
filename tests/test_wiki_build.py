@@ -26,6 +26,7 @@ from finnect.models import (
     WikiPlace,
 )
 from finnect.wiki import build, merge, service, topics
+from finnect.wiki.extract import Fact
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
 COMPANY = "c_build"
@@ -260,6 +261,7 @@ def test_모르는_파일은_그_파일만_건너뛴다(built):  # noqa: ANN001
     `--build` 에 **아예 안 보였다.** 추출기가 LLM 으로 바뀌어도 영영 안 걸리는 상태다.
     """
     factory, _ = built
+    before = sorted(f.dedupe_key for f in _facts(factory))
     with factory() as s:
         s.add(
             UserFile(
@@ -292,8 +294,13 @@ def test_모르는_파일은_그_파일만_건너뛴다(built):  # noqa: ANN001
         s.commit()
 
     assert report.skipped == 1
-    assert report.built == 5
+    #: **`done` 은 다시 안 읽는다**(2026-08-21). 그래서 이번에 읽은 것은 그 한 건뿐이고
+    #: 그것마저 스텁이 모르니 `built` 가 0 이다
+    assert report.built == 0
+    assert report.files == 1
     assert any(name == "남의_사업계획서.hwp" for name, _ in report.problems)
+    #: 이미 선 사실은 그대로다. **모르는 파일 하나가 나머지를 죽이지 않는다**
+    assert before == sorted(f.dedupe_key for f in _facts(factory))
 
     with factory() as s:
         uf = s.scalars(select(UserFile).where(UserFile.sha256 == "f" * 64)).one()
@@ -301,11 +308,63 @@ def test_모르는_파일은_그_파일만_건너뛴다(built):  # noqa: ANN001
 
     # **다시 돌렸을 때 여전히 보여야 한다.** 여기가 진짜 증상이었다 — 위의 상태만 보고
     # 넘어가면, 목록 쿼리가 바뀌었을 때 같은 구멍이 조용히 다시 열린다.
+    #
+    # 목록에 그 한 건만 있는 것이 맞다(2026-08-21). 앞의 다섯은 `done` 이라 안 읽는다 —
+    # **건너뛴 것은 보이고 끝난 것은 안 보이는 것이 이 쿼리가 하려는 일이다.**
     with factory() as s:
         again = build.build_company(s, COMPANY)
         s.commit()
-    assert again.files == 6, "건너뛴 파일이 목록에서 사라졌다"
+    assert again.files == 1, "건너뛴 파일이 목록에서 사라졌다"
     assert again.skipped == 1
+
+
+class _Drifting:
+    """부를 때마다 다른 문장을 내는 추출기. **LLM 이 실제로 이렇게 움직인다.**
+
+    같은 문서를 두 번 읽으면 서술 노드의 분해 단위가 흔들려 `dedupe_key` 가 달라진다
+    (2026-08-21 실측 — `c_dasiro` 가 166 대 187 이었다).
+    """
+
+    name = "drift/v1"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def extract(self, view):  # noqa: ANN001, ANN201
+        self.calls += 1
+        anchor = view.chunks[0][1][:6]
+        return [
+            Fact(
+                topic="team",
+                kind="node",
+                text=f"{anchor} 를 {self.calls}번째로 읽은 문장이다.",
+                anchor=anchor,
+            )
+        ]
+
+
+def test_build_를_두_번_돌려도_사실이_안_늘어난다(built):  # noqa: ANN001
+    """**`--build` 가 `done` 을 다시 읽으면 LLM 에서 사실이 불어난다**(2026-08-21).
+
+    `--build` 한 번에 `c_dasiro` 가 187 → 291 이 됐다. 스텁 때는 안전했다 — 같은 파일에서
+    같은 사실이 나와 `dedupe_key` 가 같았다. 여기 추출기는 부를 때마다 다른 문장을 내므로
+    **다시 읽으면 반드시 늘어난다.** 다시 읽는 길은 `--rebuild` 이고 그건 위에서 본다.
+    """
+    factory, _ = built
+    ex = _Drifting()
+
+    with factory() as s:
+        build.build_company(s, COMPANY, extractor=ex)
+        s.commit()
+    after_first = sorted(f.dedupe_key for f in _facts(factory))
+    calls_first = ex.calls
+
+    with factory() as s:
+        build.build_company(s, COMPANY, extractor=ex)
+        s.commit()
+
+    assert sorted(f.dedupe_key for f in _facts(factory)) == after_first
+    assert ex.calls == calls_first, "끝난 파일을 다시 읽었다"
 
 
 def test_탈퇴하면_사실도_같이_지워진다(built):  # noqa: ANN001
@@ -331,3 +390,4 @@ def test_탈퇴하면_사실도_같이_지워진다(built):  # noqa: ANN001
         assert not s.scalars(select(WikiEvidence).where(WikiEvidence.company_id == COMPANY)).all()
         assert not s.scalars(select(UserFile).where(UserFile.company_id == COMPANY)).all()
         assert not s.scalars(select(Chunk).where(Chunk.company_id == COMPANY)).all()
+

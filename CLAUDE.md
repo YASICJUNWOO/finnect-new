@@ -79,6 +79,7 @@ uv run python -m finnect.attach --scrape-kstartup             # K-Startup 첨부
 uv run python -m finnect.attach --only 목록.txt --source kstartup  # 목록에 있는 URL 만 받는다
 uv sync --group ocr                              # OCR (ADR-0030). 기본 의존성이 아니다
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 파일 → 청크 → 사실 → 노드
+uv run python -m finnect.wiki --company c_narin tests/fixtures/wiki-narin/*  # 둘째 페르소나. llm 이어야 돈다
 uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키를 본다
 uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 청크를 본다
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
@@ -106,6 +107,7 @@ cd web && npm run dev                            # 화면 :3000. API 가 먼저 
                                                  #   /wiki/markdown 위키를 마크다운으로
                                                  #   /admin         운영 조회 화면 넷
 python3 tools/make-icons.py                       # 앱 아이콘. 마크를 고쳤을 때만. 빌드 단계가 아니다
+uv run python tools/make-persona.py               # 테스트 코퍼스 둘째. **이미 커밋된 것에 다시 돌리지 않는다**
 uv run pytest
 uv run ruff check src tests   # `.` 은 spike/ 와 자동 생성 마이그레이션 때문에 안 통과한다
 cd web && npm run lint && npm run typecheck && npm run build
@@ -219,7 +221,13 @@ cd web && npm run lint && npm run typecheck && npm run build
 - **분야 대조 어휘를 공백 지운 문자열로 찾으면 안 된다.** `"결손금이 자본금을 초과"` 에서 `이자` 가 걸려 `융자` 분야가 맞는다(실측). 앵커 대조(`match/normalize.py`)는 공백을 지워야 하고 어휘 대조(`match/sectors.py`)는 지우면 안 된다 — 저쪽은 LLM 이 공백을 바꿔 쓰는 것을 견뎌야 하고 이쪽은 양쪽을 우리가 들고 있다. **`wiki/topics.py` 의 `slot_of()` 는 반대로 지워야 한다** — 저기는 본문에서 어휘를 *찾는* 것이고 이쪽은 항목 이름 하나를 표에서 *꺼내는* 것이라 부분 문자열로 걸릴 것이 없다. 안 지웠더니 `상시근로자`·`직원수` 가 미분류로 갔다(plan/19 T-0088)
 - **`wiki_fact.status == 'current'` 를 판정에 그대로 쓰면 틀린다.** `current` 는 "가장 늦은 시점" 이라 **미래 날짜도 `current` 다** — `c_dasiro` 의 직원 수 15가 `as_of 2026-08-31` 이다. 자격 판정은 **신청일 이전의 최신값**을 골라야 한다(`match/profile.py` `_pick`)
 - **`openpyxl` 은 파일 이름의 확장자를 본다.** 우리 저장소는 콘텐츠 주소라 이름에 확장자가 없어서, 경로를 넘기면 재무제표가 통째로 `failed` 가 된다. `sheets_from_xlsx` 가 **열어서 넘기는** 이유다. 첨부 쪽은 `ATTACHMENT_FORMATS` 에 xlsx 가 없어 이 버그를 안 만났다
+- **`WIKI_EXTRACTOR` 기본값이 `stub` 이고 배포 서비스만 `llm` 이다**(`~/.config/finnect/api.env` · [deploy.md](docs/deploy.md) §A-1-1). **거기를 빼먹으면 사용자가 무엇을 올리든 「사실을 못 뽑았어요」가 된다** — 2026-08-21 며칠 그 상태로 돌았고 예비군 훈련 안내문을 올려 보고서야 알았다. `.env` 에 넣지 않는 이유는 토큰과 같다 — CLI 와 테스트가 전부 실제 호출을 하게 된다.
 - **`WIKI_EXTRACTOR` 기본값이 아직 `stub` 이다.** 스텁은 픽스처 7건 밖에서 안 돌고, 다른 파일을 넣으면 빈 결과가 아니라 `UnknownFile` 이 난다 — **조용히 비면 진짜 파일에 가짜가 섞이거나, 더 나쁘게는 아무것도 안 나온 것이 정상처럼 보인다**([ADR-0031](docs/adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). 사실 표는 `tests/fixtures/wiki/facts.json` 이고 **레포 밖에는 없어서 배포본에서 아예 안 돈다.** 그게 의도다
+- **`--build` 는 `chunked` 만 읽는다. `done` 을 다시 읽게 만들지 마라**([plan/12](docs/plan/12-사업-위키-구축.md) T-0092). 스텁 때는 같은 파일에서 같은 사실이 나와 `dedupe_key` 가 같았고 **아무것도 안 늘었다.** LLM 은 같은 문서를 매번 다르게 쪼개서 **다른 사실로 앉는다** — 2026-08-21 한 번 돌렸더니 `c_dasiro` 가 187 → 291 이 됐다. 다시 읽는 길은 `--rebuild` 다(`clear()` 가 `done` 을 `chunked` 로 되돌린다). **끝난 파일을 다시 읽는지는 스텁으로 테스트해도 안 걸린다** — `tests/test_wiki_build.py` 가 부를 때마다 다른 문장을 내는 추출기로 막아 둔다
+- **한 회사 빌드가 프로세스를 건너 안 막힌다**([plan/12](docs/plan/12-사업-위키-구축.md) T-0094). `ingest/jobs.py` 락이 `threading.Lock` 이라 **CLI 와 배포 서비스가 같은 회사를 동시에 세울 수 있다.** 2026-08-21 실제로 그랬고 화면에서 올린 파일이 `chunked` 로 되돌려졌다. 화면에서 올리는 동안 CLI 를 돌리지 않는다
+- **사실을 못 뽑은 이유가 안 남는다**([plan/12](docs/plan/12-사업-위키-구축.md) T-0093). `build._shelve` 가 정확한 문장을 만들고 `BuildReport` 에만 담는다 — **DB 에도 로그에도 없고 화면은 「사실을 못 뽑았어요」만 말한다.** 이것 때문에 위 `WIKI_EXTRACTOR` 사고를 찾는 데 오래 걸렸다
+- **테스트 코퍼스가 둘이고 성질이 다르다.** `tests/fixtures/wiki/`(다시로)는 `facts.json` 이 있어서 스텁으로 돌고, `tests/fixtures/wiki-narin/`(나린데이터)는 **없어서 `WIKI_EXTRACTOR=llm` 이어야 돈다.** 나린은 업력 3개월 · 매출 없음 · 지원 이력 없음인 **콜드 스타트**라 다시로에서 안 밟히는 경로가 거기 있다. **형제 디렉터리인 이유는 `tests/test_wiki_extract.py` 가 `tests/fixtures/wiki/` 를 `iterdir()` 해서 `facts.json` 목록과 대조하기 때문이다** — 저기에 파일을 더하면 그 테스트가 깨진다
+- **`tools/make-persona.py` 를 이미 커밋된 코퍼스에 다시 돌리지 않는다.** 일곱 중 다섯(xlsx·docx·hwpx·pptx·pdf)이 **매번 다른 바이트**로 나온다 — ZIP 과 PDF 가 mtime 을 박고 `random.Random(0)` 은 그림 픽셀만 고정한다. 돌리면 sha256 이 갈려 같은 파일이 `duplicate` 로 안 걸린다. **`python3` 로 돌리면 xlsx 에서 죽고 일부만 새로 써져 섞인 코퍼스가 된다** — `openpyxl` 이 venv 에만 있다
 - **`facts.json` 의 `anchor` 는 원문에 그대로 있어야 한다.** 픽스처 파일을 고치면 앵커가 깨지고, 깨진 사실은 근거가 없어서 **버려진다.** `tests/test_wiki_extract.py` 가 118개를 하나씩 찾아 막아 둔다
 - **스텁 정확도를 성능으로 보고하지 않는다.** 사람이 옮긴 것이라 정의상 100%다. 진짜 값은 **재현율 70.3%** 다
 - **위키가 공고문을 삼킨다.** 진짜 추출기는 **"이 문서가 우리 회사 얘기인가" 를 안 묻는다** — `c_dasiro` 에 섞여 있던 공고문 hwpx 한 건이 회사 사실 15건이 됐고(`공공기관별 2개 이내 과제 제출 가능` 등) M 이 **DB 에서 같은 공고를 찾아 `맞다`** 를 냈다. 추천 3건 중 2건이 자기 자신이었다([plan/12](docs/plan/12-사업-위키-구축.md) T-0077). **스텁은 이걸 막은 게 아니라 못 읽은 것이다** — 화이트리스트가 그 파일을 몰랐다. 제품이 공고를 다루므로 **사용자가 공고문을 같이 올리는 것은 예상되는 일이다**

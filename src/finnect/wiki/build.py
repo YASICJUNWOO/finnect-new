@@ -87,11 +87,20 @@ def build_company(
     ex = extractor or get_extractor()
     report = BuildReport(company_id=company_id)
 
+    # **`done` 을 다시 읽지 않는다.** 2026-08-21 실측 — `--build` 한 번에 `c_dasiro` 의
+    # 사실이 187 → 291 이 됐다(node +93 · slot +10).
+    #
+    # 스텁 때는 안전했다. 같은 파일에서 같은 사실 118건이 나오고 `dedupe_key` 가 같아서
+    # **아무것도 안 늘었다.** LLM 으로 바뀌자 깨졌다 — 같은 문서를 매번 다르게 쪼개서
+    # 키가 달라지고 **다른 사실로 앉는다.** 서술 노드의 분해 단위가 흔들리는 그 성질이다.
+    #
+    # 다시 읽는 길은 `--rebuild` 다. `clear()` 가 `done` 을 `chunked` 로 되돌리므로
+    # 여기가 `chunked` 만 봐도 재추출이 된다 — **지우고 세우니 늘어나지 않는다.**
     files = session.scalars(
         select(UserFile)
         .where(
             UserFile.company_id == company_id,
-            UserFile.status.in_([UserFileStatus.CHUNKED, UserFileStatus.DONE]),
+            UserFile.status == UserFileStatus.CHUNKED,
         )
         .order_by(UserFile.filename)
     ).all()

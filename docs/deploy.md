@@ -68,6 +68,35 @@ chmod 600 ~/.config/finnect/api.env
 
 환경변수가 `.env` 보다 우선이라 **이 파일이 있는 프로세스에서만 토큰 검사가 켜진다.**
 
+### A-1-1. 추출기를 켠다 (2026-08-22 추가)
+
+**여기를 빼먹으면 올리기가 아예 안 열린다.** `wiki_extractor` 기본값이 `stub` 이고,
+스텁은 `tests/fixtures/wiki/facts.json` 이 아는 sha256 일곱 개 밖에서는 `UnknownFile` 을
+낸다. 그러면 **사용자가 무엇을 올리든** 「사실을 못 뽑았어요」가 된다 — 파일 내용과
+아무 상관이 없다.
+
+2026-08-21 이 상태로 며칠 돌았다. 예비군 훈련 안내문을 올려 보고서야 알았고,
+[plan/12](plan/12-사업-위키-구축.md) T-0093(실패 이유가 안 남는다) 때문에 찾는 데
+오래 걸렸다.
+
+```bash
+echo 'WIKI_EXTRACTOR=llm' >> ~/.config/finnect/api.env
+systemctl --user restart finnect-api
+```
+
+**`OPENAI_API_KEY` 는 여기 안 넣는다.** 서비스의 `WorkingDirectory` 가 레포 루트라
+`.env` 에서 이미 읽힌다(`SettingsConfigDict(env_file=".env")`).
+
+**`WIKI_EXTRACTOR` 를 `.env` 에 넣지 않는 이유는 토큰과 같다** — 거기 두면 CLI 와
+테스트가 전부 실제 호출을 하게 된다. `--score` 한 번이 픽스처 118건을 부른다.
+
+확인은 이렇게 한다. `extractor` 가 `null` 이거나 `stub/v1` 이면 안 켜진 것이다.
+
+```bash
+TOKEN=$(grep -oP '(?<=^API_TOKEN=).*' ~/.config/finnect/api.env)
+curl -s -H "x-finnect-token: $TOKEN" http://127.0.0.1:8101/api/wiki/<회사>
+```
+
 ### A-2. API 를 서비스로 올린다
 
 ```bash

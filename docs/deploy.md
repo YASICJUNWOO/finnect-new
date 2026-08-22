@@ -97,6 +97,39 @@ TOKEN=$(grep -oP '(?<=^API_TOKEN=).*' ~/.config/finnect/api.env)
 curl -s -H "x-finnect-token: $TOKEN" http://127.0.0.1:8101/api/wiki/<회사>
 ```
 
+### A-1-2. OCR 을 켠다 (2026-08-22 추가)
+
+**A-1-1 과 같은 모양의 함정이다.** 기본값이 조용한 쪽이고, 빼먹으면 증상이
+「파일을 못 읽어요」 하나로 뭉개진다.
+
+`user_file_ocr` 기본값은 `True` 라 코드는 OCR 을 **시도한다.** 그런데 `rapidocr` 은
+기본 의존성이 아니라 `ocr` 그룹에 있다(ADR-0030 · `pyproject.toml`). 그룹을 안 깔면
+`engine()` 이 임포트에서 실패하고, `attach/extract.py` 가 그것을 `failed` 로 남긴다.
+
+**그러면 사진이 전부 실패한다.** 사업자등록증은 거의 사진이고 위키 자격 판별 입력
+다섯 중 넷이 거기서 나온다(ADR-0030). T-0097·T-0100 으로 그림 일곱(`jpg` `png` `gif`
+`bmp` `tiff` `webp` `heic`)이 열렸는데 **이 단계를 빼면 그 일곱이 다 죽는다.**
+
+```bash
+cd <레포>
+uv sync --group ocr
+systemctl --user restart finnect-api
+```
+
+확인은 이렇게 한다. `False` 면 안 켜진 것이다.
+
+```bash
+uv run python -c "from finnect.attach import ocr; print(ocr.available())"
+```
+
+**`available()` 을 제품 코드가 안 부른다** — 테스트의 `skipif` 전용이다. 운영에서
+꺼져 있는지는 이 함수가 아니라 파일마다 남는 `user_file.parse_error` 로 드러난다.
+그래서 여기서 한 번 확인해 두는 편이 싸다.
+
+**첨부(`ATTACHMENT_FORMATS`)에는 영향이 없다.** 저쪽은 OCR 이 꺼져 있고
+(`USER_FILE_OCR` 과 별개다) 그림 포맷 자체가 목록에 없다 — 켜면 plan/07 이 측정한
+2,827/3,354 를 다시 재야 한다.
+
 ### A-2. API 를 서비스로 올린다
 
 ```bash

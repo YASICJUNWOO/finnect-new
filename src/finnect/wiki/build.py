@@ -141,6 +141,10 @@ def _shelve(uf: UserFile, report: BuildReport, why: str) -> None:
     말하는 행**이 남는다.
     """
     uf.status = UserFileStatus.CHUNKED
+    #: **이유를 DB 에 남긴다**(T-0093). 전에는 `BuildReport` 에만 담겨서 CLI 를 돌린
+    #: 사람만 봤고, 화면은 "사실을 못 뽑았어요" 만 말했다. 2026-08-21 그것 때문에
+    #: 배포가 스텁으로 돌고 있다는 것을 찾는 데 오래 걸렸다.
+    uf.extract_error = why
     report.skipped += 1
     report.problems.append((uf.filename, why))
 
@@ -223,6 +227,9 @@ def _build_file(
 
     # **근거를 못 찾은 것이 있으면 done 이 아니다.** 사람이 봐야 한다.
     uf.status = UserFileStatus.NEEDS_REVIEW if missing else UserFileStatus.DONE
+    #: **지난 실패를 지운다.** 안 지우면 추출기를 바꿔 성공한 뒤에도 화면이 옛 이유를
+    #: 계속 말한다 — `_shelve` 가 상태를 되돌려 주는 것과 짝이다
+    uf.extract_error = None
     report.built += 1
 
 

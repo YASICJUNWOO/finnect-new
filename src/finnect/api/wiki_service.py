@@ -166,7 +166,9 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
 
     rows: list[FileProgressOut] = []
     for uf, made in files:
-        stage = progress.stage_of(uf.status, running=running)
+        stage = progress.stage_of(
+            uf.status, running=running, failed=bool(uf.extract_error)
+        )
         rows.append(
             FileProgressOut(
                 filename=uf.filename,
@@ -179,7 +181,8 @@ def get_progress(session: Session, company_id: str, *, running: bool) -> Progres
                 ok=stage.ok,
                 # **파서가 남긴 것만 낸다.** 사실을 못 뽑은 이유는 DB 에 자리가 없어서
                 # 여기서 지어내지 않는다 — 그건 `label` 이 말한다.
-                detail=uf.parse_error or None,
+                #: **해독 실패가 먼저다.** 글자를 못 얻었으면 사실을 못 뽑은 것은 그 결과다
+                detail=uf.parse_error or uf.extract_error or None,
                 chunk_count=uf.chunk_count,
                 page_count=uf.page_count,
                 text_chars=uf.text_chars,

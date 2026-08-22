@@ -49,6 +49,24 @@ def test_모든_상태가_표에_있다():
     assert covered == set(UserFileStatus), f"표에 없는 상태: {set(UserFileStatus) - covered}"
 
 
+def test_이유가_찼으면_도는_중이어도_멈춤이다():
+    """**`running` 만으로는 틀리는 자리가 있었다**(plan/12 T-0093).
+
+    되돌려진 파일 옆에서 다른 파일의 빌드가 돌면 `running=True` 라 그 파일이 "사실을
+    뽑을 차례예요" 로 보이고 **화면이 영영 물어본다.** `extract_error` 가 차 있으면
+    `chunked` 의 뜻이 하나로 정해진다.
+    """
+    going = progress.stage_of(UserFileStatus.CHUNKED, running=True)
+    failed = progress.stage_of(UserFileStatus.CHUNKED, running=True, failed=True)
+    stopped = progress.stage_of(UserFileStatus.CHUNKED, running=False)
+
+    assert going.moving is True
+    assert failed.moving is False
+    assert failed.label == stopped.label
+    #: 칸 수는 그대로다 — 조각까지는 실제로 됐다
+    assert failed.reached == going.reached
+
+
 def test_chunked_가_도는_중과_멈춤에서_다른_말을_한다():
     """**이 모듈이 있는 이유다.** 같은 행이 상황에 따라 다른 뜻이다."""
     going = progress.stage_of(UserFileStatus.CHUNKED, running=True)

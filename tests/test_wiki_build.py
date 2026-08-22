@@ -391,3 +391,58 @@ def test_탈퇴하면_사실도_같이_지워진다(built):  # noqa: ANN001
         assert not s.scalars(select(UserFile).where(UserFile.company_id == COMPANY)).all()
         assert not s.scalars(select(Chunk).where(Chunk.company_id == COMPANY)).all()
 
+
+
+def test_못_뽑은_이유가_행에_남는다(built):  # noqa: ANN001
+    """**전에는 `BuildReport` 에만 담겨서 CLI 를 돌린 사람만 봤다**(plan/12 T-0093).
+
+    2026-08-21 그것 때문에 배포가 스텁으로 돌고 있다는 것을 찾는 데 오래 걸렸다. 화면이
+    이 문장을 보여 줬으면 30초에 끝났다.
+    """
+    factory, _ = built
+    with factory() as s:
+        s.add(
+            UserFile(
+                company_id=COMPANY,
+                sha256="e" * 64,
+                filename="모르는_파일.hwp",
+                byte_size=1,
+                ext="hwp",
+                status=UserFileStatus.CHUNKED,
+                chunk_count=1,
+            )
+        )
+        s.flush()
+        uf = s.scalars(select(UserFile).where(UserFile.sha256 == "e" * 64)).one()
+        s.add(
+            Chunk(
+                user_file_id=uf.id,
+                company_id=COMPANY,
+                ordinal=0,
+                text="아무 내용",
+                chars=5,
+                char_start=0,
+                char_end=5,
+            )
+        )
+        s.commit()
+
+    with factory() as s:
+        build.build_company(s, COMPANY)
+        s.commit()
+
+    with factory() as s:
+        uf = s.scalars(select(UserFile).where(UserFile.sha256 == "e" * 64)).one()
+    assert uf.status == UserFileStatus.CHUNKED
+    assert uf.extract_error and "스텁이 모르는 파일" in uf.extract_error
+    #: **해독 실패와 섞지 않는다.** 글자는 얻었고 사실만 안 나온 것이다
+    assert uf.parse_error is None
+
+    # 추출기를 바꿔 성공하면 **지난 이유를 지운다.** 안 지우면 화면이 옛 말을 계속 한다
+    with factory() as s:
+        build.build_company(s, COMPANY, extractor=_Drifting())
+        s.commit()
+    with factory() as s:
+        uf = s.scalars(select(UserFile).where(UserFile.sha256 == "e" * 64)).one()
+    assert uf.status == UserFileStatus.DONE
+    assert uf.extract_error is None

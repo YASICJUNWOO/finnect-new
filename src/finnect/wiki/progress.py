@@ -87,11 +87,16 @@ class Stage:
     ok: bool
 
 
-def stage_of(status: str | None, *, running: bool) -> Stage:
+def stage_of(status: str | None, *, running: bool, failed: bool = False) -> Stage:
     """상태 하나를 단계로 옮긴다.
 
     `running` 은 이 회사의 빌드가 지금 도는 중인가다. 모르는 상태가 오면 0칸으로 두고
     이름을 그대로 보여 준다 — **아는 척해서 다 됐다고 말하지 않는다.**
+
+    `failed` 는 `user_file.extract_error` 가 찼나다(plan/12 T-0093). **`running` 만으로는
+    틀리는 자리가 있었다** — 되돌려진 파일 옆에서 다른 파일의 빌드가 돌고 있으면
+    `running=True` 라 "사실을 뽑을 차례예요" 로 보이고 화면이 영영 물어본다. 이 값이
+    있으면 `chunked` 의 뜻이 하나로 정해진다.
     """
     if status in _END:
         reached, label, ok = _END[status]
@@ -99,10 +104,11 @@ def stage_of(status: str | None, *, running: bool) -> Stage:
 
     if status in _MID:
         reached, going, stopped = _MID[status]
+        moving = running and not failed
         return Stage(
             reached=reached,
-            label=going if running else stopped,
-            moving=running,
+            label=going if moving else stopped,
+            moving=moving,
             ok=False,
         )
 

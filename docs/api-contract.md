@@ -511,7 +511,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
     "label": "다 됐어요",     // 사람이 읽는 한 마디
     "moving": false,         // 아직 움직이나
     "ok": true,              // 끝났고 성공인가. 움직이는 중이면 항상 false — **아직 모른다**
-    "detail": null,          // 왜 못 했나. 파서가 남긴 말이다
+    "detail": null,          // 왜 못 했나. **해독 실패(`parse_error`) 또는 추출 실패(`extract_error`)** 가 남긴 말
     "chunk_count": 1,
     "page_count": 1,
     "text_chars": 281,       // 해독 글자 수. **0 이면 스캔본이다**

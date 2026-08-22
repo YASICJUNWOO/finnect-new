@@ -591,6 +591,15 @@ class UserFile(Base):
     #: PDF 만 안다. 다른 포맷에는 쪽이라는 것이 없다
     page_count: Mapped[int | None] = mapped_column(Integer)
     chunk_count: Mapped[int | None] = mapped_column(Integer)
+    #: **사실을 못 뽑은 이유**([plan/12](../../docs/plan/12-사업-위키-구축.md) T-0093).
+    #:
+    #: `parse_error` 와 다른 단계다 — 저기는 글자를 못 얻은 것이고 여기는 글자는 얻었는데
+    #: 사실이 안 나온 것이다. **한 컬럼에 섞으면 어느 쪽인지 못 가른다.**
+    #:
+    #: `build._shelve` 가 쓰고 추출이 성공하면 지운다. 이 값이 있으면 `chunked` 가
+    #: "사실을 뽑을 차례" 가 아니라 **"못 뽑았다"** 라는 뜻이다 — `wiki/progress.py` 가
+    #: 그것으로 두 뜻을 가른다.
+    extract_error: Mapped[str | None] = mapped_column(Text)
 
 
 class Chunk(Base):

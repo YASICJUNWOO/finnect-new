@@ -1,4 +1,4 @@
-/* S7 껍데기. 탭 · 궤도 무대 · 파일 목록. */
+/* S7 껍데기. 탭 · 그래프 판 · 곁 패널 · 파일 목록. */
 
 /* 탭. **DESIGN.md §5.4 가 금지한 다섯 조합에 안 걸린다** — 사이드바가 없고,
  * 표 머리글도 체크박스도 일괄 작업 막대도 없다. 보기를 바꾸는 스위치 둘이다. */
@@ -64,16 +64,58 @@
   border-color: var(--ink-4);
 }
 
-/* --- 방사형 무대 --- */
+/* ── 그래프 판 + 곁 패널 ───────────────────────────────────
+ *
+ * **모바일 우선이다**(§5). 기본이 한 단이고 넓은 쪽이 `min-width` 로 얹힌다 —
+ * 반대로 쓰면 브레이크포인트 밖 화면에서 조밀한 쪽이 새는데 그쪽이 더 위험하다. */
+
+.split {
+  display: grid;
+  gap: var(--s5);
+  align-items: start;
+}
 
 .stage {
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
+  gap: var(--s4);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* 그래프가 앉는 자리.
+ *
+ * **높이를 안 정한다.** SVG 가 제 viewBox 비율로 높이를 잡고 상자가 거기 맞춘다 —
+ * 그래야 위아래 여백이 안 생기고 **배율이 1 근처에 머문다.** 배율이 1 이 아니면
+ * 13px 로 적은 이름표가 그 배율만큼 작게 나온다(실측 1.063 → 12px 이 12.8px).
+ *
+ * 힘 배치가 좌표를 660×560 에 정규화해서 내므로 이름표 폭만큼만 비율이 흔들린다.
+ * **폭 상한이 640px 인 것이 그 위쪽을 막는다.** 이 값은 ≥1024px 에서 그래프가 받는
+ * 폭(576px)에 맞춰 고른 것이다 — 720 으로 뒀더니 641~1023px 에서 배율이 1.33 이 되어
+ * 이름표가 20px 으로 나왔다. 본문(16px)보다 큰 그래프 라벨은 층이 뒤집힌 것이다. */
+ *
+/* `flex: 1` 도 `height` 도 주지 않는다. 세로 flex 에서 `flex-basis: 0%` 가 `height`
+ * 를 덮어 상자가 내용 높이로 주저앉는다 — 실제로 그렇게 됐다.
+ *
+ * 옅은 방사 그라데이션이 중심을 말한다. **장식이 아니라 «여기가 내 사업»이다** —
+ * 값 둘 다 이미 있는 중립색이고 그림자를 안 쓴다(§6). */
+.canvas {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  background: radial-gradient(
+    68% 62% at 50% 48%,
+    var(--surface) 0%,
+    var(--surface) 44%,
+    var(--canvas) 100%
+  );
+  border-radius: var(--r-sm);
 }
 
 /* 5. 빈 화면 (§7). 그래프는 그대로 두고 위에 한 줄만 얹는다 —
- * **자리가 마흔일곱 있다는 것 자체가 안내다** */
+ * **자리가 스물넷 있다는 것 자체가 안내다** */
 .hole {
   padding: var(--s4);
   background: var(--surface);
@@ -89,7 +131,7 @@
   color: var(--ink-3);
 }
 
-/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다**(ADR-0052) — 상태 셋과 표시 하나 */
+/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다**(ADR-0052) */
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -121,9 +163,6 @@
 .legend > li[data-mark="filled"] {
   --sw: var(--ink);
 }
-.legend > li[data-mark="blank"] {
-  --sw: var(--blank);
-}
 
 /* 비어 있음은 점선 테두리로 말한다. 그래프의 점과 같은 표시다 */
 .legend > li[data-mark="empty"]::before {
@@ -131,26 +170,64 @@
   border: 1.5px dashed var(--ink-4);
 }
 
-/* 채울 topic 이 없는 자리는 더 작고 실선이다. **「아직」이 아니다** */
-.legend > li[data-mark="none"]::before {
-  width: 6px;
-  height: 6px;
-  background: var(--surface);
-  border: 1px solid var(--ink-4);
+/* 사실 하나. **그래프에서 가장 작고 가장 옅은 점이다** */
+.legend > li[data-mark="fact"]::before {
+  width: 5px;
+  height: 5px;
+  margin: 0 2px;
+  background: var(--ink-2);
+  opacity: 0.5;
 }
 
+/* ── 곁 패널 ──────────────────────────────────────────────
+ *
+ * 상자를 여기서 그리지 않는다 — 안에 든 `WikiPanel` 이 이미 카드다. 여기는 붙이는
+ * 일과 제 스크롤만 맡는다. */
+.aside {
+  min-width: 0;
+}
+
+/* 아직 아무것도 안 골랐을 때. **상자를 안 그린다** — 카드는 고른 자리의 몫이고,
+ * 빈 카드를 세우면 640px 짜리 그래프 옆에 70px 짜리 빈 상자가 떠 있게 된다.
+ * **카드가 없는 것 자체가 «아직 안 골랐다»** 이고, 그게 크롬을 덜 쓰는 방법이다. */
 .hint {
-  text-align: center;
+  padding: var(--s4) var(--s3);
+  border-left: 2px solid var(--line);
   font-size: var(--t-small);
   line-height: var(--lh-small);
   color: var(--ink-3);
 }
 
-.panelWrap {
-  scroll-margin-top: var(--s5);
+/* ── ≥1024px 에서만 옆에 선다 ─────────────────────────────
+ *
+ * **1024px 아래에서는 이 구조가 아예 없다**(§5 브레이크포인트 둘). 아래로 접히고,
+ * 그러면 패널이 그래프 밑에 오는 옛 배치와 같아진다 — 폭에 따라 다른 물건이 되는
+ * 대가를 이 화면이 진다. */
+@media (min-width: 1024px) {
+  .split {
+    /* 992 − 360 − 24 = 608px 이 그래프 몫이다. 판이 660 이라 배율 0.92 — 13px
+     * 이름표가 12px 으로 나온다. **여기가 이 화면의 본 폭이다** */
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+
+  /* 상단 막대(56px)가 sticky 라 그 밑에서 붙는다. **리터럴을 안 쓴다** —
+   * `--bar-h` 가 없으므로 56px 은 `layout.module.css` 와 같이 움직여야 하는 값이다.
+   *
+   * 안여백을 한 단 줄인다. **여기서만이다** — 360px 에서 24px 두 벌이 읽는 폭을
+   * 312px 로 깎는다. 아래로 접히는 폭에서는 패널이 전폭이라 줄일 이유가 없다 */
+  .aside {
+    --panel-pad: var(--s4);
+    position: sticky;
+    top: calc(56px + var(--s5));
+    max-height: calc(100vh - 56px - var(--s5) * 2);
+    overflow-y: auto;
+    /* 포커스 링이 5px 밖으로 나가는데 `overflow` 가 잘라 먹는다 */
+    padding: var(--s1);
+    margin: calc(var(--s1) * -1);
+  }
 }
 
-/* --- 원본 파일 --- */
+/* ── 원본 파일 ───────────────────────────────────────────── */
 
 .files {
   margin: 0;
@@ -237,5 +314,9 @@
     min-height: 44px;
     display: flex;
     align-items: center;
+  }
+
+  .stage {
+    padding: var(--s3);
   }
 }

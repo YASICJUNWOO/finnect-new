@@ -14,8 +14,19 @@ import styles from "./WikiPanel.module.css";
  * 아무도 안 연다.
  *
  * **값은 여기 없다.** 트랙이 갈리면서 회사 정보로 나갔다(ADR-0056) — 이 패널은 노드
- * 하나에 앉은 **사실들**을 편다. 상세 상태는 글자로 적고 색으로 말하지 않는다. */
-export function WikiPanel({ node, categoryLabel }: { node: WikiNode; categoryLabel: string }) {
+ * 하나에 앉은 **사실들**을 편다. 상세 상태는 글자로 적고 색으로 말하지 않는다.
+ *
+ * `onClose` 는 곁에 세울 때만 온다. **그래프를 안 가리므로 닫기가 급하지 않지만**,
+ * 고르면 나머지가 흐려지므로 전체로 돌아갈 길이 눈에 보여야 한다. */
+export function WikiPanel({
+  node,
+  categoryLabel,
+  onClose,
+}: {
+  node: WikiNode;
+  categoryLabel: string;
+  onClose?: () => void;
+}) {
   const [raw, setRaw] = useState(false);
 
   return (
@@ -37,15 +48,23 @@ export function WikiPanel({ node, categoryLabel }: { node: WikiNode; categoryLab
           </p>
         </div>
 
-        {/* 원문 마크다운. **저장된 파일이 아니라 매번 만든 것이다** */}
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setRaw((v) => !v)}
-          aria-pressed={raw}
-        >
-          {raw ? "읽기 좋게 보기" : "마크다운으로 보기"}
-        </button>
+        <div className={styles.acts}>
+          {/* 원문 마크다운. **저장된 파일이 아니라 매번 만든 것이다** */}
+          <button
+            type="button"
+            className={styles.toggle}
+            onClick={() => setRaw((v) => !v)}
+            aria-pressed={raw}
+          >
+            {raw ? "읽기 좋게" : "마크다운"}
+          </button>
+
+          {onClose && (
+            <button type="button" className={styles.close} onClick={onClose} aria-label="닫기">
+              닫기
+            </button>
+          )}
+        </div>
       </header>
 
       {raw ? (
@@ -63,13 +82,27 @@ export function WikiPanel({ node, categoryLabel }: { node: WikiNode; categoryLab
 }
 
 
-/** 서술 사실 목록. 값이든 문장이든 **바로 아래 근거 줄이 붙는다.** */
+/** 사실 목록. **사실마다 이름(`key`)이 먼저 서고 그 아래 근거 줄이 붙는다.**
+ *
+ * 2026-08-22 까지 이 목록이 `text` 만 뿌렸다. 한 자리에 사실이 셋이면 **이름 없는 문단
+ * 셋**이 되어서, 위에서 「같은 key 면 같은 사실」로 묶어 놓은 것을 화면에서 확인할 방법이
+ * 없었다. 사용자가 찾는 것은 문장이 아니라 「직원 수가 어디 있나」다.
+ *
+ * **key 로 묶지 않는다.** 값이 갈린 자리는 같은 이름이 값 둘로 나란히 서야 하고, 그것이
+ * 충돌의 표현이다 — 접으면 값 하나가 조용히 사라진다(`wiki/markdown.py` `render_facts`). */
 function Facts({ statements }: { statements: WikiStatement[] }) {
   return (
     <ul className={styles.facts}>
       {statements.map((s, i) => (
         <li key={i} className={styles.fact}>
-          <p className={styles.factText}>{s.text}</p>
+          <p className={styles.factKey}>
+            <span className={styles.keyName}>{s.key}</span>
+            {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
+            {/* **단위를 안 붙인다.** 트랙 A 의 key 는 자유 문자열이라 아는 단위가 없다 */}
+            {s.value && <span className={styles.factValue}>{s.value}</span>}
+            {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
+          </p>
+          {s.text && <p className={styles.factText}>{s.text}</p>}
           <Sources evidence={s.evidence} />
         </li>
       ))}

@@ -3,19 +3,30 @@
  * 카드에 그림자를 주지 않는다 — 흐름 안에 있는 카드라 §4.4 가 경계선을 쓰라고 한다.
  * 색은 궤도가 다 썼다. 여기서 색이 나오는 곳은 종류 점 하나와 충돌 상자 하나뿐이다. */
 
+/* 안여백을 부르는 쪽이 줄일 수 있다. **곁에 세우면 폭이 360px 이라** 24px 두 벌이
+ * 읽는 폭을 312px 로 깎는다. 값은 `WikiBoard.module.css` 의 `.aside` 가 준다 */
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: var(--s5);
+  padding: var(--panel-pad, var(--s5));
 }
 
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--s4);
+  gap: var(--s3);
   padding-bottom: var(--s4);
   border-bottom: 1px solid var(--line);
+}
+
+/* 조작 둘. **좁은 폭에서 제목 밑으로 내려간다** — 옆으로 밀면 제목이 두 자씩 끊긴다 */
+.acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
 }
 
 .headText {
@@ -72,7 +83,6 @@
 
 /* 마크다운 토글. 조작 요소라 --r-sm 이다 (§4.3) */
 .toggle {
-  margin-left: auto;
   flex: none;
   padding: var(--s2) var(--s3);
   border: 1px solid var(--line-2);
@@ -94,6 +104,24 @@
   background: var(--ink);
   border-color: var(--ink);
   color: var(--surface);
+}
+
+/* 닫기. **테두리를 안 두른다** — 옆의 토글과 같은 무게로 서면 둘 중 무엇이 주된
+ * 동작인지 흐려진다. 이건 되돌리는 길이지 보는 방법이 아니다 */
+.close {
+  flex: none;
+  padding: var(--s2);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
 }
 
 /* 마크다운 원문. **저장된 파일이 아니라 매번 만든 것이다.**
@@ -217,7 +245,35 @@
   border-top: 1px solid var(--line);
 }
 
+/* 사실의 이름 줄. **이름이 먼저이고 값이 뒤다** — 사용자가 훑는 것은 이름 열이다.
+ * 좁은 화면에서 값·시점이 접히도록 wrap 을 켠다 */
+.factKey {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0 0 var(--s1);
+}
+
+/* 목록 제목과 같은 16/500 (DESIGN.md §3 · ADR-0045). **크기로 벌리지 않는다** */
+.keyName {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-mid);
+  color: var(--ink);
+}
+
+/* 값. 금액과 수가 세로로 정렬돼야 한다 (DESIGN.md §3) */
+.factValue {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .factText {
+  margin: 0;
   font-size: var(--t-body);
   line-height: var(--lh-body);
   /* 줄길이 62ch 이하 (§8.2) */

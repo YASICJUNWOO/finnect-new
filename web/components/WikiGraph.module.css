@@ -1,0 +1,297 @@
+/* 위키 자유 그래프. **색을 안 쓴다**(ADR-0052 · ADR-0056).
+ *
+ * 가르는 축이 셋이고 전부 색이 아니다.
+ *   층    — 크기 (허브 34 · 카테고리 11 · 자리 5~11 · 사실 2.6)
+ *   상태  — 채움 (찬 자리는 속이 찼고, 빈 자리는 점선 테두리다)
+ *   선택  — 나머지를 흐린다 (고른 갈래만 제 진하기로 남는다)
+ *
+ * 여기 있는 값은 전부 `app/tokens.css` 것이다. 색 리터럴을 쓰지 않는다. */
+
+/* **높이가 `auto` 다.** viewBox 가 준 비율로 스스로 높이를 잡는다 — 상자 높이를
+ * 따로 정하고 `height: 100%` 를 주면 비율이 어긋난 만큼 SVG 가 축소되고 이름표가
+ * 지정한 크기보다 작게 나온다. */
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* ── 가지 ────────────────────────────────────────────────
+ *
+ * **거의 안 보인다.** 레퍼런스 셋이 전부 에지를 이렇게 둔다 — 보이게 진하게 하면
+ * 구조가 아니라 그물로 읽히고 점이 안 읽힌다. */
+
+.edge {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* 사실로 가는 실. 가지보다 한 단 더 옅다 — 저건 소속만 말한다 */
+.edge[data-kind="fact"] {
+  stroke: var(--line-2);
+  stroke-width: 0.75;
+}
+
+/* 카테고리로 가는 뼈대. 조금 진하다 */
+.edge[data-kind="category"] {
+  stroke-width: 1.2;
+}
+
+/* 자리를 고르면 나머지가 물러난다. **끄지 않고 물린다** — 꺼 버리면 고른 자리가
+ * 위키의 어디쯤인지 알 수 없게 된다 */
+.svg[data-picking="true"] .edge[data-hot="false"] {
+  stroke: var(--line-2);
+  opacity: 0.35;
+}
+
+.svg[data-picking="true"] .edge[data-hot="true"] {
+  stroke: var(--ink-3);
+  stroke-width: 1.2;
+}
+
+/* ── 허브 ────────────────────────────────────────────────
+ *
+ * 노드가 아니라 표지다. **누를 것이 없다** — 위키 전체가 여기다. */
+
+.hubDot {
+  fill: var(--ink);
+}
+
+.hubTitle {
+  fill: var(--surface);
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+}
+
+.hubCount {
+  fill: var(--surface);
+  font-size: var(--t-caption);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+/* ── 자리 ──────────────────────────────────────────────── */
+
+.node {
+  cursor: pointer;
+}
+
+/* 손잡이. **투명하고 넓다** — 자리 점이 지름 10~22px 이라 그대로 두면 못 누른다.
+ * `fill: none` 이 아니라 투명 채움이어야 히트 테스트가 걸린다 */
+.hit {
+  fill: transparent;
+}
+
+.dot {
+  fill: var(--ink);
+  transition: fill-opacity 120ms ease;
+}
+
+/* 카테고리 열. 자리보다 크고 **비어 있어도 실선이다** — 저건 자리가 아니라 구획이라
+ * 「아직 안 찼다」가 아니라 「여기 아래가 비었다」를 말한다 */
+.node[data-kind="category"] .dot {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.node[data-kind="category"][data-state="filled"] .dot {
+  fill: var(--ink);
+}
+
+/* 아직 비었다 — 속을 비우고 점선을 두른다. **파일을 더 올리면 찬다** */
+.node[data-kind="spot"][data-state="empty"] .dot {
+  fill: var(--surface);
+  stroke: var(--ink-4);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+/* 사실 하나. **조작 요소가 아니라 표시다**(pointer-events 없음).
+ * 자리 점보다 훨씬 옅어서 덩어리로 읽히고 낱개로는 안 읽힌다 — 그게 의도다 */
+.fact {
+  fill: var(--ink-2);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.halo {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+/* ── 이름 ────────────────────────────────────────────────
+ *
+ * 면 색으로 테두리를 둘러 가지 위에 얹혀도 읽힌다.
+ *
+ * **크기가 viewBox 단위다.** SVG 가 상자에 맞춰 축소되면 이 값도 같이 줄어든다 —
+ * 판이 660 폭이고 상자가 608px 이면 배율이 0.92 라 13px 이 12px 으로 나온다. 상자가
+ * 더 좁아지는 폭에서는 아래 미디어쿼리가 되돌린다. **`WikiGraph.tsx` 의 `FONT` 와
+ * 같은 값이어야 한다** — 겹침 판정이 저기서 돈다. */
+
+.label {
+  fill: var(--ink-2);
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* 카테고리 열은 더 크고 진하다. **층을 크기와 굵기로 말한다** */
+.node[data-kind="category"] .label {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: var(--w-medium);
+}
+
+.node[data-state="empty"] .label {
+  fill: var(--ink-3);
+}
+
+/* 겹쳐서 버려진 이름. **지운 것이 아니라 접은 것이다** — 고르거나 올리면 뜬다 */
+.node[data-named="false"] .label {
+  opacity: 0;
+}
+
+/* ── 상태 ──────────────────────────────────────────────── */
+
+.node:hover .dot {
+  fill-opacity: 0.78;
+}
+
+.node[data-kind="spot"][data-state="empty"]:hover .dot {
+  fill: var(--quiet);
+  fill-opacity: 1;
+}
+
+.node:hover .label,
+.node[data-selected="true"] .label {
+  fill: var(--ink);
+  font-weight: var(--w-mid);
+  opacity: 1;
+}
+
+.node:focus {
+  outline: none;
+}
+
+/* §7 — 표가 긴 화면에서 위치를 잃지 않아야 한다 */
+.node:focus-visible .dot {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+
+.node:focus-visible .label {
+  fill: var(--ink);
+  font-weight: var(--w-mid);
+  opacity: 1;
+}
+
+/* 고르면 나머지가 물러난다. **고른 것과 그 갈래만 남는다** */
+.node[data-dim="true"],
+.fact[data-dim="true"] {
+  opacity: 0.14;
+}
+
+.node[data-dim="true"] {
+  pointer-events: none;
+}
+
+/* ── 등장 ────────────────────────────────────────────────
+ *
+ * 중심에서 바깥으로 번진다. **한 번뿐이다** — 자리를 고를 때마다 다시 돌면
+ * 「무엇이 바뀌었나」를 못 읽는다(리렌더는 같은 DOM 이라 다시 안 돈다). */
+
+@keyframes emerge {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes swell {
+  from {
+    transform: scale(0.3);
+  }
+}
+
+.node,
+.fact,
+.hubDot {
+  animation: emerge 420ms cubic-bezier(0.16, 0.84, 0.44, 1) backwards;
+  animation-delay: calc(var(--reach, 0) * 300ms);
+}
+
+.dot,
+.fact,
+.hubDot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.dot,
+.fact {
+  animation: swell 460ms cubic-bezier(0.2, 1.4, 0.5, 1) backwards;
+  animation-delay: calc(var(--reach, 0) * 300ms);
+}
+
+.edges {
+  animation: emerge 600ms ease 220ms backwards;
+}
+
+/* ── 폰에서 배율을 되갚는다 ───────────────────────────────
+ *
+ * `.canvas` 의 폭 상한이 640px 이라 그 위에서는 배율이 1.07~1.19 로 붙어 있다 —
+ * 되갚을 것이 없다. **≤640px 만 다르다.** 390px 폰에서 상자가 342px 이라 배율이
+ * 0.63 이고, 12px 이 7.6px 으로 나온다.
+ *
+ * 거기서는 자리 이름을 아예 안 낸다. 되갚아 키워도 스물여덟이 서로 겹치고, 겹쳐서
+ * 못 읽는 글자는 없는 글자보다 나쁘다. **점을 누르면 아래 패널이 이름을 말한다.**
+ * 방위를 읽는 카테고리 열만 남고, 고르거나 포커스한 자리는 예외로 이름을 낸다. */
+@media (max-width: 640px) {
+  /* 손잡이를 넓힌다. 배율이 0.63 이라 `r=16` 이 화면에서 20px 밖에 안 된다.
+   *
+   * **44px 을 못 채운다**(§5). `r=22` 가 화면 28px 이고, 더 키우면 이웃의 손잡이를
+   * 덮어 그 자리를 아예 못 누르게 된다 — 점 사이가 50 단위 남짓이라 그렇다.
+   * 밀도가 정하는 한계이고, 여기서는 «닿는 것»을 «닿을 수 있는 자리 전부»보다
+   * 앞에 뒀다. 자리로 가는 다른 길은 「원본 파일」 탭의 칩이다.
+   *
+   * `r` 을 CSS 로 준다 — SVG 기하 속성이라 미디어쿼리가 걸린다 */
+  .hit {
+    r: 22px;
+  }
+
+  .node[data-kind="spot"] .label {
+    opacity: 0;
+  }
+
+  .node[data-kind="category"] .label {
+    font-size: 21px;
+  }
+
+  /* 고르거나 포커스한 자리는 좁은 화면에서도 이름을 낸다 */
+  .node[data-kind="spot"][data-selected="true"] .label,
+  .node[data-kind="spot"]:focus-visible .label {
+    font-size: 19px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node,
+  .fact,
+  .dot,
+  .hubDot,
+  .edges {
+    animation: none;
+  }
+
+  .dot {
+    transition: none;
+  }
+}

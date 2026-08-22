@@ -16,18 +16,25 @@ export type Evidence = {
   quote: string;
 };
 
+/** 노드에 앉은 사실 하나(트랙 A).
+ *
+ * **`key` 가 이 사실의 이름이다**(ADR-0056 결정 3) — 라벨이자 병합 열쇠이고 화면이
+ * 절 제목으로 쓴다. 옛 이름은 `topic` 이었다. */
 export type WikiStatement = {
   text: string;
-  /** LLM 이 붙인 라벨. **목적지가 아니다** */
-  topic: string;
+  /** 노드 안에서 이 사실을 부르는 이름 */
+  key: string;
+  /** `value` 또는 `event` */
+  kind: string;
+  /** 정규화된 저장값. `event` 면 null. **화면이 이걸 고쳐 쓰지 않는다** — 병합의 재료다
+   *
+   * **`display` 짝이 없다.** 단위표는 매칭 정보 열넷의 것이라 트랙 A 의 자유 key 는
+   * 거기 없다 — **프론트가 단위를 지어 붙이면 안 된다.** */
+  value: string | null;
+  /** `시드` · `정책자금`. **자유 문자열이다** */
+  qualifier: string | null;
+  as_of: string | null;
   evidence: Evidence[];
-};
-
-export type WikiTopicGroup = {
-  topic: string;
-  /** 한국어 이름. **화면이 한국어를 짓지 않는다** */
-  label: string;
-  statements: WikiStatement[];
 };
 
 /** 노드 하나(트랙 A · ADR-0056).

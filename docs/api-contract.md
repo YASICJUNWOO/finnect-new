@@ -142,15 +142,22 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 ---
 
-## `GET /api/notices/{source}/{external_id}`
+## `GET /api/notices/{source}/{external_id}?company={id}`
 
 목록 한 줄에 `summary` 와 `attachments` 가 붙는다. 없으면 **404**. 모르는 출처도 404.
+
+**`company` 는 선택이다**([plan/21](plan/21-동선을-끝까지-잇는다.md) T-0120). 주면 `fit`(왜 맞는지)이 같이 오고, 안 주면 `null` 이라 화면이 그 자리를 안 그린다 — 인증이 없어서 부르는 쪽이 누구인지 말한다.
 
 ```jsonc
 {
   // … 목록과 같은 필드 전부 …
   "summary": "KOBACO에서는 1998년부터 …",   // HTML 을 푼 평문. 내용이 없으면 null
   "decoded_count": 5,                        // attachments 중 텍스트가 나온 수
+  "fit": {                                   // company 를 줬고 판정이 있을 때만. 아니면 null
+    "verdict": "애매",                        // 맞다 | 애매. **아니다 는 저장 안 돼서 안 온다**
+    "reason": "소상공인 지원이라 …",           // 한 줄. 템플릿이 만든다
+    "evidence_count": 2
+  },
   "attachments": [{
     "position": 0,
     "kind": "공고문",                         // 공고문 | 기타
@@ -171,6 +178,14 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 기업마당 `bsnsSumryCn` 은 **HTML 통째**로 온다(`<p>`, `<br>`, `style=`, `&nbsp;`). `api/text.py` 가 태그를 지우고 엔티티를 풀고 문단을 줄바꿈으로 바꾼다. **원문은 DB 에 그대로 있고 읽을 때만 편다.**
 
 내용이 없으면 빈 문자열이 아니라 `null` 이다. 화면이 빈 문단을 그리지 않아야 한다.
+
+### `fit` 에 자격이 없다
+
+[ADR-0003](adr/0003-판별-비노출.md) 이 **자격 판별을 화면에 노출하지 않기로** 정했다. 못 넘는 공고는 목록에서 빠지는 것으로 이미 답했고, 상세에 요건 대조표를 두면 **우리 일을 사용자에게 떠넘기는 것**이 된다. 그래서 이 객체에 필드가 셋뿐이고 넷째를 더하지 않는다.
+
+**`verdict` 를 화면에 글자로도 안 낸다.** `맞다`·`애매` 를 적으면 그것이 눈금 없는 점수가 된다(`DESIGN.md` §7 · §12.2). 여기 올라온 것 자체가 판정 결과다 — 필드를 주는 이유는 나중에 등급별로 다르게 **거르기** 위해서이지 보여 주기 위해서가 아니다.
+
+**이유가 비면 `fit` 이 통째로 `null` 이다.** `recommendations` 와 같은 조건이다 — CLI 가 셋을 찍는데 상세만 다르게 말하면 안 된다.
 
 ### 첨부 상태를 둘로 나눠 주는 이유
 
@@ -277,7 +292,7 @@ uv run uvicorn finnect.api.app:app --reload --port 8100   # /docs 에 OpenAPI
 
 이 회사가 이 공고에 대해 쓴 초안([plan/16](plan/16-항목마다-초안을-쓴다.md) · F6).
 
-**읽기만 한다. 여기서 초안을 만들지 않는다.** 만드는 것은 `finnect.draft` CLI 이고, 그 모듈은 `llm` 을 끌고 와서 배포본에 없는 `httpx` 가 딸려 온다. 백그라운드 실행은 화면이 붙는 슬라이스에서 [plan/15](plan/15-파일-올리기와-진행-표시.md) 의 202 + 락 패턴을 복사한다.
+**읽기만 한다.** 만드는 것은 아래 `POST` 이고, 그쪽이 `finnect.draft` 를 **함수 안에서** 임포트한다([ADR-0054](adr/0054-초안을-만드는-길을-api-에-열고-공고-회사-단위로-잠근다.md) 결정 2) — 최상단에 두면 `llm` 과 `httpx` 가 딸려 와 읽기만 담은 배포본에서 죽는다.
 
 **없으면 빈 목록이고 404 가 아니다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이 같은 자리에서 말해야 하고, 404 는 원인을 안 남긴다.
 
@@ -297,6 +312,10 @@ documents[]
     length          verdict · limit_text · measured · note
     yielded_to[]    그 재료를 맡은 항목 번호들
     error           이 항목만 실패했다
+    edited              사람이 고쳤다. **status 와 다른 축이다**(ADR-0055)
+    evidence_detached   고쳐서 문단↔근거 대응이 깨졌다. **행은 DB 에 그대로 있다**
+    original            집필기가 쓴 글. **고쳤을 때만 찬다** — 되돌릴 자리
+running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인지 「기다리는 중」인지 가른다
 ```
 
 ### `status` 가 여섯이고 **물어볼 자리는 하나다**
@@ -327,6 +346,48 @@ documents[]
 
 `draft.allotment` 와 `item_need` 로 계산된다. 못 받은 항목의 배분은 비어 있으니 **이 항목이 원했던 자리에서 출발해 그 자리의 사실을 누가 받았는지 거꾸로 찾는다.**
 
+
+## `POST /api/notices/{source}/{external_id}/draft?company={id}`
+
+초안을 쓰기 시작한다([plan/21](plan/21-동선을-끝까지-잇는다.md) T-0121 · [ADR-0054](adr/0054-초안을-만드는-길을-api-에-열고-공고-회사-단위로-잠근다.md)). **202 다.**
+
+```jsonc
+{
+  "started": true,     // 거절이면 false. **오류가 아니다**
+  "reason": "",        // 못 시작한 이유. 시작했으면 빈 문자열
+  "draft": { … }       // 위 GET 과 같은 모양. 누른 직후를 화면이 그대로 그린다
+}
+```
+
+**거절도 202 다.** 409 로 올리면 화면이 오류 상태를 그리는데, 두 번 누른 사람에게 보여 줄 것은 오류가 아니라 **지금 돌고 있다는 사실**이다.
+
+**락이 `(회사, 공고)` 다.** 위키 빌드는 회사 단위로 잠그는데(사실이 회사 하나의 표에 병합된다) 여기는 `draft` 유니크 키가 `(회사, 공고, 문서)` 라 **같은 회사가 공고 둘을 같이 쓰는 것을 막을 이유가 없다.**
+
+**503 을 안 낸다.** 올리기의 503([ADR-0034](adr/0034-업로드를-같은-api-에-두고-못-쓰는-곳에서는-503-으로-답한다.md))은 로컬 디스크가 없어서였고, 초안은 디스크를 안 쓰고 DB 와 LLM 만 쓴다. 키가 없으면 `started: false` 에 그 이유가 실린다 — **조용히 빈 초안을 만들지 않는다.**
+
+**진행을 볼 별도 경로가 없다.** 올리기와 다르다 — 저쪽은 파일마다 단계 다섯이 있어 진행이 응답 하나를 채우지만, 초안은 항목이 다 써진 뒤에야 볼 것이 생긴다. `GET …/draft` 의 `running` 한 값이면 「쓰는 중」과 「다 썼다」가 갈린다.
+
+---
+
+## `PUT /api/notices/{source}/{external_id}/draft/items/{document_item_id}?company={id}`
+
+사람이 고친 글을 저장한다([plan/21](plan/21-동선을-끝까지-잇는다.md) T-0123 · [ADR-0055](adr/0055-사람이-고친-글을-집필-출력-위에-덮지-않는다.md)). 응답은 그 항목 하나(`items[]` 의 한 원소)다.
+
+```jsonc
+{ "text": "고쳐 쓴 글" }   // 문단은 \n\n 으로 가른다
+{ "text": null }           // **되돌리기.** 집필기의 글이 다시 보인다
+{ "text": "" }             // **일부러 비운 것.** 되돌리기가 아니다
+```
+
+**`body` 를 안 덮는다.** 집필기의 출력은 그대로 두고 `edited_body` 에 얹는다 — 되돌릴 자리가 남아야 하고, `draft_evidence` 의 문단 번호가 사람 편집을 따라 어긋나면 안 된다.
+
+**`null` 과 `""` 를 뭉개지 않는다.** 섞으면 지운 항목에 초안이 다시 나타난다.
+
+**`status` 가 안 바뀐다.** 저 표는 집필이 어떻게 됐나를 말한다 — `blank` 였던 자리가 사람 편집으로 `drafted` 가 되면 **물어볼 목록에서 조용히 빠진다**(F6-6).
+
+**404 를 낸다.** 조회와 반대다 — 없는 항목에 쓰라는 요청이라 원인이 요청 쪽에 있다. 다른 회사의 항목도 404 다.
+
+---
 
 ## 운영 경로 — `/api/admin/*`
 
@@ -374,15 +435,14 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 사업 위키 한 장(S7). **정본은 [`api/wiki_schemas.py`](../src/finnect/api/wiki_schemas.py) 다.**
 
-**위키가 없어도 200 이고 궤도 열다섯이 온다.** 404 나 빈 목록으로 답하면 화면이 "데이터 없음"으로 끝난다 — `DESIGN.md` §7-5 가 빈 화면에 첫 동작을 안내하라고 한 자리다. 자리가 있어야 사용자가 무엇이 없는지 안다.
+**위키가 없어도 200 이고 자리 마흔일곱이 온다**([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)). 404 나 빈 목록으로 답하면 화면이 "데이터 없음"으로 끝난다 — `DESIGN.md` §7-5 가 빈 화면에 첫 동작을 안내하라고 한 자리다. 자리가 있어야 사용자가 무엇이 없는지 안다.
 
 ```json
 {
   "company_id": "c_dasiro",
-  "nodes": [
+  "spots": [
     {
-      "key": "finance", "label": "자금 현황",
-      "kind": "content", "sector": "result_money",
+      "path": "Financial/자금계획.md", "title": "자금 계획", "folder": "Financial",
       "eligibility": false,
       "values": [
         {
@@ -406,35 +466,46 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
       ],
       "grouped": true,
       "source_count": 4, "filled": true, "conflicted": true,
-      "markdown": "---\nnode: finance\n…"
+      "ours": false, "gap": "", "collapsed": null,
+      "grade": "1차",
+      "source": ["재무제표_2025.xlsx", "피치덱_2026H2.pptx"],
+      "source_path": ["c_dasiro/9e/9eaf74…", "c_dasiro/e8/e843d0…"],
+      "base_date": "2025-09-30", "updated_at": "2026-08-22",
+      "markdown": "---\npath: Financial/자금계획.md\n…"
     }
   ],
   "files": [
     {"filename": "재무제표_2025.xlsx", "ext": "xlsx", "byte_size": 10700,
      "status": "done", "parse_status": "ok", "parser": "xlsx/openpyxl",
      "parse_error": null, "chunk_count": 4, "page_count": null,
-     "nodes": ["biz", "finance", "traction"]}
+     "spots": ["Company/회사소개.md", "Financial/자금계획.md", "Financial/매출.md"]}
   ],
-  "sectors": {"registration": "등록 정보", "…": "…"},
-  "filled": 15, "total": 15, "conflicts": 2, "uncategorized": 1,
+  "folders": {"Company": "회사", "Product": "제품", "…": "…"},
+  "filled": 20, "total": 47, "conflicts": 2, "uncategorized": 1,
   "extractor": "stub/v1"
 }
 ```
 
 | 필드 | 뜻 |
 |---|---|
-| `nodes` | **궤도 자리 열다섯.** 순서가 곧 배치 순서다([ADR-0017](adr/0017-위키-그래프-궤도-배치.md)) — 프론트가 이 순서로 각도를 나눈다 |
-| `kind` | `identity` · `company` · `content`. **색은 이것만 말한다**(`DESIGN.md` §4.1) |
+| `spots` | **기획 트리 자리 마흔일곱.** 순서가 기획 문서 §2 의 순서이고 곧 배치 순서다 — 프론트가 이 순서로 각도를 나눈다 |
+| `path` | **자리의 이름이다**(기획 §4-3 「경로가 곧 노드 제목이다」). 화면·기획 문서·집필 에이전트가 같은 문자열을 쓴다 |
+| `folder` | 최상위 폴더 키 = **각도 구획**. 라벨은 `folders` 가 준다. `sector` 여섯을 대신한다([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md)) |
+| `gap` | 채울 topic 이 **아예 없는** 자리의 사유. 있으면 파일을 더 올려도 안 찬다 — 「아직 비었다」와 다른 말이다 |
+| `collapsed` | 접혔으면 원래 경로. **조용히 접지 않는다** — `Competitor/{업체명}.md` |
+| `grade` | 자료 등급. **`실측`·`1차`·`미정` 셋만 온다** — `2차`·`가정` 은 추출기가 출처를 판정하지 않아 못 낸다([ADR-0052](adr/0052-위키-자리를-기획-트리로-바꾸고-구획을-폴더로-세운다.md) 결정 4) |
+| `source` / `source_path` | 근거 파일 이름과 저장 위치. **순서가 같다** — 짝이 어긋나면 위치가 거짓말이 된다 |
+| `updated_at` | 사실이 바뀐 시각. **만든 시각이 아니다** — 같은 DB 면 같은 값이라 두 응답을 바이트로 비교할 수 있다 |
 | `value` / `display` | 저장값과 표시값. **둘 다 준다** — 프론트가 단위를 붙이면 규칙이 두 벌이 되고 갈린다 |
 | `status` | `current` 지금 값 · `superseded` 더 늦은 값이 있다 · `conflict` 값이 갈렸다. **셋 다 화면에 남는다** — 지우지 않는다(F1-1-7) |
 | `evidence` | **출처는 문자열이 아니라 연결이다**(SPEC F1-3). `filename` 과 `page` 를 따로 주는 것은 화면이 "3쪽"을 다르게 쓸 수 있어서다 |
 | `page` | PDF · PPTX 만 찬다. **다른 포맷에는 쪽이라는 것이 없다** |
-| `groups` | `statements` 를 **event topic 별로 묶은 것**([ADR-0048](adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)). 순서는 서버의 표(`topics.ORBIT_TOPICS`)가 정하고 **빈 것도 온다** — 화면이 "무엇이 없는지"를 말할 수 있어야 한다 |
+| `groups` | `statements` 를 **event topic 별로 묶은 것**([ADR-0048](adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)). 순서는 서버의 표(`export.TREE`)가 정하고 **빈 것도 온다** — 화면이 "무엇이 없는지"를 말할 수 있어야 한다 |
 | `groups[].label` | topic 한국어 이름. **화면이 한국어를 짓지 않는다** — `display` 와 같은 규율이다 |
-| `grouped` | 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리 다섯만 `true`** 다(`solution` 7 · `traction` 4 · `market` 3 · `problem` 2 · `finance` 2). `false` 면 화면이 `statements` 를 통째로 뿌린다. **판정을 서버가 하는 이유는 규칙을 두 곳에 적지 않으려는 것이다** |
+| `grouped` | 절 제목을 보일 자리인가. **event topic 이 둘 이상인 자리만 `true`** 다. `false` 면 화면이 `statements` 를 통째로 뿌린다. **판정을 서버가 하는 이유는 규칙을 두 곳에 적지 않으려는 것이다** |
 | `source_count` | 근거로 쓰인 **파일 수**. 근거 개수가 아니다 |
 | `markdown` | 그 자리 한 장. **저장된 것이 아니라 매번 만든 것이다** |
-| `files[].nodes` | 그 파일이 근거가 된 자리들(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** |
+| `files[].spots` | 그 파일이 근거가 된 자리들의 **경로**(F1-4-7). **어느 파일을 지우면 무엇이 사라지는지** |
 | `extractor` | 무엇이 사실을 뽑았나. `stub/v1` 이면 픽스처 밖에서는 안 돈 것이다([ADR-0031](adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)). **화면이 이걸 숨기지 않는다** |
 
 **`statements` 와 `groups` 가 같은 것을 두 번 준다.** `groups` 는 묶기만 한 것이고 사실은 같다 — 프론트가 묶는 규칙을 다시 구현하지 않게 하려고 서버가 두 모양을 다 준다.
@@ -451,7 +522,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 **저장된 파일을 읽는 것이 아니라 매번 만든다.** 마크다운은 저장소가 아니라 뷰다([plan/12](plan/12-사업-위키-구축.md) `구상도와의 차이`) — 사실이 `wiki_fact` 에 있는데 같은 내용을 마크다운으로도 들고 있으면 둘 중 하나가 먼저 낡는다.
 
-**아직 아무것도 없으면 404 다.** 빈 문서를 내려 주면 화면이 빈 `<pre>` 를 그린다. 위와 반대인 이유는 여기는 자리가 없기 때문이다 — 궤도는 빈 자리도 뜻이 있고 마크다운은 그렇지 않다.
+**아직 아무것도 없으면 404 다.** 빈 문서를 내려 주면 화면이 빈 `<pre>` 를 그린다. 위와 반대인 이유는 여기는 자리가 없기 때문이다 — 그래프는 빈 자리도 뜻이 있고 마크다운은 그렇지 않다.
 
 노드마다 `.md` 파일로 떨어뜨리는 것(F1-6 밖으로 꺼내기)은 아직 없다.
 
@@ -493,15 +564,16 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 구축이 어디까지 왔나(SPEC F1-1-9). **파일별로 따로 말한다**(F1-1-8) — 다섯 중 하나가 실패해도 넷으로 위키가 서기 때문에 진행률 하나로 뭉치면 그 사실이 사라진다.
 
-**아무것도 안 올렸어도 200 이고 단계 다섯이 온다.** 처음 온 사람도 무엇이 일어날지 먼저 볼 수 있어야 한다(`DESIGN.md` §7-5). 위키 조회가 빈 궤도를 돌려주는 것과 같은 이유다.
+**아무것도 안 올렸어도 200 이고 단계 다섯이 온다.** 처음 온 사람도 무엇이 일어날지 먼저 볼 수 있어야 한다(`DESIGN.md` §7-5). 위키 조회가 빈 자리를 돌려주는 것과 같은 이유다.
 
 ```jsonc
 {
   "company_id": "c_dasiro",
   // 단계 다섯. **순서가 곧 진행 순서다.** 이름을 프론트가 짓지 않는다
   "steps": [{"key": "receive", "label": "파일 받기"}, … ],
-  // 자리 키 → 라벨. `files[].nodes` 가 키라서 이게 없으면 화면에 영문이 뜬다
-  "places": {"where": "소재지", "biz": "사업자 정보", … },
+  // 자리 경로 → 제목. `files[].spots` 가 경로라서 이게 없으면 화면에 경로가 그대로 뜬다.
+  // **S7 과 같은 표다** — 두 화면이 같은 자리를 다르게 부르면 안 된다(ADR-0052)
+  "spot_titles": {"Company/회사소개.md": "회사 소개", "Company/팀.md": "팀", … },
   "files": [{
     "filename": "사업자등록증_스캔.pdf",
     "ext": "pdf",
@@ -517,7 +589,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
     "text_chars": 281,       // 해독 글자 수. **0 이면 스캔본이다**
     "parser": "ocr/rapidocr-v5-server",   // **`ocr/` 로 시작하면 사진에서 읽은 것이다**
     "fact_count": 7,         // 이 파일이 근거가 된 사실 수. **파일 사이에 겹친다**
-    "nodes": ["identity", "biz", "where", "what", "who"]   // 이 파일이 채운 자리
+    "spots": ["Company/회사소개.md", "Company/비전.md", "Company/팀.md"]   // 이 파일이 채운 자리
   }],
   "total": 7, "done": 7, "moving": 0, "needs_review": 0, "stuck": 0,
   "running": false,          // **화면이 계속 물어볼지를 이 값으로 정한다**
@@ -548,7 +620,7 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 | 글자 읽기 | `page_count`(PDF·PPTX 만) · `text_chars` · `parser` 가 `ocr/` 로 시작하면 "사진에서 읽었어요" |
 | 조각 내기 | `chunk_count` |
 | 사실 뽑기 | `fact_count` |
-| 자리에 놓기 | `nodes` |
+| 자리에 놓기 | `spots` |
 
 **끝났거나 멈춘 칸만 숫자를 갖는다.** 도는 칸에 `0` 을 쓰면 "세어 봤더니 없다"로 읽히는데 실제로는 "아직 안 셌다"다. 실제로 `chunk_count` 는 실패한 파일에도 `0` 이 적혀 있다.
 
@@ -567,9 +639,9 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 | 무엇 | 없는 이유 |
 |---|---|
-| 적합도와 순서 | F3-2 없음. 위키가 있어야 판단한다 |
-| 왜 맞는지 | F1 사업 위키 없음 |
-| 자격 충족 여부 | 프로필 없음 |
+| ~~적합도와 순서~~ | **찼다** (2026-08-21 · [plan/17](plan/17-맞는-공고를-고른다.md)). `/api/companies/{id}/recommendations` |
+| ~~왜 맞는지~~ | **찼다** (2026-08-22 · [plan/21](plan/21-동선을-끝까지-잇는다.md) T-0120). 상세의 `fit` |
+| ~~자격 충족 여부~~ | **안 만든다.** [ADR-0003](adr/0003-판별-비노출.md) 이 그 화면을 금지했다 — 못 넘는 공고는 목록에서 빠지는 것으로 이미 답했다. **기다리던 것이 사실은 만들면 안 되는 것이었다** |
 | 심사 항목 · 놓치기 쉬운 것 | F2-3 추출 안 함. **첨부 텍스트는 있다** |
 | 지원 형태 · 금액 | **두 API 모두 안 준다.** 공고문에서 뽑아야 한다 |
 | ★ 저장 · 신청 상태 | 저장 개념 없음 |
@@ -584,4 +656,12 @@ uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 �
 
 **CORS 는 로컬 고정이다.** `localhost:3000` 만 열려 있다. 원격 배포를 정할 때 다시 본다([ADR-0023](adr/0023-제품-프론트를-nextjs로-분리한다.md) "안 정한 것").
 
-~~**쓰기가 없다.** 전부 `GET` 이다.~~ **2026-08-18 올리기 하나가 붙었다**([ADR-0034](adr/0034-업로드를-같은-api-에-두고-못-쓰는-곳에서는-503-으로-답한다.md)). 나머지는 그대로 전부 `GET` 이고, **그 하나는 배포본에서 503 이다.**
+~~**쓰기가 없다.** 전부 `GET` 이다.~~ ~~**2026-08-18 올리기 하나가 붙었다.**~~ **2026-08-22 셋이 됐다**([plan/21](plan/21-동선을-끝까지-잇는다.md)).
+
+| 쓰기 | 무엇 | 근거 |
+|---|---|---|
+| `POST /api/wiki/{company_id}/files` | 파일 올리기 | [ADR-0034](adr/0034-업로드를-같은-api-에-두고-못-쓰는-곳에서는-503-으로-답한다.md). **못 쓰는 서버에서 503 이다** |
+| `POST …/draft` | 초안 만들기 | [ADR-0054](adr/0054-초안을-만드는-길을-api-에-열고-공고-회사-단위로-잠근다.md) |
+| `PUT …/draft/items/{id}` | 초안 고치기 | [ADR-0055](adr/0055-사람이-고친-글을-집필-출력-위에-덮지-않는다.md) |
+
+**나머지는 그대로 전부 `GET` 이다.** `tests/test_draft_start.py` 가 이 셋뿐임을 잠가 둔다 — 늘어나면 거기가 먼저 깨지고, **그때 이 표를 같은 커밋에 고친다.**

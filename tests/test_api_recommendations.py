@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 from finnect.api import service
 from finnect.models import (
     Attachment,
+    AttachmentFile,
     Base,
     FitVerdict,
     NoticeFit,
@@ -34,7 +35,7 @@ from finnect.views import Notice
 
 TODAY = dt.date(2026, 8, 20)
 COMPANY = "c_api"
-TABLES = [Notice, NoticeFit, NoticeFitEvidence, Attachment, WikiFact]
+TABLES = [Notice, NoticeFit, NoticeFitEvidence, Attachment, AttachmentFile, WikiFact]
 
 
 def _fit(i: int, ext: str, *, hit: bool, matched: int, reason: str = "이유예요") -> NoticeFit:
@@ -174,3 +175,46 @@ def test_회사가_섞이지_않는다(s) -> None:  # noqa: ANN001
     assert all(i.reason != "남의 이유" for i in 내것.items)
     남것 = service.recommendations(s, "c_다른회사", today=TODAY)
     assert [i.reason for i in 남것.items] == ["남의 이유"]
+
+
+class Test상세의_왜_맞는지:
+    """공고 상세의 「왜 맞는지」 칸 (plan/21 T-0120).
+
+    **자격은 안 낸다.** [ADR-0003](../docs/adr/0003-판별-비노출.md) 이 「판정은
+    뒤에서 하고 화면은 결과만 준다」로 정했고, 자격 결과는 **목록에서 빼는 것**으로
+    이미 나갔다. 여기 대조표를 두면 그 결정을 되돌린다.
+    """
+
+    def test_company_를_안_주면_안_판다(self, s) -> None:  # noqa: ANN001
+        """**기본이 `None` 이다.** 로그인 없이 아무나 여는 공고 링크가 남의
+        판정을 열면 안 된다."""
+        got = service.get_notice(s, "bizinfo", "A", today=TODAY)
+        assert got is not None
+        assert got.fit is None
+
+    def test_company_를_주면_이유가_온다(self, s) -> None:  # noqa: ANN001
+        got = service.get_notice(s, "bizinfo", "A", today=TODAY, company_id=COMPANY)
+        assert got.fit is not None
+        assert got.fit.reason == "이유예요"
+        assert got.fit.evidence_count == 2  # A 만 근거가 둘이다
+
+    def test_판정이_없으면_None_이다(self, s) -> None:  # noqa: ANN001
+        """**빈 객체를 주지 않는다** — 화면이 「이유가 비었다」와 「아직 안 봤다」를
+        못 가른다."""
+        got = service.get_notice(s, "bizinfo", "A", today=TODAY, company_id="c_없는회사")
+        assert got.fit is None
+
+    def test_이유가_없으면_안_낸다(self, s) -> None:  # noqa: ANN001
+        """**근거 없는 등급은 안 내보낸다**(ADR-0013). `recommendations()` 와
+        같은 조건이어야 한다 — CLI 가 셋을 찍는데 상세만 다르게 말하면 안 된다."""
+        by = {f.external_id: f for f in s.scalars(__import__("sqlalchemy").select(NoticeFit))}
+        by["A"].reason = ""
+        s.commit()
+        got = service.get_notice(s, "bizinfo", "A", today=TODAY, company_id=COMPANY)
+        assert got.fit is None
+
+    def test_자격을_안_낸다(self, s) -> None:  # noqa: ANN001
+        """**ADR-0003 이 금지한 것이다.** 필드가 생기면 화면이 그것을 그린다."""
+        got = service.get_notice(s, "bizinfo", "A", today=TODAY, company_id=COMPANY)
+        fields = set(type(got.fit).model_fields)
+        assert fields == {"verdict", "reason", "evidence_count"}

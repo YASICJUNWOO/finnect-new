@@ -371,10 +371,11 @@ export function FormFill({ data }: { data: NoticeDocuments }) {
         <Progress done={done} total={allKeys.length} />
       </div>
 
-      {/* **아직 없는 것을 있는 척하지 않는다.** 초안이 없어서 칸이 빈 것이지,
-          위키가 비어서 못 쓴 것이 아니다. 둘을 섞으면 F6-6 이 뜻을 잃는다. */}
+      {/* **초안은 위(`DraftView`)에 있다.** 여기는 칸 채우기 서식이라 초안이 설
+          자리가 아니다 — `draft_item` 이 서술형 항목에 걸려 있다(plan/16 T-0065).
+          **저장이 안 되는 것을 숨기지 않는다**(DESIGN.md §10 오류·제약을 그대로 적는다). */}
       <p className={styles.notice}>
-        초안은 아직 없어요. 지금은 직접 쓰는 칸만 있고, 쓴 내용은 새로고침하면 사라져요.
+        여기 쓴 값은 아직 저장되지 않아요. 새로고침하면 사라져요.
       </p>
 
       <div className={styles.docs}>

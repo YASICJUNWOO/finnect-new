@@ -17,6 +17,7 @@ from finnect.api.schemas import (
     AttachmentOut,
     DocumentItemOut,
     DocumentOut,
+    FitOut,
     NoticeDetailOut,
     NoticeDocumentsOut,
     NoticeListOut,
@@ -255,8 +256,22 @@ def list_notices(
 
 
 def get_notice(
-    s: Session, source: str, external_id: str, *, today: dt.date | None = None
+    s: Session,
+    source: str,
+    external_id: str,
+    *,
+    today: dt.date | None = None,
+    company_id: str = "",
 ) -> NoticeDetailOut | None:
+    """공고 하나.
+
+    `company_id` 를 주면 **왜 맞는지**가 같이 온다(plan/21 T-0120). 안 주면 `fit`
+    이 `None` 이라 화면이 그 자리를 안 그린다.
+
+    **자격은 안 낸다.** [ADR-0003](../../../docs/adr/0003-판별-비노출.md) 이
+    「판정은 뒤에서 하고 화면은 결과만 준다」로 정했고, 자격 결과는 목록에서 빼는
+    것으로 이미 나갔다. 여기에 대조표를 두면 그 결정을 되돌린다.
+    """
     today = today or dt.date.today()
 
     row = s.scalars(
@@ -298,7 +313,37 @@ def get_notice(
         summary=to_text(row.summary),
         attachments=out,
         decoded_count=sum(1 for a in out if a.parse_status == "ok"),
+        fit=_fit(s, company_id, source, external_id) if company_id else None,
     )
+
+
+def _fit(s: Session, company_id: str, source: str, external_id: str) -> FitOut | None:
+    """왜 맞는지 (plan/21 T-0120).
+
+    **`notice_fit` 을 읽기만 한다.** `recommendations()` 와 같은 표이고 같은 규율이다 —
+    `match.service` 를 임포트하면 `llm` 이 딸려 온다.
+
+    **이유가 없으면 안 낸다.** 근거 없는 등급은 [ADR-0013](
+    ../../../docs/adr/0013-판정-두-층.md) 이 금지한 것이고, `recommendations()` 도
+    같은 조건으로 거른다 — **CLI 가 셋을 찍는데 상세만 다르게 말하면 안 된다.**
+    """
+    fit = s.scalars(
+        select(NoticeFit).where(
+            NoticeFit.company_id == company_id,
+            NoticeFit.source == source,
+            NoticeFit.external_id == external_id,
+            NoticeFit.reason != "",
+        )
+    ).first()
+    if fit is None:
+        return None
+
+    n = s.scalar(
+        select(func.count())
+        .select_from(NoticeFitEvidence)
+        .where(NoticeFitEvidence.fit_id == fit.id)
+    )
+    return FitOut(verdict=fit.verdict, reason=fit.reason, evidence_count=n or 0)
 
 
 #: 공고문이 서류를 말하는 줄. 양식이 없을 때 이거라도 넘긴다.

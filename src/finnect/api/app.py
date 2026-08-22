@@ -23,7 +23,10 @@ from finnect.api.admin_schemas import (
     AdminNoticeListOut,
 )
 from finnect.api.schemas import (
+    DraftItemEditIn,
+    DraftItemOut,
     DraftOut,
+    DraftStartOut,
     NoticeDetailOut,
     NoticeDocumentsOut,
     NoticeListOut,
@@ -75,8 +78,9 @@ async def require_token(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    # **POST 가 붙었다**(plan/15). 올리기 하나뿐이고 나머지는 전부 GET 이다.
-    allow_methods=["GET", "POST"],
+    # **쓰기가 셋이다** — 올리기(plan/15) · 초안 만들기 · 초안 고치기(plan/21).
+    # `PUT` 이 붙으면서 preflight 가 실제로 돈다.
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
 )
 
@@ -124,11 +128,19 @@ def notices(
 
 
 @app.get("/api/notices/{source}/{external_id}", response_model=NoticeDetailOut)
-def notice(source: str, external_id: str) -> NoticeDetailOut:
+def notice(source: str, external_id: str, company: str = "") -> NoticeDetailOut:
+    """공고 하나.
+
+    **`company` 는 선택이다.** 주면 `fit`(왜 맞는지)이 같이 오고, 안 주면 `None`
+    이라 화면이 그 자리를 안 그린다 — 인증이 없어서 부르는 쪽이 누구인지 말한다.
+
+    **자격은 안 낸다**(ADR-0003). 못 넘는 공고는 목록에서 빠지는 것으로 이미
+    답했고, 상세에 대조표를 두면 사용자에게 우리 일을 떠넘긴다.
+    """
     if source not in service.SOURCES:
         raise HTTPException(404, f"모르는 출처: {source}")
     with SessionFactory() as s:
-        found = service.get_notice(s, source, external_id)
+        found = service.get_notice(s, source, external_id, company_id=company)
     if found is None:
         raise HTTPException(404, f"없는 공고: {source}/{external_id}")
     return found
@@ -157,10 +169,12 @@ def notice_draft(source: str, external_id: str, company: str) -> DraftOut:
     같은 자리에서 말해야 한다 — `pending_documents` 가 "서술형 양식은 있는데 초안이
     아직 없다" 를 센다.
 
-    **읽기만 한다. 여기서 초안을 만들지 않는다.** 만드는 것은 `finnect.draft` 이고
-    그 모듈은 `llm` 을 끌고 와서 **배포본에 없는 `httpx`** 가 딸려 온다. 지금은
-    CLI 로 만들고, 백그라운드 실행은 화면이 붙는 슬라이스에서 plan/15 의 202 + 락
-    패턴을 복사한다.
+    **읽기만 한다.** 만드는 것은 아래 `POST` 이고, 그쪽이 `finnect.draft` 를
+    **함수 안에서** 임포트한다 — 이 모듈 최상단에 두면 `llm` 과 `httpx` 가 딸려 와
+    읽기만 담은 배포본에서 죽는다(ADR-0054 결정 2).
+
+    `running` 이 **「아직 안 눌렀다」와 「누르고 기다리는 중」을 가른다.** 이 값 없이
+    빈 목록만 보면 화면이 둘을 같은 말로 그린다.
 
     `status` 여섯 중 **물어볼 자리는 `blank` 하나다**(F6-6). `no_needs` 는 상위
     묶음이고 `yielded` 는 다른 항목이 그 재료를 맡은 것이다 — 셋을 섞으면 화면이
@@ -169,7 +183,115 @@ def notice_draft(source: str, external_id: str, company: str) -> DraftOut:
     if not company:
         raise HTTPException(400, "company 를 주세요")
     with SessionFactory() as s:
-        return draft_service.notice_draft(s, company, source, external_id)
+        return draft_service.notice_draft(
+            s,
+            company,
+            source,
+            external_id,
+            running=jobs.running(_draft_key(company, source, external_id)),
+        )
+
+
+def _draft_key(company: str, source: str, external_id: str) -> str:
+    """초안 락 키 (ADR-0054 결정 3·4).
+
+    **`(회사, 공고)` 다.** 위키 빌드는 회사 단위로 잠그는데 저기는 사실이 회사
+    하나의 표에 병합돼서다. 초안은 `draft` 유니크 키가 `(회사, 공고, 문서)` 라
+    **같은 회사가 공고 둘을 같이 쓰는 것은 경합할 자리가 없다.**
+
+    **`hash()` 를 안 쓴다.** `PYTHONHASHSEED` 가 프로세스마다 달라 둘 다 통과한다
+    (plan/12 T-0094 가 밟은 함정).
+    """
+    return f"draft:{company}:{source}:{external_id}"
+
+
+@app.post(
+    "/api/notices/{source}/{external_id}/draft",
+    response_model=DraftStartOut,
+    status_code=202,
+)
+def start_draft(source: str, external_id: str, company: str) -> DraftStartOut:
+    """초안을 쓰기 시작한다 (plan/21 T-0121 · ADR-0054).
+
+    **202 다.** 시작만 하고 답한다 — 항목 수십 개를 다 쓰고 답하면 요청이 몇 분씩
+    묶인다. 올리기(`POST …/files`)와 같은 모양이고, 화면은 `GET …/draft` 의
+    `running` 으로 따라온다.
+
+    **거절이 오류가 아니다.** 이미 돌고 있으면 `started: false` 에 이유를 담아
+    202 로 답한다. 409 로 올리면 화면이 오류 상태를 그리는데, 두 번 누른 사람에게
+    보여 줄 것은 오류가 아니라 **지금 돌고 있다는 사실**이다.
+
+    **503 을 안 낸다.** 올리기의 503 은 로컬 디스크가 없어서였다(ADR-0034). 초안은
+    디스크를 안 쓰고 DB 와 LLM 만 쓴다 — 키가 없으면 `started: false` 에 그 이유가
+    그대로 실린다. **조용히 빈 초안을 만들지 않는다.**
+    """
+    if not company:
+        raise HTTPException(400, "company 를 주세요")
+    if source not in service.SOURCES:
+        raise HTTPException(404, f"모르는 출처: {source}")
+
+    key = _draft_key(company, source, external_id)
+    launch = jobs.launch(key, lambda: _write_draft(company, source, external_id))
+
+    with SessionFactory() as s:
+        draft = draft_service.notice_draft(
+            s, company, source, external_id, running=jobs.running(key)
+        )
+    return DraftStartOut(started=launch.started, reason=launch.reason, draft=draft)
+
+
+def _write_draft(company: str, source: str, external_id: str) -> None:
+    """스레드 안에서 도는 집필. **여기서만 `finnect.draft` 를 임포트한다.**
+
+    최상단에 두면 `import finnect.api.app` 이 `llm` 을 끌고 오고, 그러면 로컬은
+    통과하고 배포본만 죽는다 — `wiki.service` 를 함수 안에서 부르는 것과 같은
+    이유다(ADR-0034 · CLAUDE.md 함정).
+    """
+    from finnect.draft import service as writer
+    from finnect.trace import flush
+
+    try:
+        writer.build_draft(company, source, external_id)
+    finally:
+        # **데몬 스레드라 안 부르면 남은 추적이 사라진다**(ADR-0038 · CLI 와 같다).
+        # `finally` 인 이유는 실패한 초안일수록 추적이 필요해서다.
+        flush()
+
+
+@app.put(
+    "/api/notices/{source}/{external_id}/draft/items/{document_item_id}",
+    response_model=DraftItemOut,
+)
+def edit_draft_item(
+    source: str,
+    external_id: str,
+    document_item_id: int,
+    body: DraftItemEditIn,
+    company: str,
+) -> DraftItemOut:
+    """사람이 고친 글을 저장한다 (plan/21 T-0123 · ADR-0055).
+
+    **`body` 를 안 덮는다.** 집필기의 출력은 그대로 두고 `edited_body` 에 얹는다 —
+    되돌릴 자리가 남아야 하고, `draft_evidence` 의 문단 번호가 사람 편집을 따라
+    어긋나면 안 된다.
+
+    `text: null` 이 **되돌리기**다. 빈 문자열은 되돌리기가 아니라 일부러 비운
+    것이라 그대로 저장한다.
+
+    **404 를 낸다.** 조회와 반대다 — 저쪽은 「아직 없다」를 말해야 하지만 여기는
+    없는 항목에 쓰라는 요청이라 원인이 요청 쪽에 있다.
+    """
+    if not company:
+        raise HTTPException(400, "company 를 주세요")
+    with SessionFactory() as s:
+        try:
+            out = draft_service.edit_item(
+                s, company, source, external_id, document_item_id, body.text
+            )
+        except draft_service.ItemNotFound as e:
+            raise HTTPException(404, str(e)) from e
+        s.commit()
+    return out
 
 
 # --- 사업 위키 (S7) ---------------------------------------------------------

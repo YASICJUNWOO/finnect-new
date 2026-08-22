@@ -23,6 +23,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -52,11 +54,21 @@ from finnect.models import (
 from finnect.wiki import topics
 
 
-def notice_draft(s: Session, company_id: str, source: str, external_id: str) -> DraftOut:
+def notice_draft(
+    s: Session,
+    company_id: str,
+    source: str,
+    external_id: str,
+    *,
+    running: bool = False,
+) -> DraftOut:
     """이 회사가 이 공고에 대해 쓴 초안.
 
     **없으면 빈 목록이다.** 아직 안 쓴 것과 쓸 수 없는 것을 화면이 같은 자리에서
     말해야 하고, 404 는 원인을 안 남긴다.
+
+    `running` 은 부르는 쪽이 준다 — **이 모듈은 `jobs` 를 모른다.** `wiki_service`
+    가 진행을 낼 때와 같은 규율이고, 그래야 세션만 있으면 테스트가 돈다.
     """
     drafts = s.scalars(
         select(Draft).where(
@@ -87,7 +99,56 @@ def notice_draft(s: Session, company_id: str, source: str, external_id: str) -> 
         external_id=external_id,
         documents=[_document(s, d) for d in drafts],
         pending_documents=len(narrative - done),
+        running=running,
     )
+
+
+class ItemNotFound(LookupError):
+    """이 회사·이 공고의 초안에 그 항목이 없다."""
+
+
+def edit_item(
+    s: Session,
+    company_id: str,
+    source: str,
+    external_id: str,
+    document_item_id: int,
+    text: str | None,
+) -> DraftItemOut:
+    """사람이 고친 글을 저장한다 (plan/21 T-0123 · ADR-0055).
+
+    **`body` 를 안 건드린다.** 집필기의 출력은 그대로 두고 `edited_body` 에 얹는다 —
+    되돌릴 자리가 남아야 하고, `draft_evidence` 의 문단 번호가 사람 편집을 따라
+    어긋나면 안 된다.
+
+    `text` 가 `None` 이면 **되돌리기**다. 빈 문자열은 되돌리기가 아니라
+    **일부러 비운 것**이라 그대로 저장한다(ADR-0055 결정 6).
+
+    **`status` 를 안 바꾼다.** 저 표는 집필이 어떻게 됐나를 말한다 — 사람이 고쳤다는
+    사실은 `edited_at` 이 든다. 여기서 `drafted` 로 올리면 원래 `blank` 였던 자리가
+    **물어볼 목록에서 조용히 빠진다.**
+    """
+    row = s.execute(
+        select(DraftItem, DocumentItem)
+        .join(Draft, Draft.id == DraftItem.draft_id)
+        .join(DocumentItem, DocumentItem.id == DraftItem.document_item_id)
+        .where(
+            Draft.company_id == company_id,
+            Draft.source == source,
+            Draft.notice_id == external_id,
+            DraftItem.document_item_id == document_item_id,
+        )
+    ).first()
+    if row is None:
+        raise ItemNotFound(f"초안에 없는 항목: {document_item_id}")
+
+    it, di = row
+    it.edited_body = text
+    it.edited_at = None if text is None else dt.datetime.now(dt.UTC)
+
+    facts = _facts(s, [it.id])
+    needs = _needs(s, [di.id])
+    return _item(s, it, di, facts, needs, {})
 
 
 def _document(s: Session, draft: Draft) -> DraftDocumentOut:
@@ -133,8 +194,13 @@ def _item(  # noqa: PLR0913
     for para, ev in facts.get(it.id, []):
         by_para.setdefault(para, []).append(ev)
 
-    texts = it.body.split("\n\n") if it.body else []
-    check = limits.check(it.body or "", di.limit_text)
+    # **`None` 과 `""` 가 다르다**(ADR-0055 결정 6). 빈 문자열은 사람이 일부러
+    # 비운 것이라 집필기 글이 다시 나오면 안 된다.
+    edited = it.edited_body is not None
+    body = it.edited_body if edited else it.body
+
+    texts = body.split("\n\n") if body else []
+    check = limits.check(body or "", di.limit_text)
     required = needs.get(di.id, {})
 
     return DraftItemOut(
@@ -143,8 +209,15 @@ def _item(  # noqa: PLR0913
         title=di.title,
         instruction=di.instruction,
         status=it.status,
+        edited=edited,
+        # 고친 뒤에는 문단 번호가 근거와 안 맞는다. **행은 DB 에 그대로 있다** —
+        # 화면에만 안 낸다(ADR-0055 결정 3)
+        evidence_detached=edited and bool(by_para),
+        original=it.body if edited else None,
         paragraphs=[
-            ParagraphOut(ordinal=i, text=t, evidence=by_para.get(i, []))
+            ParagraphOut(
+                ordinal=i, text=t, evidence=[] if edited else by_para.get(i, [])
+            )
             for i, t in enumerate(texts)
         ],
         missing=[_missing(p, required.get(p, True)) for p in (it.missing or [])],

@@ -1,0 +1,74 @@
+/* 추천 한 장 (S2 위쪽 · plan/21 T-0119).
+ *
+ * **테두리 하나만 갖는다**(ADR-0046 의 예외를 그대로 따른다). 채움·그림자·행마다
+ * 반복되는 버튼 셋은 안 따라온다 — §7 「크롬 없는 목록 항목에 그림자나 카드 채움을
+ * 더하지 않는다」.
+ *
+ * **모바일 우선이다.** 아래가 좁은 화면이고 넓은 쪽이 `min-width: 1024px` 로 얹힌다. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.card:hover {
+  /* 줄 전체가 밝아지고 **누르는 것은 제목 링크다** — `NoticeRow` 와 같은 규칙 */
+  background: var(--canvas);
+}
+
+.dl {
+  /* 액센트는 마감 하나다(§7). `Deadline` 이 제 색을 들고 온다 */
+  flex: 0 0 auto;
+}
+
+/* 카드 제목이 본문과 같은 16px 인 것은 사고가 아니다(§3) — 크기로 벌리지 않고
+ * 굵기로 가른다. 목록 제목의 500 이 그 값이다(ADR-0045) */
+.title {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-mid);
+  min-width: 0;
+}
+
+.link {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* 이 카드가 있는 이유. **이 화면에서 유일하게 읽히려고 있는 문장이다** */
+.reason {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 근거 수. 이유보다 한 단 낮다 — 읽는 것이 아니라 확인하는 값이다 */
+.evidence {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.evidence b {
+  font-weight: var(--w-medium);
+}
+
+/* ── ≥1024px ───────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+  .card {
+    /* 격자 칸의 반경이 이 폭에서 4px 이다(§4) */
+    border-radius: var(--r-sm);
+    padding: var(--s3);
+    gap: var(--s1);
+  }
+}

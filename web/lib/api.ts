@@ -58,11 +58,46 @@ export type Attachment = {
   detected_ext: string | null;
 };
 
+/** 이 공고가 이 회사에게 왜 맞는가.
+ *
+ * **자격이 여기 없다.** ADR-0003 이 「판정은 뒤에서 하고 화면은 결과만 준다」로 정했고,
+ * 자격 결과는 목록에서 빼는 것으로 이미 나갔다. 등급별 대조표를 화면에 두면 우리 일을
+ * 사용자에게 떠넘기는 것이 된다.
+ *
+ * **점수가 없다**(DESIGN.md §7 · §12.2). 92 와 74 의 차이를 설명할 눈금이 없다. */
+export type Fit = {
+  /** `맞다` · `애매`. **`아니다` 는 저장되지 않아 여기 안 온다** */
+  verdict: string;
+  /** 왜 맞는지 한 줄. 템플릿이 만들고 LLM 이 안 만든다 */
+  reason: string;
+  /** 그 이유가 위키의 몇 개 사실에서 나왔나 */
+  evidence_count: number;
+};
+
 export type NoticeDetail = Notice & {
   /** HTML 을 푼 평문. 내용이 없으면 null */
   summary: string | null;
   attachments: Attachment[];
   decoded_count: number;
+  /** `?company=` 를 줬고 판정이 있을 때만 찬다. **`null` 은 「안 맞아요」가 아니라
+   *  「아직 안 봤어요」다** — 화면이 그 자리를 아예 안 그린다 */
+  fit: Fit | null;
+};
+
+/** 추천 한 장. 목록의 `Notice` 에 이유와 근거 수가 붙는다.
+ *
+ * **순서가 정보를 담는다**(DESIGN.md §7). 서버가 정렬해서 주고 화면은 그대로 그린다 —
+ * 여기서 다시 정렬하면 CLI 가 찍는 순서와 화면이 갈린다. */
+export type Recommendation = Notice & {
+  reason: string;
+  evidence_count: number;
+};
+
+export type Recommendations = {
+  items: Recommendation[];
+  /** 판정을 돌렸나. **빈 목록과 다르다** — 저쪽은 맞는 것이 없다는 뜻이고
+   *  이쪽은 아직 못 봤다는 뜻이라 화면이 다른 문장을 써야 한다 */
+  computed: boolean;
 };
 
 export type NoticeList = {
@@ -108,6 +143,40 @@ export async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** 쓰기. **`get()` 과 같은 규칙을 쓴다** — 헤더도 리다이렉트 처리도 한 곳에서 온다.
+ *
+ * `get()` 을 복사하지 않고 따로 둔 이유는 본문과 메서드뿐이다. 합치면 읽기 경로에
+ * `method` 인자가 생기고, 그러면 **읽기인 줄 알고 부른 자리가 쓰기가 될 수 있다.** */
+export async function send<T>(path: string, init: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: { "content-type": "application/json", ...authHeaders(), ...init.headers },
+      redirect: "manual",
+    });
+  } catch (cause) {
+    throw new ApiError(`API에 못 붙었어요 (${BASE})`, undefined, { cause });
+  }
+  if (!res.ok) {
+    // **서버가 적은 이유를 그대로 올린다.** "API가 404로 답했어요" 보다
+    // "초안에 없는 항목: 9999" 가 화면에서 할 말이 많다
+    const detail = await res.text().catch(() => "");
+    throw new ApiError(reasonOf(detail) ?? `API가 ${res.status}로 답했어요`, res.status);
+  }
+  return (await res.json()) as T;
+}
+
+function reasonOf(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    return typeof parsed.detail === "string" ? parsed.detail : null;
+  } catch {
+    return null;
+  }
+}
+
 export function listNotices(params: {
   q?: string;
   source?: string;
@@ -123,15 +192,44 @@ export function listNotices(params: {
   return get<NoticeList>(`/api/notices${query ? `?${query}` : ""}`);
 }
 
-/** 없으면 null. 404 를 오류 화면으로 올리지 않는다 — notFound() 가 받는다. */
-export async function getNotice(source: string, id: string): Promise<NoticeDetail | null> {
+/** 없으면 null. 404 를 오류 화면으로 올리지 않는다 — notFound() 가 받는다.
+ *
+ * `company` 를 주면 `fit`(왜 맞는지)이 같이 온다. 안 주면 `null` 이다 —
+ * **인증이 없어서 부르는 쪽이 누구인지 말한다.** */
+export async function getNotice(
+  source: string,
+  id: string,
+  company?: string,
+): Promise<NoticeDetail | null> {
+  const qs = company ? `?company=${encodeURIComponent(company)}` : "";
   try {
     return await get<NoticeDetail>(
-      `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(id)}`,
+      `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(id)}${qs}`,
     );
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
+  }
+}
+
+/** 추천 세 건 (plan/17 T-0075 · plan/21 T-0119).
+ *
+ * **실패해도 목록 화면은 떠야 한다.** 아래쪽 「전체 공고」는 위키가 없어도 뜨는
+ * 섹션이라, 위쪽이 못 왔다고 화면 전체를 죽이면 `getNoticeDocuments` 가 배포본에서
+ * 상세를 통째로 500 으로 만든 것과 같은 일이 난다.
+ *
+ * **`null` 과 `computed: false` 가 다르다.** `null` 은 우리가 못 물어본 것이고
+ * `computed: false` 는 물어봤더니 아직 안 돌렸다는 답이다. */
+export async function getRecommendations(
+  companyId: string,
+): Promise<Recommendations | null> {
+  try {
+    return await get<Recommendations>(
+      `/api/companies/${encodeURIComponent(companyId)}/recommendations`,
+    );
+  } catch (e) {
+    console.error("추천을 못 불러왔다 — 전체 공고는 그대로 띄운다", e);
+    return null;
   }
 }
 

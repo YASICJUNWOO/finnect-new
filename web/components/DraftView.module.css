@@ -1,0 +1,337 @@
+/* 초안 (S4 · plan/21 T-0122 · T-0123).
+ *
+ * **상태를 색으로 안 가른다**(§7 UI 크롬에 색 금지 · §2 색조 하나에 뜻 둘 금지).
+ * 글자와 위치가 가른다. 액센트로 쓰는 색은 실패 하나뿐이고 그것도 글자색이다.
+ *
+ * **모바일 우선이다.** 아래가 좁은 화면이고 넓은 쪽이 `min-width: 1024px` 로 얹힌다. */
+
+.section {
+  margin-top: var(--s5);
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.h2 {
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-medium);
+}
+
+/* **막대를 두지 않는다** — 숫자가 이미 셀 수 있는 값이라 막대가 더 말해 주는 것이 없다 */
+.count {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.count b {
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+/* ── 시작 ──────────────────────────────────────────── */
+
+.startRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+/* **이 화면의 주 버튼이다**(§4 — 화면당 하나). 아래 항목마다 있는 「저장」은
+ * 채운 버튼이 아니라 선 버튼이라 액센트가 반복되지 않는다 */
+.start {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s5);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--action);
+  color: var(--surface);
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  cursor: pointer;
+}
+
+.start:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.start:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.startWhy,
+.running,
+.empty {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.running,
+.empty {
+  padding: var(--s4) var(--s5);
+  margin-bottom: var(--s4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+}
+
+.fail {
+  margin-bottom: var(--s3);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--urgent);
+}
+
+/* ── 문서와 항목 ───────────────────────────────────── */
+
+.doc {
+  margin-bottom: var(--s5);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.docTitle {
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-bold);
+  margin-bottom: var(--s4);
+}
+
+.items,
+.children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.children {
+  margin-top: var(--s3);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line);
+}
+
+.item + .item {
+  margin-top: var(--s5);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.number {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.title {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: var(--w-mid);
+}
+
+/* 상태. **글자다.** 색으로 가르면 색조 하나에 뜻 둘이 얹힌다 */
+.status {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.instr,
+.yielded,
+.missing,
+.detached {
+  margin-top: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.missing b {
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.optional {
+  color: var(--ink-3);
+}
+
+.error {
+  margin-top: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--urgent);
+}
+
+/* ── 쓰는 칸 ───────────────────────────────────────── */
+
+.write {
+  margin-top: var(--s3);
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  min-height: 160px;
+  padding: var(--s3);
+  background: var(--quiet);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.len {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+/* 넘긴 것은 사실이라 말한다. **막지는 않는다** — 우리가 쪽 수를 못 재는 자리가 있다 */
+.over {
+  color: var(--urgent);
+}
+
+.limit {
+  margin-left: var(--s2);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.hint {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.save,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s3);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-size: var(--t-aux);
+  cursor: pointer;
+}
+
+.save:hover:not(:disabled),
+.ghost:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ── 근거 ──────────────────────────────────────────── */
+
+.evBox,
+.origBox {
+  margin-top: var(--s3);
+}
+
+.evSummary,
+.origSummary {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.evList {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.ev {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--line);
+}
+
+.evPlace {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.evText {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 원문 조각. **값 옆에서 원문이 열려야 한다**(§12.3) */
+.evQuote {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.evSaid {
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.orig {
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--line);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+  white-space: pre-line;
+}
+
+/* ── ≥1024px ───────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+  .doc {
+    padding: var(--s4);
+  }
+}

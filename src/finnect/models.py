@@ -648,17 +648,22 @@ class Chunk(Base):
     heading: Mapped[str | None] = mapped_column(Text)
 
 
-class WikiPlace(enum.StrEnum):
-    """사실 하나가 간 자리(plan/12 T-0045).
+class FactKind(enum.StrEnum):
+    """사실 하나의 타입(ADR-0056 결정 3). **병합 규칙이 다르다.**
 
-    **셋을 섞지 않는 것이 이 컬럼의 존재 이유다.** 병합 키가 다르다 —
-    value 는 (이름, 한정어, 시점)이 키고, event 는 키가 없어 근거만 쌓이며,
-    분류 못 한 것은 **버리지 않고** 검토 큐에 선다(구상도 ④ 예외).
+        value   키가 (key, 한정어, 시점, 값). 시점이 같은데 값이 다르면 **충돌**이다
+        event   키가 (node, key). 같으면 근거만 쌓인다
+
+    **`uncategorized` 가 없다.** 카테고리가 enum 열이라 LLM 이 항상 하나를 고르고,
+    아홉에 안 맞는 것은 `Custom` 으로 간다 — 갈 곳 없는 사실이 없다.
+
+    옛 이름은 `WikiPlace` 였고 값이 `value`·`event`·`uncategorized` 셋이었다
+    ([ADR-0049](../../docs/adr/0049-저장값과-llm-와이어를-value-event-로-옮긴다.md)를
+    [ADR-0056](../../docs/adr/0056-위키를-동적-노드-트리로-바꾸고-매칭-정보를-따로-뽑는다.md)이 대체).
     """
 
     VALUE = "value"
     EVENT = "event"
-    UNCATEGORIZED = "uncategorized"
 
 
 class SourceType(enum.StrEnum):
@@ -672,52 +677,148 @@ class SourceType(enum.StrEnum):
     USER_STATED = "user_stated"
 
 
-class WikiFact(Base):
-    """위키에 선 사실 하나. **값이 아니라 주장이다** — 충돌하면 둘 다 남는다(F1-1-7).
+class WikiNode(Base):
+    """위키 트리의 자리 하나(ADR-0056 결정 2). **경로가 정체성이다.**
 
-    ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
-    로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
+    최상위 카테고리 열만 고정이고 그 아래는 전부 LLM 이 만든다 — 하위 카테고리 ·
+    이름 · 깊이. `Custom` 이 탈출구라 **갈 곳 없는 사실이 없다.**
 
-    `dedupe_key` 가 병합의 전부다. value 는 `value|이름|한정어|시점|값` 이라 문서 넷이
-    같은 사업자등록번호를 말하면 **행 하나에 근거 넷**이 된다. 서술은
-    `event|이름|fact_key` 라, 같은 사실이 문서마다 다른 문장으로 쓰여 있어도 묶인다.
+    **사실이 붙은 노드가 `.md` 다. 자식이 있든 없든**(결정 4). 「잎만 `.md`」로 하면
+    지금 잎인 노드에 자식이 생기는 날 그 내용이 갈 곳을 잃는다 — 사용자가 보고 있던
+    자리가 사라지는 일이라 안 한다.
+
+    **정규화 정확 일치로만 묶는다.** 유사도를 쓰면 같은 문서를 두 번 올릴 때 다른
+    자리로 가서 비결정론이 된다(결정 6).
     """
 
-    __tablename__ = "wiki_fact"
+    __tablename__ = "wiki_node"
     __table_args__ = (
-        UniqueConstraint("company_id", "dedupe_key", name="uq_wiki_fact_company_key"),
-        Index("ix_wiki_fact_place", "company_id", "place_kind", "place"),
-        Index("ix_wiki_fact_status", "company_id", "status"),
+        UniqueConstraint("company_id", "path", name="uq_wiki_node_company_path"),
+        Index("ix_wiki_node_parent", "company_id", "parent"),
     )
 
     id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
     #: 격리의 기준. `chunk` 와 같은 이유로 여기 한 번 더 둔다
     company_id: Mapped[str] = mapped_column(String(64), index=True)
 
-    place_kind: Mapped[str] = mapped_column(String(16))
-    #: 슬롯 이름(`headcount`) 또는 노드 이름(`solution`). uncategorized 면 빈 문자열
-    place: Mapped[str] = mapped_column(String(32))
+    #: `Company/팀` · `Custom/특허/등록-10-2025-0114882`. **이게 이 자리의 이름이다**
+    path: Mapped[str] = mapped_column(Text)
+    #: 최상위 카테고리. **고정 열 중 하나**(`wiki/tree.py` `CATEGORIES`)
+    category: Mapped[str] = mapped_column(String(32), index=True)
+    #: 경로의 마지막 마디. 화면에 쓰는 이름
+    name: Mapped[str] = mapped_column(Text)
+    #: 부모 경로. 최상위면 빈 문자열이다 — **NULL 을 안 쓴다.** 유니크와 조인이 단순해진다
+    parent: Mapped[str] = mapped_column(Text, default="")
+
+    #: 공백·구두점을 지운 경로. **병합 그물이 이걸로 찾는다**(결정 6)
+    norm_path: Mapped[str] = mapped_column(Text, index=True)
+
+    first_seen_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WikiFact(Base):
+    """노드에 붙은 사실 하나(트랙 A). **값이 아니라 주장이다** — 충돌하면 둘 다 남는다.
+
+    ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
+    로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
+
+    `key` 하나가 **라벨이자 병합 키다**(ADR-0056 결정 3). `fact_key` 라고 부르지 않는
+    이유는 VALUE 쪽에서 거짓말이 되기 때문이다 — 「직원 수」는 행 넷(7·8·10·15명)이
+    공유해서 그것만으로 사실이 정해지지 않는다. 병합 규칙은 `kind` 가 정한다.
+
+        value   dedupe_key = value|<node>|<key>|<한정어>|<시점>|<값>
+        event   dedupe_key = event|<node>|<key>
+
+    **`topic` 과 `place` 가 없어졌다.** 목적지를 표가 정하던 시절의 컬럼이다
+    ([ADR-0056](../../docs/adr/0056-위키를-동적-노드-트리로-바꾸고-매칭-정보를-따로-뽑는다.md)).
+    """
+
+    __tablename__ = "wiki_fact"
+    __table_args__ = (
+        UniqueConstraint("company_id", "dedupe_key", name="uq_wiki_fact_company_key"),
+        Index("ix_wiki_fact_node", "node_id"),
+        Index("ix_wiki_fact_status", "company_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    #: 격리의 기준. `chunk` 와 같은 이유로 여기 한 번 더 둔다
+    company_id: Mapped[str] = mapped_column(String(64), index=True)
+    #: **항상 있다.** 카테고리가 enum 이라 갈 곳 없는 사실이 없다
+    node_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("wiki_node.id", ondelete="CASCADE")
+    )
+
+    #: `value` · `event`. **병합 규칙을 이게 정한다**
+    kind: Mapped[str] = mapped_column(String(16))
+    #: `직원 수` · `팀 구성`. **사람이 읽는 말이다** — 화면·마크다운·병합이 같이 쓴다
+    key: Mapped[str] = mapped_column(Text)
+    #: 공백·구두점을 지운 `key`. 병합 그물이 이걸로 찾는다
+    norm_key: Mapped[str] = mapped_column(Text)
     #: 병합 키. 위 docstring 참고
     dedupe_key: Mapped[str] = mapped_column(Text)
 
-    #: LLM 이 붙인 라벨. **목적지가 아니다** — 목적지는 `wiki/topics.py` 의 표가 정했다
-    topic: Mapped[str] = mapped_column(String(32))
-    #: 사람이 읽는 문장. 서술 노드는 이게 내용이다
+    #: 사람이 읽는 문장. **event 일 때 내용이다**
     text: Mapped[str] = mapped_column(Text)
 
-    # --- 정형 슬롯일 때만 찬다 ---
-    #: 문서가 쓴 이름. `상시 근로자` · `종업원 수`. **슬롯 이름과 다르다**
-    slot_key: Mapped[str | None] = mapped_column(Text)
+    # --- kind == value 일 때만 찬다 ---
     value: Mapped[str | None] = mapped_column(Text)
-    #: `시드` · `정책자금` · `예비창업패키지`
+    #: `시드` · `정책자금`. **자유 문자열이다** — 우리가 미리 못 안다
     qualifier: Mapped[str | None] = mapped_column(Text)
-    #: 언제 기준의 값인가. **시점 없는 슬롯은 항상 NULL 이다**(merge.as_of_for)
     as_of: Mapped[dt.date | None] = mapped_column(Date)
-    #: current | superseded | conflict. **서술 노드는 NULL 이다**
+    #: current | superseded | conflict. **event 는 NULL 이다**
     status: Mapped[str | None] = mapped_column(String(16))
 
     source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
     #: `stub/v1` · `llm/<모델>`. 무엇이 뽑았는지 남긴다 — 바꿔 돌릴 때 차이를 본다
+    extractor: Mapped[str] = mapped_column(String(32))
+
+    first_seen_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class CompanyValue(Base):
+    """매칭 정보 한 칸(트랙 B · ADR-0056 결정 5). **트리와 무관하다.**
+
+    질문이 **14개 고정**이라 못 채운 칸을 셀 수 있고, 그래서 물어볼 수 있다(ADR-0028).
+    자격 판별(M1)이 `key` 이름으로 꺼낸다 — **그래서 트리가 어떻게 자라도 안 흔들린다**
+    (ADR-0013 이 요구한 결정론이 여기서 지켜진다).
+
+    **그래프에 안 뜬다.** 회사 정보 화면 한 장이다.
+
+    시점이 다르고 값이 다르면 시계열, 시점이 같은데 값이 다르면 **충돌**이다. 그 판정을
+    할 수 있는 이유가 `key` 가 고정 열넷이라서다.
+    """
+
+    __tablename__ = "company_value"
+    __table_args__ = (
+        UniqueConstraint("company_id", "dedupe_key", name="uq_company_value_key"),
+        Index("ix_company_value_key", "company_id", "key"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    company_id: Mapped[str] = mapped_column(String(64), index=True)
+
+    #: **고정 열넷 중 하나**(`wiki/profile.py` `PROFILE_KEYS`). LLM 스키마가 enum 으로 막는다
+    key: Mapped[str] = mapped_column(String(32))
+    #: 정규화된 값. `24,100천원` 이 아니라 `24100000` 이다 — 표기를 그대로 두면 없는 충돌이 생긴다
+    value: Mapped[str] = mapped_column(Text)
+    #: `시드` · `예비창업패키지`. **자유 문자열이다.** 없으면 NULL
+    qualifier: Mapped[str | None] = mapped_column(Text)
+    #: **`dated=False` 인 key 는 항상 NULL 이다** — 안 떼면 같은 사업자등록번호가
+    #: 문서 수만큼 행이 된다(`profile.as_of_for`)
+    as_of: Mapped[dt.date | None] = mapped_column(Date)
+    #: current | superseded | conflict
+    status: Mapped[str] = mapped_column(String(16))
+    #: `value|<key>|<한정어>|<시점>|<값>`
+    dedupe_key: Mapped[str] = mapped_column(Text)
+
+    source_type: Mapped[str] = mapped_column(String(16), default=str(SourceType.DOCUMENT))
     extractor: Mapped[str] = mapped_column(String(32))
 
     first_seen_at: Mapped[dt.datetime] = mapped_column(
@@ -751,6 +852,30 @@ class WikiEvidence(Base):
     #: 편의용 비정규화. "어느 파일 몇 쪽" 을 청크 조인 없이 세는 자리가 많다
     user_file_id: Mapped[int] = mapped_column(_PK, ForeignKey("user_file.id", ondelete="CASCADE"))
     #: 청크 안에서 근거가 된 조각. 청크 전문을 보여 주기 전에 이걸 먼저 보여 준다
+    quote: Mapped[str] = mapped_column(Text)
+
+
+class ValueEvidence(Base):
+    """매칭 정보 한 칸이 어느 원문 조각에서 나왔나(트랙 B).
+
+    **`wiki_evidence` 와 표를 나눈 이유는 가리키는 것이 다르기 때문이다.** 한 표에
+    nullable 두 개로 두면 모든 조인이 「둘 중 어느 쪽인가」를 물어야 한다. 트랙이
+    갈린 것이 ADR-0056 의 결정이고, 표도 거기 맞춘다.
+    """
+
+    __tablename__ = "value_evidence"
+    __table_args__ = (
+        UniqueConstraint("value_id", "chunk_id", name="uq_value_evidence_value_chunk"),
+        Index("ix_value_evidence_company", "company_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    company_id: Mapped[str] = mapped_column(String(64))
+    value_id: Mapped[int] = mapped_column(
+        _PK, ForeignKey("company_value.id", ondelete="CASCADE"), index=True
+    )
+    chunk_id: Mapped[int] = mapped_column(_PK, ForeignKey("chunk.id", ondelete="CASCADE"))
+    user_file_id: Mapped[int] = mapped_column(_PK, ForeignKey("user_file.id", ondelete="CASCADE"))
     quote: Mapped[str] = mapped_column(Text)
 
 
@@ -914,8 +1039,19 @@ class DraftItem(Base):
     ordinal: Mapped[int] = mapped_column(Integer)
 
     status: Mapped[str] = mapped_column(String(16), default=str(DraftItemStatus.BLANK))
-    #: 문단을 `\n\n` 으로 이은 본문. **비어 있어도 행은 남는다**
+    #: 문단을 `\n\n` 으로 이은 본문. **비어 있어도 행은 남는다**.
+    #: **집필기의 것이다. 사람이 못 고친다**([ADR-0055](
+    #: ../../docs/adr/0055-사람이-고친-글을-집필-출력-위에-덮지-않는다.md))
     body: Mapped[str] = mapped_column(Text, default="")
+
+    #: 사람이 고쳐 쓴 글. **`None` 이면 안 고친 것이고 `""` 는 일부러 비운 것이다** —
+    #: 둘을 섞으면 지운 항목에 초안이 다시 나타난다. 화면이 보여 주는 것은
+    #: `edited_body ?? body` 이고, **되돌리기는 이 값을 `None` 으로 만드는 것**이다.
+    #: 재작성은 `body` 만 건드린다 — 사람 글을 자동으로 안 고친다(ADR-0055 결정 4)
+    edited_body: Mapped[str | None] = mapped_column(Text)
+    #: 언제 고쳤나. **「사람이 고쳤다」를 `status` 에 안 넣는 이유가 이 칸이다** —
+    #: 저 표는 집필이 어떻게 됐나를 말하고 이것은 다른 축이다(ADR-0055 결정 2)
+    edited_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     #: 필요한데 위키에 없는 자리. **F6-6 이 이걸 읽는다**
     missing: Mapped[list] = mapped_column(_JSON, default=list)

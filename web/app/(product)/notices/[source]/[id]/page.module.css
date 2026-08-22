@@ -1,4 +1,4 @@
-/* S5 공고 상세.
+/* S3 공고 상세. **옛 이름은 S5 였다**(ADR-0053).
  *
  * 2026-08-21 보조 글자가 `--t-aux` 로 갔다(ADR-0044) — 넓으면 13px, 좁으면 16px.
  * **폰에서 13px 산문이 나가던 자리들이다.**
@@ -125,6 +125,34 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--s3);
+}
+
+/* 왜 맞는지 (plan/21 T-0120). **개요와 같은 껍데기를 쓴다** — 판정이 특별한
+ * 물건으로 보이면 안 된다. 액센트는 마감 하나다(§7) */
+.fit {
+  margin-bottom: var(--s5);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* **막대도 숫자도 없다**(§7 · §12.2). 이유 한 줄이 전부다 */
+.fitReason {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  max-width: 62ch;
+}
+
+.fitEvidence {
+  margin-top: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-3);
+}
+
+.fitEvidence b {
+  font-weight: var(--w-medium);
 }
 
 @media (max-width: 640px) {

@@ -2,16 +2,22 @@ import Link from "next/link";
 import { Filters } from "@/components/Filters";
 import { NoticeRow } from "@/components/NoticeRow";
 import { Pager } from "@/components/Pager";
-import { listNotices } from "@/lib/api";
+import { RecommendationCard } from "@/components/RecommendationCard";
+import { getRecommendations, listNotices } from "@/lib/api";
 import { viewOf } from "@/lib/view";
+import { DEFAULT_COMPANY } from "@/lib/wiki";
 import styles from "./page.module.css";
 
-type Search = { q?: string; source?: string; page?: string; view?: string };
+type Search = { q?: string; source?: string; page?: string; view?: string; company?: string };
 
-/** S4 공고 목록.
+/** S2 추천 — SPEC §5.2. **옛 이름은 S4 였다**(ADR-0053).
  *
- * 섹션 둘이다 — 추천 공고가 맨 위, 전체 공고가 아래. 추천은 적합도(F3-2)가 있어야
- * 하는데 없어서 **카드 셋 자리를 비워 둔다.**
+ * 섹션 둘이다 — 추천 공고가 맨 위, 전체 공고가 아래.
+ *
+ * **2026-08-22 위쪽이 찼다**(plan/21 T-0119). 그전까지 `0` 과 「위키가 없어서
+ * 못 고르고 있어요」가 하드코딩이었고, 파일을 올려 판정이 `notice_fit` 에 앉아도
+ * 화면은 계속 같은 말을 했다. 판정·API·계약·테스트가 다 있는데 **부르는 함수만
+ * 없었다.**
  *
  * **적합도 숫자도 막대도 열도 없다**(§7 · §12.2). 순서가 정보를 담는다.
  *
@@ -34,8 +40,20 @@ export default async function NoticeListPage({
   const source = sp.source ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
   const view = viewOf(sp.view);
+  // 인증이 없어서 주소가 누구인지 말한다. **`/wiki` 와 같은 규칙을 쓴다** —
+  // 두 화면이 회사를 다르게 고르면 사용자가 남의 위키 위에서 추천을 받는다
+  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  const upload = sp.company?.trim()
+    ? `/wiki/files?company=${encodeURIComponent(sp.company.trim())}`
+    : "/wiki/files";
 
-  const list = await listNotices({ q, source, page });
+  // **추천이 실패해도 전체 공고는 뜬다.** 아래쪽은 위키가 없어도 되는 섹션이라
+  // 위쪽 하나가 화면을 죽이면 안 된다(`getRecommendations` 가 null 로 돌려세운다)
+  const [list, rec] = await Promise.all([
+    listNotices({ q, source, page }),
+    getRecommendations(company),
+  ]);
+  const picks = rec?.items ?? [];
 
   return (
     <>
@@ -60,11 +78,15 @@ export default async function NoticeListPage({
           <b data-numeric>{list.total.toLocaleString("ko-KR")}</b>
           <span>{q || source ? "찾은 공고" : "열린 공고"}</span>
         </div>
-        {/* 0 은 사실이다 — 위키가 없어서 추천이 0 건이고, 바로 아래 섹션이 같은 말을 한다 */}
-        <div className={styles.stat}>
-          <b data-numeric>0</b>
-          <span>나에게 맞는 공고</span>
-        </div>
+        {/* **판정을 안 돌렸으면 이 칸을 아예 안 낸다.** `0` 은 「맞는 게 없다」는
+          * 사실인데, 아직 안 본 것을 그렇게 적으면 화면이 거짓을 말한다.
+          * 하드코딩한 `0` 이 여기 있었다(2026-08-22 · plan/21 T-0119) */}
+        {rec?.computed && (
+          <div className={styles.stat}>
+            <b data-numeric>{picks.length}</b>
+            <span>나에게 맞는 공고</span>
+          </div>
+        )}
       </div>
 
       {/* 1. 추천. 적합성 순 */}
@@ -78,13 +100,39 @@ export default async function NoticeListPage({
           </div>
         </div>
 
-        {/* 카드 셋이 올 자리. **예시 공고로 채우지 않는다** */}
-        <p className={styles.hole}>
-          아직 사업 위키가 없어서 못 고르고 있어요. 파일을 올리면 여기에 세 건이 뜹니다.
-        </p>
-        <Link href="/wiki/files" className={styles.cta}>
-          파일 올리기
-        </Link>
+        {/* **상태 셋이 다른 문장이다**(plan/21 T-0119).
+          *
+          * | `computed` | 건수 | 화면이 하는 말 |
+          * |---|---|---|
+          * | false | — | 아직 안 골랐어요 (또는 못 물어봤어요) |
+          * | true | 0 | 지금 열린 공고 중에 맞는 게 없어요 |
+          * | true | 1~3 | 카드 |
+          *
+          * 「아직 안 봤다」와 「봤는데 없다」를 같은 말로 그리면 사용자가 파일을
+          * 더 올려야 하는지 기다려야 하는지 모른다. */}
+        {picks.length > 0 ? (
+          <ul className={styles.picks}>
+            {picks.map((n) => (
+              <RecommendationCard key={`${n.source}/${n.external_id}`} notice={n} />
+            ))}
+          </ul>
+        ) : (
+          <>
+            <p className={styles.hole}>
+              {rec === null
+                ? "지금은 추천을 못 불러왔어요. 잠시 뒤에 다시 열어 주세요."
+                : rec.computed
+                  ? "지금 열린 공고 중에는 맞는 게 없어요. 파일을 더 올리면 다시 골라 드려요."
+                  : "아직 사업 위키가 없어서 못 고르고 있어요. 파일을 올리면 여기에 세 건이 떠요."}
+            </p>
+            {/* 못 불러온 것은 사용자가 고칠 일이 아니다 — 그때는 올리기를 안 권한다 */}
+            {rec !== null && (
+              <Link href={upload} className={styles.cta}>
+                파일 올리기
+              </Link>
+            )}
+          </>
+        )}
       </section>
 
       {/* 2. 전체 공고 */}

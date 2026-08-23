@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { attachmentFileUrl } from "@/lib/api";
 import { canPreview, type FormDocument } from "@/lib/documents";
+import { DocxView } from "./DocxView";
 import styles from "./DocViewer.module.css";
 
 /** 양식 뷰어 — **원본 파일을 그대로 띄운다.**
@@ -67,7 +68,10 @@ export function DocViewer({
   } | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "여는 중" });
 
-  const sha = doc && canPreview(doc) ? doc.sha256 : null;
+  // **docx 는 rhwp 를 안 태운다.** 여기서 빼지 않으면 아래 분기가 `DocxView` 를
+  // 그리기 전에 effect 가 먼저 돌아 8.3MB WASM 을 받고 실패한다.
+  const isDocx = doc?.ext === "docx";
+  const sha = doc && canPreview(doc) && !isDocx ? doc.sha256 : null;
   const filename = doc?.attachment.filename ?? "";
 
   // 문서가 바뀌면 상태를 되돌린다. **`useEffect` 가 아니라 렌더 중에 맞춘다** —
@@ -198,6 +202,23 @@ export function DocViewer({
         href={doc.attachment.url}
         cta="원본 파일 내려받기"
         filename={doc.attachment.filename}
+      />
+    );
+  }
+
+  // **포맷마다 뷰어가 다르다.** rhwp 는 한글 문서 뷰어라 docx 를 ZIP 으로 열고
+  // hwpx 구조를 기대하다 실패한다(`필수 파일 누락: Contents/content.hpf`).
+  // 화면은 오래 「docx 도 열 수 있어요」라고 말했지만 **한 번도 안 열렸다.**
+  //
+  // 이 자리가 지금 중요해진 이유는 **docx 가 채워지는 포맷**이라서다 — hwp 는
+  // 안내문이 든 칸을 못 덮어써서(ADR-0060 결정 3) 값이 몇 칸 안 들어간다.
+  if (isDocx) {
+    return (
+      <DocxView
+        url={filledUrl ?? attachmentFileUrl(doc.sha256)}
+        filename={doc.attachment.filename}
+        downloadUrl={doc.attachment.url}
+        onFilled={onFilled}
       />
     );
   }

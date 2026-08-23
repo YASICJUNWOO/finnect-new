@@ -1,0 +1,42 @@
+/* docx 뷰어 — **여기가 직접 구른다.**
+ *
+ * rhwp 는 iframe 을 심고 그 안에서 자체 스크롤을 하지만 `docx-preview` 는 HTML 을
+ * 우리 DOM 에 그대로 그린다. 그래서 `DocViewer.module.css` 의 `.mount`(높이 100%)를
+ * 그대로 쓰면 **문서가 잘리고 굴러가지 않는다.**
+ *
+ * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041). */
+
+.mount {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  /* 관성 스크롤. 좁은 화면에서 손가락으로 넘긴다 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 열리기 전과 실패했을 때 반쯤 그려진 문서를 감춘다.
+ * **언마운트하지 않는다** — `renderAsync` 가 붙을 자리가 그때 없다 */
+.mount[data-busy="true"] {
+  visibility: hidden;
+}
+
+/* `docx-preview` 가 만드는 마디. 클래스 이름이 그쪽 것이라 `:global` 이다.
+ *
+ * **쪽을 종이처럼 세운다.** 기본값은 배경 없이 흘러서 어디까지가 한 쪽인지
+ * 안 보인다 — 신청서는 쪽이 정보다. */
+.mount :global(.docx-wrapper) {
+  background: var(--canvas);
+  padding: var(--s4) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.mount :global(.docx-wrapper > section.docx) {
+  background: var(--surface);
+  /* §6 — 위에 뜨는 것에만 그림자를 준다. 종이 한 장의 경계는 선으로 긋는다 */
+  border: 1px solid var(--line);
+  /* 표가 폭을 넘길 때 잘리지 않게 한다 */
+  max-width: 100%;
+}

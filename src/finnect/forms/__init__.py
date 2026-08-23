@@ -54,20 +54,19 @@ __all__ = [
 #: **지금 어댑터가 있는 포맷.** 판정은 내용이 한다(`attach/formats.py`) — 파일명의
 #: 확장자를 믿으면 3,354건 중 7건이 어긋난다.
 #:
-#: **hwpx·docx 가 아직 없다.** ADR-0060 이 셋 다 된다고 재 뒀고 `spike/` 에 실측
-#: 코드가 있지만 제품 어댑터는 hwp 뿐이다. hwp 를 먼저 한 이유는 **코퍼스의 73%**
-#: 이고 제약이 가장 세서다 — 인터페이스가 그 제약을 견디면 나머지 둘은 얹힌다.
-#: 여기 목록에 미리 넣지 않는 이유는 **넣으면 화면이 「된다」고 말하기 때문이다.**
-SUPPORTED: frozenset[str] = frozenset({"hwp", "docx"})
+#: **셋이 다 찼다**(2026-08-23). hwp 를 먼저 한 이유는 코퍼스의 73% 이고 제약이
+#: 가장 세서였다 — 인터페이스가 그 제약을 견디니 나머지 둘이 얹혔다.
+SUPPORTED: frozenset[str] = frozenset({"hwp", "hwpx", "docx"})
 
-#: 될 것이 확인됐지만 어댑터를 아직 안 쓴 것(plan/24 T-0151 나머지).
+#: 될 것이 확인됐지만 어댑터를 아직 안 쓴 것.
 #: **`UnsupportedFormat` 과 가르려고 따로 둔다** — 저기는 영영 안 되는 것이다.
-PLANNED: frozenset[str] = frozenset({"hwpx"})
+#: **지금은 비어 있다.** 지우지 않는 이유는 xlsx 가 여기 올 자리이기 때문이다.
+PLANNED: frozenset[str] = frozenset()
 
 #: 덮어쓸 수 있는 포맷. **hwp 만 못 한다** — 기존 글자를 갈아 끼우면 한/글에서
 #: 표가 밀린다(ADR-0060 결정 3, 판본 A~G). 안내문이 든 칸은 덮어써야 채워지므로
 #: **이 집합이 「어느 칸까지 채울 수 있나」를 정한다.**
-OVERWRITABLE: frozenset[str] = frozenset({"docx"})
+OVERWRITABLE: frozenset[str] = frozenset({"hwpx", "docx"})
 
 
 def open_form(path: str, ext: str) -> Form:
@@ -86,6 +85,11 @@ def open_form(path: str, ext: str) -> Form:
         from finnect.forms.docx import DocxForm
 
         return DocxForm(path)
+
+    if ext == "hwpx":
+        from finnect.forms.hwpx import HwpxForm
+
+        return HwpxForm(path)
 
     from finnect.forms.hwp import HwpForm
 

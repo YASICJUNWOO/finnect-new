@@ -52,11 +52,14 @@ class Test포맷_경계:
                 open_form("/없는/파일", ext)
 
     def test_어댑터가_있는_것만_된다고_말한다(self) -> None:
-        """**될 것과 되는 것을 가른다.** 목록에 미리 넣으면 화면이 「된다」고 말한다."""
+        """**될 것과 되는 것을 가른다.** 목록에 미리 넣으면 화면이 「된다」고 말한다.
+
+        **2026-08-23 셋이 다 찼다.** `PLANNED` 를 비우고 지우지는 않는다 —
+        xlsx 가 거기 올 자리다.
+        """
         from finnect.forms import PLANNED
 
-        assert {"hwp", "docx"} == SUPPORTED
-        assert {"hwpx"} == PLANNED
+        assert {"hwp", "hwpx", "docx"} == SUPPORTED
         assert not (SUPPORTED & PLANNED)
 
     def test_덮어쓸_수_있는_것이_갈려_있다(self) -> None:
@@ -65,14 +68,28 @@ class Test포맷_경계:
         from finnect.forms import OVERWRITABLE
 
         assert "hwp" not in OVERWRITABLE
-        assert "docx" in OVERWRITABLE
+        assert {"hwpx", "docx"} <= OVERWRITABLE
         assert OVERWRITABLE <= SUPPORTED
 
     def test_예정된_포맷은_이유를_말한다(self) -> None:
-        """`pdf` 와 `hwpx` 를 같은 말로 거절하지 않는다 — 앞은 영영 안 되고
-        뒤는 아직 안 된 것이다."""
-        with pytest.raises(UnsupportedFormat, match="아직"):
-            open_form("/없는/파일", "hwpx")
+        """영영 안 되는 것과 아직 안 된 것을 같은 말로 거절하지 않는다.
+
+        **지금 `PLANNED` 가 비어 있어서 가짜 값으로 잰다.** 규칙이 사는지를 보는
+        것이라 목록이 비었다고 테스트를 지우지 않는다 — xlsx 가 붙는 날 다시
+        걸린다.
+        """
+        import finnect.forms as forms
+
+        # **`forms.open_form` 으로 부른다.** 위의 임포트 경계 테스트가
+        # `sys.modules` 에서 이 모듈을 빼기 때문에, 파일 맨 위에서 가져온
+        # `open_form` 은 **옛 모듈 객체의 것**이라 여기서 바꾼 전역을 안 본다.
+        planned = forms.PLANNED
+        try:
+            forms.PLANNED = frozenset({"xlsx"})
+            with pytest.raises(forms.UnsupportedFormat, match="아직"):
+                forms.open_form("/없는/파일", "xlsx")
+        finally:
+            forms.PLANNED = planned
 
 
 class Test앵커:

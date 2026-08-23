@@ -19,6 +19,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from finnect.extract import segment as sg
+
 _SUBMIT = re.compile(
     r"(위와|상기와)\s*같이[^\n]{0,40}?(신청|제출|지원)합니다|신청합니다|제출합니다"
 )
@@ -33,6 +35,19 @@ _NOT_LABEL = re.compile(r"^[\d\s.·,%()\-~/]+$|^\d{4}\s*[.\-]")
 
 #: 체크 상자만 늘어선 칸. 라벨이 아니라 보기다.
 _CHOICE = re.compile(r"^[□■☐▢]")
+
+#: 서류 표지. **채울 칸이 아니라 서식 제목이다.**
+#:
+#: 한글 양식이 제목을 표 하나로 감싸는데(`붙임 1 | (빈칸) | (빈칸) | 임대신청서 및
+#: 사업계획서 서식`) 그러면 `붙임 1` 이 라벨이 되고 **옆의 장식용 빈 칸이 값 자리로
+#: 판정된다.** 실제로 그 자리에 회사 이름이 들어갔고, 칸이 좁아서 한/글에서 글자가
+#: 세로로 눌려 나왔다(2026-08-23 육안).
+#:
+#: 코퍼스에서 그렇게 잡힌 항목이 **166개**이고 그중 90개에 좌표가 붙어 있었다.
+#:
+#: **낱말을 `segment` 와 공유한다** — 갈리면 한 파서가 표지로 자른 자리를 다른
+#: 파서가 채울 칸으로 뽑는다.
+_MARKER_LABEL = re.compile(rf"^[\[【<(]?\s*(?:{sg.MARKER_WORDS})\s*(?:제\s*)?\d")
 
 MIN_LABELS = 5
 MIN_SIGNALS = 2
@@ -74,7 +89,7 @@ def rows(text: str, *, limit: int = 400) -> list[Row]:
         lab = re.sub(r"\s{2,}", " ", m.group("label").strip())
         if len(lab) < 2 or lab in seen:
             continue
-        if _NOT_LABEL.match(lab) or _CHOICE.match(lab):
+        if _NOT_LABEL.match(lab) or _CHOICE.match(lab) or is_marker(lab):
             continue
         seen.add(lab)
         out.append(Row(lab, start))
@@ -86,6 +101,11 @@ def rows(text: str, *, limit: int = 400) -> list[Row]:
 def labels(text: str, *, limit: int = 400) -> list[str]:
     """라벨만. 자리가 필요 없는 쪽이 쓴다(`is_fields` 와 화면)."""
     return [r.label for r in rows(text, limit=limit)]
+
+
+def is_marker(label: str) -> bool:
+    """서류 표지인가. **라벨이 아니다** — 옆 칸은 값 자리가 아니라 장식이다."""
+    return bool(_MARKER_LABEL.match((label or "").strip()))
 
 
 def is_fields(text: str) -> bool:

@@ -45,6 +45,11 @@ class ExtractReport:
     anchored: int = 0
     #: 열려다 실패한 파일. **0 이 아니면 봐야 한다**
     anchor_failed: int = 0
+    #: 파일 구조에서 찾은 서류 제목 (ADR-0061 결정 1). 표지 낱말이 없어도 잡힌다
+    form_titles: int = 0
+    #: 구조를 열려다 실패한 파일. **조용히 안 넘긴다** — 표지 규칙만 돈 것과
+    #: 구조를 못 연 것이 결과에서 같아 보인다
+    form_failed: int = 0
     kinds: dict[str, int] = field(default_factory=dict)
 
     def line(self) -> str:
@@ -52,11 +57,13 @@ class ExtractReport:
         out = [
             f"파일 {self.files:,} · 구간 {self.segments:,} · "
             f"칸 서식 {self.fields_docs:,} · 칸 {self.items:,} · 건너뜀 {self.skipped:,}",
-            f"좌표를 심은 칸 {self.anchored:,}",
+            f"좌표를 심은 칸 {self.anchored:,} · 구조가 찾은 서류 제목 {self.form_titles:,}",
             f"구간 종류: {k or '없음'}",
         ]
         if self.anchor_failed:
             out.insert(2, f"열지 못한 파일 {self.anchor_failed:,}건 — 봐야 한다")
+        if self.form_failed:
+            out.insert(2, f"구조를 못 연 파일 {self.form_failed:,}건 — 표지 규칙만 돌았다")
         return "\n".join(out)
 
 
@@ -118,7 +125,7 @@ def run(
             # **지우지 않고 공백으로 바꾼다** — 길이가 달라지면 오프셋이 어긋난다.
             text = text.replace("\x00", " ")
 
-            _replace(s, sha, text, report, ext=row.detected_ext)
+            _replace(s, sha, text, report, ext=row.detected_ext, stored=row.stored_path)
             report.files += 1
             if limit is not None and report.files >= limit:
                 break
@@ -127,8 +134,56 @@ def run(
     return report
 
 
-def _replace(
-    s: Session, sha: str, text: str, report: ExtractReport, *, ext: str | None = None
+#: 구조를 열 수 있는 포맷. **pdf 와 스캔본은 텍스트로 물러난다**(ADR-0061 결정 2)
+_STRUCTURED = ("hwp", "hwpx", "docx")
+
+
+def _form_titles(
+    stored: str | None, ext: str | None, report: ExtractReport
+) -> list[str]:
+    """파일 구조에서 **서류 제목**을 뽑는다 (ADR-0061 결정 1).
+
+    한글 양식은 서류 제목을 표 하나로 감싸는데, 텍스트로 납작하게 만들면 그 모양이
+    사라져 `1. 2026년 0차 타깃마케팅 기본지원서` 가 평범한 한 줄이 된다. 표지
+    낱말(`붙임`·`서식`)이 없으면 못 자른다.
+
+    실측(2026-08-23 · 코퍼스 334개 · 육안 23건): 구간 607 → 761. 자세한 것은
+    [실측](../../../docs/adr/evidence/2026-08-23-구조로-서류-경계를-찾는다.md).
+
+    **`finnect.forms` 를 함수 안에서 임포트한다.** hwp 경로가 jpype 와 JVM 을 끌고
+    오는데 이 모듈은 초안 시작이 부른다(`draft/service.py` `_prepare`) — 최상단에
+    두면 로컬은 통과하고 배포본만 죽는다(ADR-0034 와 같은 함정).
+
+    **못 열면 빈 목록이고 세어 둔다.** 조용히 넘기면 표지 규칙만 돈 것과 구조를
+    못 연 것이 결과에서 구별되지 않는다.
+    """
+    if not stored or ext not in _STRUCTURED:
+        return []
+    try:
+        from collections import defaultdict
+
+        from finnect.forms import open_form
+
+        form = open_form(store.abs_path(stored), ext)
+        by_table: dict[tuple[int, int], list[str]] = defaultdict(list)
+        for c in form.cells():
+            by_table[(c.anchor.section, c.anchor.table)].append(c.text)
+        found = sg.doc_titles(list(by_table.values()), [p.text for p in form.paragraphs()])
+    except Exception:  # noqa: BLE001 — 한 파일이 나머지를 안 죽인다
+        report.form_failed += 1
+        return []
+    report.form_titles += len(found)
+    return found
+
+
+def _replace(  # noqa: PLR0913
+    s: Session,
+    sha: str,
+    text: str,
+    report: ExtractReport,
+    *,
+    ext: str | None = None,
+    stored: str | None = None,
 ) -> None:
     """이 파일의 구간을 다시 깐다. **부분 갱신을 하지 않는다** — 파서가 바뀌면 경계가 바뀐다.
 
@@ -152,7 +207,7 @@ def _replace(
         s.execute(delete(Document).where(Document.id.in_(old)))
 
     fields_docs: list[int] = []
-    for seg in sg.split(text):
+    for seg in sg.split(text, titles=_form_titles(stored, ext, report)):
         kind = _classify(seg.text)
         doc = Document(
             sha256=sha,
@@ -335,6 +390,12 @@ def _plant_anchors(
             or -1
         ) + 1
         for i, (label, _anchor) in enumerate(targets):
+            # **서류 표지는 라벨이 아니다.** 한글 양식이 제목을 표로 감싸서
+            # `붙임 1 | (빈칸) | 임대신청서 서식` 이 라벨쌍으로 잡히는데, 그 빈칸은
+            # 장식이라 값을 넣으면 좁은 칸에서 글자가 세로로 눌린다(육안 확인).
+            # `fx.rows` 가 텍스트 경로에서 막는 것과 같은 규칙이다.
+            if fx.is_marker(label):
+                continue
             key = norm_label(label)
             hit = seen.get(key)
             s.add(

@@ -1,12 +1,11 @@
 import { Suspense, ViewTransition } from "react";
-import { preconnect } from "react-dom";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { WritePanes } from "@/components/WritePanes";
 import { getNotice, getNoticeDocuments } from "@/lib/api";
 import { getDraft } from "@/lib/draft";
 import type { Draft } from "@/lib/draft";
-import { fromApi, VIEWER_ORIGIN } from "@/lib/documents";
+import { fromApi } from "@/lib/documents";
 import { DEFAULT_COMPANY } from "@/lib/wiki";
 import styles from "./page.module.css";
 
@@ -34,17 +33,16 @@ export default async function NoticeWritePage({
   params: Promise<{ source: string; id: string }>;
   searchParams: Promise<{ company?: string; doc?: string }>;
 }) {
-  // **뷰어가 붙을 오리진을 미리 연다.** `DocViewer` 가 iframe 을 세우는 것은
-  // 하이드레이트가 끝나고 effect 가 돈 뒤인데, 거기서부터 DNS·TLS 를 시작하면
-  // 왕복이 다운로드 앞에 통째로 쌓인다. 여기서 걸면 그 왕복이 서버 렌더와 겹친다.
+  // **여기 리소스 힌트가 있었고 둘 다 걷어냈다**(2026-08-23).
   //
-  // 받는 것이 studio HTML 62KB + JS 293KB + CSS 90KB + **WASM 3.0MB** 다
-  // (gzip 기준 · 원본 8.0MB · 2026-08-23 실측). 왕복 몇 번이 전부는 아니지만
-  // **연결을 세우기 전에는 그 무엇도 안 내려온다.**
+  // ① `preconnect(edwardkim.github.io)` — studio 를 우리 오리진으로 옮기면서
+  //    (`lib/documents.ts` 의 `STUDIO_URL`) 미리 열 외부 오리진이 없어졌다.
   //
-  // **`await` 앞에 둔다** — 뒤로 내리면 힌트가 `params` 를 기다린다.
-  preconnect(VIEWER_ORIGIN);
-
+  // ② `preload(wasm · js, { as: "fetch" })` — **헛돌았다.** 뷰어가 그 파일을 받는
+  //    것은 `DocViewer` 가 세운 iframe 안이고, **preload 캐시는 문서마다 따로다.**
+  //    실측에서 같은 URL 이 `frame=main` 과 `frame=iframe` 으로 두 번 나갔다 —
+  //    3.2MB 를 미리 받아 놓고 아무도 안 쓴 것이다. 캐시는 이제 `next.config.ts`
+  //    의 `headers()` 가 준다.
   const { source, id } = await params;
   const sp = await searchParams;
   const external = decodeURIComponent(id);

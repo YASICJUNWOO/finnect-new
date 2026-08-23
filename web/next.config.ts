@@ -42,6 +42,30 @@ const nextConfig: NextConfig = {
   },
   // `FINNECT_ADMIN` 이 여기 있었다. 운영 화면이 같은 앱으로 들어와서(ADR-0027)
   // 링크가 상대 경로가 됐고 주소를 줄 자리가 없어졌다.
+
+  /** rhwp studio 미러본을 오래 캐시한다(`lib/documents.ts` 의 `STUDIO_URL`).
+   *
+   * **`public/` 의 기본값이 `max-age=0` 이다.** 파일 이름에 해시가 없는 것이 섞여
+   * 있어서 Next 가 일괄로 그렇게 준다. 그러면 쓰기 화면에 들어갈 때마다 WASM
+   * 2,947KB 와 웹폰트 3,255KB 를 재검증한다.
+   *
+   * **원본은 이 일을 서비스 워커가 했다**(`sw.js` 의 `wasm-cache` · 30일). 미러본에서
+   * 그 SW 를 껐으므로([ADR-0039](../docs/adr/0039-설치되는-앱으로-만들되-서비스-워커는-안-붙인다.md))
+   * 캐시를 여기서 준다.
+   *
+   * **`immutable` 을 `assets`·`fonts` 에만 준다.** 저기는 이름에 해시가 있거나
+   * (`index-s2CVbjxO.js`) 갈릴 일이 없는 폰트다. `index.html` 은 그 해시를 가리키는
+   * 쪽이라 같이 굳히면 **미러본을 갱신해도 옛 자산을 계속 부른다.** */
+  async headers() {
+    return [
+      {
+        source: "/rhwp/:dir(assets|fonts)/:file*",
+        headers: [
+          { key: "cache-control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -140,19 +140,28 @@ export function canPreview(doc: FormDocument): boolean {
   return doc.ext !== null && VIEWABLE.has(doc.ext);
 }
 
-/** 양식 뷰어가 붙는 오리진. **`@rhwp/editor` 가 iframe 을 여기로 띄운다**
- * (`node_modules/@rhwp/editor/index.js` 의 `DEFAULT_STUDIO_URL`).
+/** 양식 뷰어(rhwp studio)가 사는 자리. **우리 오리진이다** — `web/public/rhwp/` 에
+ * 미러본을 두고 `createEditor({ studioUrl })` 로 못 박는다.
  *
- * 여는 자리는 `DocViewer` 인데 값이 여기 있는 이유는 **서버가 먼저 알아야 해서**다 —
- * 쓰기 페이지가 이 오리진에 `preconnect` 를 걸어 DNS·TLS 를 미리 세운다. `"use client"`
- * 파일에 두면 서버 컴포넌트가 못 읽는다(바로 위 `canPreview` 와 같은 자리).
+ * ## 왜 옮겼나
  *
- * **`createEditor` 의 `studioUrl` 로 넘기지 않는다.** 라이브러리가 상수를 안 내보내서
- * 우리가 한 벌 적는 것인데, 넘겨 버리면 rhwp 가 주소를 옮기는 날 **뷰어가 통째로 죽는다.**
- * 안 넘기면 그날 힌트만 헛돌고 뷰어는 새 기본값으로 그대로 열린다 — 최적화가 조용히
- * 멈추는 것과 화면이 안 뜨는 것 중 앞엣것을 고른 것이다.
+ * 기본값(`edwardkim.github.io`)으로 처음 열 때 **6,634KB 를 요청 11개로** 받았다
+ * (2026-08-23 실측 · 콜드 캐시). WASM 2,947KB 와 **웹폰트 넷 3,255KB** 다 —
+ * 폰트가 WASM 보다 크고, `EditorOptions` 에 폰트를 끄는 자리가 없다. 바이트를 줄이는
+ * 길이 없어서 **어디서 받는지**를 바꿨다.
  *
- * **`crossOrigin` 을 주지 않는다.** iframe 은 문서 요청이라 자격 증명 있는 연결 풀을
- * 쓰는데, `crossorigin` 을 붙이면 익명 풀에 연결이 서고 **그 연결을 아무도 안 쓴다.**
- * 폰트에 그 옵션을 붙이는 규칙과 반대라 고쳐 쓰기 쉬운 자리다. */
-export const VIEWER_ORIGIN = "https://edwardkim.github.io";
+ * ## 대가
+ *
+ * **rhwp 업데이트가 자동으로 안 온다.** `npm update @rhwp/editor` 를 해도 studio 는
+ * 이 폴더의 것이라 그대로다. 올리려면 `web/public/rhwp/` 를 다시 내려받아야 하고,
+ * 그때 `index.html` 이 가리키는 해시 파일 이름이 갈린다.
+ *
+ * **`registerSW.js` 를 비워 뒀다.** 원본은 `/rhwp/sw.js` 를 등록하는데, 우리 오리진에
+ * 서비스 워커를 세우는 결정을 한 적이 없다([ADR-0039](../../docs/adr/0039-설치되는-앱으로-만들되-서비스-워커는-안-붙인다.md)).
+ * 저쪽 SW 의 일이 WASM 캐시였고 그건 이제 같은 오리진의 정적 파일이라 필요가 없다.
+ *
+ * ## 값이 왜 여기 있나
+ *
+ * 여는 자리는 `DocViewer` 인데 `"use client"` 라 서버 컴포넌트가 못 읽는다(바로 위
+ * `canPreview` 와 같은 자리). 쓰기 페이지가 이 값을 보고 `preload` 를 건다. */
+export const STUDIO_URL = "/rhwp/index.html";

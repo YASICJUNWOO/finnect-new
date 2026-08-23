@@ -81,12 +81,32 @@ def from_bizinfo(row) -> NoticeBody:  # noqa: ANN001
     )
 
 
+def unescape(raw: str | None) -> str:
+    """엔티티를 풀고 공백을 접는다. **태그는 안 지운다.**
+
+    K-Startup 본문은 HTML 이 아니라 태그가 없다. 그런데 **엔티티는 있다** —
+    실측(2026-08-23)에서 **138건 중 10건에 `&apos;` 가 남아 있었다.**
+
+    안 풀면 앵커 대조가 깨져 **그 공고가 통째로 버려진다.** 모델은 `'` 로 정직하게
+    인용하는데 우리 원문이 이스케이프된 채라서 `squash(anchor) not in squash(text)`
+    가 된다 —
+
+        모델   "「민관협력 오픈이노베이션 지원」 '성과기업 후속 지원'"
+        원문   "「민관협력 오픈이노베이션 지원」 &apos;성과기업 후속 지원&apos;"
+
+    **`clean_summary` 와 같은 병이고 고친 날이 다르다.** 2026-08-20 에 `R&amp;D역량`
+    으로 같은 것을 봤는데 그때는 기업마당만 고쳤다 — 저쪽은 HTML 이라 태그를 지우는
+    김에 풀었고, 이쪽은 태그가 없어서 그냥 지나갔다.
+    """
+    return _WS.sub(" ", html.unescape(raw or ""))
+
+
 def from_kstartup(row) -> NoticeBody:  # noqa: ANN001
     """`kstartup_notice` 한 행. **`aply_trgt_ctnt` 가 지원대상이다.**"""
     return NoticeBody(
         source="kstartup",
         external_id=getattr(row, "pbanc_sn", "") or "",
-        title=getattr(row, "biz_pbanc_nm", "") or "",
-        target=_WS.sub(" ", getattr(row, "aply_trgt_ctnt", None) or ""),
-        body=_WS.sub(" ", getattr(row, "pbanc_ctnt", None) or ""),
+        title=html.unescape(getattr(row, "biz_pbanc_nm", "") or ""),
+        target=unescape(getattr(row, "aply_trgt_ctnt", None)),
+        body=unescape(getattr(row, "pbanc_ctnt", None)),
     )

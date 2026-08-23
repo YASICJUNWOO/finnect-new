@@ -149,13 +149,29 @@ def test_자격_판별_입력이_전부_찬다(built):  # noqa: ANN001
 
     OCR 을 껐으므로 사업자등록증이 빠졌는데도 나머지 넷이 채워야 한다 —
     등록증에만 있는 값에 자격 판별이 매달리면 안 된다.
+
+    **`certification` 은 빼고 잰다**(2026-08-23). 이 코퍼스에 인증 얘기가 한 줄도
+    없다 — 다시로는 벤처확인도 이노비즈도 안 받았다. **빈 것이 정상이고 그게 곧
+    물어볼 자리다.** 픽스처에 없는 값을 채우려고 원문을 고치면 앵커가 깨진다.
     """
     factory, _ = built
     with factory() as s:
         views = {v.key: v for v in build.read_profile(s, COMPANY)}
-    need = sorted(profile.ELIGIBILITY_KEYS)
+    need = sorted(profile.ELIGIBILITY_KEYS - {"certification"})
     empty = [n for n in need if not views[n].current]
     assert not empty, f"자격 판별 입력이 비었다: {empty}"
+
+
+def test_인증은_이_코퍼스에_없어서_빈다(built):  # noqa: ANN001
+    """**빈 칸이 물어볼 자리다**(ADR-0028). 위 테스트가 `certification` 을 뺀 이유를
+    여기서 명시적으로 잠근다 — 코퍼스가 바뀌어 인증이 들어오면 여기가 먼저 깨지고,
+    그때 위 테스트에서 예외를 지운다.
+    """
+    factory, _ = built
+    with factory() as s:
+        views = {v.key: v for v in build.read_profile(s, COMPANY)}
+    assert "certification" in views
+    assert not views["certification"].current
 
 
 # ─────────────────────────────────────────────────────────────────

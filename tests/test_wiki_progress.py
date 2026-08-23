@@ -250,6 +250,14 @@ def test_칸마다_낼_것이_같이_온다(client) -> None:  # noqa: ANN001
 
     화면이 칸 다섯을 펼치면서 각 칸이 무엇을 냈는지 말한다 — 글자 수 · 조각 수 · 사실 수다.
     이 값이 응답에 없으면 칸 이름만 늘어놓게 되고, 그건 점 다섯과 같은 정보량이다.
+
+    **`fact_count > 0` 을 안 건다**(2026-08-23). 스텁에서는 참이었지만 **진짜
+    추출기에서는 사진이 사실 0개로 끝난다** — `현장사진_파일럿매장.jpg` 가 OCR 로
+    글자를 읽고 청크까지 갔는데 회사 사실이 하나도 안 나왔다. 픽스처
+    (`facts.json`)는 사람이 그 사진에 사실 하나를 적어 둬서 안 걸렸다.
+
+    **0 은 값이 없는 것과 다르다.** 여기가 재는 것은 「칸이 무엇을 냈는지 말하는가」이지
+    「얼마나 냈는가」가 아니다.
     """
     body = ProgressOut.model_validate(client.get("/api/wiki/c_dasiro/progress").json())
     done = [f for f in body.files if f.ok]
@@ -259,7 +267,7 @@ def test_칸마다_낼_것이_같이_온다(client) -> None:  # noqa: ANN001
     for f in done:
         assert f.text_chars is not None, f.filename
         assert f.chunk_count is not None, f.filename
-        assert f.fact_count > 0, f.filename
+        assert f.fact_count is not None, f.filename
         assert f.parser and "/" in f.parser, f.filename
 
 

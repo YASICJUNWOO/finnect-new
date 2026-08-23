@@ -249,3 +249,40 @@ def test_HTML_엔티티를_전부_푼다() -> None:
     assert "&amp;" not in sm and "&nbsp;" not in sm
     assert "R&D역량" in sm
     assert "& 예비창업자" in sm
+
+
+# ────────────── K-Startup 엔티티 (2026-08-23 실측) ──────────────
+
+
+def test_kstartup_본문의_엔티티를_푼다() -> None:
+    """**138건 중 10건에 `&apos;` 가 남아 있었다.** 안 풀면 앵커 대조가 깨져 그
+    공고가 통째로 버려진다 — 모델은 `'` 로 정직하게 인용하기 때문이다.
+
+        모델   "「민관협력 오픈이노베이션 지원」 '성과기업 후속 지원'"
+        원문   "「민관협력 오픈이노베이션 지원」 &apos;성과기업 후속 지원&apos;"
+
+    2026-08-20 에 기업마당에서 `R&amp;D역량` 으로 같은 것을 봤는데 그때는 저쪽만
+    고쳤다 — **저쪽은 HTML 이라 태그를 지우는 김에 풀었고 이쪽은 태그가 없어서
+    지나갔다.**
+    """
+    b = bodies.from_kstartup(
+        행(
+            pbanc_sn="1",
+            biz_pbanc_nm="「민관협력」 &apos;성과기업 후속 지원&apos;",
+            aply_trgt_ctnt="R&amp;D역량을 보유한 기업",
+            pbanc_ctnt="사업비 5&#44;000만원",
+        )
+    )
+    assert b.title == "「민관협력」 '성과기업 후속 지원'"
+    assert b.target == "R&D역량을 보유한 기업"
+    assert b.body == "사업비 5,000만원"
+
+
+def test_kstartup_은_태그를_안_지운다() -> None:
+    """본문이 HTML 이 아니다. **`<` 를 지우면 원문에 없는 글자가 되어 앵커가 깨진다** —
+    기업마당(`clean_summary`)과 다른 점이 이것이다.
+    """
+    b = bodies.from_kstartup(
+        행(pbanc_sn="1", biz_pbanc_nm="", aply_trgt_ctnt="매출 <5억 기업", pbanc_ctnt="")
+    )
+    assert b.target == "매출 <5억 기업"

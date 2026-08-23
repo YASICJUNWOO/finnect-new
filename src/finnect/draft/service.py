@@ -553,7 +553,7 @@ def _notice_material(s: Session, source: str, external_id: str) -> tuple[tuple[s
 def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
     """집필이 쓸 재료 전부. **트랙 둘을 여기서 합친다**(plan/22 T-0134).
 
-    트랙 A(노드에 앉은 사실)와 트랙 B(매칭 정보 열넷)가 표가 다르고 근거 표도 다르다.
+    트랙 A(노드에 앉은 사실)와 트랙 B(매칭 정보 열다섯)가 표가 다르고 근거 표도 다르다.
     합치는 자리가 여기 하나인 이유는 **아래가 전부 재료 id 하나로 도는** 배관이라서다 —
     배분·집필·중복 점검이 정수 하나만 본다(`refs.py`).
 

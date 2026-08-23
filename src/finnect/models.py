@@ -805,7 +805,7 @@ class CompanyValue(Base):
     **그래프에 안 뜬다.** 회사 정보 화면 한 장이다.
 
     시점이 다르고 값이 다르면 시계열, 시점이 같은데 값이 다르면 **충돌**이다. 그 판정을
-    할 수 있는 이유가 `key` 가 고정 열넷이라서다.
+    할 수 있는 이유가 `key` 가 고정 열다섯이라서다.
     """
 
     __tablename__ = "company_value"
@@ -817,7 +817,7 @@ class CompanyValue(Base):
     id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
     company_id: Mapped[str] = mapped_column(String(64), index=True)
 
-    #: **고정 열넷 중 하나**(`wiki/profile.py` `PROFILE_KEYS`). LLM 스키마가 enum 으로 막는다
+    #: **고정 열다섯 중 하나**(`wiki/profile.py` `PROFILE_KEYS`). LLM 스키마가 enum 으로 막는다
     key: Mapped[str] = mapped_column(String(32))
     #: 정규화된 값. `24,100천원` 이 아니라 `24100000` 이다 — 표기를 그대로 두면 없는 충돌이 생긴다
     value: Mapped[str] = mapped_column(Text)
@@ -920,7 +920,7 @@ class ItemNeed(Base):
     document_item_id: Mapped[int] = mapped_column(
         _PK, ForeignKey("document_item.id", ondelete="CASCADE"), index=True
     )
-    #: 매칭 정보 key 열넷(`wiki/profile.py`) 또는 카테고리 열(`wiki/tree.py`).
+    #: 매칭 정보 key 열다섯(`wiki/profile.py`) 또는 카테고리 열(`wiki/tree.py`).
     #: **그 둘 밖의 값을 넣지 않는다** — `draft/needs.py` `PLACES` 가 정본이다.
     #:
     #: **동적 노드 경로가 여기 안 온다**(ADR-0056). 이 표에 `company_id` 가 없어서 —

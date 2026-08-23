@@ -1,6 +1,6 @@
 """트랙 B — 매칭 정보의 어휘(ADR-0056 결정 5). **트리와 무관하다.**
 
-질문이 **열넷 고정**이다. 그래서 못 채운 칸을 셀 수 있고, 셀 수 있어서 물어볼 수 있다
+질문이 **열다섯 고정**이다. 그래서 못 채운 칸을 셀 수 있고, 셀 수 있어서 물어볼 수 있다
 ([ADR-0028](../../../docs/adr/0028-초안을-먼저-완성하고-못-채운-자리에서-묻는다.md)).
 트랙 A 는 정답지가 없어서 이걸 못 한다.
 
@@ -55,11 +55,15 @@ class ProfileKey:
     unit: str = "text"
 
 
-#: 매칭 정보 열넷. **`ValueSpec.qualified` 는 읽는 코드가 하나도 없어서 지웠다**(ADR-0056).
+#: 매칭 정보 열다섯. **`ValueSpec.qualified` 는 읽는 코드가 하나도 없어서 지웠다**(ADR-0056).
 #:
 #: **업력과 만 나이는 여기 없다.** 개업일과 생년월일만 저장하고 판정 시점에 계산한다 —
 #: 공고마다 기준일이 다르다. 코퍼스의 성남시 신청서에 `업력 1년 6개월` 이 박혀 있는데
 #: 2025-08 기준 값이라 지금은 틀렸다.
+#:
+#: **중소기업 여부도 여기 없다**(2026-08-23). 공고가 `중소기업` 을 자주 요구하지만
+#: 그건 `headcount` 와 `revenue` 로 계산되는 파생값이다 — 업력·만 나이를 안 넣은 것과
+#: 같은 이유다. 저장하면 두 곳이 갈리고, 갈리면 어느 쪽이 맞는지 코드가 모른다.
 PROFILE_KEYS: dict[str, ProfileKey] = {
     "company_name": ProfileKey("상호", dated=False),
     "business_no": ProfileKey("사업자등록번호", dated=False, eligibility=True),
@@ -78,6 +82,17 @@ PROFILE_KEYS: dict[str, ProfileKey] = {
     "revenue": ProfileKey("매출액", dated=True, unit="money"),
     "funding": ProfileKey("조달액", dated=True, unit="money"),
     "gov_program": ProfileKey("정부지원 수혜 이력", dated=True, eligibility=True, unit="money"),
+    #: **실측으로 더했다**(2026-08-23 · 공고 50건). 자격 판정을 못 한 스무 건 중
+    #: **여섯이 이것 하나** 때문이었다 — `벤처기업 확인서 유효기간 시작일이 …이후인
+    #: 기업` · `기업부설연구소 또는 연구개발전담부서` · `벤처확인을 준비하는 기업`.
+    #:
+    #: **`dated=True` 다.** 벤처기업확인은 유효기간이 있어서 "언제 기준으로 가졌나" 가
+    #: 판정을 가른다 — 취득일 없는 인증은 조건을 넘는지 알 수 없다.
+    #:
+    #: 값은 인증 이름(`벤처기업확인` · `이노비즈` · `기업부설연구소`)이고 여럿이면
+    #: 여러 행이다. **특허·상표는 여기 안 넣는다** — 그건 트랙 A 의 `Custom/특허` 이고
+    #: 자리에 원문이 붙어 있다. 여기는 「가졌나 못 가졌나」를 묻는 칸이다.
+    "certification": ProfileKey("보유 인증", dated=True, eligibility=True),
 }
 
 
@@ -132,6 +147,16 @@ ALIASES: dict[str, str] = {
     "장기차입금": "funding",
     "정부지원사업 참여 이력": "gov_program",
     "지원금": "gov_program",
+    # 인증 — **코퍼스에 실제로 나온 표현만 담는다.** 없는 표현을 미리 안 넣는다
+    "벤처기업확인": "certification",
+    "벤처기업 확인서": "certification",
+    "벤처기업 인증": "certification",
+    "이노비즈": "certification",
+    "메인비즈": "certification",
+    "기업부설연구소": "certification",
+    "연구개발전담부서": "certification",
+    "보유 인증": "certification",
+    "인증 현황": "certification",
 }
 
 

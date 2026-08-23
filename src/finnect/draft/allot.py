@@ -232,7 +232,7 @@ def _contested(
 def _index(facts: list[FactView]) -> dict[str, list[FactView]]:
     """자리 이름 → 사실들. **노드 경로를 조상 전부에 걸어 둔다**(ADR-0056).
 
-    `item_need.place` 는 **카테고리 열이나 매칭 정보 열넷**만 가리킨다 — 양식이 회사와
+    `item_need.place` 는 **카테고리 열이나 매칭 정보 열다섯**만 가리킨다 — 양식이 회사와
     무관해서 동적 경로를 못 가리킨다(`item_need` 에 `company_id` 가 없다). 그런데 사실은
     `Customer/고객문제` 같은 경로를 든다. 그래서 `Customer` 로도 찾을 수 있게 조상마다
     걸어 둔다.

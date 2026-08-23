@@ -40,7 +40,7 @@ class StatementOut(BaseModel):
     kind: str
     #: 정규화된 저장값. `event` 면 null 이다. **화면이 이걸 고쳐 쓰지 않는다**
     #:
-    #: **`display` 짝이 없다.** 단위표(`profile.PROFILE_KEYS`)는 매칭 정보 열넷의 것이고
+    #: **`display` 짝이 없다.** 단위표(`profile.PROFILE_KEYS`)는 매칭 정보 열다섯의 것이고
     #: 트랙 A 의 값은 자유롭게 오니 거기 없다 — 없는 단위를 붙이면 값이 거짓이 된다
     value: str | None
     #: 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`. **자유 문자열이다**
@@ -106,7 +106,7 @@ class ValueOut(BaseModel):
 
 
 class ProfileKeyOut(BaseModel):
-    """회사 정보 한 칸. **열넷 고정이라 빈 칸을 셀 수 있다**(ADR-0028)."""
+    """회사 정보 한 칸. **열다섯 고정이라 빈 칸을 셀 수 있다**(ADR-0028)."""
 
     key: str
     label: str
@@ -123,7 +123,7 @@ class ProfileOut(BaseModel):
     """회사 정보 한 장(`/company`). **그래프에 안 뜬다**(ADR-0056 결정 1)."""
 
     company_id: str
-    #: 열넷 고정. 순서가 `PROFILE_KEYS` 표 순서다
+    #: 열다섯 고정. 순서가 `PROFILE_KEYS` 표 순서다
     keys: list[ProfileKeyOut]
     #: 채운 칸 수. **막대를 만들지 않는다** — 「14칸 중 12칸」으로만 말한다
     filled: int

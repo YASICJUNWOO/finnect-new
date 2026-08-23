@@ -225,8 +225,8 @@ def test_표_밖의_경로는_자리로_안_풀린다():
     assert spots.by_number(99) is None
 
 
-def test_매칭_정보가_열넷이고_별칭이_그리로_모인다():
-    assert len(profile.PROFILE_KEYS) == 14
+def test_매칭_정보가_열다섯이고_별칭이_그리로_모인다():
+    assert len(profile.PROFILE_KEYS) == 15
     for name in ("상시 근로자", "종업원 수", "구성원", "임직원", "직원 수", "상시근로자", "직원수"):
         assert profile.key_of(name) == "headcount", name
     #: 표에 없으면 **추측하지 않는다**

@@ -86,9 +86,9 @@ def get_wiki(session: Session, company_id: str) -> WikiOut:
 
 
 def get_profile(session: Session, company_id: str) -> ProfileOut:
-    """회사 정보 한 장(트랙 B · `/company`). **열넷이 항상 온다.**
+    """회사 정보 한 장(트랙 B · `/company`). **열다섯이 항상 온다.**
 
-    **빈 칸이 물어볼 자리다**(ADR-0028). 열넷이 고정이라 못 채운 것을 셀 수 있고,
+    **빈 칸이 물어볼 자리다**(ADR-0028). 열다섯이 고정이라 못 채운 것을 셀 수 있고,
     셀 수 있어서 물어볼 수 있다 — 트랙 A 는 정답지가 없어 이걸 못 한다.
     """
     views = build.read_profile(session, company_id)

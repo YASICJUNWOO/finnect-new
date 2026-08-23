@@ -75,13 +75,13 @@ def test_자리표가_한_곳에만_있다():
 
 
 def test_고정된_것이_셋이다():
-    """**폴더 열 · 자리 마흔여섯 · 매칭 정보 열넷**(ADR-0058).
+    """**폴더 열 · 자리 마흔여섯 · 매칭 정보 열다섯**(ADR-0058).
 
     자리 안에서 문서가 정하는 것은 `{…}` 열일곱의 인스턴스 이름뿐이다.
     """
     assert len(spots.FOLDERS) == 10
     assert len(spots.SPOTS) == 46
-    assert len(profile.PROFILE_KEYS) == 14
+    assert len(profile.PROFILE_KEYS) == 15
 
 
 def test_옛_어휘가_없어졌다():
@@ -157,13 +157,13 @@ def test_사실이_붙은_노드만_마크다운을_갖는다(client) -> None:  
         assert n.markdown == "" if not n.filled else n.markdown.startswith("---")
 
 
-def test_회사_정보가_열넷_다_온다(client) -> None:  # noqa: ANN001
-    """**빈 칸이 물어볼 자리다**(ADR-0028). 열넷이 고정이라 셀 수 있다."""
+def test_회사_정보가_열다섯_다_온다(client) -> None:  # noqa: ANN001
+    """**빈 칸이 물어볼 자리다**(ADR-0028). 열다섯이 고정이라 셀 수 있다."""
     r = client.get("/api/company/c_없는회사")
     assert r.status_code == 200
     body = ProfileOut.model_validate(r.json())
-    assert body.total == 14
-    assert len(body.keys) == 14
+    assert body.total == 15
+    assert len(body.keys) == 15
     assert body.filled == 0
     #: 자격 판별 입력이 표시된다 — 비면 물어야 한다
     assert sum(1 for k in body.keys if k.eligibility) == len(profile.ELIGIBILITY_KEYS)

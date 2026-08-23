@@ -139,3 +139,20 @@ const VIEWABLE = new Set(["hwp", "hwpx", "pdf", "docx"]);
 export function canPreview(doc: FormDocument): boolean {
   return doc.ext !== null && VIEWABLE.has(doc.ext);
 }
+
+/** 양식 뷰어가 붙는 오리진. **`@rhwp/editor` 가 iframe 을 여기로 띄운다**
+ * (`node_modules/@rhwp/editor/index.js` 의 `DEFAULT_STUDIO_URL`).
+ *
+ * 여는 자리는 `DocViewer` 인데 값이 여기 있는 이유는 **서버가 먼저 알아야 해서**다 —
+ * 쓰기 페이지가 이 오리진에 `preconnect` 를 걸어 DNS·TLS 를 미리 세운다. `"use client"`
+ * 파일에 두면 서버 컴포넌트가 못 읽는다(바로 위 `canPreview` 와 같은 자리).
+ *
+ * **`createEditor` 의 `studioUrl` 로 넘기지 않는다.** 라이브러리가 상수를 안 내보내서
+ * 우리가 한 벌 적는 것인데, 넘겨 버리면 rhwp 가 주소를 옮기는 날 **뷰어가 통째로 죽는다.**
+ * 안 넘기면 그날 힌트만 헛돌고 뷰어는 새 기본값으로 그대로 열린다 — 최적화가 조용히
+ * 멈추는 것과 화면이 안 뜨는 것 중 앞엣것을 고른 것이다.
+ *
+ * **`crossOrigin` 을 주지 않는다.** iframe 은 문서 요청이라 자격 증명 있는 연결 풀을
+ * 쓰는데, `crossorigin` 을 붙이면 익명 풀에 연결이 서고 **그 연결을 아무도 안 쓴다.**
+ * 폰트에 그 옵션을 붙이는 규칙과 반대라 고쳐 쓰기 쉬운 자리다. */
+export const VIEWER_ORIGIN = "https://edwardkim.github.io";

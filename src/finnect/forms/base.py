@@ -190,11 +190,35 @@ def _fold_spans(row: list[Cell]) -> list[Cell]:
     return out
 
 
-def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
+def label_targets(
+    cells: list[Cell], fillable: frozenset[Anchor] = frozenset()
+) -> list[tuple[str, Anchor]]:
     """`(라벨, 값이 들어갈 칸)` 을 순서대로.
 
     **바로 오른쪽 칸이 값 자리다.** 관공서 양식이 `라벨 | 빈칸` 으로 짜여 있고,
     실측에서 그 모양으로 165칸을 채웠다(ADR-0060).
+
+    ## `fillable` 이 값 쪽만 넓힌다
+
+    빈 칸이 아니어도 값 자리인 칸이 있다(`주식회사 ○○○○`·`yyyy-mm-dd`). 그 판정은
+    규칙으로 못 하고 LLM 이 한다([plan/24] T-0153 · `forms/slots.py`) — 여기는 그
+    결과를 좌표 집합으로 받는다. **비어 있으면 예전과 똑같이 돈다.**
+
+    **값 자리 둘이 나란히 서면 짝이 아니다.** 왼쪽도 값 자리인데 오른쪽도 값 자리면
+    어느 쪽이 라벨인지 모른다 — 실측에서 그 자리가 이렇게 생겼다.
+
+        사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
+                        └ 값 자리      └ 값 자리로 오검출
+
+    `000-00-00000` 을 라벨로 읽으면 그것이 **`법인등록번호` 라는 라벨 글자를 값
+    자리로 잡는다.** 플레이스홀더가 항목 이름이 되는 일이 실제로 있어서(이 양식의
+    `000백만원`) 그 짝이 걸리면 라벨이 값으로 덮인다. **모르는 자리를 찍지 않는다** —
+    라벨이 겹칠 때 아예 버리는 것과 같은 판단이다.
+
+    **오른쪽이 빈 칸이면 그 규칙을 안 건다.** 왼쪽이 값 자리로 오검출돼도 오른쪽의
+    빈 칸은 여전히 그 라벨의 자리다 — 실측에서 `실무자성명 | (빈칸)` 이 그렇게
+    살았다. 대가는 `투자 | 주요 투자처 | 누적 투자금액` 처럼 **라벨이 열 머리로 위에
+    있는 표를 여전히 못 잡는다**는 것이다.
 
     ## 건너뛰지 않는다
 
@@ -209,9 +233,14 @@ def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
     한 칸이라도 건너뛴 시점에서 그 빈 칸은 **이미 다른 라벨의 값 자리**다.
 
     **재현율을 정확성과 바꾼 것이다.** 건너뛰어야 닿는 칸을 이제 못 채우는데, 그
-    자리는 안내문이 값 자리를 막고 있는 경우라 [plan/24] T-0153 이 그 칸을 값
-    자리로 인정하면서 되찾는다. **모르는 자리를 찍어서 채우지 않는다** — 라벨이
-    겹칠 때 아예 버리는 것과 같은 판단이다.
+    자리는 안내문이 값 자리를 막고 있는 경우라 **`fillable` 이 그 칸을 값 자리로
+    인정하면서 되찾는다.** 위 행이 실제로 그렇게 갈린다.
+
+        fillable 없음   사업자등록번호 → (건너뛰지 않으니 없음) · 법인등록번호 → 빈칸
+        fillable 있음   사업자등록번호 → 000-00-00000 · 법인등록번호 → 빈칸
+
+    **모르는 자리를 찍어서 채우지 않는다** — 라벨이 겹칠 때 아예 버리는 것과 같은
+    판단이다.
 
     ## 그 밖의 경계
 
@@ -234,7 +263,9 @@ def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
         run = _fold_spans(row)
         for i, c in enumerate(run[:-1]):
             nxt = run[i + 1]
-            if c.blank or not nxt.blank:
+            if c.blank or not (nxt.blank or nxt.anchor in fillable):
+                continue
+            if c.anchor in fillable and not nxt.blank:
                 continue
             out.append((c.text, nxt.anchor))
     return out

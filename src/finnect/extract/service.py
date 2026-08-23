@@ -15,6 +15,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from finnect.attach import store
+from finnect.config import settings
 from finnect.db import engine
 from finnect.extract import classify as cl
 from finnect.extract import fields as fx
@@ -50,6 +51,13 @@ class ExtractReport:
     #: 구조를 열려다 실패한 파일. **조용히 안 넘긴다** — 표지 규칙만 돈 것과
     #: 구조를 못 연 것이 결과에서 같아 보인다
     form_failed: int = 0
+    #: LLM 이 값 자리로 인정한 칸 중 **비어 있지 않았던 것** (plan/24 T-0153).
+    #: 빈 칸은 원래 값 자리라 세지 않는다 — 이 숫자가 넓어진 폭이다
+    slots: int = 0
+    #: 값 자리 판정에 쓴 호출. **양식마다 다르다** — 표가 많으면 여러 번 나뉜다
+    slot_calls: int = 0
+    #: 판정이 실패한 파일. 좌표는 빈 칸만으로 심긴다
+    slot_failed: int = 0
     kinds: dict[str, int] = field(default_factory=dict)
 
     def line(self) -> str:
@@ -60,6 +68,13 @@ class ExtractReport:
             f"좌표를 심은 칸 {self.anchored:,} · 구조가 찾은 서류 제목 {self.form_titles:,}",
             f"구간 종류: {k or '없음'}",
         ]
+        if self.slot_calls:
+            out.insert(
+                2,
+                f"LLM 이 넓힌 값 자리 {self.slots:,}칸 · 호출 {self.slot_calls:,}회",
+            )
+        if self.slot_failed:
+            out.insert(2, f"값 자리 판정이 실패한 파일 {self.slot_failed:,}건 — 빈 칸만 심었다")
         if self.anchor_failed:
             out.insert(2, f"열지 못한 파일 {self.anchor_failed:,}건 — 봐야 한다")
         if self.form_failed:
@@ -340,7 +355,8 @@ def _plant_anchors(
 
     try:
         form = open_form(str(store.abs_path(store.rel_path(sha))), ext)
-        targets = label_targets(form.cells())
+        cells = form.cells()
+        targets = label_targets(cells, _fillable(s, sha, cells, report))
     except (UnsupportedFormat, FormsUnavailable, FileNotFoundError):
         return
     except Exception as e:  # noqa: BLE001 — 파일 하나가 수집 전체를 안 죽인다
@@ -414,11 +430,53 @@ def _plant_anchors(
                 report.anchored += 1
         return
 
+    # **못 찾으면 지운다.** `redo` 는 규칙을 고친 뒤에 부르는 것이라, 안 지우면 옛
+    # 규칙이 심은 좌표가 그대로 남는다 — 실측에서 `사업자등록번호` 가 옛 규칙(오른쪽
+    # **첫 빈 칸**)으로 `법인등록번호` 의 칸을 물고 있었고, 새 규칙이 그 항목을
+    # 포기했는데도 값이 남아서 **채우기가 그 칸에 사업자등록번호를 넣는다.**
+    # 틀린 좌표는 없는 것보다 나쁘다 — 파일은 정상으로 열려서 제출 직전에야 드러난다.
     for row in rows:
         hit = seen.get(norm_label(row.title))
+        row.anchor = str(hit) if hit is not None else None
         if hit is not None:
-            row.anchor = str(hit)
             report.anchored += 1
+
+
+def _fillable(s: Session, sha: str, cells: list, report: ExtractReport) -> frozenset:
+    """값 자리의 좌표. **꺼져 있으면 빈 집합이고 빈 칸만 값 자리다** (T-0153).
+
+    **양식 이름을 여기서 읽는다.** 판정이 그 이름을 재료로 쓴다 — `2026년 …
+    신청서` 인지 `재무제표` 인지가 어느 칸이 값 자리인지를 가른다.
+
+    실패를 밖으로 안 던진다. LLM 이 안 되는 것은 좌표를 넓히지 못하는 것일 뿐이고,
+    **빈 칸을 심는 일은 그대로 돌아야 한다** — 관측이 본 일을 막지 않는 것과 같은
+    자리다(ADR-0038).
+    """
+    if settings.form_slots != "llm":
+        return frozenset()
+
+    from finnect.forms.slots import LlmSlots  # 함수 안에서 — httpx 를 안 끌고 온다
+
+    title = (
+        s.scalar(
+            select(Document.title).where(
+                Document.sha256 == sha, Document.kind == str(DocumentKind.FIELDS)
+            )
+        )
+        or ""
+    )
+    try:
+        out = LlmSlots().read(title, cells)
+    except Exception as e:  # noqa: BLE001
+        report.slot_failed += 1
+        print(f"[값자리] {sha[:8]} 판정 실패: {type(e).__name__}: {e}", flush=True)
+        return frozenset()
+
+    report.slot_calls += out.calls
+    report.slots += len(out.fillable) - sum(1 for c in cells if c.blank)
+    if out.dropped:
+        print(f"[값자리] {sha[:8]} 범위 밖 번호 {len(out.dropped)}개를 버렸다", flush=True)
+    return out.fillable
 
 
 def _plant_outline(s: Session, form: object, document_id: int, report: ExtractReport) -> None:

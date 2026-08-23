@@ -122,17 +122,15 @@ def main(argv: list[str] | None = None) -> int:
         print(render_ingest(report))
         print()
 
-    if args.rebuild:
-        with SessionFactory() as s:
-            n = build.clear(s, args.company)
-            s.commit()
-        print(f"{args.company}: 세웠던 사실 {n}건을 지웠어요. 원본과 청크는 그대로예요")
-
     if args.paths or args.build or args.rebuild:
         # **거절을 트레이스백으로 보여 주지 않는다.** 사용자 실수지 우리 버그가 아니다
         try:
             with SessionFactory() as s:
-                print(render_build(build.build_company(s, args.company)))
+                rep = build.build_company(s, args.company, rebuild=args.rebuild)
+                if rep.cleared:
+                    print(f"{args.company}: 세웠던 사실 {rep.cleared}건을 지웠어요. "
+                          "원본과 청크는 그대로예요")
+                print(render_build(rep))
                 s.commit()
         except build.BuildBusy as e:
             print(f"[못 세웠어요] {e}")

@@ -195,9 +195,8 @@ def _node(n: build.NodeView, page: export.Page | None) -> WikiNodeOut:
 def _statement(s: markdown.Statement) -> StatementOut:
     return StatementOut(
         text=s.text,
-        kind=s.kind,
+        key=s.key,
         value=s.value,
-        qualifier=s.qualifier,
         as_of=s.as_of.isoformat() if s.as_of else None,
         grade=s.grade,
         source=s.source,

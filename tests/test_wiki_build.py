@@ -288,6 +288,25 @@ def test_두_번_돌려도_같은_배치가_나온다(built):  # noqa: ANN001
     assert sorted((f.dedupe_key, f.status) for f in _facts(factory)) == before
 
 
+def test_지우는_일이_락_안에서_돈다(built):  # noqa: ANN001
+    """**지운 뒤 못 세우는 창이 없어야 한다**(2026-08-23).
+
+    전에는 CLI 가 `clear()` 를 따로 커밋하고 `build_company` 를 불렀다. 그 사이에
+    락이 거절되면 **사실이 지워진 채로 아무것도 안 서고 끝난다** — 실제로 밟았고
+    그때 지운 것이 0건이라 운이 좋았을 뿐이다.
+    """
+    factory, _ = built
+    before = sorted(f.dedupe_key for f in _facts(factory))
+    n_b = len(_values(factory))
+    with factory() as s:
+        rep = build.build_company(s, COMPANY, rebuild=True)
+        s.commit()
+    #: **트랙 둘을 다 센다** — `clear()` 가 `wiki_fact` 와 `company_value` 를 같이 지운다
+    assert rep.cleared == len(before) + n_b, "지운 수가 보고에 남는다"
+    #: 지우고 같은 자리에 다시 섰다
+    assert sorted(f.dedupe_key for f in _facts(factory)) == before
+
+
 def test_지우고_다시_세우면_원래대로다(built):  # noqa: ANN001
     """추출기를 바꿔 다시 돌릴 때 쓴다. **원본과 청크는 안 건드린다.**"""
     factory, _ = built
@@ -390,7 +409,6 @@ class _Drifting:
         return [
             NodeFact(
                 path="Company/팀",
-                kind="event",
                 text=f"{anchor} 를 {self.calls}번째로 읽은 문장이다.",
                 anchor=anchor,
             )

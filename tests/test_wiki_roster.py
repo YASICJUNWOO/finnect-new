@@ -47,8 +47,7 @@ class 가짜클라이언트:
 
 def _n(**kw) -> dict:
     base = {
-        "spot": None, "instance": None,
-        "kind": "event", "text": "x", "value": None, "qualifier": None,
+        "spot": None, "instance": None, "key": None, "value": None, "text": "x",
         "as_of": None, "grade": "1차", "source": None, "anchor": ANCHOR,
     }
     return {**base, **kw}
@@ -139,14 +138,6 @@ def test_먼저_온_표기가_이긴다():
     n = num("Competitor/{업체명}")
     got = _paths([_n(spot=n, instance="요기 요"), _n(spot=n, instance="요기요")])
     assert got == ["Competitor/요기 요"] * 2
-
-
-def test_한정어도_같은_그물을_쓴다():
-    known = Known.of(qualifiers=["예비창업패키지"])
-    ex = LlmNodes(client=가짜클라이언트([
-        _n(spot=num("Financial/자금계획"), kind="value", qualifier="예비 창업 패키지", value="15"),
-    ]))
-    assert ex.extract(VIEW, known)[0].qualifier == "예비창업패키지"
 
 
 def test_부르는_쪽의_상태를_안_늘린다():

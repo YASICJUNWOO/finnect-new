@@ -17,15 +17,34 @@
 열일곱의 **인스턴스 이름뿐**이고(경쟁사 실명·특허 번호처럼 늘어나는 것), 그 이름도
 문서에서 나온다.
 
-## key 가 없다
+## 서술은 문장 하나. 값에는 이름이 붙는다
 
-사실에 이름을 붙이지 않는다. 자리가 곧 이름이라(`Company/팀` 은 팀 얘기다) 한 번 더
-이름을 지으면 **같은 것을 두 어휘로 부르게 되고**, 그 모호함이 자리를 다시 갈랐다.
-사실은 자리에 그냥 쌓이고 시점 내림차순으로 선다.
+    서술   text 하나                    개발 8명·영업 4명·운영 2명이다
+    값     key + value + text          key="자본금"  value="120000000"
 
-**대가를 적어 둔다.** 같은 사실이 문서 넷에 다르게 쓰여 있으면(`올랐다`·`상승했다`·
-`올랐습니다`·`34% → 51%`) **사실 넷이 된다.** 그 넷을 하나로 묶던 것이 `key` 였고,
-지금은 아무도 안 묶는다.
+**`qualifier` 가 없다**(ADR-0059). `key` 가 그 일을 흡수한다 — `조달액`+`시드` 대신
+**`시드 조달액`** 하나다. 실측에서
+한정어가 제 일을 한 것이 71종 중 10종뿐이었고 그 열이 전부 이름으로 쓸 수 있었다.
+
+## 이름을 값에만 주는 이유
+
+[ADR-0058](../../../docs/adr/0058-자리표를-기획-트리로-고정하고-key-를-없앤다.md) 이
+`key` 를 통째로 없앴다가 **하루 만에 이름이 `qualifier` 로 옮겨 앉았다**(한정어 81건에
+71종). 이름이 필요한 곳이 있었기 때문이다.
+
+**모호했던 것은 서술 쪽뿐이다.**
+
+    서술   Company/팀  +  key="팀 구성"    ← 자리 이름과 겹친다.  모호
+    값     Company/팀  +  key="경영 인원"   ← 안 겹친다.          모호하지 않다
+
+그래서 서술에서는 이름을 안 받고 값에서만 받는다. **가르는 물음도 이것이다** —
+「값 하나로 적을 수 있나」가 아니라 **「이 사실에 이름을 붙일 수 있나」**.
+
+## 시점을 이름에서 뗀다 — 프롬프트가 아니라 코드로
+
+한정어에서 **22종이 시점을 이름에 박았다**(`2024년 구독 매출`). 그러면 2024년 것과
+2025년 것이 다른 이름이 되어 **이력이 안 쌓인다.** 프롬프트로 두 번 막아 봤고 두 번
+다 돌아왔으므로 `bare_key()` 가 코드로 뗀다.
 
 ## 앵커 규칙은 안 바뀐다
 
@@ -37,6 +56,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -102,24 +122,28 @@ FIXTURE_TOPICS: frozenset[str] = frozenset(FIXTURE_PATH) | frozenset(FIXTURE_GAP
 
 @dataclass(frozen=True, slots=True)
 class NodeFact:
-    """자리에 앉을 사실 하나. **자리를 이미 알고 나온다.**"""
+    """자리에 앉을 사실 하나. **자리를 이미 알고 나온다.**
+
+    `key` 와 `value` 가 **둘 다 있으면 값이고 없으면 서술이다.** 따로 `kind` 를 받지
+    않는 이유는 그것이 있으면 「값이라고 했는데 값이 없는」 상태가 표현되기 때문이다.
+    """
 
     #: 자리 경로. `Company/팀` · `Custom/특허/출원-10-2025-0114882`
     path: str
-    #: `value` 또는 `event`
-    kind: str
     #: 원문에 그대로 있는 조각. **이걸 담은 청크가 근거가 된다**
     anchor: str
-    #: 사람이 읽는 문장. `event` 는 이게 내용이고 `value` 는 값의 설명이다
+    #: 사람이 읽는 문장. **서술은 이게 내용의 전부다**
     text: str = ""
 
-    # --- kind == "value" 일 때만 ---
-    #: **정규화된 값이다.** 문서가 쓴 표현은 `text` 에 남는다
+    # --- 값일 때만 찬다. 둘 다 있으면 값이고 없으면 서술이다 ---
+    #: 이 값의 이름. `자본금` · `시드 조달액`. **시점은 `bare_key` 가 떼고 온다**
+    key: str | None = None
+    #: 정규화된 값. `120000000`. **문서가 쓴 표현은 `text` 에 남는다**
     value: str | None = None
-    #: 같은 자리 안의 종류. `시드` · `TAM` · `예비창업패키지`
-    qualifier: str | None = None
 
-    #: 언제 기준 사실인가. **값·서술 둘 다 받는다**(ADR-0057 결정 2)
+    #: 언제 기준 사실인가. **값 칸이 없어진 뒤에도 이건 남는다** — 자리 안에서
+    #: 시점 내림차순으로 세우는 축이고(ADR-0057 결정 3), 문장에서 날짜를 다시 뽑아
+    #: 정렬하면 「2025.08 기준」·「작년」·「도입 3개월 차」를 파싱하는 문제가 새로 생긴다
     as_of: dt.date | None = None
 
     #: 기획 §5 의 자료 등급. `1차` · `2차` · `가정`. **`실측` 과 `미정` 은 여기 안 온다** —
@@ -193,7 +217,9 @@ def from_fixture(d: dict) -> NodeFact | None:
     """픽스처 사실 하나를 트랙 A 모양으로. **트랙 B 것이면 `None`.**
 
     `kind == "value"` 인데 항목 이름이 매칭 정보 열다섯 중 하나면 저쪽 것이라 여기서
-    안 낸다 — 그 판정은 `profile.key_of` 하나가 한다.
+    안 낸다 — 그 판정은 `profile.key_of` 하나가 한다. 나머지는 **값으로** 앉는다.
+
+    **픽스처의 `qualifier` 는 안 읽는다**(ADR-0059) — 트랙 A 에 그 칸이 없다.
 
     등급은 전부 `1차` 다. **픽스처가 회사 자기 문서에서 옮긴 것이라서** 그렇고,
     스텁이 등급을 판정한다는 뜻이 아니다.
@@ -207,12 +233,11 @@ def from_fixture(d: dict) -> NodeFact | None:
             return None  # 트랙 B 가 낸다
         return NodeFact(
             path=spots.REVIEW.path,
-            kind="value",
             anchor=anchor,
             text=text,
+            key=bare_key(d.get("key")) or None,
             value=d.get("value"),
             as_of=_date(d.get("as_of")),
-            qualifier=d.get("qualifier") or (d.get("key") or None),
             grade="1차",
             why=f"자리표에 없는 항목 — {d.get('key')!r}",
         )
@@ -222,7 +247,6 @@ def from_fixture(d: dict) -> NodeFact | None:
     why = "" if path else (FIXTURE_GAP.get(topic) or f"자리가 없는 topic — {topic}")
     return NodeFact(
         path=path or spots.REVIEW.path,
-        kind="event",
         anchor=anchor,
         text=text,
         #: **픽스처에는 하나도 없다**(event 64건 전부). 읽어 두는 것은 LLM 쪽과 규칙을
@@ -231,6 +255,28 @@ def from_fixture(d: dict) -> NodeFact | None:
         grade="1차",
         why=why,
     )
+
+
+#: 이름에서 뗄 시점 표현. **`as_of` 칸이 따로 있는데도 모델이 이름에 박는다** —
+#: 한정어 시절 71종 중 22종이 그랬고 프롬프트로 두 번 막아 봤지만 두 번 다 돌아왔다.
+#:
+#: 떼면 `2024년 매출액` 과 `2025년 매출액` 이 **같은 이름**이 되고 `as_of` 가 가른다 —
+#: 그래야 한 자리에 이력으로 쌓인다. `2024년 구독 매출` 은 `구독 매출` 이 되어
+#: `매출액` 과 **여전히 다르다.**
+_PERIOD = re.compile(
+    r"(\d{4}\s*년도?|\d{4}-\d{2}(-\d{2})?|[1-4]\s*분기|[1-4]Q|FY\s*\d{2,4})"
+    r"\s*(말|초|상반기|하반기)?"
+)
+
+
+def bare_key(key: str | None) -> str:
+    """이름에서 시점을 뗀다. **전부 떼고 나면 원래 이름을 돌려준다.**
+
+    `2024년` 처럼 시점뿐인 이름을 빈 문자열로 만들면 그 사실이 이름을 잃는다 —
+    지우는 것보다 안 뗀 채 두는 것이 낫다.
+    """
+    bare = " ".join(_PERIOD.sub(" ", key or "").split()).strip()
+    return bare or (key or "").strip()
 
 
 def _date(s: str | None) -> dt.date | None:
@@ -291,29 +337,58 @@ _SYSTEM = """\
 버려지지 않는다. **표에 없는 번호를 지어내지 마라** — 고를 수 있는 것은 위 자리표의
 번호뿐이고, 그 밖의 번호는 자리를 안 고른 것과 같다.
 
-## kind — value 인가 event 인가
+## 서술인가 값인가 — **「이름을 붙일 수 있나」로 가른다**
 
-**「이 사실을 숫자·날짜·이름 하나로 적을 수 있나」로 가른다.**
-
-- `value` — 적을 수 있다. `value` 에 그 값 하나, `text` 에 사람이 읽는 문장
-- `event` — 못 적는다. `text` 가 내용이고 `value` 는 비운다
+- **값** — 붙일 수 있다. `key` 에 그 이름, `value` 에 값 하나, `text` 에 사람이 읽는 문장
+- **서술** — 못 붙인다. `key` 와 `value` 를 **둘 다 비우고** `text` 만 낸다
 
 ```
-유료 매장 102곳 (2026년 1월)        → value   value="102"      as_of=2026-01-31
-2025년 매출 8,640만원               → value   value="86400000" as_of=2025-12-31
-개발 8명·영업 4명·운영 2명·경영 1명   → event   값이 하나가 아니다
-진입 경로는 지역 상인회와 도매 유통사  → event   셀 것이 없다
+자본금 1억 2,000만원          → 값    key="자본금"        value="120000000"
+2025년 매출 8,640만원         → 값    key="매출"          value="86400000"
+시드 라운드 3억원 유치         → 값    key="시드 조달액"    value="300000000"
+경영 1명(대표이사)            → 값    key="경영 인원"      value="1"
+개발 8명·영업 4명·운영 2명     → 서술  값이 하나가 아니다
+진입 경로는 지역 상인회와 도매  → 서술  셀 것이 없다
 ```
 
-**세는 것·재는 것은 거의 value 다.** 매장 수·인원·금액·비율·건수를 `event` 로 내면
-그 값이 시간에 따라 어떻게 변했는지 아무도 못 본다.
+**세는 것·재는 것은 거의 값이다.** 매장 수·인원·금액·비율·건수를 서술로 내면 그 값이
+시간에 따라 어떻게 변했는지 아무도 못 본다.
 
 한 문장이 둘 다이면 **사실을 둘로 낸다.**
 
-## qualifier — 같은 자리 안에서 무엇을 가리키나
+## key — 값의 이름
 
-한 자리에 값이 여럿일 때 무엇의 값인지 적는다. `TAM` · `SAM` · `시드` · `정책자금`.
-가릴 것이 없으면 비운다. **`value` 일 때만 쓴다.**
+**자리 이름을 되풀이하지 마라.** `Company/팀` 에 `key="팀"` 은 아무것도 안 말한다 —
+`경영 인원`·`개발 인원` 처럼 **그 자리 안에서 무엇의 값인지**를 적는다.
+
+**구체적으로 적는다.** 같은 자리에 비슷한 값이 여럿이면 이름으로 갈라라.
+
+    조달액 (X)  →  시드 조달액 · 브리지 조달액 · 정책자금 조달액
+    요금 (X)    →  기본 요금제 · 연동 요금제 · 통합 요금제
+
+**시점을 이름에 넣지 마라.** `2024년 매출액` 이 아니라 `매출액` 이고 연도는 `as_of` 에
+간다 — 넣으면 2024년 것과 2025년 것이 다른 이름이 되어 이력이 안 쌓인다.
+
+## value — 숫자만 정규화한다
+
+- 금액: `24,100천원` → `24100000` · `2,410만원` → `24100000` · `3억원` → `300000000`
+- 날짜: `2024. 3. 5.` → `2024-03-05` · `2024년03월11일` → `2024-03-11`
+- 수: `15명` → `15`
+
+**이름·주소·등록번호는 숫자가 아니다. 표기를 바꾸지 마라.**
+문서가 쓴 표현은 `text` 에 남긴다. **단위·쉼표·한글 수사를 `value` 에 넣지 마라.**
+
+## text — 사람이 읽는 문장
+
+값이든 서술이든 **문장 하나**를 낸다. 값일 때는 그 값을 품은 문장이다.
+
+```
+자본금은 1억 2,000만원이다.
+2026년 1월 기준 유료 매장은 102곳이다.
+```
+
+**문서가 쓴 표현을 살린다.** `2,410만원` 을 문장에서까지 `24100000` 으로 고쳐 쓰지
+마라 — 사용자가 자기 문서에서 못 찾는 문장이 된다. 고친 값은 `value` 에만 있다.
 
 ## anchor — 가장 중요하다
 
@@ -321,23 +396,14 @@ _SYSTEM = """\
 띄어쓰기·조사·괄호·숫자 표기를 손대면 그 사실은 근거를 잃고 **버려진다.**
 10~60자 정도로, 그 사실이 실제로 적힌 자리를 잡아라.
 
-## value — 숫자만 정규화한다 (value 일 때만)
-
-- 금액: `24,100천원` → `24100000` · `2,410만원` → `24100000` · `3억원` → `300000000`
-- 날짜: `2024. 3. 5.` → `2024-03-05` · `2024년03월11일` → `2024-03-11`
-- 수: `15명` → `15`
-
-**이름·주소·등록번호는 숫자가 아니다. 표기를 바꾸지 마라.**
-문서가 쓴 표현은 `text` 에 남긴다. **단위·쉼표·한글 수사를 value 에 넣지 마라.**
-
-## as_of — 언제 기준 사실인가 (value · event 둘 다)
+## as_of — 언제 기준 사실인가
 
 `2024년 매출` 이면 `2024-12-31` · `2025. 08. 기준` 이면 `2025-08-31`.
 값 옆에 더 구체적인 날짜가 있으면 그쪽이 이긴다.
 어디에도 날짜가 없으면 비운다. **지어내지 마라.**
 
-**서술에도 채운다.** `2026년 8월 기준 개발 8명, 영업 4명` 은 값이 하나가 아니라 `event`
-이지만 시점은 분명히 있다. 시점을 채우면 같은 자리에 이력으로 쌓인다.
+**서술에도 채운다.** 시점이 분명하면 값이든 서술이든 넣는다 — 채워야 같은 자리에
+이력으로 쌓인다.
 
 ## grade — 이 사실을 어디서 얻었나
 
@@ -404,17 +470,17 @@ SCHEMA = {
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "spot", "instance",
-                    "kind", "text", "value", "qualifier", "as_of",
-                    "grade", "source", "anchor",
+                    "spot", "instance", "key", "value",
+                    "text", "as_of", "grade", "source", "anchor",
                 ],
                 "properties": {
                     "spot": {"type": ["integer", "null"]},
                     "instance": {"type": ["string", "null"]},
-                    "kind": {"type": "string", "enum": ["value", "event"]},
-                    "text": {"type": ["string", "null"]},
+                    #: **`kind` 를 안 받는다.** 있으면 「값이라고 했는데 값이 없는」
+                    #: 상태가 표현된다 — 둘 다 찼으면 값이고 아니면 서술이다
+                    "key": {"type": ["string", "null"]},
                     "value": {"type": ["string", "null"]},
-                    "qualifier": {"type": ["string", "null"]},
+                    "text": {"type": "string"},
                     "as_of": {"type": ["string", "null"]},
                     "grade": {"type": "string", "enum": ["1차", "2차", "가정"]},
                     "source": {"type": ["string", "null"]},
@@ -463,7 +529,7 @@ class LlmNodes:
             schema_name="wiki_spots",
         )
         #: **갈래를 뜬다.** 부르는 쪽의 `Known` 을 늘리지 않는다 — 이 호출에서만 자란다
-        seen, quals = known.spots.copy(), known.qualifiers.copy()
+        seen = known.spots.copy()
 
         facts: list[NodeFact] = []
         for d in out.get("facts") or []:
@@ -471,7 +537,7 @@ class LlmNodes:
             if not port.anchored(view, anchor):
                 self.dropped.append((view.filename, anchor[:60]))
                 continue
-            facts.append(_resolve(d, anchor, seen, quals))
+            facts.append(_resolve(d, anchor, seen))
         return facts
 
 
@@ -480,30 +546,31 @@ def _user_prompt(view: FileView) -> str:
     return f"파일 이름: {view.filename}\n\n--- 원문 ---\n{body}"
 
 
-def _resolve(d: dict, anchor: str, seen: port.Roster, quals: port.Roster) -> NodeFact:
+def _resolve(d: dict, anchor: str, seen: port.Roster) -> NodeFact:
     """번호와 인스턴스 이름을 자리 하나로 푼다.
 
     **번호가 표 밖이면 검토 대기다.** 없는 번호에 자리를 지어 주면 그 사실이 엉뚱한
     데 앉고, 앉은 뒤에는 왜 거기 있는지 아무도 못 찾는다.
     """
-    kind = d.get("kind") if d.get("kind") in ("value", "event") else "event"
     text = (d.get("text") or "").strip()
     path, why = _path(d, seen)
-    qualifier = quals.fold(d.get("qualifier") or "")
     grade = d.get("grade") if d.get("grade") in ("1차", "2차", "가정") else "1차"
     #: **`source` 는 `2차` 일 때만 산다.** 다른 등급에 기관 이름이 붙으면 프론트매터가
     #: 「이 값은 KOSIS 것」이라고 말하는데 문서는 그런 적이 없게 된다
     source = ((d.get("source") or "").strip() if grade == "2차" else "")
 
+    #: **둘 다 있어야 값이다.** 이름만 오면 무엇의 값인지 알 수 없고, 값만 오면
+    #: 화면에 이름 없는 숫자가 뜬다 — 어느 쪽도 반쪽이라 서술로 떨어뜨린다
+    key = bare_key(d.get("key"))
+    value = (d.get("value") or "").strip()
+    paired = bool(key and value)
+
     return NodeFact(
         path=path,
-        kind=kind,
         anchor=anchor,
         text=text,
-        # **서술에 값 필드가 붙으면 뜻이 어긋난다**
-        value=(d.get("value") or None) if kind == "value" else None,
-        qualifier=(qualifier or None) if kind == "value" else None,
-        #: **시점은 서술도 받는다**(ADR-0057 결정 2)
+        key=key if paired else None,
+        value=value if paired else None,
         as_of=_date(d.get("as_of")),
         grade=grade,
         source=source,

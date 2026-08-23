@@ -115,6 +115,8 @@ class BuildReport:
     per_file: list[tuple[str, int, int]] = field(default_factory=list)
     #: 제자리를 못 찾아 `Custom/검토 대기` 로 간 사실 수. **버린 것이 아니다**
     review: int = 0
+    #: `rebuild=True` 로 지운 옛 사실 수. **지운 뒤 못 세우는 일이 없어야 한다**
+    cleared: int = 0
     conflicts: int = 0
     status: Counter[str] = field(default_factory=Counter)
     #: (파일명, 사유). **조용히 버리지 않는다**
@@ -174,15 +176,24 @@ def build_company(
     company_id: str,
     *,
     extractor: Extractors | None = None,
+    rebuild: bool = False,
 ) -> BuildReport:
     """한 회사의 위키를 세운다. **파일별로 독립이고 마지막에 한 번 상태를 매긴다.**
 
     상태(current/superseded/conflict)는 **전체를 봐야** 정해진다. 어느 시점이 가장
     늦은지는 파일 하나만 봐서는 모른다.
+
+    **`rebuild` 가 지우는 일까지 락 안에서 한다**(2026-08-23). 전에는 CLI 가
+    `clear()` 를 따로 부르고 커밋한 뒤 `build_company` 를 불렀는데, 그 사이에 락이
+    거절되면 **사실이 지워진 채로 아무것도 안 서고 끝났다.** 실제로 밟았다 —
+    다른 프로세스가 세우는 중에 `--rebuild` 를 돌렸고, 그때 지운 것이 0건이라
+    운이 좋았을 뿐이다. `_hold` 뒤로 옮기면 그 창이 없어진다.
     """
     _hold(session, company_id)
     ex = extractor or Extractors.default()
     report = BuildReport(company_id=company_id)
+    if rebuild:
+        report.cleared = clear(session, company_id)
 
     # **`done` 을 다시 읽지 않는다.** 2026-08-21 실측 — `--build` 한 번에 `c_dasiro` 의
     # 사실이 187 → 291 이 됐다(node +93 · slot +10).
@@ -369,15 +380,20 @@ def _build_file(
             select(WikiFact).where(WikiFact.company_id == uf.company_id, WikiFact.dedupe_key == key)
         )
         if row is None:
-            is_value = fact.kind == "value"
+            is_value = bool(fact.key and fact.value is not None)
             row = WikiFact(
                 company_id=uf.company_id,
                 node_id=node.id,
+                #: **`kind` 를 추출기가 안 준다**(ADR-0059). 이름과 값이 짝으로 왔나가
+                #: 곧 종류다 — 따로 받으면 「값이라고 했는데 값이 없는」 행이 생긴다
                 kind=str(FactKind.VALUE if is_value else FactKind.EVENT),
+                key=fact.key,
+                norm_key=tree.norm(fact.key or ""),
+                #: **`qualifier` 를 안 쓴다.** `key` 가 흡수했다 — `조달액`+`시드` 대신
+                #: `시드 조달액` 하나다. 트랙 B 는 key 가 enum 이라 저기는 그대로 산다
+                value=fact.value,
                 dedupe_key=key,
                 text=fact.text if not fact.why else f"{fact.text}  [{fact.why}]",
-                value=fact.value if is_value else None,
-                qualifier=fact.qualifier if is_value else None,
                 #: **서술에도 시점을 남긴다**(ADR-0057 결정 2). 값 필드와 달리 시점은
                 #: 종류를 안 가린다 — 있으면 한 자리 안에서 이력으로 쌓인다
                 as_of=fact.as_of,
@@ -648,12 +664,10 @@ def read_nodes(session: Session, company_id: str) -> list[NodeView]:
                             evidence=tuple(by_fact.get(f.id, ())),
                             source_type=f.source_type,
                             updated_at=f.updated_at.date() if f.updated_at else None,
-                            #: **값 칸 셋을 같이 싣는다.** 안 실으면 뷰가 `text` 만 보고
-                            #: `유료 매장 — 102` 를 문장 한 줄로 뭉갠다
-                            kind=f.kind,
-                            value=f.value,
-                            qualifier=f.qualifier,
                             as_of=f.as_of,
+                            #: 값이면 이름과 값이 같이 온다. **뷰가 이걸로 값 줄을 만든다**
+                            key=f.key,
+                            value=f.value,
                             #: 기획 §5 파일 머리의 재료. **장 하나가 여러 사실을 받으니
                             #: 등급도 여럿이고, 하나로 고르는 것은 `export.grade_of` 다**
                             grade=f.grade or "",

@@ -75,16 +75,14 @@ class Statement:
     source_type: str = "document"
     updated_at: dt.date | None = None
 
-    #: `value` 또는 `event`
-    kind: str = "event"
-
-    # --- kind == "value" 일 때만 찬다 ---
-    #: **정규화된 값이다**(`120000000`). 읽는 쪽이 고쳐 쓰지 않는다
-    value: str | None = None
-    #: 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`
-    qualifier: str | None = None
-
+    #: 언제 기준 사실인가. **줄 세우는 축이다**(ADR-0057 결정 3)
     as_of: dt.date | None = None
+
+    # --- 값일 때만 찬다. 둘 다 있으면 값이고 없으면 서술이다 ---
+    #: 이 값의 이름. `자본금` · `시드 조달액`
+    key: str | None = None
+    #: 정규화된 값. **읽는 쪽이 고쳐 쓰지 않는다** — 문서 표현은 `text` 에 있다
+    value: str | None = None
 
     #: 기획 §5 의 자료 등급. `1차` · `2차` · `가정`. 빈 문자열이면 안 매겨진 것이다
     grade: str = ""
@@ -111,29 +109,31 @@ def group(items: tuple[Statement, ...] | list[Statement]) -> list[Statement]:
 
 
 def _meta(s: Statement) -> str:
-    """사실 한 줄의 머리. `**300000000** — 시드 · 2025-09-30 기준 · 가정`. 없으면 빈 문자열.
+    """사실 한 줄의 머리. `**자본금** 120000000 · 2024-03-31 기준`. 없으면 빈 문자열.
 
-    **값과 시점이 절 제목이 아니라 여기 온다.** 한 장에 사실이 여럿이라(이력) 제목에
-    넣으면 둘 중 하나만 실린다.
+    **이름이 값 옆에 붙는다**(ADR-0059). 이름 없이 `120000000` 만 있으면 그 자리에
+    값이 여럿일 때 무엇의 값인지 알 수 없다 — 실측에서 `Company/회사소개` 한 장에
+    값이 열한 개였다.
 
-    **단위를 안 붙인다.** `profile.display()` 의 단위표는 매칭 정보 열다섯의 것이고 트랙 A
-    의 값은 자유롭게 오니 거기 없다 — **아는 척 `원`·`명` 을 붙이면 값이 거짓이 된다.**
+    **단위를 안 붙인다.** `profile.display()` 의 단위표는 매칭 정보 열다섯의 것이고
+    트랙 A 의 이름은 자유 문자열이라 거기 없다 — 아는 척 `원`·`명` 을 붙이면 값이
+    거짓이 된다. 문서가 쓴 표현은 `text` 문장에 그대로 있다.
 
     **등급은 `1차` 가 아닐 때만 적는다.** 자기 문서에서 나온 것이 기본값이라, 전부
     적으면 `1차` 가 모든 줄에 붙어서 정작 눈에 띄어야 할 `가정` 이 안 보인다.
     """
     bits = []
-    if s.value:
-        bits.append(f"**{s.value}**" + (f" — {s.qualifier}" if s.qualifier else ""))
-    elif s.qualifier:
-        bits.append(s.qualifier)
+    if s.key and s.value is not None:
+        bits.append(f"**{s.key}** {s.value}")
     if s.as_of:
         bits.append(f"{s.as_of.isoformat()} 기준")
     if s.grade and s.grade != "1차":
         bits.append(f"{s.grade}{f' · {s.source}' if s.source else ''}")
-    #: 값이 없으면 시점만 남아 문장처럼 보이므로 기울인다
+    if not bits:
+        return ""
     line = " · ".join(bits)
-    return line if s.value else (f"*{line}*" if line else "")
+    #: 값이 없으면 시점만 남아 문장처럼 보이므로 기울인다
+    return line if s.key else f"*{line}*"
 
 
 def render_facts(items: tuple[Statement, ...] | list[Statement]) -> list[str]:

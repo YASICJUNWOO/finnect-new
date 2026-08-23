@@ -61,8 +61,8 @@ def _n(**kw) -> dict:
     """트랙 A 사실 하나. 스키마의 모든 칸이 온다(`strict: true`)."""
     base = {
         "spot": _spot("Customer/검증/{활동}-{결과}"), "instance": "파일럿-12개소",
-        "kind": "event", "text": "", "value": None, "qualifier": None,
-        "as_of": None, "grade": "1차", "source": None, "anchor": "",
+        "key": None, "value": None,
+        "text": "", "as_of": None, "grade": "1차", "source": None, "anchor": "",
     }
     return {**base, **kw}
 
@@ -165,26 +165,33 @@ def test_자리를_안_고르면_검토_대기로_간다() -> None:
     assert got.why
 
 
-def test_서술에는_값_필드가_안_붙지만_시점은_남는다() -> None:
-    """`value` 와 한정어가 서술에 붙으면 병합 키가 어긋난다.
-
-    **시점은 다르다**([ADR-0057](../docs/adr/0057-서술을-쌓고-시점을-남긴다.md) 결정 2).
-    서술의 병합 키가 `(노드, key, 시점)` 이라 여기서 떨어뜨리면 이력이 안 서고, 추출기가
-    시점을 key 이름에 박게 된다(`team_roles_2026_08`).
+def test_스키마가_이름과_값을_받고_한정어는_안_받는다() -> None:
+    """**`kind` 를 안 받는다**(ADR-0059). 이름·값이 짝으로 왔나가 곧 종류다 —
+    받으면 「값이라고 했는데 값이 없는」 상태가 표현된다.
     """
-    ex = _nodes([_n(kind="event", value="100", as_of="2024-12-31", qualifier="시드",
-                    text="x", anchor="재구매율이 34%")])
-    f = ex.extract(VIEW, Known())[0]
-    assert (f.value, f.qualifier) == (None, None)
-    assert f.as_of == dt.date(2024, 12, 31)
+    props = extract_nodes.SCHEMA["properties"]["facts"]["items"]["properties"]
+    assert set(props) == {
+        "spot", "instance", "key", "value", "text", "as_of", "grade", "source", "anchor",
+    }
+    assert "qualifier" not in props
+    assert "kind" not in props
 
 
-def test_값이면_값_필드가_붙는다() -> None:
-    ex = _nodes([_n(kind="value", value="100", as_of="2024-12-31", qualifier="시드",
-                    text="x", anchor="재구매율이 34%")])
+def test_값이면_이름과_값이_붙고_시점이_이름에서_떨어진다() -> None:
+    """**문서가 쓴 표현은 `text` 에 남는다.** 고친 값은 `value` 에만 있다."""
+    ex = _nodes([_n(key="2025년 매출액", value="86400000", text="2025년 매출 8,640만원",
+                    as_of="2025-12-31", anchor="재구매율이 34%")])
     f = ex.extract(VIEW, Known())[0]
-    assert f.kind == "value"
-    assert (f.value, f.as_of, f.qualifier) == ("100", dt.date(2024, 12, 31), "시드")
+    assert f.key == "매출액", "시점을 코드가 뗀다"
+    assert (f.value, f.text) == ("86400000", "2025년 매출 8,640만원")
+    assert f.as_of == dt.date(2025, 12, 31)
+
+
+def test_이름이나_값이_반쪽이면_서술이_된다() -> None:
+    """어느 쪽도 반쪽이라 서술로 떨어뜨린다 — 이름 없는 숫자를 화면에 안 낸다."""
+    for kw in ({"key": "매출액"}, {"value": "86400000"}):
+        f = _nodes([_n(text="x", anchor="재구매율이 34%", **kw)]).extract(VIEW, Known())[0]
+        assert (f.key, f.value) == (None, None)
 
 
 def test_날짜가_아니면_시점_없는_값이_된다() -> None:

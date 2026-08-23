@@ -75,21 +75,25 @@ class Status:
 def node_key(fact: NodeFact) -> str:
     """트랙 A 의 중복 방지 키. **병합 키가 아니다.**
 
-        (자리, 종류, 한정어, 시점, 내용)
+        값     value|<자리>|<이름>|<시점>|<값>
+        서술   event|<자리>|<시점>|<문장>
 
-    「같은 것을 두 번 세우지 않는다」만 한다. 여기서 걸리는 것은 **똑같은 것**뿐이다 —
-    같은 파일을 다시 읽거나(`--rebuild`), 같은 문장이 문서 둘에 그대로 있을 때.
+    **값에는 이름이 들어가고 서술에는 안 들어간다**(ADR-0059). 이름이 없으면 같은
+    자리·같은 시점의 다른 항목이 우연히 같은 숫자일 때 하나가 사라진다 — 실측에서
+    `Company/팀` 의 「경영은 1명」과 「운영은 1명」이 정확히 그 짝이었다.
 
-    **`key` 가 없어졌다**(2026-08-22). 옛 키는 `event|<자리>|<key>|<시점>` 이었고,
-    그 `key` 가 「이 둘은 다르게 쓰였지만 같은 사실이다」를 정했다. 그것을 지우면서
-    **대신할 것을 만들지 않았다** — 만들 수 있는 것은 문장 유사도뿐이고 그건
-    비결정론이다. 그래서 다르게 쓰인 같은 사실은 이제 **둘로 선다.**
+    **이름에서 시점을 떼고 온다**(`extract_nodes.bare_key`). `2024년 매출액` 과
+    `2025년 매출액` 이 같은 이름이 되어야 `as_of` 가 둘을 가르고 이력이 선다.
 
-    내용을 키에 넣으므로 `_norm` 이 공백을 지운다 — 파서마다 줄바꿈이 달라서 안 지우면
-    같은 문장이 두 번 앉는다.
+    **값이 키에 들어가는 것이 요점이다.** 같은 자리·같은 이름·같은 시점인데 값이
+    다르면 행이 둘로 서고, 그것이 곧 사용자가 봐야 할 어긋남이다(F1-1-7) — 시드
+    3억과 2.8억이 둘 다 남는 이유다.
+
+    서술은 문장이 열쇠다. 파서마다 줄바꿈이 달라서 `_norm` 이 공백을 지운다.
     """
-    body = _norm(fact.value if fact.kind == "value" else fact.text)
-    return f"{fact.kind}|{fact.path}|{fact.qualifier or ''}|{fact.as_of or ''}|{body}"
+    if fact.key and fact.value is not None:
+        return f"value|{fact.path}|{_norm(fact.key)}|{fact.as_of or ''}|{_norm(fact.value)}"
+    return f"event|{fact.path}|{fact.as_of or ''}|{_norm(fact.text)}"
 
 
 def value_key(fact: ProfileFact) -> str:

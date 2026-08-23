@@ -11,6 +11,7 @@ DB 도 파일도 안 쓴다 — 전부 순수 함수다.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 
 import pytest
@@ -113,10 +114,11 @@ def test_모르는_이름은_버리지_않고_검토_대기로_간다():
          "value": "1년 6개월", "text": "업력 1년 6개월", "anchor": "업력"}
     #: 트랙 B 는 안 받는다 — 열넷 밖이다
     assert extract_profile.from_fixture(d) is None
-    #: 트랙 A 가 **값으로** 받는다. 버리지 않는다
+    #: 트랙 A 가 **문장으로** 받는다(ADR-0059). 버리지 않는다
     got = extract_nodes.from_fixture(d)
     assert got is not None
-    assert (got.path, got.kind) == (spots.REVIEW.path, "value")
+    assert got.path == spots.REVIEW.path
+    assert got.text == "업력 1년 6개월"
     assert "업력" in got.why
 
 
@@ -193,14 +195,14 @@ def test_시점_없는_슬롯은_시점이_와도_떨어진다():
 
 
 def test_똑같은_것은_두_번_안_선다():
-    """**중복 방지가 트랙 A 에 남은 전부다**(ADR-0058).
+    """**중복 방지가 트랙 A 에 남은 전부다**(ADR-0058 · ADR-0059).
 
     같은 자리 · 같은 시점 · 같은 문장이면 한 행이고 근거만 쌓인다. 파서마다 줄바꿈이
     달라서 공백을 지운 뒤 비교한다 — 안 지우면 `--rechunk` 뒤에 같은 문장이 또 앉는다.
     """
-    a = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+    a = NodeFact(path="Customer/검증/파일럿-12개소", anchor="",
                  text="월 재구매율이 34%에서 51%로 올랐다")
-    b = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+    b = NodeFact(path="Customer/검증/파일럿-12개소", anchor="",
                  text="월 재구매율이\n34%에서 51%로  올랐다")
     assert merge.node_key(a) == merge.node_key(b)
 
@@ -215,53 +217,91 @@ def test_다르게_쓰인_같은_사실은_둘로_선다():
     비결정론이다. **둘로 서는 것이 결정이고 사고가 아니다** — 여기가 뒤집히면
     누군가 유사도를 넣은 것이다.
     """
-    a = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
+    a = NodeFact(path="Customer/검증/파일럿-12개소", anchor="",
                  text="월 재구매율이 34%에서 51%로 올랐습니다")
-    b = NodeFact(path="Customer/검증/파일럿-12개소", kind="event", anchor="",
-                 text="34% → 51%")
+    b = NodeFact(path="Customer/검증/파일럿-12개소", anchor="", text="34% → 51%")
     assert merge.node_key(a) != merge.node_key(b)
 
 
 def test_시점이_다르면_다른_기록이다():
-    """**쌓이는 축이 시점이다**(ADR-0057 결정 1·2). 한 자리 안에서 이력이 된다."""
-    a = NodeFact(path="Company/팀", kind="event", anchor="", text="개발 8명",
-                 as_of=D(2026, 8, 31))
-    b = NodeFact(path="Company/팀", kind="event", anchor="", text="개발 8명",
-                 as_of=D(2025, 11, 30))
+    """**쌓이는 축이 시점이다**(ADR-0057 결정 2). 한 자리 안에서 이력이 된다."""
+    a = NodeFact(path="Company/팀", anchor="", text="개발 8명", as_of=D(2026, 8, 31))
+    b = NodeFact(path="Company/팀", anchor="", text="개발 8명", as_of=D(2025, 11, 30))
     assert merge.node_key(a) != merge.node_key(b)
 
 
 def test_자리가_다르면_같은_문장이라도_다른_사실이다():
     """자리를 키에서 빼면 트리 어디에 있든 같은 문장이 하나로 접힌다."""
-    a = NodeFact(path="Company/팀", kind="event", anchor="", text="열다섯 명이다")
-    b = NodeFact(path="Financial/매출", kind="event", anchor="", text="열다섯 명이다")
+    a = NodeFact(path="Company/팀", anchor="", text="열다섯 명이다")
+    b = NodeFact(path="Financial/매출", anchor="", text="열다섯 명이다")
     assert merge.node_key(a) != merge.node_key(b)
 
 
-def test_값은_값이_키에_들어간다():
-    """같은 자리·같은 시점에 값이 둘이면 **행이 둘로 서고 사용자가 본다.**
+def test_값도_문장으로_들어와_문장이_가른다():
+    """**값 칸이 없어졌다**(ADR-0059).
+
+    같은 자리·같은 시점에 다른 값이 오면 **문장이 다르니 행이 둘로 선다.** 옛날에는
+    `value` 가 키에 들어가 그 일을 했는데, 문장이 그 값을 품고 있으므로 결과가 같다.
 
     어느 하나를 고르지 않는다(F1-1-7). 트랙 A 에는 `status` 가 없어서 `conflict` 라는
     이름표가 안 붙을 뿐, 둘 다 남는 것은 같다.
     """
-    a = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
-                 qualifier="시드", value="300000000", as_of=D(2025, 9, 30))
-    b = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
-                 qualifier="시드", value="280000000", as_of=D(2025, 9, 30))
+    a = NodeFact(path="Financial/자금계획", anchor="",
+                 text="시드 라운드 3억원을 유치했다", as_of=D(2025, 9, 30))
+    b = NodeFact(path="Financial/자금계획", anchor="",
+                 text="시드 라운드 2.8억원을 유치했다", as_of=D(2025, 9, 30))
     assert merge.node_key(a) != merge.node_key(b)
-    #: 공백만 다른 값은 하나다 — 트랙 B 와 같은 규칙이어야 한다
-    c = NodeFact(path="Financial/자금계획", kind="value", anchor="", text="",
-                 qualifier="시드", value="300 000 000", as_of=D(2025, 9, 30))
-    assert merge.node_key(a) == merge.node_key(c)
 
 
-def test_한정어가_값을_가른다():
-    """**`key` 가 없어지면서 한정어가 그 일을 받았다.** TAM·SAM·SOM 이 한 자리에 산다."""
-    tam = NodeFact(path="Market/시장규모", kind="value", anchor="", text="",
-                   qualifier="TAM", value="100000000000", as_of=D(2025, 12, 31))
-    sam = NodeFact(path="Market/시장규모", kind="value", anchor="", text="",
-                   qualifier="SAM", value="20000000000", as_of=D(2025, 12, 31))
-    assert merge.node_key(tam) != merge.node_key(sam)
+def test_한정어가_사라지고_이름이_남았다():
+    """**칸이 있으면 이름이 거기 앉는다**(ADR-0059).
+
+    `key` 를 통째로 지웠더니 이름이 `qualifier` 로 옮겨 앉았다 — 한정어 71종에 사실
+    81건이었고 그중 61종이 사실 하나뿐이었다. **가르는 칸이 아니라 이름표였다.**
+
+    고친 방향은 「칸을 다 없앤다」가 아니라 **「이름이 필요한 곳에만 이름을 준다」**다.
+    한정어는 `key` 가 흡수한다 — `조달액`+`시드` 대신 `시드 조달액` 하나.
+    """
+    fields = {f.name for f in dataclasses.fields(NodeFact)}
+    assert "qualifier" not in fields
+    assert "kind" not in fields, "이름·값이 짝으로 왔나가 곧 종류다"
+    assert {"key", "value", "as_of"} <= fields
+
+
+def test_이름이_없으면_같은_숫자가_서로를_지운다():
+    """**이 테스트가 이름을 되살린 이유다**(2026-08-23 실측).
+
+    `Company/팀` 에 「경영은 1명」과 「운영은 1명」이 같은 시점으로 있었다. 이름 없이
+    값만 키에 넣으면 둘이 한 행이 되고 **하나가 사라진다** — 중복보다 나쁘다.
+    """
+    a = NodeFact(path="Company/팀", anchor="", text="경영은 1명이다",
+                 key="경영 인원", value="1", as_of=D(2026, 1, 31))
+    b = NodeFact(path="Company/팀", anchor="", text="운영은 1명이다",
+                 key="운영 인원", value="1", as_of=D(2026, 1, 31))
+    assert merge.node_key(a) != merge.node_key(b)
+
+
+def test_이름에서_시점을_떼고_온다():
+    """**`as_of` 칸이 있는데도 모델이 이름에 박는다**(한정어 71종 중 22종).
+
+    떼야 2024년 것과 2025년 것이 같은 이름이 되고 시점이 둘을 가른다 — 그래야 한
+    자리에 이력으로 쌓인다. **프롬프트로 두 번 못 막아서 코드로 뗀다.**
+    """
+    assert extract_nodes.bare_key("2024년 매출액") == "매출액"
+    assert extract_nodes.bare_key("2025년 매출액") == "매출액"
+    assert extract_nodes.bare_key("2026년 말 유료 매장 목표") == "유료 매장 목표"
+    #: **다른 항목까지 뭉개면 안 된다**
+    assert extract_nodes.bare_key("2024년 구독 매출") == "구독 매출"
+    #: 시점뿐인 이름은 그대로 둔다 — 지우면 그 사실이 이름을 잃는다
+    assert extract_nodes.bare_key("2024년") == "2024년"
+
+
+def test_이름과_값이_짝이_아니면_서술이다():
+    """반쪽은 안 받는다. 이름만 오면 무엇의 값인지 모르고, 값만 오면 이름 없는 숫자다."""
+    only_key = NodeFact(path="Company/팀", anchor="", text="x", key="경영 인원")
+    only_val = NodeFact(path="Company/팀", anchor="", text="x", value="1")
+    assert merge.node_key(only_key).startswith("event|")
+    assert merge.node_key(only_val).startswith("event|")
 
 
 def test_공백_지운_항목_이름도_슬롯을_찾는다():

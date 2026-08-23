@@ -96,11 +96,12 @@ function Facts({ node }: { node: WikiNode }) {
     <ul className={styles.facts}>
       {node.statements.map((s, i) => (
         <li key={i} className={styles.fact}>
-          {(s.value || s.qualifier || s.as_of || s.grade) && (
+          {(s.key || s.as_of || s.grade) && (
             <p className={styles.factMeta}>
-              {/* **단위를 안 붙인다.** 트랙 A 의 값은 자유롭게 와서 아는 단위가 없다 */}
+              {/* **이름이 값 옆에 붙는다**(ADR-0059). 이름 없이 숫자만 찍으면 한 자리에
+                * 값이 여럿일 때 무엇의 값인지 모른다. **단위는 안 붙인다** */}
+              {s.key && <span className={styles.qual}>{s.key}</span>}
               {s.value && <span className={styles.factValue}>{s.value}</span>}
-              {s.qualifier && <span className={styles.qual}>{s.qualifier}</span>}
               {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
               {/* **`1차` 는 안 낸다.** 기본값이라 모든 줄에 붙으면 `가정` 이 안 보인다 */}
               {s.grade && s.grade !== "1차" && (

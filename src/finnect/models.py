@@ -725,13 +725,15 @@ class WikiFact(Base):
     ADR-0014 가 "모든 값에 출처를 매단다"고 한 그 값이 이 표다. 근거는 `wiki_evidence`
     로 나가고, **근거가 하나도 없는 행은 만들지 않는다.**
 
-        dedupe_key = <kind>|<자리>|<한정어>|<시점>|<값 또는 문장>
+        dedupe_key = <자리>|<시점>|<문장>
 
-    **`key` 가 없어졌다**(2026-08-22). 그 컬럼이 「이 둘은 다르게 쓰였지만 같은
-    사실이다」를 정하던 유일한 근거였고, 자리표를 고정하면서 같이 지웠다 — 자리가
-    곧 이름이라 사실마다 이름을 한 번 더 짓는 것이 모호했다. **대신할 것을 만들지
-    않았으므로 트랙 A 에 병합이 없다** — 다르게 쓰인 같은 사실은 둘로 선다
-    (`wiki/merge.py` 첫 문단).
+    **`key`·`kind`·`value`·`qualifier` 넷을 안 쓴다.** 사실 하나가 **문장 하나**다
+    ([ADR-0059](../../docs/adr/0059-트랙-a-를-문장-하나로-줄인다.md)). 이름을 지우면
+    이름이 옆 칸으로 옮겨 앉는 것을 두 번 확인했고(`key` → `qualifier`), **칸을
+    없애는 것이 프롬프트로 막는 것보다 확실했다.**
+
+    **대신할 것을 만들지 않았으므로 트랙 A 에 병합이 없다** — 다르게 쓰인 같은
+    사실은 둘로 선다(`wiki/merge.py` 첫 문단).
 
     **컬럼은 남겨 두고 안 쓴다.** nullable 로 내렸고 읽는 코드가 없다 — 지우면
     되돌릴 때 값이 안 살아나고, 남겨 두는 값은 마이그레이션 하나다.
@@ -754,8 +756,8 @@ class WikiFact(Base):
         _PK, ForeignKey("wiki_node.id", ondelete="CASCADE")
     )
 
-    #: `value` · `event`
-    kind: Mapped[str] = mapped_column(String(16))
+    #: **안 쓴다.** 트랙 A 는 사실 하나가 문장 하나라 값형·서술형 갈림이 없다(ADR-0059)
+    kind: Mapped[str | None] = mapped_column(String(16))
     #: **안 쓴다.** 2026-08-22 까지 라벨이자 병합 열쇠였다 — 위 docstring 참고
     key: Mapped[str | None] = mapped_column(Text)
     #: **안 쓴다.** `key` 와 한 벌이다
@@ -766,9 +768,11 @@ class WikiFact(Base):
     #: 사람이 읽는 문장. **event 일 때 내용이다**
     text: Mapped[str] = mapped_column(Text)
 
-    # --- kind == value 일 때만 찬다 ---
+    #: **안 쓴다**(ADR-0059). 트랙 A 의 값을 계산에 쓰는 코드가 하나도 없었다 —
+    #: 숫자로 재야 하는 것은 `company_value` 의 일이다
     value: Mapped[str | None] = mapped_column(Text)
-    #: 같은 자리 안에서 무엇을 가리키나. `TAM` · `시드`. **자유 문자열이다**
+    #: **안 쓴다**(ADR-0059). `key` 를 지웠더니 이름이 여기 옮겨 앉았다 —
+    #: 한정어 71종에 사실 81건이었고 그중 61종이 사실 하나뿐이었다(실측)
     qualifier: Mapped[str | None] = mapped_column(Text)
     as_of: Mapped[dt.date | None] = mapped_column(Date)
     #: **트랙 A 는 항상 NULL 이다.** 상태를 매기려면 한 자리 안에서 무엇과 무엇을

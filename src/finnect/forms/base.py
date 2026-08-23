@@ -172,11 +172,48 @@ def norm_label(s: str) -> str:
     return re.sub(r"[\s　:：]", "", s or "").lower()
 
 
+def _fold_spans(row: list[Cell]) -> list[Cell]:
+    """가로로 병합된 칸을 하나로 접는다. **첫 좌표를 남긴다.**
+
+    `python-docx` 의 `row.cells` 가 병합된 칸을 걸친 수만큼 반복해서 준다 —
+    실측에서 `대표자명` 이 네 번 나왔다. 접지 않으면 라벨이 **자기 복제를 오른쪽
+    칸으로 보고** 짝을 통째로 잃는다.
+
+    **연속된 것만 접는다.** `국내 | 국외 | 국내` 처럼 떨어져서 되풀이되는 것은
+    병합이 아니라 진짜 열이라 접으면 좌표가 밀린다.
+    """
+    out: list[Cell] = []
+    for c in row:
+        if out and out[-1].text == c.text:
+            continue
+        out.append(c)
+    return out
+
+
 def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
     """`(라벨, 값이 들어갈 칸)` 을 순서대로.
 
-    **오른쪽 첫 빈 칸이 값 자리다.** 관공서 양식이 `라벨 | 빈칸` 으로 짜여 있고,
-    실측에서 그 규칙으로 165칸을 채웠다(ADR-0060).
+    **바로 오른쪽 칸이 값 자리다.** 관공서 양식이 `라벨 | 빈칸` 으로 짜여 있고,
+    실측에서 그 모양으로 165칸을 채웠다(ADR-0060).
+
+    ## 건너뛰지 않는다
+
+    예전에는 「오른쪽 **첫 빈 칸**」이었고 그것이 칸을 건너뛰었다. 실측
+    (`bizinfo:PBLN_…125460` 신청서)의 한 행이 이렇게 생겼다.
+
+        사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
+
+    `000-00-00000` 은 안내문이라 빈 칸이 아니고, 규칙이 그것을 지나쳐 **법인등록번호의
+    빈 칸**을 사업자등록번호의 값 자리로 골랐다. 채운 파일에서 사업자등록번호가
+    법인등록번호 칸에 앉았고 **파일은 정상으로 열려서** 제출 직전에야 드러난다.
+    한 칸이라도 건너뛴 시점에서 그 빈 칸은 **이미 다른 라벨의 값 자리**다.
+
+    **재현율을 정확성과 바꾼 것이다.** 건너뛰어야 닿는 칸을 이제 못 채우는데, 그
+    자리는 안내문이 값 자리를 막고 있는 경우라 [plan/24] T-0153 이 그 칸을 값
+    자리로 인정하면서 되찾는다. **모르는 자리를 찍어서 채우지 않는다** — 라벨이
+    겹칠 때 아예 버리는 것과 같은 판단이다.
+
+    ## 그 밖의 경계
 
     **라벨이 겹쳐도 여기서는 안 버린다.** 겹치는 것을 아는 것은 부르는 쪽이고,
     그쪽이 「둘 이상이면 안 채운다」를 정한다 — 여기서 첫 번째를 골라 주면 그
@@ -190,24 +227,16 @@ def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
         by_row.setdefault((c.anchor.section, c.anchor.table, c.anchor.row), []).append(c)
 
     out: list[tuple[str, Anchor]] = []
-    seen: set[tuple[str, Anchor]] = set()
     for row in by_row.values():
         row.sort(key=lambda c: c.anchor.col)
-        for i, c in enumerate(row):
-            if c.blank:
+        # **접고 나서 인접을 본다.** 순서가 반대면 병합된 라벨이 자기 복제를
+        # 오른쪽 칸으로 보고 전부 탈락한다.
+        run = _fold_spans(row)
+        for i, c in enumerate(run[:-1]):
+            nxt = run[i + 1]
+            if c.blank or not nxt.blank:
                 continue
-            nxt = next((n for n in row[i + 1 :] if n.blank), None)
-            if nxt is None:
-                continue
-            # **병합 셀을 접는다.** `python-docx` 의 `row.cells` 가 가로로 병합된
-            # 칸을 걸친 수만큼 반복해서 준다 — 실측에서 `대표자명` 이 네 번 나왔고
-            # 넷 다 같은 좌표(`0:0:0:12`)였다. 접지 않으면 **같은 칸 하나가
-            # 「겹치는 라벨」로 잘못 판정돼** 좌표가 통째로 버려진다.
-            pair = (c.text, nxt.anchor)
-            if pair in seen:
-                continue
-            seen.add(pair)
-            out.append(pair)
+            out.append((c.text, nxt.anchor))
     return out
 
 

@@ -228,3 +228,85 @@ class Test문단_좌표:
 
         paras = [Para(ParaAnchor(0, 0), "1. 목적")]
         assert outline_targets(paras, ["목적", "없는 항목"]) == []
+
+
+def _row(texts: list[str], row: int = 0) -> list:
+    """한 행을 만든다. 열 번호가 순서대로 붙는다."""
+    from finnect.forms.base import Cell
+
+    return [Cell(Anchor(0, 0, row, i), t) for i, t in enumerate(texts)]
+
+
+class Test라벨_짝:
+    """**바로 오른쪽 칸만 값 자리다.**
+
+    예전에는 「오른쪽 첫 빈 칸」이었고 그 규칙이 칸을 건너뛰었다. 실측
+    (`bizinfo:PBLN_…125460` 신청서)의 한 행이 이렇게 생겼다.
+
+        사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
+
+    `000-00-00000` 은 안내문이라 빈 칸이 아니고, 규칙이 그것을 지나쳐 **법인등록번호의
+    빈 칸**을 사업자등록번호의 값 자리로 골랐다. 채운 파일에서 사업자등록번호
+    `501-86-33271` 이 법인등록번호 칸에 앉았고, **파일은 정상으로 열려서** 제출
+    직전에야 드러난다. 라벨이 겹칠 때 아예 버리는 것과 같은 판단으로 좁힌다.
+
+    **재현율을 정확성과 바꾼 것이다.** 건너뛰어야 닿는 칸을 이제 못 채우는데, 그 자리는
+    안내문이 값 자리를 막고 있는 경우라 [plan/24](../docs/plan/24-양식을-채워서-돌려준다.md)
+    T-0153 이 그 칸을 값 자리로 인정하면서 되찾는다. **모르는 자리를 찍어서 채우지 않는다.**
+    """
+
+    def test_바로_오른쪽_빈_칸을_고른다(self) -> None:
+        from finnect.forms import label_targets
+
+        cells = _row(["기업명", ""])
+        assert label_targets(cells) == [("기업명", Anchor(0, 0, 0, 1))]
+
+    def test_한_칸도_건너뛰지_않는다(self) -> None:
+        """실측에서 틀린 값이 들어간 바로 그 행이다."""
+        from finnect.forms import label_targets
+
+        cells = _row(["사업자등록번호", "000-00-00000", "법인등록번호", ""])
+        got = dict(label_targets(cells))
+        assert "사업자등록번호" not in got
+        assert got["법인등록번호"] == Anchor(0, 0, 0, 3)
+
+    def test_병합된_라벨을_접는다(self) -> None:
+        """**`python-docx` 가 가로로 병합된 칸을 걸친 수만큼 반복해서 준다.**
+        접지 않으면 라벨이 자기 복제를 오른쪽 칸으로 보고 짝을 통째로 잃는다 —
+        실측에서 `대표자명` 이 네 번 나왔다."""
+        from finnect.forms import label_targets
+
+        cells = _row(["대표자명", "대표자명", "대표자명", ""])
+        assert label_targets(cells) == [("대표자명", Anchor(0, 0, 0, 3))]
+
+    def test_병합된_값_칸은_첫_자리를_준다(self) -> None:
+        """값 칸도 같은 수만큼 반복돼 온다. 뒤엣것을 고르면 같은 칸을 가리키는
+        좌표가 둘이 되어 부르는 쪽이 겹침으로 오판한다."""
+        from finnect.forms import label_targets
+
+        cells = _row(["연락처", "", "", ""])
+        assert label_targets(cells) == [("연락처", Anchor(0, 0, 0, 1))]
+
+    def test_라벨이_겹쳐도_여기서_안_버린다(self) -> None:
+        """**겹치는 것을 아는 것은 부르는 쪽이다.** 여기서 하나를 고르면 그 선택이
+        조용히 일어난다(`spike/anchor_check.py` 가 부러뜨린 방식)."""
+        from finnect.forms import label_targets
+
+        cells = _row(["기업명", ""], row=0) + _row(["기업명", ""], row=1)
+        assert label_targets(cells) == [
+            ("기업명", Anchor(0, 0, 0, 1)),
+            ("기업명", Anchor(0, 0, 1, 1)),
+        ]
+
+    def test_행을_넘어가지_않는다(self) -> None:
+        """표가 세로로 짜인 양식에서 아래 칸을 잡으면 엉뚱한 자리에 값이 앉는다."""
+        from finnect.forms import label_targets
+
+        cells = _row(["기업명"], row=0) + _row([""], row=1)
+        assert label_targets(cells) == []
+
+    def test_빈_칸은_라벨이_아니다(self) -> None:
+        from finnect.forms import label_targets
+
+        cells = _row(["", ""])
+        assert label_targets(cells) == []

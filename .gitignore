@@ -26,6 +26,10 @@ dist/
 
 # 로컬 데이터 산출물 (수집 스크립트로 재생성 가능 — git 미포함)
 data/attachments/
+# 슬래시 없는 짝도 둔다. 워크트리에서 여기를 **심볼릭 링크**로 걸어 쓰는 일이 있는데
+# (`data/attachments -> …/finnect-new/data/attachments`), 링크는 디렉터리가 아니라
+# 파일이라 위 패턴에 안 걸리고 그대로 커밋된다 — 남의 머신에서는 깨진 링크가 된다.
+data/attachments
 # 사용자가 올린 원본 (ADR-0029). **개인정보다 — 절대 커밋하지 않는다**
 data/user-files/
 *.hwp
@@ -40,6 +44,17 @@ out/
 
 # 테스트 픽스처는 예외다. 내려받은 첨부가 아니라 일부러 만든 것이라 재생성되지 않는다
 !tests/fixtures/**
+
+# 시연 재료는 예외로 두지 않는다. 채워 둔 신청서(`web/public/demo/`)와 위키 스냅샷
+# (`data/demo/`) 둘인데, **레포에 있으면 다음 사람이 그것을 제품 자산으로 읽는다** —
+# `DemoReply.DEMO` 를 기본 꺼짐으로 돌린 것과 같은 자리다. 스냅샷은 더 나쁘다: 위키를
+# 통째로 뜬 DB 덤프라 **진짜 회사로 뜨는 순간 개인정보가 되고**, 예외를 한 번 열면
+# 그때 걸러 줄 것이 없다(`data/user-files/` 를 절대 안 올리는 규칙과 같은 이유).
+#
+# 다시 만드는 길은 남아 있다 — 스냅샷은 `wiki --company <회사> --snapshot <파일>`,
+# 채운 신청서는 `spike/hwp_fill_anchored.py` 다. 위키를 한 번 세워야 하는 것이 대가다.
+data/demo/
+web/public/demo/
 
 # 스파이크 산출물 (재생성 가능 — git 미포함)
 spike/data/

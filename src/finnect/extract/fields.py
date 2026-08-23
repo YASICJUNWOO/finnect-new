@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 _SUBMIT = re.compile(
     r"(위와|상기와)\s*같이[^\n]{0,40}?(신청|제출|지원)합니다|신청합니다|제출합니다"
@@ -43,14 +44,30 @@ def signals(text: str) -> int:
     return sum(bool(p.search(flat)) for p in (_SUBMIT, _RECEIVER, _SIGN))
 
 
-def labels(text: str, *, limit: int = 400) -> list[str]:
-    """표의 라벨을 순서대로. **중복은 첫 번째만 남긴다.**
+@dataclass(frozen=True, slots=True)
+class Row:
+    """표 라벨 하나와 **원문에서의 자리.**
+
+    위치를 드는 이유는 한 서식에 표와 서술이 섞여 있어서다. 둘을 같이 깔 때
+    원문 순서로 섞으려면 양쪽이 자리를 알아야 한다 — 표를 다 내고 서술을 뒤에
+    붙이면 화면 순서가 문서와 어긋난다(실측: `kstartup:178697` 에서 신청서 표와
+    사업계획 항목이 번갈아 나온다).
+    """
+
+    label: str
+    start: int
+
+
+def rows(text: str, *, limit: int = 400) -> list[Row]:
+    """표의 라벨을 자리와 함께 순서대로. **중복은 첫 번째만 남긴다.**
 
     같은 라벨이 여러 서식에 반복되는데(기업명·대표자), 화면에 두 번 낼 이유가 없다.
     """
-    out: list[str] = []
+    out: list[Row] = []
     seen: set[str] = set()
-    for line in text.splitlines():
+    pos = 0
+    for line in text.splitlines(keepends=True):
+        start, pos = pos, pos + len(line)
         m = _ROW.match(line)
         if not m:
             continue
@@ -60,10 +77,15 @@ def labels(text: str, *, limit: int = 400) -> list[str]:
         if _NOT_LABEL.match(lab) or _CHOICE.match(lab):
             continue
         seen.add(lab)
-        out.append(lab)
+        out.append(Row(lab, start))
         if len(out) >= limit:
             break
     return out
+
+
+def labels(text: str, *, limit: int = 400) -> list[str]:
+    """라벨만. 자리가 필요 없는 쪽이 쓴다(`is_fields` 와 화면)."""
+    return [r.label for r in rows(text, limit=limit)]
 
 
 def is_fields(text: str) -> bool:

@@ -25,9 +25,13 @@ from finnect.forms.base import (
     Cell,
     Form,
     FormsUnavailable,
+    Para,
+    ParaAnchor,
     UnsupportedFormat,
     label_targets,
     norm_label,
+    outline_targets,
+    parse_anchor,
 )
 
 __all__ = [
@@ -37,10 +41,14 @@ __all__ = [
     "Cell",
     "Form",
     "FormsUnavailable",
+    "Para",
+    "ParaAnchor",
     "UnsupportedFormat",
     "label_targets",
     "norm_label",
     "open_form",
+    "outline_targets",
+    "parse_anchor",
 ]
 
 #: **지금 어댑터가 있는 포맷.** 판정은 내용이 한다(`attach/formats.py`) — 파일명의

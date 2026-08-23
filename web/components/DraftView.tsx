@@ -281,6 +281,8 @@ export function useDraft({
   const [draft, setDraft] = useState(initial);
   const [starting, setStarting] = useState(false);
   const [why, setWhy] = useState("");
+  /** 초기화를 눌렀는데 **사라질 글이 있어서** 한 번 더 묻고 있다(ADR-0062) */
+  const [confirming, setConfirming] = useState(false);
   const base = useMemo(
     () =>
       `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(externalId)}/draft` +
@@ -316,11 +318,16 @@ export function useDraft({
     };
   }, [draft, base]);
 
-  async function start() {
+  /** `redo` 면 이미 쓴 양식을 **원본 양식 기준으로 다시 쓴다**(T-0161).
+   *
+   * **없으면 API 가 LLM 을 부르기 전에 건너뛴다.** 그전에는 저장 직전에 걸러서
+   * 배분과 집필을 다 부르고 결과를 버렸고, 화면에는 아무 일도 안 일어난 것처럼
+   * 보였다. */
+  async function start(redo = false) {
     setStarting(true);
     setWhy("");
     try {
-      const res = await fetch(base, { method: "POST" });
+      const res = await fetch(`${base}${redo ? "&redo=true" : ""}`, { method: "POST" });
       const out = (await res.json()) as DraftStart & { detail?: string };
       if (!res.ok) throw new Error(out.detail ?? "초안을 못 시작했어요");
       setDraft(out.draft);
@@ -350,8 +357,128 @@ export function useDraft({
 
   const written = draft.documents.flatMap((d) => leaves(d.items));
   const done = written.filter((i) => bodyOf(i).trim().length > 0).length;
+  /** 사람이 손댄 항목. **초기화하면 이것들이 사라진다**(`_draft_row` 의 `delete`) */
+  const edited = written.filter((i) => i.edited).length;
 
-  return { draft, starting, why, start, onSave, written, done };
+  /** 초기화를 눌렀다. **사라질 글이 없으면 안 묻는다** — 잃을 것이 없는데
+   * 확인을 받으면 그다음의 진짜 경고까지 같이 흘려보게 된다.
+   *
+   * `onSave` 와 달리 `useCallback` 을 안 쓴다. 저것은 `DraftItemCard` 수십 개로
+   * 내려가지만 이 셋은 버튼 하나가 받는다. */
+  function askReset() {
+    setWhy("");
+    if (edited > 0) {
+      setConfirming(true);
+      return;
+    }
+    void start(true);
+  }
+
+  function confirmReset() {
+    setConfirming(false);
+    void start(true);
+  }
+
+  function cancelReset() {
+    setConfirming(false);
+  }
+
+  return {
+    draft, starting, why, start, onSave, written, done,
+    edited, confirming, askReset, confirmReset, cancelReset,
+  };
+}
+
+/** 아직 초안이 없는 양식을 채우는 줄. **두 화면이 같은 것을 쓴다**.
+ *
+ * **다시 쓰기가 여기 없다.** 그것은 상단의 `ResetButton` 이고, 이 버튼은 **더하기만
+ * 한다** — 이미 쓴 양식은 API 가 건너뛴다(T-0161).
+ *
+ * **부르는 쪽이 `pending > 0` 을 보고 낸다.** 채울 것이 없는데 버튼을 두면 눌러도
+ * 아무 일이 안 일어나고, 그것은 고장 난 것으로 읽힌다(실측 `kstartup:178881`).
+ *
+ * 스타일을 받는 이유는 두 화면의 CSS 모듈이 달라서다. 클래스 이름은 같다. */
+export function StartRow({
+  hasDocs,
+  pending,
+  starting,
+  onStart,
+  styles: s,
+}: {
+  hasDocs: boolean;
+  pending: number;
+  starting: boolean;
+  onStart: () => void;
+  styles: Record<string, string>;
+}) {
+  return (
+    <div className={s.startRow}>
+      <button type="button" className={s.start} onClick={onStart} disabled={starting}>
+        {hasDocs ? "남은 양식 쓰기" : "초안 쓰기"}
+      </button>
+      <span className={s.startWhy}>
+        {hasDocs
+          ? `아직 안 쓴 양식 ${pending}개를 채워요. 이미 쓴 것은 그대로 둬요.`
+          : "위키에 있는 것으로 항목마다 써 드려요."}
+      </span>
+    </div>
+  );
+}
+
+/** 상단의 초기화. **주 버튼이 아니다** — §4 가 채운 검정을 화면당 하나로 묶어 뒀고
+ * 그 자리는 「쓰기」가 갖는다. 지우는 동작에 액센트를 주면 그것이 권하는 말이 된다.
+ *
+ * **`running` 이면 안 낸다.** 쓰는 중에 초기화를 누르면 락이 거절해서(`started:
+ * false`) 아무 일도 안 일어나는데, 화면에는 눌리는 버튼으로 보인다. */
+export function ResetButton({
+  starting,
+  onAsk,
+  styles: s,
+}: {
+  starting: boolean;
+  onAsk: () => void;
+  styles: Record<string, string>;
+}) {
+  return (
+    <button type="button" className={s.reset} onClick={onAsk} disabled={starting}>
+      초기화
+    </button>
+  );
+}
+
+/** 초기화를 눌렀을 때의 확인 줄. **고친 글이 있을 때만 선다**(ADR-0062).
+ *
+ * 상단 버튼 옆이 아니라 **아래 한 줄로 펼친다** — 헤더가 「초안 · 개수 · 초기화」로
+ * 이미 셋이라(§10 한 항목에 덩어리 넷 이하) 거기서 더 늘리면 읽는 순서가 무너진다. */
+export function ConfirmRow({
+  edited,
+  starting,
+  onConfirm,
+  onCancel,
+  styles: s,
+}: {
+  edited: number;
+  starting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  styles: Record<string, string>;
+}) {
+  return (
+    <div className={s.confirmRow}>
+      <p className={s.confirmWhy}>
+        직접 고친 항목이 <b data-numeric>{edited}개</b> 있어요. 초기화하면 그 글이
+        사라지고 원본 양식에 처음부터 다시 써요.
+      </p>
+      <div className={s.confirmButtons}>
+        <button type="button" className={s.start} onClick={onConfirm} disabled={starting}>
+          그래도 초기화
+        </button>
+        <button type="button" className={s.cancel} onClick={onCancel}>
+          그만두기
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** 지금까지의 화면. **안 지운다** — 스레드가 실패하면 되돌아갈 자리이고,
@@ -367,12 +494,12 @@ export function DraftView({
   externalId: string;
   company: string;
 }) {
-  const { draft, starting, why, start, onSave, written, done } = useDraft({
-    initial,
-    source,
-    externalId,
-    company,
-  });
+  const {
+    draft, starting, why, start, onSave, written, done,
+    edited, confirming, askReset, confirmReset, cancelReset,
+  } = useDraft({ initial, source, externalId, company });
+
+  const hasDocs = draft.documents.length > 0;
 
   return (
     <section className={styles.section} aria-labelledby="draft-title">
@@ -381,34 +508,44 @@ export function DraftView({
           초안
         </h2>
 
-        {draft.documents.length > 0 && (
+        {hasDocs && (
           /* **막대를 두지 않는다**(§6 이 뺀 적합도 막대와 혼동될 자리를 안 만든다) */
           <p className={styles.count} data-numeric>
             {written.length}개 중 <b>{done}개</b>가 써졌어요
           </p>
         )}
+
+        {/* **쓴 것이 있을 때만 낸다.** 지울 것이 없으면 초기화가 할 일이 없다 */}
+        {hasDocs && !draft.running && (
+          <ResetButton starting={starting} onAsk={askReset} styles={styles} />
+        )}
       </div>
 
-      {draft.running ? (
+      {confirming && (
+        <ConfirmRow
+          edited={edited}
+          starting={starting}
+          onConfirm={confirmReset}
+          onCancel={cancelReset}
+          styles={styles}
+        />
+      )}
+
+      {draft.running && (
         <p className={styles.running}>
           지금 쓰고 있어요. 항목이 많으면 몇 분 걸려요 — 이 화면을 열어 둬도 돼요.
         </p>
-      ) : (
-        <div className={styles.startRow}>
-          <button
-            type="button"
-            className={styles.start}
-            onClick={start}
-            disabled={starting}
-          >
-            {draft.documents.length > 0 ? "다시 쓰기" : "초안 쓰기"}
-          </button>
-          <span className={styles.startWhy}>
-            {draft.documents.length > 0
-              ? "못 쓴 항목만 다시 써요. 내가 고친 글은 그대로 둬요."
-              : "위키에 있는 것으로 항목마다 써 드려요."}
-          </span>
-        </div>
+      )}
+
+      {/* **채울 것이 남았을 때만 낸다.** 다 썼으면 여기 버튼이 없고 상단 초기화만 남는다 */}
+      {!draft.running && draft.pending_documents > 0 && (
+        <StartRow
+          hasDocs={hasDocs}
+          pending={draft.pending_documents}
+          starting={starting}
+          onStart={() => void start()}
+          styles={styles}
+        />
       )}
 
       {why && <p className={styles.fail}>{why}</p>}

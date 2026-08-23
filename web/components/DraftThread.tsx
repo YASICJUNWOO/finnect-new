@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { DraftItemCard, useDraft } from "./DraftView";
+import { useEffect, useState } from "react";
+import { ConfirmRow, DraftItemCard, ResetButton, StartRow, useDraft } from "./DraftView";
 import type { Draft } from "@/lib/draft";
 import styles from "./DraftThread.module.css";
 
@@ -22,7 +22,7 @@ import styles from "./DraftThread.module.css";
  *
  * 자유 입력은 **엔드포인트가 아직 없다.** 쓰기 API 가 셋뿐이고(`tests/test_draft_start.py`
  * 가 그 셋뿐임을 잠가 뒀다) 대화 경로가 없다. 그래서 입력칸이 **지금 되는 일만**
- * 한다 — 「초안 쓰기」·「다시 쓰기」를 말로 부를 수 있고, 그 밖의 말에는 아직 못
+ * 한다 — 「초안 쓰기」·「초기화」를 말로 부를 수 있고, 그 밖의 말에는 아직 못
  * 한다고 답한다. **비활성으로 안 둔다** — §14 의 비활성은 「다른 상태에서는 되는
  * 것」에 쓰는 표시다.
  *
@@ -37,6 +37,9 @@ type Said = { id: number; who: "나" | "우리"; text: string };
  * 알아듣는 척하면 안 한 일을 했다고 말하게 된다. */
 function readCommand(said: string): "start" | null {
   const t = said.replace(/\s+/g, "");
+  // **버튼 이름이 「초기화」라 그 말도 받는다.** 화면에 적힌 말을 그대로 쳤는데
+  // 못 알아들으면 그 버튼이 없는 것으로 읽힌다
+  if (/초기화|리셋/.test(t)) return "start";
   if (/(초안|다시|새로).*(써|쓰|작성|만들)/.test(t)) return "start";
   return null;
 }
@@ -47,6 +50,7 @@ export function DraftThread({
   externalId,
   company,
   onFocusDoc,
+  onDraft,
 }: {
   initial: Draft;
   source: string;
@@ -57,15 +61,26 @@ export function DraftThread({
    * **`document_id` 로 넘긴다** — `DraftDocument` 에 sha256 이 없고, 둘 다
    * `document.id` 에서 온 값이라 부르는 쪽이 `NoticeDocuments` 로 맞출 수 있다. */
   onFocusDoc?: (documentId: number) => void;
+  /** 초안이 바뀌었다고 부르는 쪽에 알린다.
+   *
+   * **이것이 없으면 오른쪽 뷰어가 안 따라온다.** 초안 상태는 `useDraft` 안에서
+   * 살고(폴링·저장·재작성이 전부 여기서 일어난다) 서버가 준 `initial` 은 그
+   * 자리에 굳어 있다. 채운 파일 주소는 초안 항목 수로 만들어지므로, 알리지 않으면
+   * 주소가 안 바뀌고 **새로고침해야 채운 값이 보인다.** */
+  onDraft?: (draft: Draft) => void;
 }) {
-  const { draft, starting, why, start, onSave, written, done } = useDraft({
-    initial,
-    source,
-    externalId,
-    company,
-  });
+  const {
+    draft, starting, why, start, onSave, written, done,
+    edited, confirming, askReset, confirmReset, cancelReset,
+  } = useDraft({ initial, source, externalId, company });
   const [said, setSaid] = useState<Said[]>([]);
   const [typed, setTyped] = useState("");
+
+  // **렌더 중에 부르지 않는다.** 부모의 setState 를 렌더 도중에 부르면 React 가
+  // 경고하고, 폴링이 도는 화면이라 그 경고가 몇 분 동안 쌓인다.
+  useEffect(() => {
+    onDraft?.(draft);
+  }, [draft, onDraft]);
 
   /** **안 써진 것을 이유별로 가른다.** 「썼다 − 전체」로 세면 안 된다 — 그 차이에는
    *  쓸 자리가 아닌 칸(표 구분선·서명란)과 다른 항목이 재료를 맡은 칸이 섞여 있고,
@@ -74,9 +89,10 @@ export function DraftThread({
    *  화면은 **「52개는 재료가 없어요」**라고 말했다. */
   const blank = written.filter((i) => i.status === "blank").length;
   const hasDocs = draft.documents.length > 0;
-  /** 눌러서 채울 것이 있나. **없으면 버튼을 안 낸다** — 눌러도 아무 일이 안
-   *  일어나는 버튼은 고장 난 것으로 읽힌다(실측 `kstartup:178881`). */
-  const canStart = hasDocs || draft.pending_documents > 0;
+  /** 눌러서 **채울** 것이 있나. **없으면 버튼을 안 낸다** — 눌러도 아무 일이 안
+   *  일어나는 버튼은 고장 난 것으로 읽힌다(실측 `kstartup:178881`). 다시 쓰는 것은
+   *  이 버튼이 아니라 머리줄의 초기화다(T-0161). */
+  const canStart = draft.pending_documents > 0;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,12 +102,16 @@ export function DraftThread({
 
     const mine: Said = { id: Date.now(), who: "나", text };
     if (readCommand(text) === "start") {
-      setSaid((s) => [
-        ...s,
-        mine,
-        { id: mine.id + 1, who: "우리", text: hasDocs ? "다시 쓸게요." : "초안을 쓸게요." },
-      ]);
-      void start();
+      // **말로 시켜도 같은 자리로 간다**(ADR-0062). 「다시 써 줘」가 초기화이고,
+      // 버튼에만 확인을 붙이면 입력칸으로 들어온 사람의 고친 글이 조용히 사라진다
+      const reply = !hasDocs
+        ? "초안을 쓸게요."
+        : edited > 0
+          ? `직접 고친 항목이 ${edited}개 있어요. 초기화하면 그 글이 사라지는데, 위에서 눌러 주세요.`
+          : "처음부터 다시 쓸게요.";
+      setSaid((s) => [...s, mine, { id: mine.id + 1, who: "우리", text: reply }]);
+      if (hasDocs) askReset();
+      else void start();
       return;
     }
     setSaid((s) => [
@@ -115,7 +135,23 @@ export function DraftThread({
             {written.length}개 중 <b>{done}개</b>가 써졌어요
           </p>
         )}
+        {/* **쓴 것이 있을 때만 낸다.** 지울 것이 없으면 초기화가 할 일이 없다 */}
+        {hasDocs && !draft.running && (
+          <ResetButton starting={starting} onAsk={askReset} styles={styles} />
+        )}
       </div>
+
+      {/* **머리줄 밖이다.** 저기는 스크롤 밖에 고정된 자리라 확인 줄까지 넣으면
+          단이 짧은 화면에서 대화가 보이는 높이를 먹는다 */}
+      {confirming && (
+        <ConfirmRow
+          edited={edited}
+          starting={starting}
+          onConfirm={confirmReset}
+          onCancel={cancelReset}
+          styles={styles}
+        />
+      )}
 
       {/* **`aria-live="polite"` 다.** assertive 로 하면 몇 분 동안 항목마다 끼어들어
           스크린 리더로 못 쓴다 */}
@@ -188,21 +224,13 @@ export function DraftThread({
       {/* 바닥 — 스크롤 밖에 고정 */}
       <div className={styles.foot}>
         {!draft.running && canStart && (
-          <div className={styles.startRow}>
-            <button
-              type="button"
-              className={styles.start}
-              onClick={() => void start()}
-              disabled={starting}
-            >
-              {hasDocs ? "다시 쓰기" : "초안 쓰기"}
-            </button>
-            <span className={styles.startWhy}>
-              {hasDocs
-                ? "못 쓴 항목만 다시 써요. 내가 고친 글은 그대로 둬요."
-                : "위키에 있는 것으로 항목마다 써 드려요."}
-            </span>
-          </div>
+          <StartRow
+            hasDocs={hasDocs}
+            pending={draft.pending_documents}
+            starting={starting}
+            onStart={() => void start()}
+            styles={styles}
+          />
         )}
 
         <form className={styles.composer} onSubmit={submit}>

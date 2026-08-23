@@ -347,12 +347,23 @@ def _draft_key(company: str, source: str, external_id: str) -> str:
     response_model=DraftStartOut,
     status_code=202,
 )
-def start_draft(source: str, external_id: str, company: str) -> DraftStartOut:
+def start_draft(
+    source: str, external_id: str, company: str, redo: bool = False
+) -> DraftStartOut:
     """초안을 쓰기 시작한다 (plan/21 T-0121 · ADR-0054).
 
     **202 다.** 시작만 하고 답한다 — 항목 수십 개를 다 쓰고 답하면 요청이 몇 분씩
     묶인다. 올리기(`POST …/files`)와 같은 모양이고, 화면은 `GET …/draft` 의
     `running` 으로 따라온다.
+
+    **`redo` 가 다시 쓰기다**(T-0161 · [ADR-0062](
+    ../../../docs/adr/0062-다시-쓰기가-고친-글을-지우되-먼저-알린다.md)). 없으면 이미
+    초안이 있는 양식을 **LLM 을 부르기 전에** 건너뛴다 — 그전에는 저장 직전에 걸러서
+    배분과 집필을 다 부르고 결과를 버렸다. 있으면 그 양식의 항목을 지우고 다시 쓰는데
+    **사람이 고친 글도 같이 사라진다.** 무엇이 사라지는지 말하는 것은 화면 몫이다.
+
+    **경로가 안 늘어난다.** 쿼리 파라미터라 쓰기 API 는 여전히 셋이고
+    `tests/test_draft_start.py` 가 잠근 목록이 그대로다.
 
     **거절이 오류가 아니다.** 이미 돌고 있으면 `started: false` 에 이유를 담아
     202 로 답한다. 409 로 올리면 화면이 오류 상태를 그리는데, 두 번 누른 사람에게
@@ -368,7 +379,7 @@ def start_draft(source: str, external_id: str, company: str) -> DraftStartOut:
         raise HTTPException(404, f"모르는 출처: {source}")
 
     key = _draft_key(company, source, external_id)
-    launch = jobs.launch(key, lambda: _write_draft(company, source, external_id))
+    launch = jobs.launch(key, lambda: _write_draft(company, source, external_id, redo))
 
     with SessionFactory() as s:
         draft = draft_service.notice_draft(
@@ -377,7 +388,7 @@ def start_draft(source: str, external_id: str, company: str) -> DraftStartOut:
     return DraftStartOut(started=launch.started, reason=launch.reason, draft=draft)
 
 
-def _write_draft(company: str, source: str, external_id: str) -> None:
+def _write_draft(company: str, source: str, external_id: str, redo: bool = False) -> None:
     """스레드 안에서 도는 집필. **여기서만 `finnect.draft` 를 임포트한다.**
 
     최상단에 두면 `import finnect.api.app` 이 `llm` 을 끌고 오고, 그러면 로컬은
@@ -388,7 +399,7 @@ def _write_draft(company: str, source: str, external_id: str) -> None:
     from finnect.trace import flush
 
     try:
-        writer.build_draft(company, source, external_id)
+        writer.build_draft(company, source, external_id, redo=redo)
     finally:
         # **데몬 스레드라 안 부르면 남은 추적이 사라진다**(ADR-0038 · CLI 와 같다).
         # `finally` 인 이유는 실패한 초안일수록 추적이 필요해서다.

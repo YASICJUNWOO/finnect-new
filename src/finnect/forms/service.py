@@ -108,9 +108,12 @@ def fill_document(
             report.no_anchor += 1
             report.left.append(di.title)
             continue
-        from finnect.forms import Anchor
+        from finnect.forms import parse_anchor
 
-        if form.fill(Anchor.parse(di.anchor), body.strip()):
+        # **표 칸과 문단을 여기서 안 가른다.** 좌표 문자열이 어느 쪽인지 말하고
+        # (`p:` 접두사), 채우는 규칙은 어댑터가 안다 — 부르는 쪽이 분기하면 그
+        # 지식이 두 곳에 산다(ADR-0060 결정 2 와 같은 자리).
+        if form.fill(parse_anchor(di.anchor), body.strip()):
             report.filled += 1
         else:
             report.refused += 1

@@ -17,11 +17,36 @@
 .head {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s3);
   padding-bottom: var(--s3);
   border-bottom: 1px solid var(--line);
+}
+
+/* 머리줄의 초기화 (ADR-0062). §4 «오버레이 트리거» — **채운 검정이 아니다.**
+ * 그 자리는 바닥의 「쓰기」가 갖는다(§4 화면당 하나). */
+.reset {
+  margin-left: auto;
+  flex: none;
+  /* **머리줄이 baseline 정렬이다.** 44px 버튼을 글자 밑선에 맞추면 위로 솟는다 */
+  align-self: center;
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-aux);
+  cursor: pointer;
+}
+
+.reset:disabled {
+  color: var(--ink-4);
+  border-color: var(--line-2);
+  cursor: default;
 }
 
 .title {
@@ -177,6 +202,46 @@
   font-size: var(--t-aux);
   line-height: var(--lh-aux);
   color: var(--ink-3);
+}
+
+/* ── 초기화 확인 (ADR-0062) ─────────────────────────────
+ * **색으로 위험을 말하지 않는다**(§7). 글이 말하고 버튼 둘이 갈라 준다.
+ *
+ * **`flex: none` 이다.** `.thread` 가 세로 flex 라 이것을 안 주면 `.turns` 와 함께
+ * 줄어들어서, 대화가 긴 화면에서 확인 줄이 눌려 버린다. */
+.confirmRow {
+  flex: none;
+  margin-top: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+}
+
+.confirmWhy {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink);
+}
+
+.confirmButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* §4 «오버레이 트리거» — 선 버튼이라 주 버튼과 액센트가 안 겹친다 */
+.cancel {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
 }
 
 /* ── 입력칸 ─────────────────────────────────────────── */

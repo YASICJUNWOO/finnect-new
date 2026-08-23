@@ -17,7 +17,7 @@ hwp 와 갈리는 점이 둘이다.
 
 from __future__ import annotations
 
-from finnect.forms.base import Anchor, Cell, FormsUnavailable
+from finnect.forms.base import Anchor, Cell, FormsUnavailable, Para, ParaAnchor
 
 
 class DocxForm:
@@ -55,6 +55,20 @@ class DocxForm:
                     out.append(Cell(Anchor(0, ti, ri, ci), cell.text.strip()))
         return out
 
+    def paragraphs(self) -> list[Para]:
+        """본문 문단을 순서대로. **`doc.paragraphs` 가 표 안 문단을 안 준다** —
+        hwp 쪽에서 표를 건너뛰지 않는 것과 결과가 같다."""
+        return [
+            Para(ParaAnchor(0, i), p.text.strip())
+            for i, p in enumerate(self._doc.paragraphs)
+        ]
+
+    def _para_at(self, a: ParaAnchor):  # noqa: ANN202
+        if a.section != 0:
+            return None
+        paras = self._doc.paragraphs
+        return paras[a.index] if a.index < len(paras) else None
+
     def _cell_at(self, a: Anchor):  # noqa: ANN202
         if a.section != 0:
             return None
@@ -67,24 +81,25 @@ class DocxForm:
         cells = rows[a.row].cells
         return cells[a.col] if a.col < len(cells) else None
 
-    def fill(self, anchor: Anchor, value: str) -> bool:
+    def fill(self, anchor: Anchor | ParaAnchor, value: str) -> bool:
         """**덮어쓴다.** 안내문이 들어 있어도 지우고 값을 넣는다.
 
         서식을 지키려고 **첫 런만 갈고 나머지를 비운다.** 문단이 여럿이면 첫
         문단에 값을 넣고 나머지 문단의 런을 비운다 — 문단 자체를 지우면 셀의
         높이가 바뀌어 표가 다시 흐른다.
         """
+        if isinstance(anchor, ParaAnchor):
+            para = self._para_at(anchor)
+            if para is None:
+                return False
+            return _write(para, value)
+
         cell = self._cell_at(anchor)
         if cell is None or not cell.paragraphs:
             return False
 
         head, *rest = cell.paragraphs
-        if head.runs:
-            head.runs[0].text = value
-            for r in head.runs[1:]:
-                r.text = ""
-        else:
-            head.add_run(value)
+        _write(head, value)
         for para in rest:
             for r in para.runs:
                 r.text = ""
@@ -92,3 +107,15 @@ class DocxForm:
 
     def save(self, path: str) -> None:
         self._doc.save(path)
+
+
+def _write(para, value: str) -> bool:  # noqa: ANN001
+    """문단 하나에 값을 넣는다. **첫 런만 갈고 나머지를 비운다** — `text =` 대입은
+    런을 전부 버려서 글꼴·크기·정렬이 날아간다(ADR-0060 결정 2)."""
+    if para.runs:
+        para.runs[0].text = value
+        for r in para.runs[1:]:
+            r.text = ""
+    else:
+        para.add_run(value)
+    return True

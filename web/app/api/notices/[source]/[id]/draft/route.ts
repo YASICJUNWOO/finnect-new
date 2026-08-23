@@ -28,12 +28,16 @@ export async function GET(req: Request, ctx: Ctx) {
 
 export async function POST(req: Request, ctx: Ctx) {
   const { source, id } = await ctx.params;
-  const company = new URL(req.url).searchParams.get("company") ?? "";
+  const q = new URL(req.url).searchParams;
+  const company = q.get("company") ?? "";
   if (!company) return Response.json({ detail: "company 가 없어요" }, { status: 400 });
+
+  // **`redo` 를 그대로 흘린다.** 무엇이 사라지는지 묻는 자리는 화면이고 여기가 아니다
+  const redo = q.get("redo") === "true";
 
   try {
     // **202 를 그대로 옮긴다.** 거절(`started: false`)도 202 라 화면이 오류로 안 읽는다
-    const out = await startDraft(source, decodeURIComponent(id), company);
+    const out = await startDraft(source, decodeURIComponent(id), company, redo);
     return Response.json(out, { status: 202 });
   } catch (e) {
     console.error("초안 시작 실패", e);

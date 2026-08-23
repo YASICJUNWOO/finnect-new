@@ -1,10 +1,19 @@
-# 데이터셋 — 공고 코퍼스를 초기화하고 다시 채운다
+# 데이터셋 — 초기화하고 다시 채운다
 
-개발용으로 코퍼스를 작게 다시 세우는 절차다. 「공고 초기화하고 다시 채워」가 뜻하는 것이
-여기 적힌 일곱 단계다.
+개발용으로 데이터를 작게 다시 세우는 절차다. **둘이 따로 산다.**
+
+| | 대상 | 도구 | 어디 |
+|---|---|---|---|
+| **공고 코퍼스** | 우리가 긁어 온 공고·첨부 | `finnect.dataset` · `finnect.ingest` · `finnect.attach` | 아래 일곱 단계 |
+| **위키** | 사용자가 올린 문서와 거기서 세운 지식베이스 | `finnect.wiki` | [«위키»](#위키--올린-문서와-지식베이스를-초기화한다) |
+
+「공고 초기화하고 다시 채워」가 뜻하는 것이 앞쪽 일곱 단계이고, 「올린 파일 지우고 위키 다시
+세워」가 뒤쪽이다. **서로를 안 건드린다** — 한쪽을 지워도 다른 쪽은 그대로 남는다.
 
 > **읽는 순서.** 이 문서는 실행 절차이고, 왜 그렇게 자르는지는 [`notice-filter/README.md`](../notice-filter/README.md),
 > 판정 두 층의 근거는 [ADR-0013](adr/0013-판정-두-층.md) 에 있다. 배포 DB 에는 이 절차를 쓰지 않는다.
+
+# 공고 코퍼스
 
 ## 0. 먼저 — 기업마당은 되돌릴 수 없다
 
@@ -145,7 +154,7 @@ K-Startup 전량 첨부는 55.3GB 이고 이 서버 여유가 24GB 다. URL 목�
 |---|---|
 | `document` · `document_item` | 키가 `sha256` 라 **콘텐츠 주소**다. 같은 첨부를 다시 받으면 같은 행이 다시 선다 |
 | `draft` 계열 | `document` 를 가리킨다. 공고를 지운다고 써 둔 초안을 버릴 이유가 없다 |
-| `wiki_*` · `chunk` · `user_file` | 사용자가 올린 파일에서 나온 것이라 공고 코퍼스와 무관하다 |
+| `wiki_*` · `chunk` · `user_file` · `company_value` | 사용자가 올린 파일에서 나온 것이라 공고 코퍼스와 무관하다. 지우는 절차는 [«위키»](#위키--올린-문서와-지식베이스를-초기화한다) 다 |
 | `raw_fetch` | 응답 통째. 수집이 무엇을 받았는지의 기록이라 코퍼스를 지웠다고 지우지 않는다 |
 | `ingest_run` | 운영 기록이지 코퍼스가 아니다([ADR-0011](adr/0011-수집-실행-화면.md)) |
 
@@ -192,3 +201,115 @@ K-Startup 50건 → 필터 24건 → --sample 3 → 8건
 
 **K-Startup 이 50건인 것은 `--limit 50` 맛보기 실행 때문이다**(`ingest_run` id=2 ·
 `item_limit=50` · `expected=29789`). 전량 29,789건에 대고 잰 값이 아니다.
+
+---
+
+# 위키 — 올린 문서와 지식베이스를 초기화한다
+
+**공고 코퍼스와 다른 절차다.** 도구가 `dataset` 이 아니라 `finnect.wiki` 이고,
+**회사 하나씩만 돈다** — `--company` 가 격리의 기준이라 필수다([ADR-0029](adr/0029-사용자-파일을-회사-단위-콘텐츠-주소로-로컬에-둔다.md)).
+전량을 도는 명령이 없다. 회사가 여럿이면 여럿을 돌린다.
+
+## 어디까지 지울지 고른다 — 셋이다
+
+| 명령 | 지우는 것 | 남는 것 | 언제 |
+|---|---|---|---|
+| `--rechunk` | `chunk` | 원본 · 사실 · 노드 | 청킹 규칙(`wiki/chunk.py`)을 고쳤을 때 |
+| `--rebuild` | `wiki_fact` · `company_value` · `wiki_node` · `wiki_evidence` · `value_evidence` | 원본 · 청크 | 추출기·프롬프트를 바꿨을 때 |
+| `--purge` | 위 전부 + `user_file` + **원본 디렉터리** | 없다 | 탈퇴. 올린 문서까지 |
+
+```bash
+uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청크만 다시 쪼갠다
+uv run python -m finnect.wiki --company c_dasiro --rebuild   # 지식베이스만 다시 세운다
+uv run python -m finnect.wiki --company c_dasiro --purge     # 올린 문서까지 통째로
+```
+
+**`--rebuild` 는 지운 자리에서 바로 다시 세운다.** `build.clear()` 가 끝난 파일을
+`done` → `chunked` 로 되돌리고 같은 실행이 그대로 빌드를 탄다. **`--purge` 는 다시 안
+세운다** — 세울 원본이 없다.
+
+`--purge` 가 지우는 원본은 `data/user-files/<company_id>/` 하나다. 격리를 경로에 걸어 둔
+값이 여기서 돌아온다(`wiki/storage.py` `purge`) — 고아 파일을 찾아 돌 필요가 없다.
+
+## 상태를 본다
+
+```bash
+uv run python -m finnect.wiki --company c_dasiro           # 파일 현황
+uv run python -m finnect.wiki --company c_dasiro --wiki    # 세워진 자리
+uv run python -m finnect.wiki --company c_dasiro --show    # 청크를 눈으로
+```
+
+## 다시 채운다
+
+```bash
+uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*
+```
+
+**`WIKI_EXTRACTOR` 를 확인하고 넣는다.** 기본값이 `stub` 이고 스텁은
+`tests/fixtures/wiki/` 일곱 건 밖에서 `UnknownFile` 로 죽는다([ADR-0031](adr/0031-사실-추출을-포트-뒤로-미루고-스텁으로-배관을-먼저-세운다.md)).
+진짜 파일을 넣으려면 `WIKI_EXTRACTOR=llm` 과 `OPENAI_API_KEY` 가 둘 다 있어야 한다 —
+**키 없이 `llm` 을 고르면 멈춘다**(ADR-0037). 둘째 페르소나
+`tests/fixtures/wiki-narin/` 는 정답지가 없어서 `llm` 이어야만 돈다.
+
+화면으로 던져도 된다 — `/wiki/files` 가 같은 경로를 탄다([plan/15](plan/15-파일-올리기와-진행-표시.md)).
+
+## 안 건드리는 것
+
+| | 왜 |
+|---|---|
+| 공고 2표 · `attachment*` · `notice_profile` | 공고 쪽이다. `notice_profile` 은 `company_id` 자체가 없다 |
+| `document` · `document_item` | 양식을 읽은 결과라 회사와 무관하다. 키가 `sha256` 인 콘텐츠 주소다 |
+| `notice_fit` · `draft` **행 자신** | 아래 함정 참조. **지워지지 않는데 근거만 사라진다** |
+
+## 함정
+
+- **`--purge` 에 `--yes` 가 없다.** `dataset --purge` 와 다르다 — 세는 단계 없이 바로
+  지운다. 그리고 **뜰 것도 없다**(`--dump` 에 해당하는 것이 없다). 사용자가 올린
+  파일이라 우리가 다시 받을 길이 없다
+- **`--purge` 와 `--rebuild` 가 추천·초안의 근거를 같이 지운다.** 근거 3표가
+  `ON DELETE CASCADE` 로 걸려 있다 — `notice_fit_evidence.fact_id`(`7349b82a6e6e`) ·
+  `draft_evidence.fact_id`(`459b13677f00`) 가 `wiki_fact` 에,
+  `draft_value_evidence.value_id`(`e2d5a71c0f43`) 가 `company_value` 에 붙는다.
+  **`notice_fit` 과 `draft` 행 자신은 안 지워진다** — 이유와 문장은 남고 근거만 사라진
+  추천·초안이 선다. 위키를 다시 세운 뒤 `match --company` 를 다시 돌린다
+- **`--rechunk` 는 `chunked` 인 파일만 본다.** 빌드가 끝난 파일은 `done` 이라
+  **다 세워 둔 회사에 돌리면 아무 일도 안 일어난다.** 청킹 규칙을 고쳤으면
+  `--rebuild` 로 되돌린 다음에 돌린다
+- **`--build` 는 `chunked` 만 읽는다. `done` 을 다시 읽게 만들지 않는다.** LLM 은 같은
+  문서를 매번 다르게 쪼개서 두 번 돌리면 사실이 쌓인다 — 2026-08-21 `c_dasiro` 가
+  187 → 291 이 됐다([plan/12](plan/12-사업-위키-구축.md) T-0092). 다시 읽는 길은
+  `--rebuild` 다
+- **한 회사 빌드가 프로세스를 건너 막힌다.** CLI 와 API 서비스가 같이 돌면 뒤에 온 쪽이
+  거절되고 파일이 `chunked` 로 남는다(T-0094). CLI 는 exit 1 이다
+- **`data/user-files/` 는 개인정보다.** `.gitignore` 에 있고 배포본에 안 올라간다.
+  `--purge` 가 지우는 것은 로컬 디스크뿐이고, **배포 DB 에는 이 절차를 쓰지 않는다**
+  (앞쪽과 같다 — `wiki` CLI 도 로컬 DB 를 본다)
+
+## 검증
+
+```bash
+WIKI_EXTRACTOR=stub uv run pytest tests/test_wiki_service.py tests/test_wiki_build.py
+uv run python -m finnect.wiki --company c_dasiro           # 지운 뒤 "올린 파일이 없어요"
+uv run python -m finnect.wiki --company c_dasiro --wiki    # 지운 뒤 "아직 위키가 없어요"
+```
+
+**테스트를 `WIKI_EXTRACTOR=stub` 으로 돌린다.** 로컬 `.env` 에 `llm` 이 들어 있으면
+`test_wiki_build.py` 가 실제 LLM 을 부른다 — 2026-08-22 그 상태로 전체가 9분 30초였다
+(스텁은 22초).
+
+2026-08-22 실측 — `c_dasiro` 가 지금 들고 있는 **표 행 수**다. 지울 것의 크기를 미리
+본다.
+
+```
+user_file            1        chunk                6
+wiki_fact           35        wiki_evidence       35
+wiki_node           24        company_value       12  (키 9개 · 나머지는 밀린 값)
+notice_fit           0        draft                0
+원본 20 KB  ·  data/user-files/c_dasiro
+```
+
+**`--wiki` 가 말하는 노드 수(27)와 다르다.** 화면 쪽은 사실이 안 붙은 카테고리 열까지
+세어 만든 뷰이고, 지워지는 것은 `wiki_node` 24행이다.
+
+`--rechunk` 를 `done` 인 회사에 돌리면 위 숫자가 하나도 안 움직인다 —
+`청크 0개로 다시 쪼갰다` 가 나오고 청크 6과 근거 35가 그대로다(위 함정).

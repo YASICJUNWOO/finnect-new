@@ -103,15 +103,20 @@ export function getDraft(source: string, id: string, company: string): Promise<D
   return get<Draft>(`${base(source, id)}?company=${encodeURIComponent(company)}`);
 }
 
-/** 초안을 쓰기 시작한다 (T-0121). **202 이고 거절도 202 다.** */
+/** 초안을 쓰기 시작한다 (T-0121). **202 이고 거절도 202 다.**
+ *
+ * `redo` 가 화면의 **「초기화」**다(T-0161). 없으면 이미 초안이 있는 양식을 건너뛰고
+ * — API 가 LLM 을 부르기 전에 거른다 — 그것이 하단 「쓰기」가 부르는 길이다. 있으면
+ * 그 양식을 처음부터 다시 쓰는데 **사람이 고친 글도 사라진다**(ADR-0062). 그 사실을
+ * 먼저 말하는 것은 `DraftView` 의 `ConfirmRow` 몫이다. */
 export function startDraft(
   source: string,
   id: string,
   company: string,
+  redo = false,
 ): Promise<DraftStart> {
-  return send<DraftStart>(`${base(source, id)}?company=${encodeURIComponent(company)}`, {
-    method: "POST",
-  });
+  const q = `company=${encodeURIComponent(company)}${redo ? "&redo=true" : ""}`;
+  return send<DraftStart>(`${base(source, id)}?${q}`, { method: "POST" });
 }
 
 /** 고친 글을 저장한다 (T-0123). `text: null` 이 되돌리기다. */

@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, event, select
 from sqlalchemy.orm import sessionmaker
 
 import wikifix
@@ -113,6 +113,14 @@ class 받은대로쓰는집필기(가짜클라이언트):
 @pytest.fixture
 def db(monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
     engine = create_engine("sqlite://")
+
+    # **FK 를 켠다.** SQLite 는 기본이 꺼짐이고 그러면 `ON DELETE CASCADE` 가 안 돈다 —
+    # `_draft_row` 의 `delete(DraftItem)` 이 근거를 남기는데 배포 DB(Postgres)에서는
+    # 지워진다. 켜지 않으면 **재작성이 로컬에서만 깨지거나 로컬에서만 통과한다.**
+    @event.listens_for(engine, "connect")
+    def _fk_on(conn, _rec) -> None:  # noqa: ANN001
+        conn.execute("PRAGMA foreign_keys=ON")
+
     Base.metadata.create_all(engine, tables=[t.__table__ for t in TABLES])
     monkeypatch.setattr(service, "engine", engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
@@ -406,6 +414,99 @@ class Test실패:
             errs = [i.error for i in s.scalars(select(DraftItem)).all() if i.error]
             assert len(errs) == 2
             assert "모델이 죽었다" in errs[0]
+
+
+class Test다시_쓰기:
+    """T-0161 · [ADR-0062](
+    ../docs/adr/0062-다시-쓰기가-고친-글을-지우되-먼저-알린다.md).
+
+    **이 클래스가 지키는 것은 「안 덮어쓴다」가 아니라 「부르기 전에 안다」다.**
+    안 덮어쓰는 것은 예전에도 그랬는데 **저장 직전에 걸러서** 배분과 집필을 다
+    부른 뒤에 버렸다 — 화면은 아무 일도 안 일어난 것처럼 보이고 토큰만 나갔다.
+    """
+
+    def _writer(self, db):  # noqa: ANN001, ANN202
+        """집필기를 밖에서 들고 있어야 **몇 번 불렀는지** 센다."""
+        _read(db, READING)
+        client = 받은대로쓰는집필기({})
+        service.build_draft(
+            COMPANY, "bizinfo", NOTICE, workers=1,
+            allotter=al.Allotter(client=가짜클라이언트({"assign": ASSIGN})),
+            writers=lambda: wr.LlmWriter(client=client),
+            checker=dd.LlmChecker(client=가짜클라이언트({"clashes": []})),
+        )
+        return client
+
+    def test_이미_있으면_llm_을_안_부른다(self, db) -> None:  # noqa: ANN001
+        """**여기가 요점이다.** 둘째 호출에서 집필기 호출이 하나도 안 늘어야 한다."""
+        first = self._writer(db)
+        assert first.calls, "첫 호출은 실제로 써야 이 테스트가 뜻이 있다"
+
+        second = self._writer(db)
+
+        assert second.calls == []
+
+    def test_건너뛴_양식을_보고한다(self, db) -> None:  # noqa: ANN001
+        """**조용히 건너뛰지 않는다.** 숫자가 없으면 「왜 안 늘었지」를 못 되짚는다."""
+        _build(db)
+        report = _build(db)
+
+        assert report.skipped == 1
+        assert report.forms == 0
+        assert "건너뜀 1" in report.line()
+
+    def test_안_덮어쓴다(self, db) -> None:  # noqa: ANN001
+        factory, _ = db
+        _build(db)
+        with factory() as s:
+            before = [(i.ordinal, i.body) for i in s.scalars(select(DraftItem)).all()]
+
+        _build(db)
+
+        with factory() as s:
+            assert [(i.ordinal, i.body) for i in s.scalars(select(DraftItem)).all()] == before
+
+    def test_redo_면_다시_쓴다(self, db) -> None:  # noqa: ANN001
+        """**id 로 갈렸는지 보지 않는다.** SQLite 는 지운 기본키를 재사용해서 새 행이
+        같은 번호를 받는다 — 배포 DB(Postgres)는 시퀀스라 안 그렇고, 그 차이에
+        기대는 단언은 방언을 시험하는 것이지 우리 코드를 시험하는 것이 아니다."""
+        factory, _ = db
+        _build(db)
+        with factory() as s:
+            first = s.scalars(select(DraftItem).order_by(DraftItem.ordinal)).first()
+            written = first.body
+            first.body = "누가 밖에서 덮어쓴 글"
+            s.commit()
+
+        report = _build(db, redo=True)
+
+        assert report.skipped == 0
+        assert report.forms == 1
+        assert report.items == 3
+        with factory() as s:
+            items = s.scalars(select(DraftItem).order_by(DraftItem.ordinal)).all()
+            # **다시 깔았다.** 항목이 늘지도 않고 옛 본문이 남지도 않는다
+            assert len(items) == 3
+            assert items[0].body == written
+            # 초안 행은 남는다 — `_draft_row` 가 항목만 간다
+            assert len(s.scalars(select(Draft)).all()) == 1
+
+    def test_redo_가_고친_글도_지운다(self, db) -> None:  # noqa: ANN001
+        """**ADR-0062 가 감수한 대가다.** 화면이 이 사실을 먼저 말하고 누르게 한다 —
+        여기서 고친 항목만 남기면 새 글과 옛 글이 한 문서에 섞이고, 둘의 근거가
+        서로 다른 사실을 가리켜 문서 단위 대조가 안 맞는다."""
+        factory, _ = db
+        _build(db)
+        with factory() as s:
+            item = s.scalars(select(DraftItem).order_by(DraftItem.ordinal)).first()
+            item.edited_body = "내가 손으로 고친 문장이다"
+            s.commit()
+
+        _build(db, redo=True)
+
+        with factory() as s:
+            bodies = [i.edited_body for i in s.scalars(select(DraftItem)).all()]
+            assert bodies == [None] * len(bodies)
 
 
 class Test공고_연결:

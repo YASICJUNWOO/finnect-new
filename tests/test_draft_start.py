@@ -112,8 +112,26 @@ def _hold(monkeypatch):  # noqa: ANN001, ANN202
     return gate
 
 
-def _post(c, ext: str = NOTICE):  # noqa: ANN001, ANN202
-    return c.post(f"/api/notices/bizinfo/{ext}/draft", params={"company": COMPANY})
+def _post(c, ext: str = NOTICE, **params):  # noqa: ANN001, ANN003, ANN202
+    return c.post(
+        f"/api/notices/bizinfo/{ext}/draft", params={"company": COMPANY, **params}
+    )
+
+
+def _spy(monkeypatch):  # noqa: ANN001, ANN202
+    """집필기 자리에 **받은 인자를 적는 것**을 끼운다.
+
+    스레드에서 도는 함수라 반환값을 못 본다 — 무엇을 받았는지만 남긴다.
+    """
+    seen: list[tuple] = []
+    done = threading.Event()
+
+    def note(*a) -> None:  # noqa: ANN002
+        seen.append(a)
+        done.set()
+
+    monkeypatch.setattr(api, "_write_draft", note)
+    return seen, done
 
 
 class Test시작:
@@ -152,6 +170,34 @@ class Test시작:
         c, _ = client
         r = c.post("/api/notices/없는곳/X/draft", params={"company": COMPANY})
         assert r.status_code == 404
+
+
+class Test다시_쓰기:
+    """T-0161 · [ADR-0062](
+    ../docs/adr/0062-다시-쓰기가-고친-글을-지우되-먼저-알린다.md).
+
+    **경로가 안 늘어난다.** 쿼리 파라미터라 아래 «쓰기 경로가 셋이다» 가 그대로 산다.
+    """
+
+    def test_기본은_다시_안_쓴다(self, client, monkeypatch) -> None:  # noqa: ANN001
+        c, _ = client
+        seen, done = _spy(monkeypatch)
+
+        _post(c)
+
+        assert done.wait(5)
+        assert seen[0][3] is False
+
+    def test_redo_가_집필기까지_간다(self, client, monkeypatch) -> None:  # noqa: ANN001
+        """**여기서 끊기면 화면의 「다시 쓰기」가 아무 일도 안 한다.** 예전에 그랬다 —
+        `build_draft` 의 `redo` 는 있었는데 API 가 안 넘겼다."""
+        c, _ = client
+        seen, done = _spy(monkeypatch)
+
+        _post(c, redo="true")
+
+        assert done.wait(5)
+        assert seen[0][3] is True
 
 
 class Test락:

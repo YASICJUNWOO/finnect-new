@@ -265,6 +265,13 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+forms = [
+    { name = "hwp-hwpx-editor" },
+    { name = "jpype1" },
+    { name = "olefile" },
+    { name = "python-docx" },
+    { name = "python-hwpx" },
+]
 ocr = [
     { name = "onnxruntime" },
     { name = "pillow" },
@@ -301,6 +308,13 @@ requires-dist = [
 dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.9" },
+]
+forms = [
+    { name = "hwp-hwpx-editor", specifier = ">=1.0" },
+    { name = "jpype1", specifier = ">=1.5" },
+    { name = "olefile", specifier = ">=0.47" },
+    { name = "python-docx", specifier = ">=1.1" },
+    { name = "python-hwpx", specifier = ">=0.1" },
 ]
 ocr = [
     { name = "onnxruntime", specifier = ">=1.20" },
@@ -394,6 +408,32 @@ wheels = [
 ]
 
 [[package]]
+name = "hwp-hwpx-editor"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "hwp-hwpx-parser" },
+    { name = "jpype1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/22/c76076c968e9babb70539c3d0c8ae43a53fb8978dcb25faaa8d757c5c291/hwp_hwpx_editor-1.0.0.tar.gz", hash = "sha256:19264df5652313e6ca09a96693e8897ff3d54072f2c3d0fe5acf29184f1b3fef", size = 5843479, upload-time = "2026-01-29T06:18:38.611Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/9b/4b8f3d2ac60613e45f9ad3aad85ba55bd094f70049efdaeb3ce403875be3/hwp_hwpx_editor-1.0.0-py3-none-any.whl", hash = "sha256:c54f56322b56a219b309587dd255d7adb3798db2230be8fbe75e24e42c3ad714", size = 5772867, upload-time = "2026-01-29T06:18:36.095Z" },
+]
+
+[[package]]
+name = "hwp-hwpx-parser"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "olefile" },
+    { name = "python-docx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/f4/a381b0e7c6d8cbc4c0013585746d143f61081a58c5a0483e37669155be89/hwp_hwpx_parser-1.0.0.tar.gz", hash = "sha256:27ba84c6871ebcd34bb2da257bdd2209bf15ad2b6d19b7aee1168f20c7d03f20", size = 185607, upload-time = "2026-01-29T06:14:35.607Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/92/eb144ed0c7360ac0fc14a59193776b881b77a1a13b093f337bd386bb6086/hwp_hwpx_parser-1.0.0-py3-none-any.whl", hash = "sha256:f853f6e7043c388b1eb7adcfa465f4d84fd7ee15ba0d49c383af9707924b9139", size = 28402, upload-time = "2026-01-29T06:14:33.856Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.18"
 source = { registry = "https://pypi.org/simple" }
@@ -421,6 +461,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
+name = "jpype1"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/a2/5d27e81d24eef64668bf702bfe0e091cc48388b4666f36e025243eb9d827/jpype1-1.7.1.tar.gz", hash = "sha256:3cd88838dc3d2d546f7eaeadaaff864e590010c15f2b6a44b6f37e60796a14b2", size = 783791, upload-time = "2026-05-06T23:55:10.664Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/67/5caa0de30bcb1c8786cc988144a68908e0624de20cfed470a67b1dd1f60c/jpype1-1.7.1-1-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:6d491a81281407f8a68552eb3c0e635e576e066c069268dc29a1ea27bb4778ae", size = 569800, upload-time = "2026-05-19T20:19:38.877Z" },
+    { url = "https://files.pythonhosted.org/packages/22/1c/d3e60c3fefb0ed22afc27e7ed6032565f9c5cbf1452ff03129b8f7354195/jpype1-1.7.1-cp313-cp313-macosx_14_0_x86_64.whl", hash = "sha256:2c54e9c7b7df819631db2cc8e64eaded7884d7dfaa67c035c70de512a8987b34", size = 374581, upload-time = "2026-05-06T23:54:25.801Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/10/47d8327d96f6aa9049ea84189508ed446e81b233d8978d49b737b4a0df51/jpype1-1.7.1-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:988d2db564b61ffcc4fa9533fb65e98037d869b866e02c145e49125554cad6cc", size = 407509, upload-time = "2026-05-06T23:54:27.94Z" },
+    { url = "https://files.pythonhosted.org/packages/47/bd/995f4ac18eb3016c3819af5ce0c1a89e94f1cbefc560db688118b32eab3d/jpype1-1.7.1-cp313-cp313-manylinux_2_24_i686.manylinux_2_28_i686.whl", hash = "sha256:1c387dc58f28aefce50955eb7f24403f05b8a2942ef22c7f08d731d1fc753a50", size = 454093, upload-time = "2026-05-06T23:54:30.702Z" },
+    { url = "https://files.pythonhosted.org/packages/86/34/1a45d77fc164daef989b650254144c323462ba00895cedfcb794a7a5dbab/jpype1-1.7.1-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:907a4dcc89cca1655fe3fad389e9f60d5c681ddf070927a9013a6d0f64ccf118", size = 438527, upload-time = "2026-05-06T23:54:33.033Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/10/1f47deb971c20519233577474d397255bbdc4717aa7f0192b0b505d7b47b/jpype1-1.7.1-cp313-cp313-win_amd64.whl", hash = "sha256:969e160c15ab83b21c657837797ddae3701482d3db54f57ae81c75b558942533", size = 357069, upload-time = "2026-05-06T23:54:42.379Z" },
+    { url = "https://files.pythonhosted.org/packages/83/79/760198389ce7e3a6048fd54e1ab5e31139298e2d253cbb9181b1a2cbe48f/jpype1-1.7.1-cp313-cp313t-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0486725034916270f1c28e27bd74ef793f96d41b822956e3edf5666f99058665", size = 409596, upload-time = "2026-05-06T23:54:35.07Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/4e/175b0d0c8e29f7ba6e00f0588e2df06773796bd3c58fa5910cee3aefe40b/jpype1-1.7.1-cp313-cp313t-manylinux_2_24_i686.manylinux_2_28_i686.whl", hash = "sha256:39b57767ed33bba453e4c81f2dfcb39be8b3ad25eaeedd96391e171bde3c765f", size = 455365, upload-time = "2026-05-06T23:54:37.672Z" },
+    { url = "https://files.pythonhosted.org/packages/29/a9/0576c3d54bfa0bd6b9392f4624bd39bc9cc924a5362ba95d16e3ad77778a/jpype1-1.7.1-cp313-cp313t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7605e33971f8f16634e4786ce0a4b2d1691aebd09ca21fdc7a700e9a0f3dd6a7", size = 439563, upload-time = "2026-05-06T23:54:40.188Z" },
 ]
 
 [[package]]
@@ -850,12 +910,37 @@ wheels = [
 ]
 
 [[package]]
+name = "python-docx"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lxml" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/f7/eddfe33871520adab45aaa1a71f0402a2252050c14c7e3009446c8f4701c/python_docx-1.2.0.tar.gz", hash = "sha256:7bc9d7b7d8a69c9c02ca09216118c86552704edc23bac179283f2e38f86220ce", size = 5723256, upload-time = "2025-06-16T20:46:27.921Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/00/1e03a4989fa5795da308cd774f05b704ace555a70f9bf9d3be057b680bcf/python_docx-1.2.0-py3-none-any.whl", hash = "sha256:3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7", size = 252987, upload-time = "2025-06-16T20:46:22.506Z" },
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.2.2"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3", size = 50135, upload-time = "2026-03-01T16:00:26.196Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a", size = 22101, upload-time = "2026-03-01T16:00:25.09Z" },
+]
+
+[[package]]
+name = "python-hwpx"
+version = "6.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lxml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/b9/2c91be88e8ffa4b73b3ee43c566d23a62e099f0283cee2fd8796d7cc8b13/python_hwpx-6.3.0.tar.gz", hash = "sha256:b59b5381d9409e25c90ec29130b0f5f0c9bb7decf55853173b417c552c789dfa", size = 940432, upload-time = "2026-08-22T07:34:49.967Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/54/0055f88fa63d0dc999574e64d76b5234cf66b0b45291e171bf44f72a9450/python_hwpx-6.3.0-py3-none-any.whl", hash = "sha256:45bcc79d14f60ad3e3bf837853de18c61e4602fa0e902dbe5ad3f46e25f4c6b3", size = 652440, upload-time = "2026-08-22T07:34:47.968Z" },
 ]
 
 [[package]]

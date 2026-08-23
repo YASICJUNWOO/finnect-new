@@ -238,6 +238,8 @@ class _FormPlan:
 @dataclass(slots=True)
 class BuildReport:
     forms: int = 0
+    #: 이미 초안이 있어서 안 썼다. **LLM 을 부르기 전에 걸러진 수다**
+    skipped: int = 0
     items: int = 0
     drafted: int = 0
     #: 위키에 없어서 못 썼다. **F6-6 이 가리키는 자리** — 여기만 물어본다
@@ -266,7 +268,9 @@ class BuildReport:
             f"{n} {c}건" for n, c in sorted(self.missing.items(), key=lambda x: -x[1])[:6]
         )
         out = [
-            f"양식 {self.forms:,} · 항목 {self.items:,} (썼음 {self.drafted:,} · "
+            f"양식 {self.forms:,}"
+            + (f" (이미 있어서 건너뜀 {self.skipped:,})" if self.skipped else "")
+            + f" · 항목 {self.items:,} (썼음 {self.drafted:,} · "
             f"못 채움 {self.blank:,} · 쓸 자리 아님 {self.no_needs:,} · "
             f"배분에서 못 받음 {self.yielded:,} · 글이 안 나옴 {self.unwritten:,} · "
             f"실패 {self.failed:,})",
@@ -302,6 +306,10 @@ def build_draft(  # noqa: PLR0913
 
     `prepare` 가 **양식을 여기서 뜯는다**(⓪). 끄는 것은 재료를 손으로 깔아 둔
     테스트뿐이다.
+
+    **`redo` 가 아니면 이미 쓴 양식을 조립 단계에서 걷어낸다**(T-0161). 저장 직전에
+    거르면(`_draft_row`) 배분과 집필을 **다 부른 뒤**라 토큰만 나가고 결과가 통째로
+    버려진다 — 화면은 그대로인데 돈은 나가서 사용자도 로그도 그것을 못 본다.
     """
     report = BuildReport()
     allotter = allotter or al.Allotter()
@@ -318,6 +326,10 @@ def build_draft(  # noqa: PLR0913
         facts = _company_facts(s, company_id)
         notice = _notice_material(s, source, external_id)
         plans = _read_plans(s, source, external_id)
+        if not redo:
+            done = _drafted_documents(s, company_id, external_id)
+            report.skipped = sum(1 for p in plans if p.document_id in done)
+            plans = [p for p in plans if p.document_id not in done]
 
     if not plans:
         return report
@@ -446,6 +458,10 @@ def _prepare(source: str, external_id: str) -> None:
 
     ex.run(notice=(source, external_id))
     ex.classify_unknown(notice=(source, external_id))
+    # **좌표를 따로 심는다.** `run()` 은 이미 뜯은 파일을 건너뛰는데, 좌표 코드가
+    # 붙기 전에 뜯긴 파일이 그 자리에 남는다 — 다시 뜯으면 초안이 지워지므로
+    # (FK CASCADE) 좌표만 갱신하는 길로 간다.
+    ex.plant_anchors(notice=(source, external_id))
     read_forms(notice=(source, external_id))
 
 
@@ -869,6 +885,22 @@ def _check_clashes(checker: dd.LlmChecker, plan: _FormPlan, paras: list[dd.ParaV
     return len(found)
 
 
+def _drafted_documents(s: Session, company_id: str, external_id: str) -> set[int]:
+    """이 회사가 이 공고에 대해 **이미 초안을 가진** 문서들 (T-0161).
+
+    `_draft_row` 도 같은 것을 보지만 저기는 저장 직전이다. **거기서만 거르면 늦다** —
+    배분과 집필이 끝난 뒤라 버리는 것이 결과가 아니라 이미 쓴 돈이다.
+    """
+    return set(
+        s.scalars(
+            select(Draft.document_id).where(
+                Draft.company_id == company_id,
+                Draft.notice_id == external_id,
+            )
+        )
+    )
+
+
 def _draft_row(  # noqa: PLR0913
     s: Session,
     company_id: str,
@@ -878,7 +910,18 @@ def _draft_row(  # noqa: PLR0913
     *,
     redo: bool,
 ) -> Draft | None:
-    """이미 있으면 안 다시 쓴다. **`--redo` 면 항목만 갈고 초안 행은 남긴다.**"""
+    """이미 있으면 안 다시 쓴다. **`redo` 면 항목만 갈고 초안 행은 남긴다.**
+
+    **`redo` 는 사람이 고친 글도 지운다**([ADR-0062](
+    ../../../docs/adr/0062-다시-쓰기가-고친-글을-지우되-먼저-알린다.md)). `edited_body`
+    가 `draft_item` 에 살아서 이 `delete` 에 같이 쓸려 간다 — ADR-0055 는 **집필기가
+    사람 글을 덮지 않는다**는 규칙이고, 사람이 스스로 「새로 써 줘」를 누른 것은 그
+    자리가 아니다. 대신 **화면이 무엇이 사라지는지 먼저 말하고 누르게 한다.**
+
+    **이 함수가 조용히 지우지 않게 하는 것이 화면 쪽 책임이다.** 여기서 고친 항목만
+    남기면 새 글과 옛 글이 한 문서에 섞이는데, 그 둘의 근거가 서로 다른 사실을
+    가리켜 F6-13 의 대조가 문서 단위로는 안 맞게 된다.
+    """
     row = s.scalar(
         select(Draft).where(
             Draft.company_id == company_id,

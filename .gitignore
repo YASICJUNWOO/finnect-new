@@ -30,6 +30,9 @@ data/attachments/
 data/user-files/
 *.hwp
 *.hwpx
+# 양식 채우기 실측용 표본. 받아 둔 첨부에서 복사한 것이라 재생성된다(spike/hwp_fill.py 머리말)
+data/신청서/
+data/신청서-채움/
 # 코퍼스 덤프와 목록 파일 (dataset.md). `--dump` · `--prune` · `--only` 가 여기 쓴다.
 # **커밋하지 않는다** — 스냅샷이라 만든 시점의 DB 만 뜻하고, 기업마당은 마감된 공고가
 # API 에서 사라져 재현이 안 된다. 되돌릴 사본이 필요하면 여기 두되 git 밖에 둔다

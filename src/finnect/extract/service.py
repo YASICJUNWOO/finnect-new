@@ -170,22 +170,13 @@ def _replace(
         report.kinds[str(kind)] = report.kinds.get(str(kind), 0) + 1
 
         if kind is not DocumentKind.FIELDS:
+            # **`unknown` 에는 아직 안 깐다.** LLM 이 `none` 으로 판정할 수 있고,
+            # 그러면 공고문에서 뽑은 가짜 항목이 화면에 빈 서류로 남는다.
             continue
 
         report.fields_docs += 1
         fields_docs.append(doc.id)
-        for i, label in enumerate(fx.labels(seg.text)):
-            s.add(
-                DocumentItem(
-                    document_id=doc.id,
-                    ordinal=i,
-                    number=None,
-                    title=label,
-                    instruction=None,
-                    input_kind="field",
-                )
-            )
-            report.items += 1
+        report.items += _add_all(s, doc, seg.text)
 
     _plant_anchors(s, sha, ext, fields_docs, report)
 
@@ -302,6 +293,8 @@ def _plant_anchors(
         print(f"[좌표] {sha[:8]} 를 못 열었다: {type(e).__name__}: {e}", flush=True)
         return
 
+    _plant_outline(s, form, fields_docs[0], report)
+
     # 겹치는 라벨은 **아예 뺀다.** 첫 번째를 고르는 것이 이 방식이 부러진 자리다.
     #
     # **좌표가 다를 때만 겹침이다.** 같은 라벨이 여러 번 나와도 가리키는 칸이
@@ -314,24 +307,40 @@ def _plant_anchors(
         elif seen[key] != anchor:
             seen[key] = None
 
+    # **표 칸만 본다.** 서술 항목의 제목이 표 라벨과 우연히 같으면 글 쓰는 자리에
+    # 좌표가 붙고, 채우기가 그 칸에 문단을 통째로 밀어 넣는다.
     rows = s.scalars(
-        select(DocumentItem).where(DocumentItem.document_id == fields_docs[0])
+        select(DocumentItem).where(
+            DocumentItem.document_id == fields_docs[0],
+            DocumentItem.input_kind == "field",
+        )
     ).all()
 
     if not rows:
-        # **항목이 없으면 파일에서 만든다.** 텍스트 추출이 표를 못 살린 파일이
+        # **표 칸이 없으면 파일에서 만든다.** 텍스트 추출이 표를 못 살린 파일이
         # 있다 — 실측에서 같은 양식의 docx 판이 라벨 0개였고 hwp 판은 12개였다.
         # 원본을 여는 김에 라벨이 여기 있으므로, 그것으로 칸을 깐다.
         #
-        # **`fx.labels` 를 대신하는 것이 아니다.** 저기는 텍스트만 있어도 돌고
+        # **`fx.rows` 를 대신하는 것이 아니다.** 저기는 텍스트만 있어도 돌고
         # 여기는 파일을 열 수 있을 때만 돈다 — 둘 중 되는 쪽이 채운다.
+        #
+        # **`ordinal` 을 0부터 매기지 않는다.** 같은 구간에 서술 항목이 이미
+        # 깔려 있을 수 있고(ADR-0061 결정 3), 겹치면 화면이 같은 자리에 둘을 그린다.
+        base = (
+            s.scalar(
+                select(func.max(DocumentItem.ordinal)).where(
+                    DocumentItem.document_id == fields_docs[0]
+                )
+            )
+            or -1
+        ) + 1
         for i, (label, _anchor) in enumerate(targets):
             key = norm_label(label)
             hit = seen.get(key)
             s.add(
                 DocumentItem(
                     document_id=fields_docs[0],
-                    ordinal=i,
+                    ordinal=base + i,
                     number=None,
                     title=label[:300],
                     instruction=None,
@@ -348,6 +357,46 @@ def _plant_anchors(
         hit = seen.get(norm_label(row.title))
         if hit is not None:
             row.anchor = str(hit)
+            report.anchored += 1
+
+
+def _plant_outline(s: Session, form: object, document_id: int, report: ExtractReport) -> None:
+    """서술 항목에 **문단 좌표**를 심는다 (ADR-0061 결정 3의 뒷자리).
+
+    ## 왜 셀 좌표로는 안 되나
+
+    서술 항목의 글 자리는 표가 아니라 **본문 문단**이다. `Anchor` 가 `(구역, 표,
+    행, 열)` 이라 그 자리를 못 가리켰고, 그래서 2026-08-23 까지 **서술 항목
+    1,158개가 전부 좌표 없이** 남아 있었다. 채우기가 그것을 통째로 건너뛰어서
+    **화면은 「썼어요」라고 말하는데 파일에는 안 들어갔다.**
+
+    ## 표 라벨과 같은 규칙을 받는다
+
+    제목이 겹치거나, 파일에 없거나, 그 아래 빈 문단이 없으면 **안 심는다.**
+    아무 문단이나 고르면 글이 엉뚱한 데에 앉고 **파일은 정상으로 열린다.**
+    """
+    rows = s.scalars(
+        select(DocumentItem).where(
+            DocumentItem.document_id == document_id,
+            DocumentItem.input_kind == "narrative",
+        )
+    ).all()
+    if not rows:
+        return
+
+    from finnect.forms import outline_targets
+
+    try:
+        paras = form.paragraphs()  # type: ignore[attr-defined]
+    except Exception as e:  # noqa: BLE001 — 표 좌표는 이미 심었다. 여기서 안 버린다
+        print(f"[좌표] 문단을 못 읽었다: {type(e).__name__}: {e}", flush=True)
+        return
+
+    hit = dict(outline_targets(paras, [r.title for r in rows]))
+    for row in rows:
+        a = hit.get(row.title)
+        if a is not None:
+            row.anchor = str(a)
             report.anchored += 1
 
 
@@ -562,59 +611,97 @@ def _text_of(s: Session, sha: str) -> str | None:
 
 
 def _add_items(s: Session, doc: Document, body: str, kind: DocumentKind) -> int:
-    """판정된 종류에 맞는 항목을 깐다. **이미 있으면 안 만든다** — `--redo` 로 두 번
-    돌 때 항목이 두 벌이 된다."""
+    """판정된 구간에 항목을 깐다. **이미 있으면 안 만든다** — `--redo` 로 두 번
+    돌 때 항목이 두 벌이 된다.
+
+    **`kind` 로 추출 종류를 고르지 않는다**(ADR-0061 결정 3). 채울 것이 있다고
+    판정된 구간이면 표와 서술을 **둘 다** 뽑는다.
+    """
     if s.scalar(
         select(func.count()).select_from(DocumentItem).where(DocumentItem.document_id == doc.id)
     ):
         return 0
-    if kind is DocumentKind.FIELDS:
-        return _add_fields(s, doc, body)
-    if kind is DocumentKind.NARRATIVE:
-        return _add_outline(s, doc, body)
-    return 0
+    if kind is DocumentKind.NONE:
+        return 0
+    return _add_all(s, doc, body)
 
 
-def _add_fields(s: Session, doc: Document, body: str) -> int:
-    n = 0
-    for i, label in enumerate(fx.labels(body)):
-        s.add(
-            DocumentItem(
-                document_id=doc.id, ordinal=i, number=None,
-                title=label, instruction=None, input_kind="field",
-            )
-        )
-        n += 1
-    return n
+def _add_all(s: Session, doc: Document, body: str, *, start: int = 0) -> int:
+    """표 칸과 서술 항목을 **둘 다** 깐다 (ADR-0061 결정 3).
 
+    ## 갈래는 문서가 아니라 칸이 갖는다
 
-def _add_outline(s: Session, doc: Document, body: str) -> int:
-    """서술형 항목 트리 (T-0037).
+    2026-08-23 까지 `document.kind` 가 추출기를 골랐다 — `fields` 면 표 라벨만,
+    `narrative` 면 목차만 뽑았다. **한 신청서에 표와 서술이 같이 있는 것이 흔해서**
+    어느 쪽으로 판정되든 절반을 잃었다.
 
-    **오프셋에 구간 시작을 더한다.** `outline` 은 넘겨받은 텍스트 기준으로 세는데
-    화면은 파일 원문에서 잘라 보여 준다 — 안 더하면 엉뚱한 데가 열린다.
+    코퍼스 전량에서 잰 값이다.
 
-    부모를 걸려면 자식보다 먼저 `id` 가 있어야 해서 **한 줄씩 flush 한다.**
-    항목이 수십 개라 감당된다(최악이 102개).
+        fields 로 판정된 355구간 중 128개(36%)에 서술이 있었다   → 1,203항목 유실
+        narrative 로 판정된 79구간 중 47개(59%)에 표가 있었다     →   781항목 유실
+
+    `kstartup:178697` 이 그 자리다. 표 30칸과 사업계획 15항목이 한 파일에 있는데
+    `fields` 로 판정돼서 **창업 동기·기술성·사업성·사업화 계획이 통째로 없었다** —
+    집필의 축(ADR-0019)이 바로 그것이다.
+
+    ## 둘이 안 겹친다
+
+    `fields._ROW` 는 **탭이 있는 줄만** 보고 `outline._match` 는 **탭이 있으면
+    `None`** 을 낸다. 구조적으로 배타적이라 같이 돌려도 중복이 안 생긴다(실측에서
+    표 라벨 30개와 서술 제목 15개의 교집합이 0이었다).
+
+    ## 원문 순서로 섞는다
+
+    표를 다 내고 서술을 뒤에 붙이면 화면 순서가 문서와 어긋난다. 실제 양식은
+    신청서 표 → 인적사항 → 일반현황 → 사업계획으로 **번갈아** 나온다.
+
+    `start` 는 이미 깔린 항목 뒤에 이어 매길 때 쓴다. **`ordinal` 이 겹치면 화면이
+    같은 자리에 둘을 그린다.**
     """
-    ids: list[int] = []
-    for i, it in enumerate(ol.items(body)):
+    #: `(원문 자리, 표가 먼저, 목록 인덱스, 재료)`. 자리가 같으면 표를 앞에 둔다
+    merged: list[tuple[int, int, int, object]] = [
+        *((r.start, 0, i, r) for i, r in enumerate(fx.rows(body))),
+        *((it.start, 1, i, it) for i, it in enumerate(ol.items(body))),
+    ]
+    if not merged:
+        return 0
+    merged.sort(key=lambda x: (x[0], x[1]))
+
+    #: 서술 항목의 목록 인덱스 → 방금 만든 행의 `id`. 부모를 걸려면 자식보다 먼저
+    #: `id` 가 있어야 하는데, `outline` 이 부모를 늘 앞에 두므로 정렬 뒤에도 선다
+    ids: dict[int, int] = {}
+    for n, (_, is_outline, idx, obj) in enumerate(merged):
+        if not is_outline:
+            s.add(
+                DocumentItem(
+                    document_id=doc.id,
+                    ordinal=start + n,
+                    number=None,
+                    title=obj.label[:300],  # type: ignore[union-attr]
+                    instruction=None,
+                    input_kind="field",
+                )
+            )
+            continue
+
+        # **오프셋에 구간 시작을 더한다.** `outline` 은 넘겨받은 텍스트 기준으로
+        # 세는데 화면은 파일 원문에서 잘라 보여 준다 — 안 더하면 엉뚱한 데가 열린다.
         row = DocumentItem(
             document_id=doc.id,
-            parent_id=ids[it.parent] if it.parent is not None else None,
-            ordinal=i,
-            number=it.number,
-            title=it.title[:300],
-            instruction=it.instruction,
-            limit_text=it.limit_text,
+            parent_id=ids.get(obj.parent) if obj.parent is not None else None,  # type: ignore[union-attr]
+            ordinal=start + n,
+            number=obj.number,  # type: ignore[union-attr]
+            title=obj.title[:300],  # type: ignore[union-attr]
+            instruction=obj.instruction,  # type: ignore[union-attr]
+            limit_text=obj.limit_text,  # type: ignore[union-attr]
             input_kind="narrative",
-            char_start=doc.char_start + it.start,
-            char_end=doc.char_start + it.end,
+            char_start=doc.char_start + obj.start,  # type: ignore[union-attr]
+            char_end=doc.char_start + obj.end,  # type: ignore[union-attr]
         )
         s.add(row)
-        s.flush()
-        ids.append(row.id)
-    return len(ids)
+        s.flush()  # 부모를 걸려면 `id` 가 먼저 있어야 한다. 최악이 102개라 감당된다
+        ids[idx] = row.id
+    return len(merged)
 
 
 def _usage_line(clf: object) -> str:

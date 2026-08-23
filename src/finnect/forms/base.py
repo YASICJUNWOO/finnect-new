@@ -50,6 +50,50 @@ class Anchor:
 
 
 @dataclass(frozen=True, slots=True)
+class ParaAnchor:
+    """파일 안의 **문단** 하나. 표 밖에 있는 자리다.
+
+    ## 왜 좌표가 둘로 갈리나
+
+    서술 항목의 글 자리는 표가 아니다. 실측(`bizinfo:PBLN_…125577` 활동계획서)에서
+    이렇게 생겼다.
+
+        문단 16   1. 목적 및 필요성           ← 제목
+        문단 17   - 참가하고자 하는 …작성      ← 지시문
+        문단 18   (빈 문단)                  ← 여기에 글이 들어간다
+        문단 25   2. 수주 활동 대상           ← 다음 항목
+
+    `Anchor` 는 `(구역, 표, 행, 열)` 이라 이 자리를 못 가리킨다. 그래서 서술 항목
+    1,158개가 **전부 좌표 없이** 남아 있었고, 채우기가 그것을 통째로 건너뛰었다 —
+    화면은 「썼어요」라고 말하는데 파일에는 안 들어갔다.
+
+    **DB 에는 `p:0:18` 로 앉는다.** 앞에 `p:` 가 붙는 것이 셀 좌표와 가르는 표시이고,
+    그래서 이미 심긴 셀 좌표 956개를 **손대지 않아도 된다**(`parse_anchor` 참조).
+    """
+
+    section: int
+    #: 그 구역 안에서 몇 번째 문단인가. **표 안 문단은 안 센다**
+    index: int
+
+    def __str__(self) -> str:
+        return f"p:{self.section}:{self.index}"
+
+    @classmethod
+    def parse(cls, s: str) -> ParaAnchor:
+        _, a, b = s.split(":")
+        return cls(int(a), int(b))
+
+
+def parse_anchor(s: str) -> Anchor | ParaAnchor:
+    """DB 문자열을 좌표로. **`p:` 로 시작하면 문단이다.**
+
+    옛 값(`0:3:1:2`)이 그대로 셀로 읽히는 것이 이 형식의 요점이다 — 문단 좌표를
+    더하면서 마이그레이션을 안 만든다.
+    """
+    return ParaAnchor.parse(s) if s.startswith("p:") else Anchor.parse(s)
+
+
+@dataclass(frozen=True, slots=True)
 class Cell:
     """읽어 낸 칸 하나."""
 
@@ -68,6 +112,18 @@ class Cell:
         return not self.text.strip()
 
 
+@dataclass(frozen=True, slots=True)
+class Para:
+    """읽어 낸 문단 하나. **표 안 문단은 여기 안 온다** — 저기는 `Cell` 이다."""
+
+    anchor: ParaAnchor
+    text: str
+
+    @property
+    def blank(self) -> bool:
+        return not self.text.strip()
+
+
 class Form(Protocol):
     """양식 하나. **어댑터가 이것을 만족한다.**
 
@@ -82,11 +138,19 @@ class Form(Protocol):
         """표 안의 모든 칸을 좌표와 함께. **순회 순서가 좌표를 정한다.**"""
         ...
 
-    def fill(self, anchor: Anchor, value: str) -> bool:
-        """그 칸에 값을 넣는다. **못 넣으면 `False` 다.**
+    def paragraphs(self) -> list[Para]:
+        """표 **밖**의 문단을 순서대로. 서술 항목의 글 자리가 여기 있다.
 
-        hwp 는 이미 글자가 있는 칸에 `False` 를 준다 — 갈아 끼우는 것 자체가
-        배치를 깨뜨린다(ADR-0060 결정 3, 판본 A~G).
+        **표 안 문단을 여기 넣지 않는다.** 넣으면 같은 글자가 `cells()` 와 두 번
+        나오고, 좌표 둘이 같은 자리를 가리켜 채우기가 두 번 쓴다.
+        """
+        ...
+
+    def fill(self, anchor: Anchor | ParaAnchor, value: str) -> bool:
+        """그 자리에 값을 넣는다. **못 넣으면 `False` 다.**
+
+        hwp 는 이미 글자가 있는 자리에 `False` 를 준다 — 갈아 끼우는 것 자체가
+        배치를 깨뜨린다(ADR-0060 결정 3, 판본 A~G). **문단도 같은 규칙이다.**
         """
         ...
 
@@ -145,6 +209,67 @@ def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
             seen.add(pair)
             out.append(pair)
     return out
+
+
+def outline_targets(
+    paras: list[Para], titles: list[str]
+) -> list[tuple[str, ParaAnchor]]:
+    """`(항목 제목, 글이 들어갈 빈 문단)` 을 순서대로 (ADR-0061 결정 3의 뒷자리).
+
+    **제목 문단 다음의 첫 빈 문단이 글 자리다.** 실측한 모양이 이렇다.
+
+        16   1. 목적 및 필요성       ← 제목. 항목의 `title` 은 번호를 뗀 것이라
+        17   - …에 대하여 작성        ← 지시문. 비어 있지 않으니 건너뛴다
+        18   (빈 문단)              ← 여기
+        25   2. 수주 활동 대상        ← 다음 제목을 만나면 멈춘다
+
+    **다음 제목을 넘어가지 않는다.** 넘어가면 항목 둘이 같은 문단을 가리키고,
+    나중 항목의 글이 앞 항목 자리에 앉는다.
+
+    **제목이 파일에 없거나 빈 문단이 없으면 그 항목을 안 낸다.** `1. 목적 및
+    필요성` 바로 밑에 표가 오는 양식이 있는데, 거기서 아무 문단이나 고르면 글이
+    엉뚱한 데에 들어가고 **파일은 정상으로 열려서** 제출 직전에야 드러난다 —
+    셀 좌표에서 라벨이 겹칠 때 아예 버리는 것과 같은 판단이다.
+
+    **라벨 대조가 `endswith` 인 것이 요점이다.** 항목 제목은 `outline` 이 번호를
+    떼어 낸 값(`목적 및 필요성`)이고 문단은 번호를 달고 있다(`1. 목적 및 필요성`).
+    """
+    want = {norm_label(t): t for t in titles if norm_label(t)}
+    if not want:
+        return []
+
+    #: 제목이 앉은 문단. **겹치면 그 제목을 통째로 버린다**
+    at: dict[str, int | None] = {}
+    for i, p in enumerate(paras):
+        key = norm_label(p.text)
+        if not key:
+            continue
+        for k in want:
+            # **짧은 제목이 아무 문장에나 걸리는 것을 막는다.** `기타` 같은 두
+            # 글자가 본문 한복판에서 끝나는 일이 실제로 있다
+            if key == k or (key.endswith(k) and len(key) - len(k) <= _NUMBER_HEAD):
+                at[k] = None if k in at else i
+    heads = sorted(i for i in at.values() if i is not None)
+
+    out: list[tuple[str, ParaAnchor]] = []
+    for k, i in at.items():
+        if i is None:
+            continue
+        stop = next((h for h in heads if h > i), len(paras))
+        # **구역을 건너지 않는다.** hwp 는 본문이 구역으로 갈리고 구역이 바뀌면
+        # 쪽이 갈린 것이라, 그 너머의 빈 문단은 이 항목의 자리가 아니다.
+        sec = paras[i].anchor.section
+        blank = next(
+            (p for p in paras[i + 1 : stop] if p.blank and p.anchor.section == sec), None
+        )
+        if blank is not None:
+            out.append((want[k], blank.anchor))
+    return out
+
+
+#: 제목 앞에 붙을 수 있는 번호의 최대 길이. `1.`·`2-1.`·`(3)`·`가.` 를 견딘다.
+#: **늘리면 `사업 계획` 이 `향후 사업 계획` 에 걸린다.**
+_NUMBER_HEAD = 6
 
 
 class UnsupportedFormat(ValueError):

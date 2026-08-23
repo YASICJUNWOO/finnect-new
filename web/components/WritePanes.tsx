@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { DocViewer } from "./DocViewer";
 import { DraftThread } from "./DraftThread";
 import { WriteWorkspace } from "./WriteWorkspace";
-import type { Draft } from "@/lib/draft";
+import { bodyOf, leaves, type Draft } from "@/lib/draft";
 import type { NoticeDocuments } from "@/lib/documents";
 import { filledDocumentUrl } from "@/lib/api";
 import styles from "./WritePanes.module.css";
@@ -45,19 +45,28 @@ export function WritePanes({
   const [docId, setDocId] = useState<string | null>(initialDoc ?? all[0]?.id ?? null);
   const [pages, setPages] = useState<number | null>(null);
   const [left, setLeft] = useState<number | null>(null);
+  /** 왼쪽에서 살아 움직이는 초안. **서버가 준 `draft` 는 처음 한 장뿐이다** —
+   *  초안을 쓰거나 고치면 그 결과가 `DraftThread` 안에서만 갱신되므로, 여기로
+   *  올려 받지 않으면 오른쪽 뷰어가 **새로고침 전까지 옛 파일을 보여 준다.** */
+  const [live, setLive] = useState<Draft | null>(draft);
 
   const active = all.find((d) => d.id === docId) ?? all[0] ?? null;
 
   /** 채운 파일의 주소 (plan/24 T-0155). **초안이 없으면 안 만든다** — 채울 것이
    *  없는데 부르면 원본과 같은 파일을 한 번 더 만드는 값만 든다.
    *
-   *  **초안 항목 수를 주소에 넣는다.** 다시 쓰면 내용이 달라지는데 주소가 같으면
-   *  뷰어가 다시 안 연다 — 브라우저 캐시가 아니라 `useEffect` 의 의존성 문제다. */
+   *  **초안 내용을 주소에 넣는다.** 다시 쓰면 내용이 달라지는데 주소가 같으면
+   *  뷰어가 다시 안 연다 — 브라우저 캐시가 아니라 `useEffect` 의 의존성 문제다.
+   *
+   *  **항목 수만으로는 모자란다.** 초기화도 고쳐 쓰기도 항목 수를 안 바꾼다 —
+   *  글이 통째로 달라져도 주소가 같아서 옛 파일이 그대로 떴다. 글 길이의 합까지
+   *  넣으면 그 둘이 갈린다. */
   const filledUrl = useMemo(() => {
-    if (!active || !draft || draft.documents.length === 0) return null;
-    const stamp = draft.documents.reduce((n, d) => n + d.items.length, 0);
+    if (!active || !live || live.documents.length === 0) return null;
+    const items = leaves(live.documents.flatMap((d) => d.items));
+    const stamp = `${items.length}-${items.reduce((n, i) => n + bodyOf(i).length, 0)}`;
     return `${filledDocumentUrl(source, externalId, active.id, company)}&v=${stamp}`;
-  }, [active, draft, source, externalId, company]);
+  }, [active, live, source, externalId, company]);
 
   const onFilled = useCallback((_filled: number, remaining: number) => {
     setLeft(remaining);
@@ -141,6 +150,7 @@ export function WritePanes({
               externalId={externalId}
               company={company}
               onFocusDoc={focusDoc}
+              onDraft={setLive}
             />
           ) : (
             /* **`null` 은 「초안이 없다」가 아니라 「모른다」다.** 빈 화면을 띄우면

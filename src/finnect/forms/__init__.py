@@ -26,15 +26,20 @@ from finnect.forms.base import (
     Form,
     FormsUnavailable,
     UnsupportedFormat,
+    label_targets,
+    norm_label,
 )
 
 __all__ = [
+    "PLANNED",
+    "SUPPORTED",
     "Anchor",
     "Cell",
     "Form",
     "FormsUnavailable",
-    "SUPPORTED",
     "UnsupportedFormat",
+    "label_targets",
+    "norm_label",
     "open_form",
 ]
 

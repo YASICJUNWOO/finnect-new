@@ -28,7 +28,11 @@ from finnect.models import Document, DocumentItem
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="finnect.extract", description="낼 서류와 작성 항목")
     p.add_argument("--limit", type=int, default=None, metavar="N", help="N개 파일만(맛보기)")
-    p.add_argument("--redo", action="store_true", help="이미 한 것도 다시 판정한다")
+    p.add_argument(
+        "--redo",
+        action="store_true",
+        help="이미 한 것도 다시 판정한다. **그 파일에 쓴 초안이 지워진다**(FK CASCADE)",
+    )
     p.add_argument("--report", action="store_true", help="집계만 찍는다")
     p.add_argument(
         "--classify", type=int, nargs="?", const=0, default=None, metavar="N",

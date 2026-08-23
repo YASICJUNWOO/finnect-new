@@ -95,6 +95,48 @@ class Form(Protocol):
         ...
 
 
+def norm_label(s: str) -> str:
+    """라벨 대조용 정규화. **공백을 지운다.**
+
+    관공서 양식이 `기   업   명`·`업 체 명` 처럼 글자 사이를 벌려 칸을 맞춘다
+    (ADR-0060 실측 — 셋이 같은 라벨로 걸렸다). 본문에서 어휘를 *찾는* 경우와는
+    반대 규칙이다(`match/sectors.py` 는 지우면 안 되고 `wiki/topics.py` 는 지워야
+    한다 — 여기는 뒤엣것과 같은 자리다).
+    """
+    import re
+
+    return re.sub(r"[\s　:：]", "", s or "").lower()
+
+
+def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
+    """`(라벨, 값이 들어갈 칸)` 을 순서대로.
+
+    **오른쪽 첫 빈 칸이 값 자리다.** 관공서 양식이 `라벨 | 빈칸` 으로 짜여 있고,
+    실측에서 그 규칙으로 165칸을 채웠다(ADR-0060).
+
+    **라벨이 겹쳐도 여기서는 안 버린다.** 겹치는 것을 아는 것은 부르는 쪽이고,
+    그쪽이 「둘 이상이면 안 채운다」를 정한다 — 여기서 첫 번째를 골라 주면 그
+    선택이 조용히 일어난다(`spike/anchor_check.py` 가 부러뜨린 바로 그 방식).
+
+    같은 행에서만 오른쪽을 본다. 아래 칸으로 내려가지 않는다 — 표가 세로로 짜인
+    양식에서 엉뚱한 칸을 잡고, 그것을 가릴 근거가 아직 없다.
+    """
+    by_row: dict[tuple[int, int, int], list[Cell]] = {}
+    for c in cells:
+        by_row.setdefault((c.anchor.section, c.anchor.table, c.anchor.row), []).append(c)
+
+    out: list[tuple[str, Anchor]] = []
+    for row in by_row.values():
+        row.sort(key=lambda c: c.anchor.col)
+        for i, c in enumerate(row):
+            if c.blank:
+                continue
+            nxt = next((n for n in row[i + 1 :] if n.blank), None)
+            if nxt is not None:
+                out.append((c.text, nxt.anchor))
+    return out
+
+
 class UnsupportedFormat(ValueError):
     """채울 수 없는 포맷. pdf·zip·xlsx 가 여기 온다(코퍼스의 8%)."""
 

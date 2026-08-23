@@ -40,15 +40,24 @@ class ExtractReport:
     fields_docs: int = 0
     items: int = 0
     skipped: int = 0
+    #: 파일 안 좌표를 심은 칸 (plan/24 T-0152). **칸 수보다 적은 것이 정상이다** —
+    #: 라벨이 겹치거나 구간이 여럿이면 안 심는다
+    anchored: int = 0
+    #: 열려다 실패한 파일. **0 이 아니면 봐야 한다**
+    anchor_failed: int = 0
     kinds: dict[str, int] = field(default_factory=dict)
 
     def line(self) -> str:
         k = " · ".join(f"{v} {n}" for n, v in sorted(self.kinds.items(), key=lambda x: -x[1]))
-        return (
+        out = [
             f"파일 {self.files:,} · 구간 {self.segments:,} · "
-            f"칸 서식 {self.fields_docs:,} · 칸 {self.items:,} · 건너뜀 {self.skipped:,}\n"
-            f"구간 종류: {k or '없음'}"
-        )
+            f"칸 서식 {self.fields_docs:,} · 칸 {self.items:,} · 건너뜀 {self.skipped:,}",
+            f"좌표를 심은 칸 {self.anchored:,}",
+            f"구간 종류: {k or '없음'}",
+        ]
+        if self.anchor_failed:
+            out.insert(2, f"열지 못한 파일 {self.anchor_failed:,}건 — 봐야 한다")
+        return "\n".join(out)
 
 
 def run(
@@ -109,7 +118,7 @@ def run(
             # **지우지 않고 공백으로 바꾼다** — 길이가 달라지면 오프셋이 어긋난다.
             text = text.replace("\x00", " ")
 
-            _replace(s, sha, text, report)
+            _replace(s, sha, text, report, ext=row.detected_ext)
             report.files += 1
             if limit is not None and report.files >= limit:
                 break
@@ -118,13 +127,31 @@ def run(
     return report
 
 
-def _replace(s: Session, sha: str, text: str, report: ExtractReport) -> None:
-    """이 파일의 구간을 다시 깐다. **부분 갱신을 하지 않는다** — 파서가 바뀌면 경계가 바뀐다."""
+def _replace(
+    s: Session, sha: str, text: str, report: ExtractReport, *, ext: str | None = None
+) -> None:
+    """이 파일의 구간을 다시 깐다. **부분 갱신을 하지 않는다** — 파서가 바뀌면 경계가 바뀐다.
+
+    ## 여기가 초안을 지운다
+
+    `draft_item.document_item_id` 의 FK 가 **CASCADE** 라, 항목을 지우면 그 항목에
+    쓴 초안이 따라 지워진다. `draft` 도 `document_id` 로 매달려 있어 같이 사라진다.
+    **사람이 고친 글(`edited_body`)도 함께 없어진다**(ADR-0055 가 지키려던 바로 그 값).
+
+    2026-08-23 좌표를 심으려고 `--redo` 를 한 번 돌렸다가 `kstartup:178881` 의 초안
+    17칸이 통째로 날아갔다. 파싱을 고치는 사람과 초안을 쓴 사람이 다른 자리라 **다시
+    밟기 쉽다.**
+
+    평소 경로는 안전하다 — `run()` 이 `redo` 없이는 `document` 가 있는 파일을
+    건너뛰고, 초안 시작이 부르는 `_prepare()` 도 `redo` 를 안 넘긴다. **위험한 것은
+    `--redo` 하나다.**
+    """
     old = s.scalars(select(Document.id).where(Document.sha256 == sha)).all()
     if old:
         s.execute(delete(DocumentItem).where(DocumentItem.document_id.in_(old)))
         s.execute(delete(Document).where(Document.id.in_(old)))
 
+    fields_docs: list[int] = []
     for seg in sg.split(text):
         kind = _classify(seg.text)
         doc = Document(
@@ -146,6 +173,7 @@ def _replace(s: Session, sha: str, text: str, report: ExtractReport) -> None:
             continue
 
         report.fields_docs += 1
+        fields_docs.append(doc.id)
         for i, label in enumerate(fx.labels(seg.text)):
             s.add(
                 DocumentItem(
@@ -158,6 +186,71 @@ def _replace(s: Session, sha: str, text: str, report: ExtractReport) -> None:
                 )
             )
             report.items += 1
+
+    _plant_anchors(s, sha, ext, fields_docs, report)
+
+
+def _plant_anchors(
+    s: Session,
+    sha: str,
+    ext: str | None,
+    fields_docs: list[int],
+    report: ExtractReport,
+) -> None:
+    """칸 서식 항목에 **파일 안 좌표**를 심는다 (plan/24 T-0152 · ADR-0060).
+
+    **나중에 붙일 수 없다.** 위치정보는 파싱 단계에서만 심을 수 있다(ADR-0014).
+
+    ## 안 심는 자리가 셋이다
+
+    **① 칸 서식 구간이 파일에 여럿이면 안 심는다**(코퍼스의 31%). 표가 어느 구간의
+    것인지 가릴 근거가 없다 — 텍스트 구간과 파일 구조는 다른 축이라 `char_start` 로
+    표를 못 찾는다.
+
+    **② 라벨이 파일 안에서 겹치면 그 항목만 비운다.** 실측에서 우리가 채운 17칸 중
+    둘이 그랬다(`기업명` 3회 · `합계` 3회 · `spike/anchor_check.py`). 하나를 고르면
+    그 선택이 조용히 일어나고, **틀려도 파일은 정상으로 열려** 제출 직전에야 드러난다.
+
+    **③ 못 여는 포맷이면 통째로 비운다.** pdf·zip 이 그렇고 JVM 이 없는 서버도 그렇다.
+
+    셋 다 결과가 같다 — `anchor` 가 NULL 이고 그 칸은 안 채워진다. **모르는 것을
+    아는 척하지 않는다.**
+    """
+    if len(fields_docs) != 1 or not ext:
+        return
+
+    from finnect.forms import (  # 함수 안에서 — JVM 을 최상단으로 끌고 오지 않는다
+        UnsupportedFormat,
+        label_targets,
+        norm_label,
+        open_form,
+    )
+    from finnect.forms.base import FormsUnavailable
+
+    try:
+        form = open_form(str(store.abs_path(store.rel_path(sha))), ext)
+        targets = label_targets(form.cells())
+    except (UnsupportedFormat, FormsUnavailable, FileNotFoundError):
+        return
+    except Exception as e:  # noqa: BLE001 — 파일 하나가 수집 전체를 안 죽인다
+        report.anchor_failed += 1
+        print(f"[좌표] {sha[:8]} 를 못 열었다: {type(e).__name__}: {e}", flush=True)
+        return
+
+    # 겹치는 라벨은 **아예 뺀다.** 첫 번째를 고르는 것이 이 방식이 부러진 자리다.
+    seen: dict[str, object | None] = {}
+    for label, anchor in targets:
+        key = norm_label(label)
+        seen[key] = None if key in seen else anchor
+
+    rows = s.scalars(
+        select(DocumentItem).where(DocumentItem.document_id == fields_docs[0])
+    ).all()
+    for row in rows:
+        hit = seen.get(norm_label(row.title))
+        if hit is not None:
+            row.anchor = str(hit)
+            report.anchored += 1
 
 
 def _classify(text: str) -> DocumentKind:

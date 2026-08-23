@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { attachmentFileUrl } from "@/lib/api";
 import { canPreview, type FormDocument } from "@/lib/documents";
 import { DocxView } from "./DocxView";
+import { SvgPages } from "./SvgPages";
 import styles from "./DocViewer.module.css";
 
 /** 양식 뷰어 — **원본 파일을 그대로 띄운다.**
@@ -26,15 +27,25 @@ import styles from "./DocViewer.module.css";
  * 들어 있고 우리는 그것을 구간으로 갈라 놨는데, 그 경계는 **글자 오프셋**이라
  * 페이지로 옮길 방법이 없다. 그래서 파일 전체가 열린다 — 머리줄이 그 사실을 말한다.
  *
- * **머리줄을 여기서 안 그린다.** rhwp 는 자체 메뉴 여덟 + 리본을 가진 에디터
- * 전체다. 그 위에 우리 크롬을 겹쳐 쌓으면 어디까지가 우리 것인지 안 보인다 —
- * 쪽수와 칩은 `onPages` 로 올려 보내고 부르는 쪽이 그린다. */
+ * **2026-08-23 부터 rhwp 화면을 안 쓴다.** iframe 을 화면 밖(`.oven`)에 두고
+ * `getPageSvg()` 로 쪽마다 SVG 만 받아 `SvgPages` 가 우리 DOM 에 그린다. 이유는
+ * rhwp 가 **메뉴 여덟 + 아이콘 툴바 + 서식 리본**(153~426px)과 눈금자·상태
+ * 표시줄을 가진 에디터 전체이고, **감출 방법을 라이브러리가 안 주기 때문이다** —
+ * `EditorOptions` 에 UI 항목이 없고 postMessage 창구에도 없으며 iframe 이
+ * `edwardkim.github.io` 라 우리 CSS 가 못 들어간다.
+ *
+ * **이 화면은 에디터가 아니라 뷰어다.** 편집 결과를 아무도 안 쓴다 — 채우기는
+ * 서버의 `filled_document` 가 하고 여기는 그 결과를 열기만 한다. 그래서 잃는
+ * 것이 없다. `exportHwp()` 를 쓰게 되는 날 이 결정을 다시 물어야 한다.
+ *
+ * **머리줄을 여기서 안 그린다.** 쪽수와 칩은 `onPages` 로 올려 보내고 부르는
+ * 쪽이 그린다. */
 
 /** 상태 넷. **「비었다」와 「못 열었다」를 가른다** — 저쪽은 열 것이 없는 것이고
  * 이쪽은 열려다 실패한 것이라 사용자가 할 일이 다르다. */
 type Phase =
   | { at: "여는 중" }
-  | { at: "열렸다"; pages: number }
+  | { at: "열렸다"; svgs: readonly string[] }
   | { at: "못 열었다"; why: string };
 
 export function DocViewer({
@@ -65,6 +76,7 @@ export function DocViewer({
       fileName?: string,
       options?: { skipUnsavedGuard?: boolean },
     ) => Promise<{ pageCount: number }>;
+    getPageSvg: (page?: number) => Promise<string>;
   } | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "여는 중" });
 
@@ -155,7 +167,21 @@ export function DocViewer({
           skipUnsavedGuard: true,
         });
         if (dead) return;
-        setPhase({ at: "열렸다", pages: pageCount });
+
+        // **쪽마다 SVG 를 받는다.** 이것이 rhwp 화면 대신 우리가 그리는 재료다.
+        // 20쪽에 231ms · 12쪽에 85ms 라(실측) 전량을 먼저 받아 두고 그리는 것은
+        // `SvgPages` 가 창으로 관리한다 — 6.9MB 를 한꺼번에 DOM 에 두지 않는다.
+        //
+        // **순차로 받는다.** `Promise.all` 로 던지면 transport 가 요청을 한 줄로
+        // 세우는데 그동안 취소 깃발을 못 본다. 쪽마다 확인하는 편이 떠날 때 빠르다.
+        const svgs: string[] = [];
+        for (let i = 0; i < pageCount; i++) {
+          const svg = await editorRef.current.getPageSvg(i);
+          if (dead) return;
+          svgs.push(svg);
+        }
+
+        setPhase({ at: "열렸다", svgs });
         pagesRef.current?.(pageCount);
       } catch (e) {
         if (dead) return;
@@ -225,9 +251,14 @@ export function DocViewer({
 
   return (
     <div className={styles.stage}>
-      {/* rhwp 가 여기에 iframe 을 심는다. **언마운트하지 않는다** —
-          조건부로 그리면 `createEditor` 가 붙을 자리가 그때 없다 */}
-      <div ref={mountRef} className={styles.mount} data-busy={phase.at !== "열렸다"} />
+      {/* rhwp 가 여기에 iframe 을 심는다. **화면 밖이고 언마운트하지 않는다** —
+          조건부로 그리면 `createEditor` 가 붙을 자리가 그때 없다.
+          우리가 쓰는 것은 이 iframe 이 뱉는 SVG 뿐이다 */}
+      <div ref={mountRef} className={styles.oven} aria-hidden inert />
+
+      {phase.at === "열렸다" && (
+        <SvgPages pages={phase.svgs} label={`${doc.attachment.filename} 미리보기`} />
+      )}
 
       {phase.at === "여는 중" && (
         <p className={styles.status}>문서를 여는 중이에요. 처음 열 때는 조금 걸려요.</p>

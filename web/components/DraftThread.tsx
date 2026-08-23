@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ConfirmRow, DraftItemCard, ResetButton, StartRow, useDraft } from "./DraftView";
+import { DEMO, DemoReply, useDemoReply, type DemoPhase } from "./DemoReply";
 import type { Draft } from "@/lib/draft";
 import styles from "./DraftThread.module.css";
 
@@ -51,6 +52,7 @@ export function DraftThread({
   company,
   onFocusDoc,
   onDraft,
+  onDemoPhase,
 }: {
   initial: Draft;
   source: string;
@@ -68,6 +70,11 @@ export function DraftThread({
    * 자리에 굳어 있다. 채운 파일 주소는 초안 항목 수로 만들어지므로, 알리지 않으면
    * 주소가 안 바뀌고 **새로고침해야 채운 값이 보인다.** */
   onDraft?: (draft: Draft) => void;
+  /** 시연이 어디까지 갔나. **오른쪽 단이 이걸 보고 파일을 갈아 끼운다** —
+   *  `done` 이 되면 채워 둔 신청서를 연다(`DEMO_FILLED_URL`).
+   *
+   *  `DEMO` 가 꺼져 있으면 `idle` 밖으로 안 나가므로 부르는 쪽이 아무것도 안 한다. */
+  onDemoPhase?: (phase: DemoPhase) => void;
 }) {
   const {
     draft, starting, why, start, onSave, written, done,
@@ -75,12 +82,19 @@ export function DraftThread({
   } = useDraft({ initial, source, externalId, company });
   const [said, setSaid] = useState<Said[]>([]);
   const [typed, setTyped] = useState("");
+  const demo = useDemoReply();
 
   // **렌더 중에 부르지 않는다.** 부모의 setState 를 렌더 도중에 부르면 React 가
   // 경고하고, 폴링이 도는 화면이라 그 경고가 몇 분 동안 쌓인다.
   useEffect(() => {
     onDraft?.(draft);
   }, [draft, onDraft]);
+
+  // **같은 이유로 효과에서 부른다.** 렌더 중에 부모의 setState 를 부르면 React 가
+  // 경고한다 — 바로 위 `onDraft` 와 같은 자리다.
+  useEffect(() => {
+    onDemoPhase?.(demo.phase);
+  }, [demo.phase, onDemoPhase]);
 
   /** **안 써진 것을 이유별로 가른다.** 「썼다 − 전체」로 세면 안 된다 — 그 차이에는
    *  쓸 자리가 아닌 칸(표 구분선·서명란)과 다른 항목이 재료를 맡은 칸이 섞여 있고,
@@ -93,6 +107,9 @@ export function DraftThread({
    *  일어나는 버튼은 고장 난 것으로 읽힌다(실측 `kstartup:178881`). 다시 쓰는 것은
    *  이 버튼이 아니라 머리줄의 초기화다(T-0161). */
   const canStart = draft.pending_documents > 0;
+  /** 시연이 시작됐다. **이때 스레드가 양식과 내용을 안 그린다** — 대신 말풍선
+   *  하나가 「쓰고 있어요」와 「바꿨어요!」를 차례로 말한다. */
+  const demoing = DEMO && demo.phase !== "idle";
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +118,13 @@ export function DraftThread({
     setTyped("");
 
     const mine: Said = { id: Date.now(), who: "나", text };
+    if (DEMO && readCommand(text) === "start") {
+      // **우리 말을 따로 안 붙인다.** 말풍선이 「초안을 쓰고 있어요」를 이미 말하고,
+      // 둘 다 내면 같은 말이 두 줄로 선다(§10 — 빼도 뜻이 같은 말은 지운다).
+      setSaid((s) => [...s, mine]);
+      demo.start();
+      return;
+    }
     if (readCommand(text) === "start") {
       // **말로 시켜도 같은 자리로 간다**(ADR-0062). 「다시 써 줘」가 초기화이고,
       // 버튼에만 확인을 붙이면 입력칸으로 들어온 사람의 고친 글이 조용히 사라진다
@@ -159,13 +183,20 @@ export function DraftThread({
         {/* **「글로 쓰는 양식」이라고 말하지 않는다.** 칸만 채우는 서식도 초안이
             채운다 — 값 칸에는 값이 앉고 서술 칸에는 글이 선다. 화면이 서술형만
             센다고 말하면 신청서 한 벌이 빠진 것처럼 읽힌다 */}
-        <p className={styles.system}>
-          {hasDocs
-            ? `서류 ${draft.documents.length}개를 읽었어요. 항목 ${written.length}개예요.`
-            : draft.pending_documents > 0
-              ? `채울 양식이 ${draft.pending_documents}개 있어요. 초안 쓰기를 누르면 채워 드려요.`
-              : "이 공고에는 채울 양식이 아직 안 붙어 있어요. 원본 파일은 오른쪽에서 볼 수 있어요."}
-        </p>
+        {/* **시연이 시작되면 이 줄을 걷는다.** 「초안 쓰기를 누르면 채워 드려요」가
+            이미 누른 뒤에도 남아 있으면 버튼이 안 먹은 것으로 읽힌다 */}
+        {!demoing && (
+          <p className={styles.system}>
+            {hasDocs
+              ? `서류 ${draft.documents.length}개를 읽었어요. 항목 ${written.length}개예요.`
+              : draft.pending_documents > 0
+                ? `채울 양식이 ${draft.pending_documents}개 있어요. 초안 쓰기를 누르면 채워 드려요.`
+                : "이 공고에는 채울 양식이 아직 안 붙어 있어요. 원본 파일은 오른쪽에서 볼 수 있어요."}
+          </p>
+        )}
+
+        {/* 시연용 말풍선. `DEMO` 가 꺼져 있으면 `phase` 가 영영 `idle` 이라 안 그려진다 */}
+        <DemoReply phase={demo.phase} />
 
         {draft.documents.map((doc) => (
           <section key={doc.document_id} className={styles.doc}>
@@ -223,12 +254,15 @@ export function DraftThread({
 
       {/* 바닥 — 스크롤 밖에 고정 */}
       <div className={styles.foot}>
-        {!draft.running && canStart && (
+        {/* **시연이 시작되면 버튼을 걷는다.** 쓰는 중에 또 눌리면 5초가 처음부터
+            다시 도는데, 보는 사람에게는 화면이 되감긴 것으로 읽힌다. 다시 보여
+            주려면 새로고침하거나 입력칸에 「초안 써 줘」를 치면 된다 */}
+        {!draft.running && canStart && !demoing && (
           <StartRow
             hasDocs={hasDocs}
             pending={draft.pending_documents}
             starting={starting}
-            onStart={() => void start()}
+            onStart={() => (DEMO ? demo.start() : void start())}
             styles={styles}
           />
         )}

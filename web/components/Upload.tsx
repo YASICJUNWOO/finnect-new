@@ -4,7 +4,51 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FileProgress, Progress, Step, Upload as UploadResult } from "@/lib/wiki";
+import { DEMO } from "./DemoReply";
 import styles from "./Upload.module.css";
+
+/** 시연에서 칸 하나가 차는 데 쓰는 시간. 칸이 다섯이라 **총 5초**다.
+ *
+ * **진짜 구축 시간과 무관하다.** 나린데이터 일곱 건을 실제로 돌리면 241초이고
+ * (2026-08-23 실측 · OCR 두 장 + LLM 파일당 2회), 그 대부분이 화면에 보여 줄 것이
+ * 없는 대기다. 시연에서는 서버가 떠 둔 위키를 그대로 앉히고(`wiki/demo.py`) 즉시
+ * 다 끝난 상태로 답하므로, 여기서 하는 일은 **그 결과를 칸 다섯에 나눠 보여 주는
+ * 것뿐이다.**
+ *
+ * `DemoReply` 의 `DEMO_MS` 와 같은 성질이고 스위치도 그것과 같은 `DEMO` 하나에
+ * 걸린다 — **두 곳을 고치게 만들지 않는다.** */
+const DEMO_STEP_MS = 1000;
+
+/** 다 끝난 상태를 `n` 번째 칸까지 되감은 모습.
+ *
+ * **없는 파일을 지어내지 않는다.** 서버가 준 파일 목록을 그대로 쓰고 `reached` 만
+ * 줄인다 — 이름·크기·글자 수·사실 수·채운 자리가 전부 실제 값이라 칸마다 나오는
+ * 숫자가 서로 안 어긋난다.
+ *
+ * **칸이 낸 값은 따로 비우지 않아도 된다.** `Cells` 가 `yieldOf` 를 끝난 칸에서만 부르고
+ * (`state === "done" || "stopped"`), 끝난 칸은 `reached` 가 정한다. 여기서 한 번 더
+ * 비우면 지워도 화면이 안 바뀌는 코드가 남는다. */
+function frame(final: Progress, n: number): Progress {
+  if (n > final.steps.length) return final;
+  const files = final.files.map((f) => ({
+    ...f,
+    reached: Math.min(n, f.reached),
+    moving: true,
+    ok: false,
+    label: final.steps[n - 1]?.label ?? f.label,
+  }));
+  return {
+    ...final,
+    files,
+    done: 0,
+    moving: final.total,
+    needs_review: 0,
+    stuck: 0,
+    running: true,
+    filled: 0,
+    conflicts: 0,
+  };
+}
 
 /** S1 파일 올리기와 구축 진행(SPEC F1-1-1 · F1-1-9 · plan/15 T-0061 · T-0062).
  *
@@ -53,14 +97,44 @@ export function Upload({ company, initial }: { company: string; initial: Progres
   const [error, setError] = useState<string | null>(null);
   const [rejected, setRejected] = useState<[string, string][]>([]);
   const [note, setNote] = useState<string | null>(null);
+  /** 시연 재생 칸. `0` 은 아직 안 던졌다 · `1`~`5` 는 그 칸을 지나는 중 · 그 위는 최종이다.
+   *  `DEMO` 가 꺼져 있으면 이 값은 `0` 에서 안 움직이고 아무 데도 안 쓰인다. */
+  const [demoStep, setDemoStep] = useState(0);
   const router = useRouter();
 
   const url = `/api/wiki/${encodeURIComponent(company)}`;
 
-  /** 도는 동안만 묻는다. **멈춘 응답을 받고 나서 멈춘다** — `running: true` 를 본 자리에서
-   *  끊으면 화면이 영영 도는 중으로 남는다. */
+  /** 화면이 그리는 것. **시연에서는 서버가 준 완성 상태를 되감아 그린다** — 던지기 전에는
+   *  `demoStep` 이 0 이고 `progress` 도 빈 위키라 "던지면 이렇게 돼요" 가 그대로 뜬다. */
+  const shown = DEMO && demoStep > 0 ? frame(progress, demoStep) : progress;
+
+  /** 지금 던질 수 없는 상태인가. **시연에서는 재생이 끝날 때까지다** — `sending` 은 요청이
+   *  나가 있는 동안만 참이라 그것만 보면 재생 도중에 또 던질 수 있게 된다. */
+  const busy = DEMO ? sending || (demoStep > 0 && demoStep <= progress.steps.length) : sending;
+
+  /** 칸을 1초에 하나씩 넘긴다. **마지막 칸을 지나고 한 번 더 센다** — `demoStep` 이
+   *  `steps.length` 일 때는 다섯째 칸이 아직 도는 중이고, 최종 보드는 그다음 칸이다.
+   *  그래서 5초를 다 쓴다. */
   useEffect(() => {
-    if (!progress.running) return;
+    if (!DEMO || demoStep === 0) return;
+    if (demoStep > progress.steps.length) {
+      // 재생이 끝났다. 위키(S7)와 회사 정보가 낡았으므로 서버 컴포넌트를 다시 받아 둔다 —
+      // 진짜 경로가 `running` 이 꺼질 때 하는 일과 같다.
+      router.refresh();
+      return;
+    }
+    const t = setTimeout(() => setDemoStep((n) => n + 1), DEMO_STEP_MS);
+    return () => clearTimeout(t);
+  }, [demoStep, progress.steps.length, router]);
+
+  /** 도는 동안만 묻는다. **멈춘 응답을 받고 나서 멈춘다** — `running: true` 를 본 자리에서
+   *  끊으면 화면이 영영 도는 중으로 남는다.
+   *
+   *  **시연에서는 아예 안 묻는다.** 서버가 스냅샷을 앉히고 `running: false` 로 답하므로
+   *  실제로 물을 일이 없지만, 물으면 재생 중인 `progress` 를 완성 상태로 덮어써서 칸이
+   *  한 번에 다 차 버린다. */
+  useEffect(() => {
+    if (DEMO || !progress.running) return;
     let alive = true;
     const timer = setInterval(async () => {
       try {
@@ -83,11 +157,11 @@ export function Upload({ company, initial }: { company: string; initial: Progres
 
   const send = useCallback(
     async (picked: File[]) => {
-      if (!picked.length || sending) return;
-      setSending(true);
+      if (!picked.length || busy) return;
       setError(null);
       setRejected([]);
       setNote(null);
+      setSending(true);
 
       const body = new FormData();
       for (const f of picked) body.append("files", f);
@@ -102,20 +176,24 @@ export function Upload({ company, initial }: { company: string; initial: Progres
         setProgress(data.progress);
         setRejected(data.rejected);
         setNote(said(data));
+        // **시연이면 서버가 이미 다 끝난 상태를 줬다**(`wiki/demo.py` 가 떠 둔 위키를
+        // 그대로 앉혔다). 앉히는 데 한순간도 안 걸리므로 여기서 칸 다섯에 나눠 5초에
+        // 걸쳐 보여 준다.
+        if (DEMO) setDemoStep(1);
       } catch {
         setError("올리다가 끊겼어요. 다시 해 보세요.");
       } finally {
         setSending(false);
       }
     },
-    [sending, url],
+    [busy, url],
   );
 
-  const empty = progress.total === 0;
+  const empty = shown.total === 0;
 
   return (
     <>
-      <Drop over={over} setOver={setOver} sending={sending} onFiles={send} />
+      <Drop over={over} setOver={setOver} sending={busy} onFiles={send} />
 
       {/* 4. 오류(§8.3-4). **사과하지 않고 무엇이 잘못됐는지 적는다.** API 가 준 문장을
         * 그대로 옮긴다 — 503 이면 로컬에서 하라는 말이 거기 있다(ADR-0034) */}
@@ -140,7 +218,7 @@ export function Upload({ company, initial }: { company: string; initial: Progres
         </ul>
       )}
 
-      {empty ? <Coming progress={progress} /> : <Board progress={progress} company={company} />}
+      {empty ? <Coming progress={shown} /> : <Board progress={shown} company={company} />}
     </>
   );
 }

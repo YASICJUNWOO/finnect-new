@@ -27,6 +27,7 @@ from finnect.api.schemas import (
 )
 from finnect.api.text import to_text
 from finnect.attach import store
+from finnect.config import settings
 from finnect.models import (
     Attachment,
     AttachmentFile,
@@ -128,6 +129,147 @@ def _to_out(row: Notice, today: dt.date, attachment_count: int) -> NoticeOut:
 TOP_N = 3
 
 
+#: **데모용 고정 추천이다. 판정을 안 거친다.**
+#:
+#: **`DEMO_RECOMMENDATIONS=true` 일 때만 쓰인다**(`config.py`). 기본값으로는 이
+#: 표가 있어도 아무 일이 없고 아래 `recommendations()` 가 평소대로 `notice_fit` 을
+#: 읽는다 — 그래서 이 자리가 배포본이나 테스트에 새지 않는다.
+#:
+#: 2026-08-23 에 박았다. 이 DB 에는 공고 235건과 정규화 234건이 있는데 **회사 쪽이
+#: 통째로 비어 있어서**(`user_file`·`wiki_fact`·`wiki_node`·`notice_fit` 이 0행)
+#: `match` 가 대조할 재료가 없었고, 그래서 화면이 「아직 사업 위키가 없어서 못 고르고
+#: 있어요」에 멈춰 있었다.
+#:
+#: **이유 문장과 근거 수를 사람이 썼다.** `match/rank.py` 의 템플릿 모양
+#: (`"{키워드}이 주제예요. {근거 문장}"`)만 흉내 낸 것이고, 대응하는 `wiki_fact`
+#: 행이 하나도 없다 — `DESIGN.md` §12.3(「모든 값에 출처를 매단다」)을 정면으로
+#: 어기는 자리다. 플래그를 기본 꺼짐으로 둔 이유가 그것이다.
+#:
+#: 회사를 안 본다 — `?company=` 가 무엇이든 이 둘이 뜬다. 데모 중에 주소를 잘못
+#: 열어 빈 화면이 나오는 것을 막으려는 것이다.
+#:
+#: 진짜로 세우려면 플래그를 끄고, 회사 위키를 만든 뒤
+#: (`python -m finnect.wiki --company c_narin …`)
+#: `python -m finnect.match --company c_narin --only <두 건 목록>` 을 돌린다.
+#:
+#: ## 이유 문장을 어떻게 썼나
+#:
+#: **`rank.py` 의 템플릿 모양을 일부러 안 따른다.** 저쪽은
+#: `"{겹친 키워드}이 주제예요. {노드 원문}"` 인데, 그 모양이 **공고 낱말과 우리 사업을
+#: 나란히 놓기만 하고 둘을 잇지 않는다** — 「시장분석이 주제예요. 반품과 배송비를
+#: 반영한 채널별 실질 마진을 계산해 보여 줍니다」를 읽은 사람은 왜 그 둘이 맞물리는지
+#: 스스로 추론해야 한다. 문자열 교집합으로 만든 문장이라 그렇고, 그것이 ⑤ 키워드 축이
+#: 노드를 4.8배로 늘려도 겹침이 11%→12% 였던 것과 같은 자리다(CLAUDE.md).
+#:
+#: 그래서 여기는 **한 문장에 셋을 담는다** — 내 사업이 어떤 상태인지 · 공고가 무엇을
+#: 주는지 · 그래서 왜 맞는지다.
+#:
+#:     이커머스 데이터를 모으지만 아직 유료 고객이 없어서, 공고가 주는 6개월
+#:     현업 PoC 로 첫 실증을 만들고 지원금 최대 9,000만원까지 받을 수 있어요
+#:     └ 내 사업(코퍼스)                  └ 공고(본문)          └ 잇는 판단
+#:
+#: **앞의 둘은 실제 문서에서 왔다.** 공고 쪽은 본문(`pbanc_ctnt` · `aply_trgt_ctnt`)
+#: 이고 회사 쪽은 `tests/fixtures/wiki-narin/` 이다 — 지어낸 것은 둘을 잇는 판단뿐이고,
+#: 그것이 이 카드가 있는 이유다.
+#:
+#: **첨부를 안 인용한다.** 두 건 다 공고문 hwp 가 붙어 있고 거기가 더 자세하지만
+#: (`178951` 은 5,810자에 모집 분야 넷과 평가 항목이 있다), 본문에 없는 것을 이유로
+#: 들면 그 문장이 화면 어디에도 없는 재료를 말하게 된다 — 사용자가 상세로 들어가서
+#: 대조할 수 있는 것은 본문이다.
+#:
+#: **자격을 안 적는다**([ADR-0003](../../../docs/adr/0003-판별-비노출.md)). 「서울
+#: 소재 7년 미만이라 조건에 들어요」가 사실이고 쓰고 싶어지지만, 못 넘는 공고는
+#: 목록에서 빠지는 것으로 이미 답했다 — 여기 조건 대조를 적으면 없앤 「자격이
+#: 되는지」 칸을 이유 문장 안에 다시 세우는 것이 된다.
+#:
+#: **확률을 말하지 않는다**(DESIGN.md §12.2). 「맞을 것 같아요」·「유리해요」가 아니라
+#: 무엇이 있고 무엇을 주는지를 적고, 잇는 자리만 짚는다.
+#:
+#: **대가가 있다.** 플래그를 끄고 진짜 판정으로 갈아타면 문장 모양이 눈에 띄게
+#: 되돌아간다 — `rank.py` 는 겹친 키워드와 노드 원문을 잇는 템플릿이라 「공고가
+#: 무엇을 주나」를 따로 들고 있지 않다. 좁히려면 `rank.judge()` 가 공고 취지
+#: (`notice_profile.purpose`)를 함께 싣도록 고쳐야 하고, 그건 plan/17 의 일이다.
+#:
+#: `(출처, 공고번호, 이유, 근거 수)`
+DEMO_PICKS: tuple[tuple[str, str, str, int], ...] = (
+    (
+        "kstartup",
+        "178951",
+        # 코퍼스 「중소 이커머스 사업자의 … 데이터를 자동으로 모읍니다」 「유료 고객
+        # 0곳」 · 공고 「선정된 기업은 실제 현업 부서와 6개월간 PoC(기술 실증)를 함께
+        # 진행하고, 최대 9,000만 원의 사업화 지원금까지 받을 수 있는」
+        #
+        # **파일럿 곳수를 안 쓴다.** 코퍼스가 사업계획서·회사소개서 3곳과 피치덱 4곳으로
+        # 갈려 있고 이유가 어디에도 없다(`wiki-narin/README.md` §3) — 한쪽을 고르면
+        # 다수결로 값을 정하는 것이 되고, 그건 SPEC F1-1-7 이 묻기로 한 자리다.
+        # 「유료 고객 0」 은 문서 다섯이 표현만 달리해 같은 말을 한다
+        "이커머스 데이터를 모으지만 아직 유료 고객이 없어서, "
+        "공고가 주는 6개월 현업 PoC 로 첫 실증을 만들고 "
+        "지원금 최대 9,000만원까지 받을 수 있어요",
+        2,
+    ),
+    (
+        "kstartup",
+        "178697",
+        # 코퍼스 「정보통신업 / 데이터베이스 및 온라인정보 제공업」 「개업연월일
+        # 2026-06-01」 「3명 (대표 1명, 개발 2명)」 · 공고 「시설ㆍ공간ㆍ보육」
+        # 「창업 개시일로부터 7년 미만 기술창업기업」
+        "정보통신업 3개월차에 셋이 일하는 팀이라, "
+        "공고가 주는 창업지원센터 입주 공간과 보육이 자리를 잡는 데 맞아요",
+        3,
+    ),
+)
+
+
+def _demo_pick(source: str, external_id: str) -> tuple[str, int] | None:
+    """`DEMO_PICKS` 에서 이 공고의 `(이유, 근거 수)` 를 찾는다. 없으면 `None`.
+
+    **추천 목록과 공고 상세가 같은 표를 읽으라고 있는 함수다.** 두 화면이 다른 문장을
+    말하면 카드를 눌러 들어간 사람이 다른 판정으로 읽는다 — `_fit()` 의 원래 주석이
+    적어 둔 「CLI 가 셋을 찍는데 상세만 다르게 말하면 안 된다」와 같은 자리다.
+    """
+    for src, eid, reason, n in DEMO_PICKS:
+        if (src, eid) == (source, external_id):
+            return reason, n
+    return None
+
+
+def _demo_recommendations(s: Session, today: dt.date) -> RecommendationsOut:
+    """`DEMO_PICKS` 를 그대로 세운다. **`notice_fit` 을 안 읽는다.**
+
+    제목·기관·마감일·첨부 수는 `notice` 뷰에서 읽는다 — 그 넷까지 지어내면 화면이
+    말하는 마감일이 상세와 어긋난다. 지어낸 것은 이유 한 줄과 근거 수뿐이다.
+
+    **마감이 지났는지 안 본다.** 진짜 경로는 빼지만(판정이 어제 돌았어도 오늘
+    마감일 수 있다) 여기는 데모라 날짜가 지나도 두 건이 그대로 서야 한다.
+    `178697` 이 오늘 마감이라 하루만 지나도 화면이 도로 비어 버린다.
+    """
+    keys = [(src, eid) for src, eid, _reason, _n in DEMO_PICKS]
+    rows = {
+        (r.source, r.external_id): r
+        for r in s.scalars(
+            select(Notice).where(tuple_(Notice.source, Notice.external_id).in_(keys))
+        )
+    }
+    # 코퍼스를 다시 세우면 공고가 사라질 수 있다(`dataset --prune` 이 목록 밖을 지우고,
+    # 기업마당은 마감되면 API 에서 아예 없어진다).
+    # **없는 것을 지어내지 않는다** — 그 자리는 그냥 빠진다
+    live = [(p, rows[(p[0], p[1])]) for p in DEMO_PICKS if (p[0], p[1]) in rows]
+    counts = _counts(s, [r for _p, r in live])
+
+    return RecommendationsOut(
+        items=[
+            RecommendationOut(
+                **_to_out(r, today, counts.get((r.source, r.external_id), 0)).model_dump(),
+                reason=reason,
+                evidence_count=n,
+            )
+            for (_src, _eid, reason, n), r in live
+        ],
+        computed=True,
+    )
+
+
 def recommendations(
     s: Session, company_id: str, *, today: dt.date | None = None
 ) -> RecommendationsOut:
@@ -143,8 +285,14 @@ def recommendations(
     **등급이 아니라 이유로 거른다**(T-0076). `애매` 도 이유가 있으면 올린다 — ④ 분야가
     살린 것이라 근거가 `wiki_fact` 에 실제로 있다. `match/service.py` 의 `rep.top` 과
     같은 규칙이어야 한다: **CLI 가 셋을 찍는데 화면이 비면 안 된다.**
+
+    **`DEMO_RECOMMENDATIONS=true` 면 아래가 안 돈다** — `DEMO_PICKS` 가 앞에서
+    가로챈다. 기본은 꺼짐이라 평소에는 이 문단이 없는 것과 같다.
     """
     today = today or dt.date.today()
+
+    if settings.demo_recommendations and DEMO_PICKS:
+        return _demo_recommendations(s, today)
 
     fits = list(
         s.scalars(
@@ -326,7 +474,16 @@ def _fit(s: Session, company_id: str, source: str, external_id: str) -> FitOut |
     **이유가 없으면 안 낸다.** 근거 없는 등급은 [ADR-0013](
     ../../../docs/adr/0013-판정-두-층.md) 이 금지한 것이고, `recommendations()` 도
     같은 조건으로 거른다 — **CLI 가 셋을 찍는데 상세만 다르게 말하면 안 된다.**
+
+    **`DEMO_RECOMMENDATIONS=true` 면 그 두 건만 고정 이유를 낸다**(2026-08-23 · 임시).
+    추천 카드를 눌러 들어간 자리라 여기가 비면 동선이 거기서 끊긴다. 표 밖의 공고는
+    그대로 아래로 흘러가서 진짜 판정을 읽는다 — **데모가 판정을 가리지 않는다.**
     """
+    got = _demo_pick(source, external_id) if settings.demo_recommendations else None
+    if got is not None:
+        reason, n = got
+        return FitOut(verdict=str(FitVerdict.MATCH), reason=reason, evidence_count=n)
+
     fit = s.scalars(
         select(NoticeFit).where(
             NoticeFit.company_id == company_id,

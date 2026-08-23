@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DocViewer } from "./DocViewer";
 import { DraftThread } from "./DraftThread";
+import { DEMO, DEMO_FILLED_URL, type DemoPhase } from "./DemoReply";
 import { WriteWorkspace } from "./WriteWorkspace";
 import { bodyOf, leaves, type Draft } from "@/lib/draft";
 import type { NoticeDocuments } from "@/lib/documents";
@@ -49,6 +50,8 @@ export function WritePanes({
    *  초안을 쓰거나 고치면 그 결과가 `DraftThread` 안에서만 갱신되므로, 여기로
    *  올려 받지 않으면 오른쪽 뷰어가 **새로고침 전까지 옛 파일을 보여 준다.** */
   const [live, setLive] = useState<Draft | null>(draft);
+  /** 시연이 어디까지 갔나. **`done` 이면 오른쪽이 채워 둔 신청서를 연다** */
+  const [demoPhase, setDemoPhase] = useState<DemoPhase>("idle");
 
   const active = all.find((d) => d.id === docId) ?? all[0] ?? null;
 
@@ -62,11 +65,16 @@ export function WritePanes({
    *  글이 통째로 달라져도 주소가 같아서 옛 파일이 그대로 떴다. 글 길이의 합까지
    *  넣으면 그 둘이 갈린다. */
   const filledUrl = useMemo(() => {
+    // **시연에서는 미리 채워 둔 파일을 연다.** 초안을 안 만들었으니 서버가 채울
+    // 것이 없다 — 아래 진짜 경로는 `live.documents` 가 비어서 `null` 로 떨어진다.
+    // **「바꿨어요!」가 뜬 뒤에만 갈아 끼운다** — 처음부터 채워져 있으면 그 말이
+    // 이미 일어난 일을 두고 하는 거짓말이 된다.
+    if (DEMO && demoPhase === "done") return DEMO_FILLED_URL;
     if (!active || !live || live.documents.length === 0) return null;
     const items = leaves(live.documents.flatMap((d) => d.items));
     const stamp = `${items.length}-${items.reduce((n, i) => n + bodyOf(i).length, 0)}`;
     return `${filledDocumentUrl(source, externalId, active.id, company)}&v=${stamp}`;
-  }, [active, live, source, externalId, company]);
+  }, [active, live, source, externalId, company, demoPhase]);
 
   const onFilled = useCallback((_filled: number, remaining: number) => {
     setLeft(remaining);
@@ -151,6 +159,7 @@ export function WritePanes({
               company={company}
               onFocusDoc={focusDoc}
               onDraft={setLive}
+              onDemoPhase={setDemoPhase}
             />
           ) : (
             /* **`null` 은 「초안이 없다」가 아니라 「모른다」다.** 빈 화면을 띄우면

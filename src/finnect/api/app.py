@@ -580,6 +580,14 @@ async def wiki_upload(
     `GET /api/wiki/{company_id}/progress` 로 따라온다. 여기서 다 하고 답하면 OCR 이 걸린
     파일 하나에 요청이 몇 분씩 묶인다.
     """
+    # **시연이면 파일을 안 읽고 스냅샷을 앉힌다**(`wiki/demo.py`). 위키를 세우는 데 241초가
+    # 걸려서 시연에서 못 기다리고, 미리 세워 두면 시작할 때 이미 노드가 서 있어 「던지면
+    # 위키가 생긴다」를 못 보여 준다. 설정이 비어 있으면 아래가 평소대로 돈다.
+    #
+    # **`writable()` 앞에 둔다.** 시연은 디스크에 아무것도 안 쓰므로 그 가드가 필요 없다.
+    if settings.demo_snapshot is not None:
+        return _demo_upload(company_id, files)
+
     if not storage.writable():
         raise HTTPException(
             503,
@@ -637,6 +645,44 @@ async def wiki_upload(
         rejected=rejected,
         started=launch.started,
         reason=launch.reason,
+        progress=progress,
+    )
+
+
+def _demo_upload(company_id: str, files: list[UploadFile]) -> UploadOut:
+    """시연: 받은 파일을 **안 읽고** 떠 둔 위키를 그대로 앉힌다.
+
+    **파일 내용을 안 본다.** 무엇을 던지든 나린데이터 위키가 선다 — 시연 중에 엉뚱한
+    파일을 골라 빈 화면이 나오는 것을 막으려는 것이고, `DEMO_PICKS` 가 회사를 안 보는
+    것과 같은 이유다.
+
+    **`started` 가 거짓이다.** 뒤에서 도는 것이 없으므로 화면이 진행을 물으러 오면 안
+    된다 — 이미 다 끝난 상태를 응답에 실어 보낸다.
+
+    스냅샷을 못 읽으면 **500 으로 터뜨린다.** 시연 설정이 켜졌는데 파일이 없는 것은 설정
+    실수이고, 조용히 빈 위키로 넘어가면 화면이 "사실을 못 뽑았어요" 를 말한다.
+    """
+    from finnect.wiki import demo
+
+    assert settings.demo_snapshot is not None  # noqa: S101 — 부르는 자리가 이미 확인했다
+    try:
+        snap = demo.read(settings.demo_snapshot)
+    except demo.SnapshotError as e:
+        raise HTTPException(500, str(e)) from e
+
+    with SessionFactory() as s:
+        demo.put(s, company_id, snap)
+        s.commit()
+
+    with SessionFactory() as s:
+        progress = wiki_service.get_progress(s, company_id, running=False)
+
+    return UploadOut(
+        received=len(files),
+        duplicate=0,
+        rejected=[],
+        started=False,
+        reason="떠 둔 위키를 그대로 앉혔어요",
         progress=progress,
     )
 

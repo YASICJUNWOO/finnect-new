@@ -1,0 +1,148 @@
+/* 데모용 초안 응답 — **제품 스타일이 아니다.**
+ *
+ * 제품 스레드(`DraftThread.module.css`)는 말풍선도 채움도 안 쓴다. 여기는 요청이
+ * 「AI 의 메시지 UI」였어서 마크 · 말풍선 · 타이핑 점을 쓴다. **그 셋이 이 파일
+ * 밖으로 새지 않게 파일을 갈라 뒀다** — 제품 CSS 를 고치면 되돌릴 자리를 잃는다.
+ *
+ * 색 리터럴은 그대로 안 쓴다. 값의 자리는 tokens.css 하나다(ADR-0041). */
+
+.turn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+/* §8 «로고 마크» — 18px 사각형 · 6px 모서리 · `--ink`.
+ * **`--action` 을 안 쓴다** — 마크는 동작이 아니다(§4). */
+.mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: var(--s1);
+  border-radius: var(--r-md);
+  background: var(--ink);
+}
+
+/* 말풍선. **채움이 회색이다** — §7 이 금지한 것은 UI 크롬의 «색»이고, 여기서
+ * 쓰는 것은 입력면에 이미 쓰이는 잠잠한 면(`--quiet`)이다. 그림자는 안 붙인다
+ * (§6 — 실제로 위에 뜨는 것에만 준다). */
+.bubble {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 말풍선 왼쪽 위만 각지게 둔다. 마크 쪽에서 이어져 나온 것으로 읽힌다 */
+  border-radius: var(--r-sm) var(--r) var(--r) var(--r);
+  padding: var(--s3) var(--s4);
+  background: var(--quiet);
+  color: var(--ink);
+}
+
+/* ── 쓰는 중 ────────────────────────────────────────── */
+
+.writing {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.dots {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+.dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--ink-3);
+  animation: blink 1.2s infinite ease-in-out;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* §7 · §15 — **끄는 것이지 느리게 하는 것이 아니다.** 점 셋이 흐린 채로 선다 */
+@media (prefers-reduced-motion: reduce) {
+  .dots i {
+    animation: none;
+  }
+}
+
+/* ── 다 썼다 ────────────────────────────────────────── */
+
+/* **느낌표가 여기 하나뿐이다.** 요청이 「바꿨어요!」였고, 아래 줄들은 그대로
+ * 사실만 적는다 — §10 이 빈 조급함과 부풀리기를 금지한다 */
+.headline {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.lede {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.list {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* 한 줄에 덩어리 둘이다(§10 — 넷 이하) */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-2);
+}
+
+.where {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  font-weight: var(--w-mid);
+  color: var(--ink);
+}
+
+.what {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+/* 못 채운 자리. **`--urgent` 를 안 쓴다** — 액센트는 마감 하나다(§7) */
+.left {
+  margin: var(--s3) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}

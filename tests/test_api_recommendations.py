@@ -222,3 +222,114 @@ class Test상세의_왜_맞는지:
         got = service.get_notice(s, "bizinfo", "A", today=TODAY, company_id=COMPANY)
         fields = set(type(got.fit).model_fields)
         assert fields == {"verdict", "reason", "evidence_count"}
+
+
+class Test데모_고정:
+    """**데모용 고정 추천** — `DEMO_RECOMMENDATIONS=true` 일 때만 도는 길 (2026-08-23).
+
+    판정을 안 거치고 두 건을 그대로 세우는 임시 경로다. 데모가 끝나면 플래그·상수와
+    함께 이 클래스도 지운다.
+
+    **위의 테스트 전부가 플래그 없이 돈다** — 기본이 꺼짐이라 원래 규칙 넷(숫자 없음 ·
+    세 건 · `computed` · 마감)이 그대로 잠겨 있다. 데모를 상수 하나로 항상 켜 두면
+    저것들이 한꺼번에 깨지고, 그때 테스트를 고치면 되돌릴 때 무엇이 맞았는지 모른다.
+
+    여기서 잠그는 것 넷.
+
+    1. **플래그가 꺼져 있으면 아무 일도 안 난다** — 상수가 있어도 원래 경로다
+    2. **`notice_fit` 을 안 본다** — 회사 위키가 0행이어도 두 건이 선다
+    3. **제목·마감일을 지어내지 않는다** — `notice` 뷰에서 읽는다
+    4. **없는 공고는 빠진다** — 코퍼스를 다시 세우면 공고가 사라질 수 있다
+    """
+
+    #: `(출처, 공고번호, 이유, 근거 수)`. 픽스처의 A·B 를 쓴다
+    PICKS = (("bizinfo", "B", "데모 이유예요", 4), ("bizinfo", "A", "또 다른 이유예요", 1))
+
+    @staticmethod
+    def _켠다(monkeypatch, picks) -> None:  # noqa: ANN001
+        monkeypatch.setattr(service.settings, "demo_recommendations", True)
+        monkeypatch.setattr(service, "DEMO_PICKS", picks)
+
+    def test_플래그가_꺼져_있으면_원래_경로다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**레포 기본값이 이것이다.** 상수가 있어도 판정 결과가 나온다."""
+        monkeypatch.setattr(service, "DEMO_PICKS", self.PICKS)
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        assert [i.external_id for i in out.items] == ["A", "B", "D"]
+        assert all(i.reason == "이유예요" for i in out.items)
+
+    def test_플래그가_꺼져_있으면_위키가_없는_회사는_그대로_빈다(
+        self, s, monkeypatch
+    ) -> None:  # noqa: ANN001
+        """데모가 새면 「아직 안 봤어요」가 사라진다 — 그 문장이 화면의 상태 셋 중 하나다."""
+        monkeypatch.setattr(service, "DEMO_PICKS", self.PICKS)
+        out = service.recommendations(s, "c_없는회사", today=TODAY)
+        assert out.items == [] and out.computed is False
+
+    def test_판정이_없어도_선다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**`notice_fit` 을 안 읽는다.** 회사 쪽이 통째로 비어 있어도 뜨는 것이 목적이다."""
+        self._켠다(monkeypatch, self.PICKS)
+        out = service.recommendations(s, "c_위키가_없는회사", today=TODAY)
+        assert [i.external_id for i in out.items] == ["B", "A"]
+        assert out.computed is True
+
+    def test_적힌_순서_그대로다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """정렬을 안 한다 — 상수에 적은 순서가 화면 순서다."""
+        self._켠다(monkeypatch, self.PICKS[::-1])
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        assert [i.external_id for i in out.items] == ["A", "B"]
+
+    def test_이유와_근거_수는_상수의_것이다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        self._켠다(monkeypatch, self.PICKS)
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        got = {i.external_id: (i.reason, i.evidence_count) for i in out.items}
+        assert got["B"] == ("데모 이유예요", 4)
+        # 픽스처의 A 는 `notice_fit` 에 근거가 둘인데 **그것을 안 본다**
+        assert got["A"] == ("또 다른 이유예요", 1)
+
+    def test_제목과_마감일은_notice_에서_읽는다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """넷까지 지어내면 화면이 말하는 마감일이 상세와 어긋난다."""
+        self._켠다(monkeypatch, self.PICKS)
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        got = {i.external_id: i for i in out.items}
+        assert got["A"].title == "분야 맞고 겹침 둘"
+        assert got["A"].apply_end == dt.date(2026, 9, 30)
+
+    def test_마감이_지나도_뺀다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**진짜 경로와 반대다.** 데모는 날짜가 지나도 그 자리가 서야 한다 —
+        `178697` 이 오늘 마감이라 하루만 지나도 화면이 도로 빈다."""
+        self._켠다(monkeypatch, (("bizinfo", "E", "마감 지난 것", 1),))
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        assert [i.external_id for i in out.items] == ["E"]
+
+    def test_없는_공고는_빠진다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**지어내지 않는다.** 기업마당 공고는 마감되면 API 에서 사라진다."""
+        self._켠다(monkeypatch, (("bizinfo", "없는번호", "이유", 1), self.PICKS[1]))
+        out = service.recommendations(s, COMPANY, today=TODAY)
+        assert [i.external_id for i in out.items] == ["A"]
+
+    def test_상세도_같은_문장을_낸다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**카드를 눌러 들어간 자리다.** 두 화면이 다르게 말하면 다른 판정으로 읽힌다.
+
+        픽스처의 `B` 는 `notice_fit` 에 「이유예요」가 앉아 있는데 **그것을 덮는다** —
+        데모 경로는 `notice_fit` 을 아예 안 본다.
+        """
+        self._켠다(monkeypatch, self.PICKS)
+        추천 = service.recommendations(s, COMPANY, today=TODAY)
+        목록 = {i.external_id: i.reason for i in 추천.items}
+        got = service.get_notice(s, "bizinfo", "B", today=TODAY, company_id=COMPANY)
+        assert got.fit is not None
+        assert got.fit.reason == 목록["B"] == "데모 이유예요"
+        assert got.fit.evidence_count == 4
+
+    def test_상세는_표_밖_공고를_안_건드린다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        """**데모가 판정을 가리지 않는다.** `C` 는 표에 없으니 진짜 `notice_fit` 이 온다."""
+        self._켠다(monkeypatch, self.PICKS)
+        got = service.get_notice(s, "bizinfo", "C", today=TODAY, company_id=COMPANY)
+        assert got.fit is not None
+        assert got.fit.reason == "이유예요"
+
+    def test_상세도_플래그가_꺼져_있으면_원래_경로다(self, s, monkeypatch) -> None:  # noqa: ANN001
+        monkeypatch.setattr(service, "DEMO_PICKS", self.PICKS)
+        got = service.get_notice(s, "bizinfo", "B", today=TODAY, company_id=COMPANY)
+        assert got.fit.reason == "이유예요"
+        assert got.fit.evidence_count == 1

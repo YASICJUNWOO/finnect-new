@@ -61,6 +61,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--purge", action="store_true", help="이 회사의 파일과 청크를 통째로 지운다")
     p.add_argument(
+        "--snapshot",
+        metavar="파일",
+        type=Path,
+        help="세워진 위키를 시연용 스냅샷으로 뜬다(`wiki/demo.py`). **시연 전용이다**",
+    )
+    p.add_argument(
         "--score",
         action="store_true",
         help="추출 정확도를 픽스처 118개와 대조해 잰다(ADR-0037). **DB 를 안 쓴다**",
@@ -93,6 +99,16 @@ def main(argv: list[str] | None = None) -> int:
             f"{args.company}: 파일 {n}건 · 사실 {facts}건 삭제 · "
             f"원본 디렉터리 {'삭제' if gone else '없음'}"
         )
+        return 0
+
+    if args.snapshot:
+        from finnect.wiki import demo
+
+        with SessionFactory() as s:
+            snap = demo.take(s, args.company)
+        size = demo.write(args.snapshot, snap)
+        counted = " · ".join(f"{t} {len(rows)}" for t, rows in snap.items() if rows)
+        print(f"{args.company} → {args.snapshot} ({size / 1024:.0f}KB)\n  {counted}")
         return 0
 
     if args.rechunk:

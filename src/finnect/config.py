@@ -102,6 +102,15 @@ class Settings(BaseSettings):
     #: 레포 밖에서는 파일이 없어 스텁이 아예 안 돈다 — 그게 의도다.
     wiki_stub_facts: Path = REPO_ROOT / "tests" / "fixtures" / "wiki" / "facts.json"
 
+    #: **시연용 위키 스냅샷.** 값이 있으면 올리기가 파일을 안 읽고 이 스냅샷을 그대로
+    #: 앉힌다(`wiki/demo.py`). 위키를 세우는 데 241초가 걸려서 시연에서 못 기다린다.
+    #:
+    #: **기본이 비어 있고 그때는 평소대로 돈다.** 켜는 것은 `.env` 의
+    #: `DEMO_SNAPSHOT=data/demo/narin-wiki.json` 한 줄이고, 시연이 끝나면 그 줄만 지운다 —
+    #: `WIKI_EXTRACTOR` 와 달리 **없다고 멈추면 안 되는 값이 아니라** 켜져 있을 때만
+    #: 길이 갈리는 값이다.
+    demo_snapshot: Path | None = None
+
     # --- 양식 구간 판별 (plan/11 T-0036 · ADR-0037) ---
 
     #: 어느 판정기를 쓰나. `rule` 또는 `llm`.
@@ -110,6 +119,19 @@ class Settings(BaseSettings):
     #: 이미 분할 때 한 번 돌았고 네 번 실패했다. `rule` 로 이 판정을 돌리면 아무것도
     #: 안 바뀌는데, 그 결과가 "LLM 도 못 가른다" 처럼 보인다.
     document_classifier: str = "llm"
+
+    # --- 양식 값 자리 판별 (plan/24 T-0153 · ADR-0060 결정 6) ---
+
+    #: 어느 칸이 값 자리인가를 누가 정하나. `off` 또는 `llm`.
+    #:
+    #: `off` 면 **글자가 없는 칸만** 값 자리다(`Cell.blank`). 관공서 양식이 빈칸에
+    #: 형식을 적어 두므로 그 칸들이 통째로 빠지는데, 그것이 오래 이 제품의 상한이었다.
+    #:
+    #: **`off` 가 기본인 이유는 정확도다.** 잘못 고르면 열 머리(`2023년`·`국내`)가
+    #: 값으로 덮여 표가 깨지고 **파일은 정상으로 열린다.** `document_classifier` 가
+    #: `llm` 을 기본으로 둔 것과 반대인 자리다 — 저기는 틀려도 구간 이름이 어긋날
+    #: 뿐이고 여기는 원본 표를 지운다. 재고 나서 기본값을 옮긴다.
+    form_slots: str = "off"
 
     # --- 초안 집필 (plan/16 T-0069) ---
 
@@ -122,6 +144,18 @@ class Settings(BaseSettings):
     #: 공고를 몇 개씩 동시에 정규화하나. `draft_workers` 와 같은 이유로 8 이다.
     #: **③④⑤ 에는 워커가 없다** — LLM 을 안 부르고 1,790건에 0.02초다
     match_workers: int = 8
+
+    # --- 데모 (2026-08-23 · 임시) ---
+
+    #: 추천을 판정 대신 **고정 목록**(`api/service.py` 의 `DEMO_PICKS`)으로 세울지.
+    #:
+    #: **기본이 꺼짐이다.** 켜면 `notice_fit` 을 아예 안 읽으므로 회사 위키가 없어도
+    #: 두 건이 서지만, 그 이유 한 줄과 근거 수는 대응하는 `wiki_fact` 가 없는
+    #: 지어낸 값이다 — `DESIGN.md` §12.3(「모든 값에 출처를 매단다」)을 어긴다.
+    #: 그래서 **환경변수로만 켜지고 레포 기본값으로는 절대 안 켜진다.**
+    #:
+    #:     DEMO_RECOMMENDATIONS=true uv run uvicorn finnect.api.app:app --port 8100
+    demo_recommendations: bool = False
 
     # --- 관측 (Langfuse) ---
 

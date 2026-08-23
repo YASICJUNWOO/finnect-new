@@ -128,22 +128,31 @@ class HwpForm:
         return None
 
     def fill(self, anchor: Anchor, value: str) -> bool:
-        """**빈 칸에만 넣는다.** 글자가 있으면 `False` 이고 파일을 안 건드린다."""
+        """**빈 칸에만 넣는다.** 글자가 있으면 `False` 이고 파일을 안 건드린다.
+
+        **빈 칸은 `getText()` 가 `None` 이다.** hwplib 은 글자가 하나도 없는 문단에
+        `ParaText` 객체를 안 만든다 — 그러니 `None` 이 「채울 수 있다」는 신호이고,
+        객체가 있으면 이미 무언가 적혀 있다는 뜻이라 거절한다.
+
+        처음에 이것을 뒤집어 읽어서 **빈 칸을 전부 거절했다**. `bizinfo:PBLN_…125577`
+        에서 좌표가 있고 그 자리가 비어 있는데도 채움 0 이었다.
+
+        `createText()` 로 만들어 넣는 것은 안전하다(ADR-0060 실측 · 17번 16칸이
+        그랬고 레이아웃이 원본과 같았다). **갈아 끼우는 것만 배치를 깨뜨린다.**
+        """
         cell = self._cell_at(anchor)
-        if cell is None or _cell_text(cell).strip():
+        if cell is None:
             return False
 
         pl = cell.getParagraphList()
         if pl.getParagraphCount() == 0:
             return False
         para = pl.getParagraph(0)
-        text = para.getText()
-        if text is None:
+        if para.getText() is not None:
             return False
 
-        # **글자만 더한다.** 리스트를 비우지 않는 이유가 이 파일 머리에 있다.
-        for ch in value:
-            text.addString(ch)
+        para.createText()
+        para.getText().addString(value)
         return True
 
     def _prv_text(self) -> bytes:

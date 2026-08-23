@@ -38,6 +38,21 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.9",
 ]
+# 양식 채우기(ADR-0060 · plan/24). **기본 의존성에 안 넣는다** — `hwp` 가 JVM 을
+# 요구하고 배포본은 읽기 경로뿐이다(ADR-0026). `uv sync --group forms` 로 켠다.
+#
+# **셋이 한 그룹이다.** hwpx·docx 는 순수 파이썬이라 따로 뺄 수 있지만, 나누면
+# 「어느 포맷이 되는 환경인가」가 조합 넷이 되고 그것을 화면이 설명할 수 없다.
+# JVM 이 없는 곳에서는 hwp 어댑터만 조용히 빠진다(ADR-0060 결정 5).
+forms = [
+    # hwp 쓰기가 되는 유일한 라이브러리(hwplib)의 jar 를 번들한다. **파이썬 래퍼는
+    # 안 쓴다** — 1.0.0 이 hwplib 1.1.9 시절 클래스 경로를 들고 있어 죽는다.
+    "hwp-hwpx-editor>=1.0",
+    "jpype1>=1.5",
+    "olefile>=0.47",
+    "python-hwpx>=0.1",
+    "python-docx>=1.1",
+]
 # 버리는 코드(spike/)를 다시 돌릴 때만. `uv sync --group spike`
 # T-0005 배점 명시율 재검증이 measure_rate.py 의 탐지기를 그대로 쓴다.
 spike = [

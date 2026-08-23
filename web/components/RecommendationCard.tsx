@@ -32,7 +32,11 @@ export function RecommendationCard({ notice }: { notice: Recommendation }) {
       </h3>
 
       {/* 이 카드가 있는 이유. **우리가 고쳐 쓰지 않는다** — `match/rank.py` 가
-        * 템플릿으로 만들고 표 부스러기는 거기서 이미 걸러졌다(`rank.quotable()`) */}
+        * 템플릿으로 만들고 표 부스러기는 거기서 이미 걸러졌다(`rank.quotable()`).
+        *
+        * **한 문장이다.** 라벨을 붙여 「공고 / 내 사업 / 맞는 이유」 세 줄로 나눠
+        * 봤는데, 훑는 카드에 정보 덩어리가 여섯이 되어 §10(넷 이하)을 넘었다.
+        * 셋을 한 문장에 담는 것은 문장이 할 일이지 레이아웃이 할 일이 아니다. */}
       <p className={styles.reason}>{notice.reason}</p>
 
       {/* **근거 수를 적는다**(DESIGN.md §12.3 모든 값에 출처를 매단다).

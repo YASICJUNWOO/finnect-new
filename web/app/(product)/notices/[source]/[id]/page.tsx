@@ -66,6 +66,31 @@ export default async function NoticeDetailPage({
         </p>
       </header>
 
+      {/* 왜 맞는지. **제목 바로 아래다**(2026-08-23).
+        *
+        * 전에는 첨부 뒤 맨 아래였다. 추천 카드를 눌러 들어온 사람의 첫 질문이
+        * 「왜 나한테 맞대?」인데 개요·서류·첨부를 다 지나야 나왔다 — 그 동선에서
+        * 이 문단은 **답이 아니라 각주**가 된다.
+        *
+        * **값이 없으면 여기 자리를 안 만든다.** 「아직 안 봤어요」로 화면을 여는
+        * 것이라, 그때는 아래 `NotYet` 셋에 섞여 내려간다.
+        *
+        * **등급을 글자로 안 낸다.** `맞다`·`애매` 를 적으면 그것이 눈금 없는
+        * 점수가 된다(§7 · §12.2) — 여기 올라온 것 자체가 판정 결과다 */}
+      {notice.fit && (
+        <section className={styles.fit} aria-labelledby="fit-title">
+          <h2 id="fit-title" className={styles.sectionTitle}>
+            왜 맞는지
+          </h2>
+          <p className={styles.fitReason}>{notice.fit.reason}</p>
+          {notice.fit.evidence_count > 0 && (
+            <p className={styles.fitEvidence} data-numeric>
+              내 사업 정보 <b>{notice.fit.evidence_count}</b>개에서 나왔어요
+            </p>
+          )}
+        </section>
+      )}
+
       <dl className={styles.facts}>
         <dt>접수 기간</dt>
         <dd data-numeric>{period ?? "안 알려줬어요"}</dd>
@@ -131,38 +156,25 @@ export default async function NoticeDetailPage({
 
       <Attachments items={notice.attachments} decoded={notice.decoded_count} />
 
-      {/* 왜 맞는지. **`null` 이면 자리를 안 그린다** — 「안 맞아요」가 아니라
-        * 「아직 안 봤어요」라서, `NotYet` 으로 떨어뜨려 무엇이 없는지 말한다.
+      {/* 자리는 있고 값이 없는 것들. 예시 데이터를 넣지 않는다.
         *
-        * **등급을 글자로 안 낸다.** `맞다`·`애매` 를 적으면 그것이 눈금 없는
-        * 점수가 된다(§7 · §12.2) — 여기 올라온 것 자체가 판정 결과다 */}
-      {notice.fit ? (
-        <section className={styles.fit} aria-labelledby="fit-title">
-          <h2 id="fit-title" className={styles.sectionTitle}>
-            왜 맞는지
-          </h2>
-          <p className={styles.fitReason}>{notice.fit.reason}</p>
-          {notice.fit.evidence_count > 0 && (
-            <p className={styles.fitEvidence} data-numeric>
-              내 사업 정보 <b>{notice.fit.evidence_count}</b>개에서 나왔어요
-            </p>
-          )}
-        </section>
-      ) : (
-        <div className={styles.gaps}>
-          <NotYet
-            title="왜 맞는지"
-            why="사업 위키가 있어야 공고 취지와 대 볼 수 있어요. 파일을 올리면 골라 드려요."
-          />
-        </div>
-      )}
-
-      {/* 자리는 있고 값이 없는 둘. 예시 데이터를 넣지 않는다.
+        * **「왜 맞는지」가 여기 섞이는 것은 판정이 없을 때뿐이다.** 값이 있으면
+        * 위로 올라가 있다 — 그때 이 그리드는 둘이다.
+        *
+        * **한 `.gaps` 에 모은다**(2026-08-23). 전에는 「왜 맞는지」가 제 그리드를
+        * 따로 갖고 그 아래 둘이 또 있어서, 2열에 **1 + 2 로 깨져** 첫 칸 옆이
+        * 빈 채로 남았다. 셋이 한 흐름이라 한 그리드가 맞다.
         *
         * **「자격이 되는지」가 여기 있었다.** 없앤 이유는 값이 생겨서가 아니라
         * ADR-0003 이 그 화면을 금지해서다 — 못 넘는 공고는 목록에서 빠지는 것으로
         * 이미 답했고, 여기 대조표를 두면 우리 일을 사용자에게 떠넘긴다 */}
       <div className={styles.gaps}>
+        {!notice.fit && (
+          <NotYet
+            title="왜 맞는지"
+            why="사업 위키가 있어야 공고 취지와 대 볼 수 있어요. 파일을 올리면 골라 드려요."
+          />
+        )}
         <NotYet
           title="어떻게 심사해요"
           why="서류에서 심사 항목을 아직 안 뽑았어요. 서류 글자는 이미 읽어 뒀어요."

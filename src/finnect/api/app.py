@@ -36,7 +36,7 @@ from finnect.api.wiki_schemas import ProfileOut, ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs
-from finnect.models import AttachmentFile, UserFile, UserFileStatus
+from finnect.models import AttachmentFile, Document, UserFile, UserFileStatus
 from finnect.wiki import storage
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
@@ -255,6 +255,78 @@ def notice_draft(source: str, external_id: str, company: str) -> DraftOut:
             external_id,
             running=jobs.running(_draft_key(company, source, external_id)),
         )
+
+
+@app.get("/api/notices/{source}/{external_id}/documents/{document_id}/filled")
+def filled_document(
+    source: str, external_id: str, document_id: int, company: str
+) -> FileResponse:
+    """초안을 넣어 **채운 원본 파일** (plan/24 T-0155 · ADR-0060).
+
+    레포 첫 줄이 「들어가면 문서가 이미 써져 있다」인데, 그 문서가 파일로 나가는
+    자리다. 화면의 오른쪽 단이 원본 대신 이것을 연다.
+
+    **저장하지 않는다.** 요청마다 만든다 — 초안이 바뀌면 파일이 낡고, 둘 중 어느
+    쪽이 정본인지 정할 근거가 없다(위키 마크다운과 같은 자리). LLM 을 안 부르므로
+    파일 하나를 여닫는 값이면 된다.
+
+    **읽기라 쓰기 API 셋에 안 든다**(`tests/test_draft_start.py` 가 잠근 그 셋).
+    이 경로는 아무것도 안 바꾼다.
+
+    **못 채운 칸을 헤더로 같이 준다.** 조용히 남기면 사용자가 `000-0000-0000` 을
+    그대로 제출한다 — hwp 는 안내문이 든 칸을 못 덮어써서 그 수가 많다.
+
+    **`finnect.forms` 를 함수 안에서 임포트한다.** 최상단에 두면 `import
+    finnect.api.app` 이 hwp 경로에서 JVM 을 끌고 온다(ADR-0034 와 같은 함정).
+    """
+    if not company:
+        raise HTTPException(400, "company 를 주세요")
+
+    import os
+    import tempfile
+
+    from finnect.forms import SUPPORTED, UnsupportedFormat
+    from finnect.forms.base import FormsUnavailable
+    from finnect.forms.service import fill_document
+
+    with SessionFactory() as s:
+        doc = s.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(404, "모르는 문서예요")
+        ext = (
+            s.scalar(
+                select(AttachmentFile.detected_ext).where(
+                    AttachmentFile.sha256 == doc.sha256
+                )
+            )
+            or ""
+        ).lower()
+        if ext not in SUPPORTED:
+            raise HTTPException(415, f"이 포맷은 아직 못 채워요: {ext or '모름'}")
+
+        # **임시 파일에 쓴다.** 응답이 나간 뒤 지워도 되지만, `FileResponse` 가
+        # 읽는 동안은 살아 있어야 해서 컨텍스트 매니저로 안 닫고 OS 에 맡긴다.
+        fd, tmp_path = tempfile.mkstemp(suffix=f".{ext}")
+        os.close(fd)
+        try:
+            report = fill_document(
+                s, company, source, external_id, document_id, tmp_path
+            )
+        except FileNotFoundError as e:
+            raise HTTPException(404, "원본 파일이 이 서버에 없어요") from e
+        except (UnsupportedFormat, FormsUnavailable) as e:
+            raise HTTPException(415, str(e)) from e
+
+    return FileResponse(
+        tmp_path,
+        media_type=_VIEWABLE.get(ext, "application/octet-stream"),
+        content_disposition_type="inline",
+        filename=f"{doc.title[:40]}.{ext}",
+        headers={
+            "X-Finnect-Filled": str(report.filled),
+            "X-Finnect-Left": str(report.refused + report.no_anchor),
+        },
+    )
 
 
 def _draft_key(company: str, source: str, external_id: str) -> str:

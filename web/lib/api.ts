@@ -300,3 +300,19 @@ export async function getNoticeDocuments(
 export function attachmentFileUrl(sha256: string): string {
   return `/api/attachments/${encodeURIComponent(sha256)}/file`;
 }
+
+/** 초안을 넣어 **채운** 원본 파일 (plan/24 T-0155).
+ *
+ * 원본과 같은 포맷이고 같은 뷰어가 연다. **콘텐츠 주소가 아니다** — 초안이 바뀌면
+ * 내용이 달라지므로 캐시를 걸면 안 되고, 그래서 `sha256` 이 아니라 문서 id 로 부른다. */
+export function filledDocumentUrl(
+  source: string,
+  externalId: string,
+  documentId: string,
+  company: string,
+): string {
+  return (
+    `/api/notices/${encodeURIComponent(source)}/${encodeURIComponent(externalId)}` +
+    `/documents/${encodeURIComponent(documentId)}/filled?company=${encodeURIComponent(company)}`
+  );
+}

@@ -40,11 +40,20 @@ export function DocViewer({
   doc,
   noticeUrl,
   onPages,
+  filledUrl,
+  onFilled,
 }: {
   /** `null` 이면 열 것이 없다 */
   doc: FormDocument | null;
   noticeUrl: string | null;
   onPages?: (pages: number | null) => void;
+  /** 초안을 넣어 채운 파일의 주소 (plan/24 T-0155). **없으면 원본을 연다.**
+   *
+   * 있어도 실패하면 원본으로 물러난다 — 채우기가 안 되는 것과 문서를 못 여는
+   * 것은 다르고, 뒤엣것으로 앞엣것을 덮으면 사용자가 양식 자체를 못 본다. */
+  filledUrl?: string | null;
+  /** 몇 칸을 채웠고 몇 칸이 남았나. **헤더로 온다** */
+  onFilled?: (filled: number, left: number) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   // rhwp 핸들. 타입이 커서 쓰는 것만 좁혀 든다
@@ -78,6 +87,12 @@ export function DocViewer({
     pagesRef.current = onPages;
   }, [onPages]);
 
+  // 같은 이유로 밖에 뺀다. 부르는 쪽이 매 렌더 새 함수를 넘겨도 문서를 다시 안 연다
+  const filledRef = useRef(onFilled);
+  useEffect(() => {
+    filledRef.current = onFilled;
+  }, [onFilled]);
+
   useEffect(() => {
     if (!sha) return;
     pagesRef.current?.(null);
@@ -105,8 +120,28 @@ export function DocViewer({
           editorRef.current = made;
         }
 
-        const res = await fetch(attachmentFileUrl(sha));
-        if (!res.ok) throw new Error(await reasonOf(res));
+        // **채운 파일을 먼저 시도한다.** 초안이 들어간 양식이 이 화면의 요점이다.
+        // 실패해도 원본은 떠야 한다 — 채우기가 안 되는 것(포맷·좌표 없음)과 문서를
+        // 못 여는 것은 다르고, 뒤엣것으로 앞엣것을 덮으면 양식 자체를 못 본다.
+        let res: Response | null = null;
+        if (filledUrl) {
+          try {
+            const tried = await fetch(filledUrl);
+            if (tried.ok) {
+              res = tried;
+              filledRef.current?.(
+                Number(tried.headers.get("x-finnect-filled") ?? 0),
+                Number(tried.headers.get("x-finnect-left") ?? 0),
+              );
+            }
+          } catch {
+            // 원본으로 물러난다. 여기서 던지면 양식이 아예 안 뜬다
+          }
+        }
+        if (!res) {
+          res = await fetch(attachmentFileUrl(sha));
+          if (!res.ok) throw new Error(await reasonOf(res));
+        }
         const buf = await res.arrayBuffer();
         if (dead) return;
 
@@ -128,7 +163,9 @@ export function DocViewer({
     return () => {
       dead = true;
     };
-  }, [sha, filename]);
+    // **`filledUrl` 이 의존성에 든다.** 초안을 다시 쓰면 주소는 같아도 내용이
+    // 달라지는데, 그건 부르는 쪽이 주소를 갈아 끼워 알린다(`?v=` 를 붙인다).
+  }, [sha, filename, filledUrl]);
 
   // 화면을 떠날 때만 정리한다. **문서를 바꿀 때는 안 부순다**(위 주석 참조).
   useEffect(

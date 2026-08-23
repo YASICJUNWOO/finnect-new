@@ -190,6 +190,71 @@ def _replace(
     _plant_anchors(s, sha, ext, fields_docs, report)
 
 
+def plant_anchors(
+    *, notice: tuple[str, str] | None = None, redo: bool = False
+) -> ExtractReport:
+    """이미 깔린 칸에 **좌표만** 심는다 (plan/24 T-0152).
+
+    **항목을 안 지운다.** `run(redo=True)` 로 다시 파싱하면 `document_item` 이
+    새로 깔리고, FK 가 CASCADE 라 **그 항목에 쓴 초안이 따라 지워진다.** 좌표를
+    심으려고 초안을 버릴 수는 없다.
+
+    **위치정보를 나중에 붙이는 것이 아니다**(ADR-0014 가 막은 그것과 다르다).
+    파일은 그대로 있고 우리가 안 읽었을 뿐이다 — 좌표는 원본에서 다시 뽑는다.
+    근거 청크의 위치는 텍스트를 자른 뒤에는 복원이 안 되지만 이것은 복원된다.
+
+    **이미 심긴 파일은 건너뛴다.** `redo` 로만 다시 뽑는다 — JVM 을 띄우는 값이라
+    공짜가 아니다.
+    """
+    report = ExtractReport()
+    with Session(engine) as s:
+        rows = s.execute(
+            select(Document.sha256, AttachmentFile.detected_ext)
+            .join(AttachmentFile, AttachmentFile.sha256 == Document.sha256)
+            .where(Document.kind == str(DocumentKind.FIELDS))
+            .distinct()
+        )
+        if notice is not None:
+            source, external_id = notice
+            rows = s.execute(
+                select(Document.sha256, AttachmentFile.detected_ext)
+                .join(AttachmentFile, AttachmentFile.sha256 == Document.sha256)
+                .join(Attachment, Attachment.url == AttachmentFile.url)
+                .where(
+                    Document.kind == str(DocumentKind.FIELDS),
+                    Attachment.source == source,
+                    Attachment.external_id == external_id,
+                )
+                .distinct()
+            )
+
+        for sha, ext in rows.all():
+            docs = list(
+                s.scalars(
+                    select(Document.id).where(
+                        Document.sha256 == sha,
+                        Document.kind == str(DocumentKind.FIELDS),
+                    )
+                ).all()
+            )
+            if not docs:
+                continue
+            planted = s.scalar(
+                select(func.count())
+                .select_from(DocumentItem)
+                .where(
+                    DocumentItem.document_id.in_(docs),
+                    DocumentItem.anchor.is_not(None),
+                )
+            )
+            if planted and not redo:
+                continue
+            report.files += 1
+            _plant_anchors(s, sha, ext, docs, report)
+        s.commit()
+    return report
+
+
 def _plant_anchors(
     s: Session,
     sha: str,
@@ -238,14 +303,47 @@ def _plant_anchors(
         return
 
     # 겹치는 라벨은 **아예 뺀다.** 첫 번째를 고르는 것이 이 방식이 부러진 자리다.
+    #
+    # **좌표가 다를 때만 겹침이다.** 같은 라벨이 여러 번 나와도 가리키는 칸이
+    # 하나면 고를 것이 없다 — 병합 셀이 그렇게 온다.
     seen: dict[str, object | None] = {}
     for label, anchor in targets:
         key = norm_label(label)
-        seen[key] = None if key in seen else anchor
+        if key not in seen:
+            seen[key] = anchor
+        elif seen[key] != anchor:
+            seen[key] = None
 
     rows = s.scalars(
         select(DocumentItem).where(DocumentItem.document_id == fields_docs[0])
     ).all()
+
+    if not rows:
+        # **항목이 없으면 파일에서 만든다.** 텍스트 추출이 표를 못 살린 파일이
+        # 있다 — 실측에서 같은 양식의 docx 판이 라벨 0개였고 hwp 판은 12개였다.
+        # 원본을 여는 김에 라벨이 여기 있으므로, 그것으로 칸을 깐다.
+        #
+        # **`fx.labels` 를 대신하는 것이 아니다.** 저기는 텍스트만 있어도 돌고
+        # 여기는 파일을 열 수 있을 때만 돈다 — 둘 중 되는 쪽이 채운다.
+        for i, (label, _anchor) in enumerate(targets):
+            key = norm_label(label)
+            hit = seen.get(key)
+            s.add(
+                DocumentItem(
+                    document_id=fields_docs[0],
+                    ordinal=i,
+                    number=None,
+                    title=label[:300],
+                    instruction=None,
+                    input_kind="field",
+                    anchor=str(hit) if hit is not None else None,
+                )
+            )
+            report.items += 1
+            if hit is not None:
+                report.anchored += 1
+        return
+
     for row in rows:
         hit = seen.get(norm_label(row.title))
         if hit is not None:

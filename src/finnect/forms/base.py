@@ -126,14 +126,24 @@ def label_targets(cells: list[Cell]) -> list[tuple[str, Anchor]]:
         by_row.setdefault((c.anchor.section, c.anchor.table, c.anchor.row), []).append(c)
 
     out: list[tuple[str, Anchor]] = []
+    seen: set[tuple[str, Anchor]] = set()
     for row in by_row.values():
         row.sort(key=lambda c: c.anchor.col)
         for i, c in enumerate(row):
             if c.blank:
                 continue
             nxt = next((n for n in row[i + 1 :] if n.blank), None)
-            if nxt is not None:
-                out.append((c.text, nxt.anchor))
+            if nxt is None:
+                continue
+            # **병합 셀을 접는다.** `python-docx` 의 `row.cells` 가 가로로 병합된
+            # 칸을 걸친 수만큼 반복해서 준다 — 실측에서 `대표자명` 이 네 번 나왔고
+            # 넷 다 같은 좌표(`0:0:0:12`)였다. 접지 않으면 **같은 칸 하나가
+            # 「겹치는 라벨」로 잘못 판정돼** 좌표가 통째로 버려진다.
+            pair = (c.text, nxt.anchor)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            out.append(pair)
     return out
 
 

@@ -50,11 +50,16 @@ __all__ = [
 #: 코드가 있지만 제품 어댑터는 hwp 뿐이다. hwp 를 먼저 한 이유는 **코퍼스의 73%**
 #: 이고 제약이 가장 세서다 — 인터페이스가 그 제약을 견디면 나머지 둘은 얹힌다.
 #: 여기 목록에 미리 넣지 않는 이유는 **넣으면 화면이 「된다」고 말하기 때문이다.**
-SUPPORTED: frozenset[str] = frozenset({"hwp"})
+SUPPORTED: frozenset[str] = frozenset({"hwp", "docx"})
 
 #: 될 것이 확인됐지만 어댑터를 아직 안 쓴 것(plan/24 T-0151 나머지).
 #: **`UnsupportedFormat` 과 가르려고 따로 둔다** — 저기는 영영 안 되는 것이다.
-PLANNED: frozenset[str] = frozenset({"hwpx", "docx"})
+PLANNED: frozenset[str] = frozenset({"hwpx"})
+
+#: 덮어쓸 수 있는 포맷. **hwp 만 못 한다** — 기존 글자를 갈아 끼우면 한/글에서
+#: 표가 밀린다(ADR-0060 결정 3, 판본 A~G). 안내문이 든 칸은 덮어써야 채워지므로
+#: **이 집합이 「어느 칸까지 채울 수 있나」를 정한다.**
+OVERWRITABLE: frozenset[str] = frozenset({"docx"})
 
 
 def open_form(path: str, ext: str) -> Form:
@@ -68,6 +73,11 @@ def open_form(path: str, ext: str) -> Form:
         raise UnsupportedFormat(f"{ext} 는 아직 못 채워요 (plan/24 T-0151)")
     if ext not in SUPPORTED:
         raise UnsupportedFormat(f"채울 수 없는 포맷: {ext}")
+
+    if ext == "docx":
+        from finnect.forms.docx import DocxForm
+
+        return DocxForm(path)
 
     from finnect.forms.hwp import HwpForm
 

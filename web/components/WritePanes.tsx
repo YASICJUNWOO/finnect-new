@@ -7,6 +7,7 @@ import { DraftThread } from "./DraftThread";
 import { WriteWorkspace } from "./WriteWorkspace";
 import type { Draft } from "@/lib/draft";
 import type { NoticeDocuments } from "@/lib/documents";
+import { filledDocumentUrl } from "@/lib/api";
 import styles from "./WritePanes.module.css";
 
 /** S4 의 두 단을 잇는 자리. **껍데기(`WriteWorkspace`)와 알맹이 사이에 있다.**
@@ -43,8 +44,24 @@ export function WritePanes({
   // **문서 id 로 고른다.** sha256 은 한 첨부에 서식이 여럿일 때 겹친다(실측 29%)
   const [docId, setDocId] = useState<string | null>(initialDoc ?? all[0]?.id ?? null);
   const [pages, setPages] = useState<number | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
 
   const active = all.find((d) => d.id === docId) ?? all[0] ?? null;
+
+  /** 채운 파일의 주소 (plan/24 T-0155). **초안이 없으면 안 만든다** — 채울 것이
+   *  없는데 부르면 원본과 같은 파일을 한 번 더 만드는 값만 든다.
+   *
+   *  **초안 항목 수를 주소에 넣는다.** 다시 쓰면 내용이 달라지는데 주소가 같으면
+   *  뷰어가 다시 안 연다 — 브라우저 캐시가 아니라 `useEffect` 의 의존성 문제다. */
+  const filledUrl = useMemo(() => {
+    if (!active || !draft || draft.documents.length === 0) return null;
+    const stamp = draft.documents.reduce((n, d) => n + d.items.length, 0);
+    return `${filledDocumentUrl(source, externalId, active.id, company)}&v=${stamp}`;
+  }, [active, draft, source, externalId, company]);
+
+  const onFilled = useCallback((_filled: number, remaining: number) => {
+    setLeft(remaining);
+  }, []);
 
   /** 주소를 따라 바꾼다. **`scroll: false`** — 단이 각자 구르는 화면이라
    * 위로 튀면 읽던 자리를 잃는다. */
@@ -97,6 +114,14 @@ export function WritePanes({
         {pages !== null && (
           <span data-numeric>{pages}쪽</span>
         )}
+        {/* **못 채운 칸을 조용히 넘기지 않는다.** hwp 는 안내문이 든 칸을 못
+            덮어써서 남는 자리가 많다 — 말 안 하면 사용자가 `000-0000-0000` 을
+            그대로 제출한다. 0 이면 안 적는다(§10 — 빼도 뜻이 같은 말은 지운다) */}
+        {left !== null && left > 0 && (
+          <span className={styles.same}>
+            <span data-numeric>{left}</span>칸은 직접 채워 주세요
+          </span>
+        )}
         {sameFile && <span className={styles.same}>같은 파일이에요. 파일 전체가 열려요.</span>}
       </p>
     </div>
@@ -126,7 +151,15 @@ export function WritePanes({
             </div>
           )
         }
-        viewer={<DocViewer doc={active} noticeUrl={noticeUrl} onPages={setPages} />}
+        viewer={
+          <DocViewer
+            doc={active}
+            noticeUrl={noticeUrl}
+            onPages={setPages}
+            filledUrl={filledUrl}
+            onFilled={onFilled}
+          />
+        }
       />
     </>
   );

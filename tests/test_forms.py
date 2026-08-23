@@ -52,13 +52,21 @@ class Test포맷_경계:
                 open_form("/없는/파일", ext)
 
     def test_어댑터가_있는_것만_된다고_말한다(self) -> None:
-        """**될 것과 되는 것을 가른다.** ADR-0060 이 셋 다 된다고 쟀지만 어댑터는
-        hwp 뿐이다 — 목록에 미리 넣으면 화면이 「된다」고 말한다."""
+        """**될 것과 되는 것을 가른다.** 목록에 미리 넣으면 화면이 「된다」고 말한다."""
         from finnect.forms import PLANNED
 
-        assert {"hwp"} == SUPPORTED
-        assert {"hwpx", "docx"} == PLANNED
+        assert {"hwp", "docx"} == SUPPORTED
+        assert {"hwpx"} == PLANNED
         assert not (SUPPORTED & PLANNED)
+
+    def test_덮어쓸_수_있는_것이_갈려_있다(self) -> None:
+        """**hwp 만 못 덮어쓴다**(ADR-0060 결정 3). 안내문이 든 칸은 덮어써야
+        채워지므로 이 집합이 「어느 칸까지 채울 수 있나」를 정한다."""
+        from finnect.forms import OVERWRITABLE
+
+        assert "hwp" not in OVERWRITABLE
+        assert "docx" in OVERWRITABLE
+        assert OVERWRITABLE <= SUPPORTED
 
     def test_예정된_포맷은_이유를_말한다(self) -> None:
         """`pdf` 와 `hwpx` 를 같은 말로 거절하지 않는다 — 앞은 영영 안 되고

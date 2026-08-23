@@ -3,14 +3,16 @@
 import { useMemo } from "react";
 import { arc, fit, labelWidth, place, type Body, type Edge, type Point, type Rect } from "@/lib/graph";
 import type { WikiNode } from "@/lib/wiki";
+import { useZoomPan } from "./useZoomPan";
 import styles from "./WikiGraph.module.css";
 
-/** 위키 자유 그래프. **자리만이 아니라 그 안에 든 사실까지 한 판에 올린다.**
+/** 위키 자유 그래프. **자리만 올린다. 사실은 점으로 안 그린다.**
  *
- * 앞의 방사 트리는 자리를 층으로 세우고 사실은 클릭 뒤에 숨겼다. 자리가 스물넷인데
- * 사실이 스물둘이라 **화면에 있는 것의 절반이 안 보였고**, 카테고리 열이 반지름 하나에
- * 몰려 이름표가 서로 겹쳤다. 여기서는 사실 하나가 점 하나다 — 어느 자리가 두꺼운지
- * 누르기 전에 보인다.
+ * 사실 하나를 점 하나로 매달아 봤고, 자리 쉰여섯에 사실 삼백스물넷이 붙자 회색 점이
+ * 자리 점을 후광처럼 둘러싸 **어느 것이 누를 수 있는 자리인지 안 읽혔다.** 담긴 양은
+ * 자리 점의 크기가 이미 말하므로 같은 말을 두 번 하면서 화면만 지저분해진 것이다.
+ * **사실은 자리를 눌렀을 때 곁 패널이 문장으로 보여 준다** — 세는 자리와 읽는 자리를
+ * 가른다.
  *
  * ## 힘 배치를 쓴다. 시드가 고정이다
  *
@@ -47,12 +49,12 @@ const CATEGORY_RING = 128;
  *  저기서 한다. 갈리면 겹치지 않는다고 판정한 이름표가 화면에서 겹친다. */
 const FONT = { category: 13, spot: 12 } as const;
 
-type Kind = "hub" | "category" | "spot" | "fact";
+type Kind = "hub" | "category" | "spot";
 
 type Drawn = {
   id: string;
   kind: Kind;
-  /** 눌렀을 때 열 자리. 사실 점은 제 부모 자리를 연다 */
+  /** 눌렀을 때 열 자리 */
   path: string;
   parent: string;
   label: string;
@@ -65,14 +67,13 @@ type Drawn = {
   reach: number;
 };
 
-/** 물체 id. **자리 경로를 그대로 id 로 쓰지 않는다** — 자리와 그 자리의 사실이 한
- * 목록에 들어가므로 접두사로 갈라야 부딪히지 않는다. 화면에 쓰는 이름은 `Drawn.path`
- * 가 따로 든다 — 주소(`?spot=`)와 `onSelect` 가 보는 것은 그쪽이다. */
+/** 물체 id. **자리 경로를 그대로 id 로 쓰지 않는다** — 허브와 한 목록에 들어가므로
+ * 접두사로 갈라야 `hub` 라는 자리가 오는 날 부딪히지 않는다. 화면에 쓰는 이름은
+ * `Drawn.path` 가 따로 든다 — 주소(`?spot=`)와 `onSelect` 가 보는 것은 그쪽이다. */
 const HUB = "hub";
 const nodeId = (path: string) => `n:${path}`;
-const factId = (path: string, i: number) => `f:${path}:${i}`;
 
-/** 노드와 사실을 한 덩어리의 물체 목록으로 편다. **여기가 그래프의 정의다.** */
+/** 노드를 물체 목록으로 편다. **여기가 그래프의 정의다.** */
 function build(
   nodes: readonly WikiNode[],
   categories: Record<string, string>,
@@ -103,8 +104,9 @@ function build(
     const isRoot = n.depth === 0;
     const filled = n.filled || alive.has(n.path);
     const facts = n.statements.length;
-    // 자리 크기가 담긴 양을 따른다. **제곱근으로 눌러 담는다** — 선형이면 넓이 차가
-    // 개수 차의 제곱이 되어 작은 자리가 먼지로 읽힌다
+    // 자리 크기가 담긴 양을 따른다. **사실 점을 뺐으므로 양을 말하는 것이 이 크기
+    // 하나다.** 제곱근으로 눌러 담는다 — 선형이면 넓이 차가 개수 차의 제곱이 되어
+    // 작은 자리가 먼지로 읽힌다
     const radius = isRoot ? 10 : n.filled ? 4.5 + Math.sqrt(facts) * 2.3 : 4.5;
 
     const id = nodeId(n.path);
@@ -128,26 +130,6 @@ function build(
       facts,
     });
     edges.push({ from: parent, to: id, weight: isRoot ? 1.8 : 1.5 });
-
-    // 사실 하나가 점 하나다. **이름표를 안 붙인다** — 세는 것이지 읽는 것이 아니다
-    n.statements.forEach((_, i) => {
-      const fid = factId(n.path, i);
-      bodies.push({ id: fid, radius: 2.4 });
-      meta.set(fid, {
-        id: fid,
-        kind: "fact",
-        path: n.path,
-        parent: id,
-        label: "",
-        radius: 2.4,
-        filled: true,
-        facts: 0,
-      });
-      // **세게 당긴다.** 사실은 잎이라 밀어내기를 받기만 하고 되받을 이웃이 없다 —
-      // 약하게 매달면 판 테두리로 밀려나 줄지어 붙는다. 제 자리에 딱 붙어야
-      // 「이 자리가 두껍다」가 보인다
-      edges.push({ from: id, to: fid, weight: 9 });
-    });
   }
 
   return { bodies, edges, meta };
@@ -196,7 +178,7 @@ function labels(drawn: readonly Drawn[]): { kept: Set<string>; boxes: Rect[] } {
   return { kept, boxes };
 }
 
-/** 고른 자리에 딸린 것들. 조상 사슬 + 제 아래 전부 + 그들의 사실.
+/** 고른 자리에 딸린 것들. 조상 사슬 + 제 아래 전부.
  *
  * **경로를 받고 id 를 낸다.** 고른 자리는 주소에서 오므로 경로이고, 흐리게 할지 말지는
  * 물체 단위라 id 다. 둘을 안 가르면 `meta.get()` 이 조용히 `undefined` 를 내고
@@ -270,65 +252,129 @@ export function WikiGraph({
     [selected, meta],
   );
 
-  // 그리는 순서가 곧 쌓임 순서다. 사실 → 자리 → 카테고리 → 허브.
+  // 그리는 순서가 곧 쌓임 순서다. 자리 → 카테고리 → 허브.
   // **이름표가 점에 덮이면 안 되므로** 이름이 붙는 것이 뒤로 간다
-  const rank: Record<Kind, number> = { fact: 0, spot: 1, category: 2, hub: 3 };
+  const rank: Record<Kind, number> = { spot: 0, category: 1, hub: 2 };
   const order = [...drawn].sort((a, b) => rank[a.kind] - rank[b.kind]);
 
-  return (
-    <svg
-      className={styles.svg}
-      viewBox={`${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.width.toFixed(1)} ${box.height.toFixed(1)}`}
-      preserveAspectRatio="xMidYMid meet"
-      role="group"
-      aria-label={`내 사업 위키. 자리 ${total}개 중 ${filled}개가 찼어요`}
-      data-picking={hot ? "true" : "false"}
-    >
-      {/* 가지. **선이 구조를 말하니 거의 안 보인다** — 진하게 하면 그물이 되고
-        * 점이 안 읽힌다. 고른 갈래만 진해진다 */}
-      <g className={styles.edges}>
-        {edges.map((l) => (
-          <path
-            key={`${l.from}→${l.to}`}
-            className={styles.edge}
-            data-kind={meta.get(l.to)?.kind ?? "spot"}
-            data-hot={hot ? hot.has(l.from) && hot.has(l.to) : null}
-            d={arc(l.a, l.b)}
-          />
-        ))}
-      </g>
+  const { ref, view, zoom, zoomed, panning, zoomBy, reset, onPointerDown, onClickCapture } =
+    useZoomPan(box);
 
-      {order.map((d) =>
-        d.kind === "hub" ? (
-          <g key={d.id} className={styles.hub}>
-            <circle className={styles.hubDot} cx={d.x} cy={d.y} r={d.radius} />
-            <text className={styles.hubTitle} x={d.x} y={d.y - 3} textAnchor="middle">
-              내 사업
-            </text>
-            <text className={styles.hubCount} x={d.x} y={d.y + 15} textAnchor="middle" data-numeric>
-              {filled}/{total}
-            </text>
-          </g>
-        ) : (
-          <Dot
-            key={d.id}
-            node={d}
-            named={named.has(d.id)}
-            selected={selected === d.path}
-            dim={hot ? !hot.has(d.id) : false}
-            onSelect={onSelect}
-          />
-        ),
+  return (
+    /* **넘침을 여기서 자른다.** SVG 는 `overflow: visible` 이라 확대하면 판 밖 노드가
+     * 캔버스 밖으로 흘러 옆 패널을 덮는다 */
+    <div className={styles.wrap} data-zoomed={zoomed}>
+      <svg
+        ref={ref}
+        className={styles.svg}
+        viewBox={`${view.x.toFixed(1)} ${view.y.toFixed(1)} ${view.width.toFixed(1)} ${view.height.toFixed(1)}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="group"
+        aria-label={`내 사업 위키. 자리 ${total}개 중 ${filled}개가 찼어요`}
+        data-picking={hot ? "true" : "false"}
+        data-zoomed={zoomed}
+        data-panning={panning}
+        onPointerDown={onPointerDown}
+        onClickCapture={onClickCapture}
+      >
+        {/* 가지. **선이 구조를 말하니 거의 안 보인다** — 진하게 하면 그물이 되고
+          * 점이 안 읽힌다. 고른 갈래만 진해진다 */}
+        <g className={styles.edges}>
+          {edges.map((l) => (
+            <path
+              key={`${l.from}→${l.to}`}
+              className={styles.edge}
+              data-kind={meta.get(l.to)?.kind ?? "spot"}
+              data-hot={hot ? hot.has(l.from) && hot.has(l.to) : null}
+              d={arc(l.a, l.b)}
+            />
+          ))}
+        </g>
+
+        {order.map((d) =>
+          d.kind === "hub" ? (
+            <g key={d.id} className={styles.hub}>
+              <circle className={styles.hubDot} cx={d.x} cy={d.y} r={d.radius} />
+              <text className={styles.hubTitle} x={d.x} y={d.y - 3} textAnchor="middle">
+                내 사업
+              </text>
+              <text className={styles.hubCount} x={d.x} y={d.y + 15} textAnchor="middle" data-numeric>
+                {filled}/{total}
+              </text>
+            </g>
+          ) : (
+            <Dot
+              key={d.id}
+              node={d}
+              named={named.has(d.id)}
+              selected={selected === d.path}
+              dim={hot ? !hot.has(d.id) : false}
+              onSelect={onSelect}
+            />
+          ),
+        )}
+      </svg>
+
+      <Zoom zoom={zoom} zoomBy={zoomBy} reset={reset} />
+    </div>
+  );
+}
+
+/** 확대·축소 손잡이. **판 위에 뜨지만 그림자를 안 쓴다**(`DESIGN.md` §6) — 흰 면과
+ *  1px 경계선으로 세운다. 그래프가 가운데로 뭉치므로 모서리에 둔다.
+ *
+ *  **전체 보기는 확대했을 때만 나온다.** 누를 일이 없는 버튼을 늘 띄우면 크롬만 는다.
+ *
+ *  배율을 숫자로 안 적는다 — 「2.4×」가 사용자에게 답하는 질문이 없다. */
+function Zoom({
+  zoom,
+  zoomBy,
+  reset,
+}: {
+  zoom: number;
+  zoomBy: (factor: number) => void;
+  reset: () => void;
+}) {
+  return (
+    <div className={styles.zoom}>
+      {zoom > 1.02 && (
+        <button type="button" className={styles.zoomText} onClick={reset}>
+          전체 보기
+        </button>
       )}
-    </svg>
+      <button
+        type="button"
+        className={styles.zoomBtn}
+        onClick={() => zoomBy(1 / 1.5)}
+        disabled={zoom <= 1.02}
+        aria-label="축소"
+        title="축소"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.5 8h9" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className={styles.zoomBtn}
+        onClick={() => zoomBy(1.5)}
+        disabled={zoom >= 5.98}
+        aria-label="확대"
+        title="확대"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.5 8h9M8 3.5v9" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
 /** 점 하나. **키보드로 갈 수 있어야 한다** — 이 그래프가 자리로 가는 유일한 길이라
  *  마우스 전용이면 못 연다.
  *
- *  사실 점은 조작 요소가 아니다. 지름 5px 이라 44px 타깃이 될 수 없고, 저건 «얼마나
- *  들었나»를 말하는 표시다. 대신 **투명한 손잡이 원**이 자리 점을 넉넉하게 감싼다. */
+ *  찬 자리도 지름이 10~22px 이라 그대로는 44px 타깃이 못 된다. **투명한 손잡이 원**이
+ *  점을 넉넉하게 감싸는 이유다. */
 function Dot({
   node,
   named,
@@ -342,21 +388,7 @@ function Dot({
   dim: boolean;
   onSelect: (path: string) => void;
 }) {
-  const fact = node.kind === "fact";
   const right = node.x >= W / 2;
-
-  if (fact) {
-    return (
-      <circle
-        className={styles.fact}
-        cx={node.x}
-        cy={node.y}
-        r={node.radius}
-        data-dim={dim}
-        style={{ "--reach": node.reach } as React.CSSProperties}
-      />
-    );
-  }
 
   return (
     <g

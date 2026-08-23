@@ -130,11 +130,12 @@ export function WikiBoard({
               />
             </div>
 
-            {/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다** */}
+            {/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다.**
+              * 사실 점을 뺐으므로 「사실 하나」도 같이 뺐다 — 그래프에 없는 표시를
+              * 범례가 설명하면 사용자가 없는 것을 찾는다 */}
             <ul className={styles.legend}>
               <li data-mark="filled">찼어요</li>
               <li data-mark="empty">아직 비었어요</li>
-              <li data-mark="fact">사실 하나</li>
             </ul>
           </section>
 

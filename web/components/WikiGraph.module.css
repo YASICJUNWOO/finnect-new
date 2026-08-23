@@ -1,20 +1,116 @@
 /* 위키 자유 그래프. **색을 안 쓴다**(ADR-0052 · ADR-0056).
  *
  * 가르는 축이 셋이고 전부 색이 아니다.
- *   층    — 크기 (허브 34 · 카테고리 11 · 자리 5~11 · 사실 2.6)
+ *   층    — 크기 (허브 34 · 카테고리 10 · 자리 4.5~11)
  *   상태  — 채움 (찬 자리는 속이 찼고, 빈 자리는 점선 테두리다)
  *   선택  — 나머지를 흐린다 (고른 갈래만 제 진하기로 남는다)
  *
+ * **사실 점이 없다.** 자리마다 사실을 낱개 점으로 매달았더니 회색 점이 자리 점을
+ * 후광처럼 둘러싸 누를 수 있는 것이 안 읽혔다 — 담긴 양은 자리 점의 크기가 말하고
+ * 사실은 곁 패널이 문장으로 보여 준다.
+ *
  * 여기 있는 값은 전부 `app/tokens.css` 것이다. 색 리터럴을 쓰지 않는다. */
+
+/* 판과 손잡이를 함께 담는다. **넘침을 여기서 자른다** — SVG 가 `overflow: visible`
+ * 이라 확대하면 틀 밖 노드가 캔버스 밖으로 흘러 옆 패널을 덮는다. 반경은 `.canvas`
+ * 와 같은 값이어야 잘린 모서리가 배경 모서리와 겹친다. */
+.wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+}
 
 /* **높이가 `auto` 다.** viewBox 가 준 비율로 스스로 높이를 잡는다 — 상자 높이를
  * 따로 정하고 `height: 100%` 를 주면 비율이 어긋난 만큼 SVG 가 축소되고 이름표가
- * 지정한 크기보다 작게 나온다. */
+ * 지정한 크기보다 작게 나온다.
+ *
+ * **전체 보기에서는 세로 스크롤을 안 뺏는다**(`pan-y`). 좁은 화면에서 캔버스가
+ * 화면을 거의 채우는데 여기서 손가락을 잡으면 페이지를 못 내린다 — 옮길 것이 없는
+ * 배율에서 옮기기를 켤 이유도 없다. 확대하면 그때 판이 손가락을 받는다. */
 .svg {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
+  touch-action: pan-y;
+}
+
+.svg[data-zoomed="true"] {
+  touch-action: none;
+  cursor: grab;
+}
+
+.svg[data-zoomed="true"][data-panning="true"] {
+  cursor: grabbing;
+}
+
+/* ── 확대·축소 손잡이 ────────────────────────────────────
+ *
+ * 판 위에 뜨지만 **그림자를 안 쓴다**(§6). 흰 면 + 1px 경계선이 이 제품이 조작 요소를
+ * 세우는 방식이고, 캔버스가 흰색에서 회색으로 가는 그라데이션이라 그것으로 충분히
+ * 떠 보인다.
+ *
+ * 그래프가 가운데로 뭉치므로 모서리가 비어 있다. **44px 을 지킨다**(§5) — 아이콘은
+ * 16px 이고 나머지는 누를 자리다. */
+
+.zoom {
+  position: absolute;
+  right: var(--s3);
+  bottom: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.zoomBtn,
+.zoomText {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.zoomBtn {
+  width: 44px;
+  padding: 0;
+}
+
+.zoomText {
+  padding: 0 var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-2);
+}
+
+/* 아이콘은 선으로 그리고 **색은 글자 색을 따라간다**(§8) */
+.zoomBtn > svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.zoomBtn:hover,
+.zoomText:hover {
+  border-color: var(--ink-4);
+  background: var(--quiet);
+}
+
+/* 더 갈 곳이 없다는 것을 말한다. **숨기지 않는다** — 사라지면 자리가 밀려서
+ * 옆 버튼을 잘못 누른다 */
+.zoomBtn:disabled {
+  color: var(--ink-4);
+  background: var(--surface);
+  border-color: var(--line-2);
+  cursor: default;
 }
 
 /* ── 가지 ────────────────────────────────────────────────
@@ -26,12 +122,6 @@
   fill: none;
   stroke: var(--line);
   stroke-width: 1;
-}
-
-/* 사실로 가는 실. 가지보다 한 단 더 옅다 — 저건 소속만 말한다 */
-.edge[data-kind="fact"] {
-  stroke: var(--line-2);
-  stroke-width: 0.75;
 }
 
 /* 카테고리로 가는 뼈대. 조금 진하다 */
@@ -107,14 +197,6 @@
   stroke: var(--ink-4);
   stroke-width: 1.5;
   stroke-dasharray: 3 3;
-}
-
-/* 사실 하나. **조작 요소가 아니라 표시다**(pointer-events 없음).
- * 자리 점보다 훨씬 옅어서 덩어리로 읽히고 낱개로는 안 읽힌다 — 그게 의도다 */
-.fact {
-  fill: var(--ink-2);
-  opacity: 0.5;
-  pointer-events: none;
 }
 
 .halo {
@@ -194,8 +276,7 @@
 }
 
 /* 고르면 나머지가 물러난다. **고른 것과 그 갈래만 남는다** */
-.node[data-dim="true"],
-.fact[data-dim="true"] {
+.node[data-dim="true"] {
   opacity: 0.14;
 }
 
@@ -221,21 +302,18 @@
 }
 
 .node,
-.fact,
 .hubDot {
   animation: emerge 420ms cubic-bezier(0.16, 0.84, 0.44, 1) backwards;
   animation-delay: calc(var(--reach, 0) * 300ms);
 }
 
 .dot,
-.fact,
 .hubDot {
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.dot,
-.fact {
+.dot {
   animation: swell 460ms cubic-bezier(0.2, 1.4, 0.5, 1) backwards;
   animation-delay: calc(var(--reach, 0) * 300ms);
 }
@@ -280,11 +358,19 @@
     font-size: 19px;
     opacity: 1;
   }
+
+  /* **확대하면 자리 이름이 나온다.** 여기서 이름을 접은 이유가 「배율 0.63 에서
+   * 12px 이 7.6px 으로 나온다」였는데 확대하면 그 전제가 사라진다 — 접힌 것을
+   * 펴는 것이 이 화면에서 확대가 하는 일이다. 겹쳐서 버려진 이름표
+   * (`data-named="false"`)는 그대로 접혀 있다 — 판 좌표에서 겹치는 것은 확대해도
+   * 그대로 겹친다 */
+  .svg[data-zoomed="true"] .node[data-kind="spot"][data-named="true"] .label {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .node,
-  .fact,
   .dot,
   .hubDot,
   .edges {

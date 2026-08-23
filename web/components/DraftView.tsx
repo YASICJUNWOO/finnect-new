@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Draft, DraftItem, DraftStart } from "@/lib/draft";
 import { bodyOf, leaves } from "@/lib/draft";
 import styles from "./DraftView.module.css";
@@ -58,22 +58,38 @@ function Evidence({ item }: { item: DraftItem }) {
   );
 }
 
+/** 받침이 있으면 앞엣것, 없으면 뒤엣것.
+ *
+ * **자리 이름을 우리가 못 고른다.** 기획 트리와 매칭 정보가 주는 이름이라 `기록`
+ * 처럼 받침으로 끝나기도 하고 `대표자` 처럼 아니기도 하다 — 조사를 고정하면 그중
+ * 절반이 「기록가 없어서」가 된다. **목록의 마지막 낱말이 정한다.**
+ *
+ * 한글이 아니면(숫자·로마자) 판정할 근거가 없으므로 받침 없는 쪽을 준다. */
+function josa(word: string, withBatchim: string, without: string): string {
+  const code = (word.trim().at(-1) ?? "").charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return without;
+  return (code - 0xac00) % 28 === 0 ? without : withBatchim;
+}
+
 /** 못 채운 자리. **`required` 가 앞줄이고 `optional` 이 뒷줄이다.** */
 function Missing({ item }: { item: DraftItem }) {
   if (item.missing.length === 0 && item.missing_optional.length === 0) return null;
+
+  const need = item.missing.map((m) => m.place_label).join(" · ");
+  const extra = item.missing_optional.map((m) => m.place_label).join(" · ");
 
   return (
     <p className={styles.missing}>
       {item.missing.length > 0 && (
         <>
-          <b>{item.missing.map((m) => m.place_label).join(" · ")}</b>
-          {"가 없어서 못 썼어요. "}
+          <b>{need}</b>
+          {`${josa(need, "이", "가")} 없어서 못 썼어요. `}
         </>
       )}
       {item.missing_optional.length > 0 && (
         <span className={styles.optional}>
-          {item.missing_optional.map((m) => m.place_label).join(" · ")}
-          {"이 있으면 더 쓸 수 있어요."}
+          {extra}
+          {`${josa(extra, "이", "가")} 있으면 더 쓸 수 있어요.`}
         </span>
       )}
     </p>
@@ -162,10 +178,11 @@ export function DraftItemCard({
       {/* 양식이 쓴 "무엇을 쓰라". **우리가 고쳐 쓰지 않는다** */}
       {item.instruction && <p className={styles.instr}>{item.instruction}</p>}
 
-      {/* **"그 얘기는 6번에 썼어요."** 물어볼 자리가 아니다 */}
+      {/* **"그 얘기는 6번에 썼어요."** 물어볼 자리가 아니다.
+          **「번」은 API 가 붙인다** — 칸 서식은 번호가 없어서 제목이 온다 */}
       {item.yielded_to.length > 0 && (
         <p className={styles.yielded}>
-          이 내용은 {item.yielded_to.join(" · ")}번에 썼어요.
+          이 내용은 {item.yielded_to.join(" · ")}에 썼어요.
         </p>
       )}
 
@@ -270,24 +287,33 @@ export function useDraft({
       `?company=${encodeURIComponent(company)}`,
     [source, externalId, company],
   );
-  // 폴링 타이머가 언마운트 뒤에도 살면 사라진 화면에 setState 를 한다
-  const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
-
-  /** **`running` 이 false 가 되면 그만 묻는다.** `/wiki/files` 가 쓰는 규칙과 같다. */
+  /** **`running` 이 false 가 되면 그만 묻는다.** `/wiki/files` 가 쓰는 규칙과 같다.
+   *
+   * **`alive` 가 이 안에서 산다.** `useRef` 로 밖에 두면 StrictMode 가 마운트를 두 번
+   * 할 때 첫 cleanup 이 `false` 로 만들고 **재마운트가 그것을 되돌리지 않는다** — ref 는
+   * 재마운트해도 같은 객체이고 되돌릴 코드가 어디에도 없다. 그러면 첫 폴링의 응답이
+   * 버려지고, `draft` 가 안 바뀌니 이 effect 도 다시 안 돌아 **두 번째 폴링이 영영
+   * 안 나간다.** 화면은 「지금 쓰고 있어요」에 굳고 새로고침해야 풀린다.
+   *
+   * 개발 모드에서만 나서 늦게 잡혔다. `Upload.tsx` 가 처음부터 이 모양이었다. */
   useEffect(() => {
     if (!draft.running) return;
+    // 폴링 타이머가 언마운트 뒤에도 살면 사라진 화면에 setState 를 한다
+    let alive = true;
     const t = setTimeout(async () => {
       try {
         const res = await fetch(base, { cache: "no-store" });
         if (!res.ok) return;
         const next = (await res.json()) as Draft;
-        if (alive.current) setDraft(next);
+        if (alive) setDraft(next);
       } catch {
         // 한 번 못 물어본 것은 실패가 아니다. 다음 차례에 다시 묻는다
       }
     }, 2500);
-    return () => clearTimeout(t);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, [draft, base]);
 
   async function start() {

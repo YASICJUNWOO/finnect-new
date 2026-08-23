@@ -20,7 +20,14 @@ from finnect.extract import classify as cl
 from finnect.extract import fields as fx
 from finnect.extract import outline as ol
 from finnect.extract import segment as sg
-from finnect.models import AttachmentFile, Document, DocumentItem, DocumentKind, ParseStatus
+from finnect.models import (
+    Attachment,
+    AttachmentFile,
+    Document,
+    DocumentItem,
+    DocumentKind,
+    ParseStatus,
+)
 
 #: 무엇이 판정했는지 남긴다. LLM 이 붙으면 `llm/<모델>` 로 덮인다(T-0036).
 DECIDER = "rule/v1"
@@ -44,7 +51,22 @@ class ExtractReport:
         )
 
 
-def run(*, limit: int | None = None, redo: bool = False) -> ExtractReport:
+def run(
+    *,
+    limit: int | None = None,
+    redo: bool = False,
+    notice: tuple[str, str] | None = None,
+) -> ExtractReport:
+    """첨부 텍스트를 구간과 칸으로 가른다. **네트워크를 안 쓴다.**
+
+    `notice` 를 주면 그 공고에 붙은 첨부만 본다 — 초안 시작이 부르는 길이다.
+    **미리 전량을 뜯어 두지 않는 이유는 대부분이 버려져서다**: 코퍼스에서 구간
+    944개 중 451개가 공고문·안내문이었고 아무도 채우지 않는다.
+
+    **단위는 그대로 `sha256` 이다.** 공고로 좁히는 것은 「어느 것을 뜯을까」이지
+    「몇 번 뜯을까」가 아니다 — 콘텐츠 주소라 같은 양식이 여러 공고에 붙어도 한 번만
+    뜯고, 그 성질을 잃으면 같은 파일을 공고 수만큼 다시 판정하게 된다.
+    """
     report = ExtractReport()
 
     with Session(engine) as s:
@@ -53,6 +75,12 @@ def run(*, limit: int | None = None, redo: bool = False) -> ExtractReport:
             AttachmentFile.text_path.is_not(None),
             AttachmentFile.sha256.is_not(None),
         )
+        if notice is not None:
+            source, external_id = notice
+            q = q.join(Attachment, Attachment.url == AttachmentFile.url).where(
+                Attachment.source == source,
+                Attachment.external_id == external_id,
+            )
         rows = s.scalars(q).all()
 
         done: set[str] = set()
@@ -192,12 +220,13 @@ class ClassifyReport:
         return "\n".join(out)
 
 
-def classify_unknown(
+def classify_unknown(  # noqa: PLR0913
     *,
     limit: int | None = None,
     redo: bool = False,
     dry: bool = False,
     title_like: str | None = None,
+    notice: tuple[str, str] | None = None,
 ) -> ClassifyReport:
     """`unknown` 구간에 종류를 붙인다.
 
@@ -212,8 +241,12 @@ def classify_unknown(
 
     **제목으로 종류를 정하는 것이 아니다** — 그건 네 번 실패한 규칙이다. 여기서
     제목은 **어느 구간을 물어볼지**만 고르고, 판정은 LLM 이 원문을 읽고 한다.
+
+    `notice` 를 주면 그 공고의 구간만 묻는다 — 초안 시작이 부르는 길이다.
+
+    **후보를 먼저 세고 없으면 분류기를 안 만든다.** `get_classifier()` 가 키를 요구해서
+    (없으면 멈춘다), 물어볼 것이 없는데 키가 없다는 이유로 초안 전체가 죽으면 안 된다.
     """
-    clf = cl.get_classifier()
     report = ClassifyReport()
 
     with Session(engine) as s:
@@ -227,9 +260,21 @@ def classify_unknown(
             )
         if title_like:
             q = q.where(Document.title.ilike(f"%{title_like}%"))
+        if notice is not None:
+            source, external_id = notice
+            q = q.join(AttachmentFile, AttachmentFile.sha256 == Document.sha256).join(
+                Attachment, Attachment.url == AttachmentFile.url
+            ).where(
+                Attachment.source == source,
+                Attachment.external_id == external_id,
+            )
         docs = s.scalars(q.order_by(Document.sha256, Document.seq)).all()
 
-        if docs and not dry:
+        if not docs:
+            return report  # **분류기를 안 만든다** — 키가 없어도 여기는 지나가야 한다
+        clf = cl.get_classifier()
+
+        if not dry:
             # **후보 수를 먼저 말한다.** 첫 커밋까지 `_COMMIT_EVERY` 회가 걸리는데
             # 그동안 화면이 비어 있으면 안 도는 것과 구분이 안 된다.
             print(f"[판정] 후보 {len(docs):,} 구간 · {_COMMIT_EVERY}건마다 커밋한다", flush=True)

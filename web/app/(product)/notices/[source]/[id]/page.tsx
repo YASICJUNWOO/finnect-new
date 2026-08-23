@@ -97,32 +97,36 @@ export default async function NoticeDetailPage({
       </section>
 
       {docs && (
-        <>
-          <FormDocuments
-            company={company}
-            data={fromApi(docs, {
-              id: external,
-              source,
-              title: notice.title ?? "",
-              url: notice.detail_url ?? null,
-            })}
-          />
-          {/* 양식이 있을 때만 문을 연다. **없는 곳으로 보내지 않는다** — 서류가 0개면
-              쓰기 화면도 "쓸 양식이 없어요" 밖에 못 보여 준다.
-              카피는 `/documents/<표본>` 이 쓰는 것과 같다(DESIGN.md §8.3-3).
+        <FormDocuments
+          company={company}
+          data={fromApi(docs, {
+            id: external,
+            source,
+            title: notice.title ?? "",
+            url: notice.detail_url ?? null,
+          })}
+        />
+      )}
 
-              **`company` 를 물고 간다.** 저쪽이 초안을 열려면 누구의 것인지 알아야
-              하는데 인증이 없다 — 안 물리면 쓰기 화면이 기본 회사로 떨어져서
-              사용자가 남의 초안을 본다. */}
-          {docs.documents.length > 0 && (
-            <Link
-              href={`/notices/${source}/${encodeURIComponent(external)}/write?company=${encodeURIComponent(company)}`}
-              className={styles.write}
-            >
-              여기에 뭘 쓰는지 보기
-            </Link>
-          )}
-        </>
+      {/* **양식 수로 문을 잠그지 않는다.** 파싱이 초안 시작으로 옮겨가서(plan/24)
+          여기서 `documents` 가 비어 있는 것이 **정상 상태**다 — 아직 아무도 이
+          공고를 안 열었다는 뜻일 뿐이다. 그 수로 잠그면 **처음 여는 사람은 영원히
+          못 연다.**
+
+          대신 해독된 첨부가 하나도 없으면 닫는다. 뜯을 원본이 없으므로 저쪽에서도
+          채울 것이 안 나온다. 카피는 `/documents/<표본>` 이 쓰는 것과 같다
+          (DESIGN.md §8.3-3).
+
+          **`company` 를 물고 간다.** 저쪽이 초안을 열려면 누구의 것인지 알아야
+          하는데 인증이 없다 — 안 물리면 쓰기 화면이 기본 회사로 떨어져서
+          사용자가 남의 초안을 본다. */}
+      {notice.decoded_count > 0 && (
+        <Link
+          href={`/notices/${source}/${encodeURIComponent(external)}/write?company=${encodeURIComponent(company)}`}
+          className={styles.write}
+        >
+          여기에 뭘 쓰는지 보기
+        </Link>
       )}
 
       <Attachments items={notice.attachments} decoded={notice.decoded_count} />

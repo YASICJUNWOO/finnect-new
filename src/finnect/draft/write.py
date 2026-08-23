@@ -56,6 +56,18 @@ class FactMaterial:
     chunk_ids: tuple[int, ...] = ()
     #: `document` · `user_stated`
     source_type: str = "document"
+    #: 값 칸에 그대로 앉는 문자열. **트랙 A 사실은 `None` 이다**(plan/24 T-0154).
+    #:
+    #: `text` 와 다른 것이 요점이다. 저기는 라벨이 붙은 문장(`직원 수 15명`)이라
+    #: 집필이 읽는 재료이고, 여기는 칸에 넣을 값(`15명`)이다 — 칸 이름이 이미 라벨
+    #: 노릇을 하므로 `직원 수` 칸에 「직원 수 15명」이 앉으면 라벨이 두 번 나온다.
+    #:
+    #: **단위는 이미 붙어 있다.** `profile.display()` 를 통과한 값이고, 그 함수가
+    #: 단위를 붙이는 유일한 자리다.
+    value: str | None = None
+    #: 그 값의 시점(ISO). 같은 자리에 값이 여럿일 때 **최신을 고르는 데 쓴다** —
+    #: `headcount` 가 시점마다 따로 서고(15·10·8) 칸에는 하나만 들어간다.
+    as_of: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

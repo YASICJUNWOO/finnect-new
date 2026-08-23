@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { DraftItemCard, useDraft } from "./DraftView";
-import { FormFill } from "./FormFill";
 import type { Draft } from "@/lib/draft";
-import type { NoticeDocuments } from "@/lib/documents";
 import styles from "./DraftThread.module.css";
 
 /** 초안 단 — 무엇이 일어났는지 차례로 쌓인다.
@@ -16,6 +14,9 @@ import styles from "./DraftThread.module.css";
  * **진행 막대가 없다**(§7 · §12.2). 스레드가 자라는 것이 진행이다.
  *
  * **안 온 항목의 자리를 미리 안 그린다.** 회색 막대를 세우면 그것이 예시 데이터다.
+ *
+ * **직접 채우는 폼을 안 세운다.** 초안이 칸 서식까지 채우게 되면서(`WRITABLE_KINDS`)
+ * 같은 칸을 두 곳이 그리게 됐고, 그러면 어느 쪽이 진짜인지 알 수 없다.
  *
  * ## 입력칸
  *
@@ -45,15 +46,12 @@ export function DraftThread({
   source,
   externalId,
   company,
-  fields,
   onFocusDoc,
 }: {
   initial: Draft;
   source: string;
   externalId: string;
   company: string;
-  /** 칸 채우기 서식. 있으면 스레드 끝에 접혀 붙는다 */
-  fields: NoticeDocuments | null;
   /** 문서 구분선을 누르면 오른쪽이 그 문서로 간다. 없으면 구분선이 안 눌린다.
    *
    * **`document_id` 로 넘긴다** — `DraftDocument` 에 sha256 이 없고, 둘 다
@@ -69,8 +67,16 @@ export function DraftThread({
   const [said, setSaid] = useState<Said[]>([]);
   const [typed, setTyped] = useState("");
 
-  const blank = written.length - done;
+  /** **안 써진 것을 이유별로 가른다.** 「썼다 − 전체」로 세면 안 된다 — 그 차이에는
+   *  쓸 자리가 아닌 칸(표 구분선·서명란)과 다른 항목이 재료를 맡은 칸이 섞여 있고,
+   *  그 둘은 재료가 없는 것이 아니다. 칸 서식이 대상이 되면서 크게 벌어졌다:
+   *  실측 69칸에서 못 채움 0 · 쓸 자리 아님 24 · 다른 항목이 맡음 28 이었는데
+   *  화면은 **「52개는 재료가 없어요」**라고 말했다. */
+  const blank = written.filter((i) => i.status === "blank").length;
   const hasDocs = draft.documents.length > 0;
+  /** 눌러서 채울 것이 있나. **없으면 버튼을 안 낸다** — 눌러도 아무 일이 안
+   *  일어나는 버튼은 고장 난 것으로 읽힌다(실측 `kstartup:178881`). */
+  const canStart = hasDocs || draft.pending_documents > 0;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,12 +120,15 @@ export function DraftThread({
       {/* **`aria-live="polite"` 다.** assertive 로 하면 몇 분 동안 항목마다 끼어들어
           스크린 리더로 못 쓴다 */}
       <div className={styles.turns} aria-live="polite">
+        {/* **「글로 쓰는 양식」이라고 말하지 않는다.** 칸만 채우는 서식도 초안이
+            채운다 — 값 칸에는 값이 앉고 서술 칸에는 글이 선다. 화면이 서술형만
+            센다고 말하면 신청서 한 벌이 빠진 것처럼 읽힌다 */}
         <p className={styles.system}>
           {hasDocs
             ? `서류 ${draft.documents.length}개를 읽었어요. 항목 ${written.length}개예요.`
             : draft.pending_documents > 0
-              ? `글로 쓰는 양식이 ${draft.pending_documents}개 있어요. 초안 쓰기를 누르면 채워 드려요.`
-              : "이 공고에는 글로 쓰는 양식이 아직 안 붙어 있어요. 칸만 채우는 서식은 아래에서 쓸 수 있어요."}
+              ? `채울 양식이 ${draft.pending_documents}개 있어요. 초안 쓰기를 누르면 채워 드려요.`
+              : "이 공고에는 채울 양식이 아직 안 붙어 있어요. 원본 파일은 오른쪽에서 볼 수 있어요."}
         </p>
 
         {draft.documents.map((doc) => (
@@ -156,7 +165,7 @@ export function DraftThread({
         {!draft.running && hasDocs && (
           <p className={styles.system}>
             {blank === 0
-              ? `${written.length}개를 다 썼어요.`
+              ? `${written.length}개 중 ${done}개를 썼어요. 나머지는 쓰는 자리가 아니에요.`
               : `${written.length}개 중 ${done}개를 썼어요. ${blank}개는 재료가 없어요.`}
           </p>
         )}
@@ -169,21 +178,16 @@ export function DraftThread({
 
         {why && <p className={styles.fail}>{why}</p>}
 
-        {/* 칸 채우기 서식. **접어 둔다** — 저장이 안 되는 폼이 스레드를 덮으면 안 된다.
-            `heading="none"` 이라 제목과 진행은 안 그리고 「저장 안 된다」는 그대로 남는다 */}
-        {fields && fields.documents.length > 0 && (
-          <details className={styles.fields}>
-            <summary className={styles.fieldsSummary}>
-              칸만 채우는 서식 <span data-numeric>{fields.documents.length}</span>개
-            </summary>
-            <FormFill data={fields} heading="none" />
-          </details>
-        )}
+        {/* **직접 채우는 폼이 여기 없다.** 예전에는 칸 서식이 스레드 끝에 접혀
+            붙어서 사람이 손으로 타이핑했고 그 값은 저장되지 않았다. 지금은 초안이
+            같은 칸을 채우므로 **같은 칸이 화면에 두 번 나오게 된다** — 남기면 어느
+            쪽이 진짜인지 사용자가 알 수 없다. 표본을 보는 화면
+            (`/documents/<표본>/write`)에는 그대로 있다 */}
       </div>
 
       {/* 바닥 — 스크롤 밖에 고정 */}
       <div className={styles.foot}>
-        {!draft.running && (
+        {!draft.running && canStart && (
           <div className={styles.startRow}>
             <button
               type="button"

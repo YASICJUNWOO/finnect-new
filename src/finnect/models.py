@@ -431,6 +431,25 @@ class DocumentKind(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
+#: 초안이 채우는 문서 종류. **서술형만 고르지 않는다.**
+#:
+#: 오래 `NARRATIVE` 하나였고, 그래서 붙은 서류가 칸 서식뿐인 공고는 「초안 쓰기」를
+#: 눌러도 고를 것이 없어 즉시 끝났다 — 실측 `kstartup:178881` 이 그랬고 사용자에게는
+#: 버튼이 안 먹는 것으로 보였다. 사람이 실제로 제출하는 서류는 두 종류 다이므로 둘 다
+#: 채운다.
+#:
+#: **`NONE` 과 `UNKNOWN` 은 안 넣는다.** 앞은 공고문·안내문·지침이라 채울 칸이 없고,
+#: 뒤는 아직 안 갈라 낸 것이라 넣으면 판정도 안 된 문서에 글을 쓴다.
+#:
+#: 종류가 갈라 주는 것은 **어느 문서를 채우나**까지다. 값으로 채울지 글로 쓸지는
+#: 문서가 아니라 칸이 정한다 — `item_need.place_kind` 가 그 축이다.
+#:
+#: **여기 사는 이유는 읽기와 쓰기가 같이 봐야 해서다.** 집필(`draft/service.py`)과
+#: 조회(`api/draft_service.py`)가 같은 표를 써야 하는데, 저 둘은 서로를 임포트할 수
+#: 없다 — 조회 쪽에 쓰기 경로를 물리면 `llm` 과 `httpx` 가 딸려 와 배포본이 죽는다.
+WRITABLE_KINDS: tuple[str, ...] = (str(DocumentKind.NARRATIVE), str(DocumentKind.FIELDS))
+
+
 class Document(Base):
     """공고가 요구하는 문서 한 벌. **첨부 텍스트 안의 한 구간이다**(plan/11 T-0035).
 

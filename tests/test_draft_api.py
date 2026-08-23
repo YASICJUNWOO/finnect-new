@@ -162,11 +162,15 @@ class Test상태:
         assert top.missing == [] and top.paragraphs == []
 
     def test_넘긴_항목이_어디로_갔는지_말한다(self, db) -> None:  # noqa: ANN001
-        """**"못 채웠어요" 가 아니라 "그 얘기는 1-1 에 썼어요" 다.**"""
+        """**"못 채웠어요" 가 아니라 "그 얘기는 1-1번에 썼어요" 다.**
+
+        **「번」을 API 가 붙인다.** 칸 서식 항목은 `number` 가 없어서 제목이 오는데,
+        화면이 붙이면 「…추진계획번에」가 된다.
+        """
         items = _get(db).documents[0].items
         yielded = next(c for i in items for c in i.children if c.status == "yielded")
 
-        assert yielded.yielded_to == ["1-1"]
+        assert yielded.yielded_to == ["1-1번"]
 
 
 class Test근거:

@@ -39,12 +39,12 @@ from finnect.api.schemas import (
 )
 from finnect.draft import limits, refs
 from finnect.models import (
+    WRITABLE_KINDS,
     Attachment,
     AttachmentFile,
     CompanyValue,
     Document,
     DocumentItem,
-    DocumentKind,
     Draft,
     DraftEvidence,
     DraftItem,
@@ -83,8 +83,12 @@ def notice_draft(
     ).all()
     done = {d.document_id for d in drafts}
 
-    # 이 공고에 붙은 서술형 양식 — **초안이 없는 것을 세려고** 본다
-    narrative = set(
+    # 이 공고에 붙은 **채울 수 있는 양식** — 초안이 없는 것을 세려고 본다.
+    #
+    # **`WRITABLE_KINDS` 를 집필과 같이 읽는다**(`models.py`). 여기가 서술형만 세면
+    # 화면이 「채울 것이 없다」고 말하는데 집필은 칸 서식을 채우게 되어, 같은 공고를
+    # 두 쪽이 다르게 설명한다.
+    writable = set(
         s.scalars(
             select(Document.id)
             .join(AttachmentFile, AttachmentFile.sha256 == Document.sha256)
@@ -92,7 +96,7 @@ def notice_draft(
             .where(
                 Attachment.source == source,
                 Attachment.external_id == external_id,
-                Document.kind == str(DocumentKind.NARRATIVE),
+                Document.kind.in_(WRITABLE_KINDS),
             )
         ).all()
     )
@@ -102,7 +106,7 @@ def notice_draft(
         source=source,
         external_id=external_id,
         documents=[_document(s, d) for d in drafts],
-        pending_documents=len(narrative - done),
+        pending_documents=len(writable - done),
         running=running,
     )
 
@@ -380,7 +384,10 @@ def _who_took(
     이것이 없으면 화면이 "못 채웠어요" 라고만 말하는데, 그건 물어볼 자리가 아니다.
     **"그 얘기는 6번에 썼어요" 라고 말할 자리다.**
     """
-    label = {di.id: (di.number or di.title[:12]) for _, di in rows}
+    #: **「번」을 여기서 붙인다.** 화면이 붙이면 칸 서식에서 「…추진계획번에」가 된다 —
+    #: `fields` 항목은 `number` 가 없어서 제목이 오기 때문이다. 한국어를 짓는 자리를
+    #: 한쪽에 두는 규율은 `place_label` 과 같다.
+    label = {di.id: (f"{di.number}번" if di.number else di.title[:12]) for _, di in rows}
     allotment = draft.allotment or {}
     fact_ids = {f for v in allotment.values() for f in v}
     if not fact_ids:

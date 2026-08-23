@@ -210,6 +210,65 @@ class Test양식_읽기:
                 ["llm/gpt-5.6-luna"] * 3
             )
 
+    def test_칸_채우기_서식도_읽는다(self, db) -> None:  # noqa: ANN001
+        """**서술형만 고르면 신청서 한 벌이 통째로 빠진다.**
+
+        실측 공고 `kstartup:178881` 은 붙은 서류가 `fields` 둘뿐이라 「초안 쓰기」를
+        눌러도 고를 것이 없어 즉시 끝났다. 사용자에게는 버튼이 안 먹는 것으로 보인다.
+
+        **`place_kind` 가 여기서 갈린다.** 칸 이름이 매칭 정보 key 면 `value` 라
+        집필이 글을 쓰지 않고 값을 옮긴다.
+        """
+        factory, _ = db
+        _read(db, READING)  # 서술형을 먼저 읽어 둔다 — 다음 호출은 그것을 건너뛴다
+        _칸_서식(factory, titles=["대표자 정보"])
+
+        _read(db, {
+            "items": [
+                {
+                    "index": 0,
+                    "needs": [{"place": "ceo_name", "required": True}],
+                    "summary_of_others": False,
+                }
+            ],
+            "overlaps": [],
+        })
+
+        with factory() as s:
+            need = s.scalars(
+                select(ItemNeed).where(ItemNeed.document_item_id == _FIELD_ITEM)
+            ).all()
+            assert [n.place for n in need] == ["ceo_name"]
+            assert need[0].place_kind == "value"
+
+
+#: 칸 채우기 서식의 첫 항목 id. 서술형 픽스처(1~3)와 안 겹치게 띄워 둔다
+_FIELD_ITEM = 10
+
+
+def _칸_서식(factory, *, titles: list[str]) -> int:  # noqa: ANN001
+    """칸 채우기 서식 하나를 **같은 공고에** 붙인다.
+
+    한 공고에 서술형과 칸 서식이 같이 오는 것이 실제 모양이다 — `kstartup:178881`
+    은 `fields` 만 둘이고, 붙임이 넷인 공고에서 종류가 섞여 온다.
+    """
+    sha = "e" * 64
+    with factory() as s:
+        s.add(Attachment(id=2, source="bizinfo", external_id=NOTICE, url="u2",
+                         position=1, kind="file", filename="신청서.hwp", ext="hwp"))
+        s.add(AttachmentFile(id=2, url="u2", source="bizinfo", sha256=sha,
+                             fetch_status="ok", parse_status=str(ParseStatus.OK)))
+        doc = Document(id=2, sha256=sha, seq=1, title="신청서",
+                       kind=str(DocumentKind.FIELDS), char_start=0, char_end=200,
+                       decided_by="rule/v1")
+        s.add(doc)
+        s.flush()
+        for i, t in enumerate(titles):
+            s.add(DocumentItem(id=_FIELD_ITEM + i, document_id=doc.id, ordinal=i,
+                               number=None, title=t, instruction=None, input_kind="field"))
+        s.commit()
+        return doc.id
+
 
 #: 겹침 쌍(0·1)에서 사실 둘을 갈라 준다. **안 주면 아무도 안 쓰고 전부 blank 다** —
 #: 그것도 설계대로지만, 여기서 보려는 것은 그 뒤의 배관이다
@@ -595,3 +654,87 @@ class Test매칭_정보:
                 select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
             ).one()
             assert item.status == str(DraftItemStatus.BLANK)
+
+    def test_값_칸에는_값만_앉는다(self, db) -> None:  # noqa: ANN001
+        """**값 칸에 문장을 쓰면 안 된다.**
+
+        `상시 근로자 수` 같은 칸은 답이 문단이 아니라 값 하나다. 집필기에 맡기면
+        문장이 나오고 그 문장이 신청서 칸에 앉는다 — 라벨까지 들어가서 `직원 수` 칸에
+        「직원 수 15명」이 적힌다.
+
+        **가르는 것은 문서 종류가 아니라 자리다.** 서술형 양식에도 값 칸이 있고 칸
+        서식에도 `협업계획 요약` 같은 서술 칸이 있다.
+        """
+        factory, _ = db
+        self._seed(factory)
+        self._run(db)
+
+        with factory() as s:
+            item = s.scalars(
+                select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
+            ).one()
+            #: 라벨(`직원 수`)이 아니라 값만. 칸 이름이 이미 라벨 노릇을 한다
+            assert item.body == "15명"
+            assert item.status == str(DraftItemStatus.DRAFTED)
+
+    def test_한_칸이_값_둘을_요구하면_둘_다_넣는다(self, db) -> None:  # noqa: ANN001
+        """**하나만 고르면 엉뚱한 쪽이 남는다.**
+
+        실측(`kstartup:178881`)에서 `대표자 정보` 칸에 이름 대신 `1992-07-04` 이
+        앉았다. 한 칸이 값 둘을 요구하는 일이 흔하다 — 그 양식은 `사업자등록번호
+        (법인등록번호)` 도 괄호로 둘을 같이 묻는다.
+
+        **순서는 `item_need` 의 것이다.** LLM 이 칸 이름을 읽은 순서라 괄호로 뒤에
+        온 것이 뒤에 온다.
+        """
+        factory, _ = db
+        with factory() as s:
+            f = s.scalars(select(UserFile)).first()
+            c = s.scalars(select(Chunk)).first()
+            for key, val in [("ceo_name", "윤세라"), ("ceo_birth", "1992-07-04")]:
+                v = wikifix.value(s, COMPANY, key, val)
+                s.add(ValueEvidence(company_id=COMPANY, value_id=v.id, chunk_id=c.id,
+                                    user_file_id=f.id, quote=val))
+            s.commit()
+
+        _read(db, {
+            "items": [
+                {"index": 0, "summary_of_others": False, "needs": []},
+                {"index": 1, "summary_of_others": False, "needs": []},
+                {"index": 2, "summary_of_others": False, "needs": [
+                    {"place": "ceo_name", "required": True},
+                    {"place": "ceo_birth", "required": True},
+                ]},
+            ],
+            "overlaps": [],
+        })
+        service.build_draft(
+            COMPANY, "bizinfo", NOTICE, workers=1,
+            allotter=al.Allotter(client=가짜클라이언트({"assign": []})),
+            writers=lambda: wr.LlmWriter(client=받은대로쓰는집필기({})),
+            checker=dd.LlmChecker(client=가짜클라이언트({"clashes": []})),
+        )
+
+        with factory() as s:
+            item = s.scalars(
+                select(DraftItem).join(DocumentItem).where(DocumentItem.number == "4")
+            ).one()
+            assert item.body == "윤세라 / 1992-07-04"
+
+    def test_값_칸은_집필기를_안_부른다(self, db) -> None:  # noqa: ANN001
+        """**LLM 을 아낀다.** 옮기면 되는 값에 호출을 쓰면 느리고 비싸고, 무엇보다
+        모델이 값을 고쳐 쓸 자리가 생긴다."""
+        factory, _ = db
+        self._seed(factory)
+        writer = 받은대로쓰는집필기({})
+        _read(db, self.READING_VALUE)
+        service.build_draft(
+            COMPANY, "bizinfo", NOTICE, workers=1,
+            allotter=al.Allotter(client=가짜클라이언트({"assign": []})),
+            writers=lambda: wr.LlmWriter(client=writer),
+            checker=dd.LlmChecker(client=가짜클라이언트({"clashes": []})),
+        )
+
+        #: 서술 항목 둘은 부르고 값 항목 하나는 안 부른다
+        assert len(writer.calls) == 2
+        assert all("상시 근로자" not in c["user"] for c in writer.calls)

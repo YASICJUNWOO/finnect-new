@@ -23,12 +23,12 @@ from finnect.draft import needs as nd
 from finnect.draft import write as wr
 from finnect.llm import Usage
 from finnect.models import (
+    WRITABLE_KINDS,
     Attachment,
     AttachmentFile,
     CompanyValue,
     Document,
     DocumentItem,
-    DocumentKind,
     Draft,
     DraftEvidence,
     DraftItem,
@@ -77,21 +77,32 @@ class ReadReport:
 
 
 def read_forms(
-    *, limit: int | None = None, redo: bool = False, reader: nd.LlmReader | None = None
+    *,
+    limit: int | None = None,
+    redo: bool = False,
+    reader: nd.LlmReader | None = None,
+    notice: tuple[str, str] | None = None,
 ) -> ReadReport:
-    """서술형 양식을 읽어 `item_need` 와 `item_overlap` 을 깐다 (T-0063).
+    """채울 수 있는 양식을 읽어 `item_need` 와 `item_overlap` 을 깐다 (T-0063).
 
     `reader` 를 넘길 수 있는 이유는 **테스트가 네트워크 없이 돌아야 해서**다.
+
+    `notice` 를 주면 그 공고에 붙은 양식만 읽는다 — 초안 시작이 부르는 길이다.
     """
     reader = reader or nd.LlmReader()
     report = ReadReport()
 
     with Session(engine) as s:
-        docs = s.scalars(
-            select(Document)
-            .where(Document.kind == str(DocumentKind.NARRATIVE))
-            .order_by(Document.sha256, Document.seq)
-        ).all()
+        q = select(Document).where(Document.kind.in_(WRITABLE_KINDS))
+        if notice is not None:
+            source, external_id = notice
+            q = q.join(AttachmentFile, AttachmentFile.sha256 == Document.sha256).join(
+                Attachment, Attachment.url == AttachmentFile.url
+            ).where(
+                Attachment.source == source,
+                Attachment.external_id == external_id,
+            )
+        docs = s.scalars(q.order_by(Document.sha256, Document.seq)).all()
 
         for doc in docs:
             if limit is not None and report.forms >= limit:
@@ -279,6 +290,7 @@ def build_draft(  # noqa: PLR0913
     allotter: al.Allotter | None = None,
     writers: Callable[[], wr.LlmWriter] | None = None,
     checker: dd.LlmChecker | None = None,
+    prepare: bool = True,
 ) -> BuildReport:
     """공고 하나에 대해 초안을 세운다 (T-0068 · T-0069).
 
@@ -287,12 +299,19 @@ def build_draft(  # noqa: PLR0913
     `writers` 는 **집필기를 만드는 함수**다. 워커마다 새로 만들어야 `unverified` ·
     `dropped` · `Usage` 가 안 섞인다 — `Usage.calls += 1` 이 원자적이 아니라서
     하나를 공유하면 **토큰 수가 어긋난다.** lock 을 안 쓰는 이유가 그것이다.
+
+    `prepare` 가 **양식을 여기서 뜯는다**(⓪). 끄는 것은 재료를 손으로 깔아 둔
+    테스트뿐이다.
     """
     report = BuildReport()
     allotter = allotter or al.Allotter()
     checker = checker or dd.LlmChecker()
     make_writer = writers or wr.LlmWriter
     n = workers or settings.draft_workers
+
+    # ⓪ 준비 — 이 공고의 양식을 뜯고 종류를 가르고 읽는다
+    if prepare:
+        _prepare(source, external_id)
 
     # ① 조립 — 세션 안 · 읽기만
     with Session(engine) as s:
@@ -363,6 +382,19 @@ def _build_one(  # noqa: PLR0913
     # **필요한 자리가 0개면 안 부른다.** 상위 묶음은 자식이 쓴다 — 부르면
     # 재료가 없어서 빈 결과가 오고, 그것을 "못 채움" 과 구분할 수 없게 된다
     writable = {i for i, it in enumerate(plan.items) if it.places or it.places_optional}
+
+    # **값 칸은 집필기를 거치지 않는다**(plan/24 T-0154). 답이 문단이 아니라 값
+    # 하나인 자리라, 글을 쓰게 하면 신청서 칸에 문장이 앉고 모델이 값을 고쳐 쓸 틈이
+    # 생긴다. 가르는 것은 문서 종류가 아니라 **자리**다 — 서술형 양식에도 `상시
+    # 근로자 수` 가 있고 칸 서식에도 `협업계획 요약` 이 있다.
+    values = {}
+    for a in allots:
+        if a.index not in writable:
+            continue
+        answer = _value_answer(plan.items[a.index], a, facts)
+        if answer is not None:
+            values[a.index] = answer
+
     jobs = [
         (a, wr.Material(
             number=plan.items[a.index].number,
@@ -373,9 +405,10 @@ def _build_one(  # noqa: PLR0913
             notice=notice,
         ))
         for a in allots
-        if a.index in writable
+        if a.index in writable and a.index not in values
     ]
     results = _run(jobs, make_writer, workers)
+    results.update(values)
 
     # ③ 저장 — 세션 안 · ordinal 순
     with Session(engine) as s:
@@ -389,6 +422,86 @@ def _build_one(  # noqa: PLR0913
 
     report.clashes += _check_clashes(checker, plan, paras)
     report.forms += 1
+
+
+def _prepare(source: str, external_id: str) -> None:
+    """이 공고의 양식을 초안 직전에 뜯는다 (plan/24).
+
+    **미리 전량을 뜯어 두지 않는다.** 코퍼스에서 구간 944개 중 451개가 공고문·
+    안내문이었고 아무도 채우지 않는다. 공고 31,327건으로 넓히면 그 헛일이 그대로
+    커지는데, 실제로 초안을 쓰는 것은 추천 몇 건이다.
+
+    **늦춰도 안 느리다.** 구간을 가르는 일은 규칙이라 이 공고가 3ms, 코퍼스에서
+    가장 큰 공고(56만 자)가 26ms 다. 뒤따르는 집필이 항목마다 LLM 을 부르므로
+    이 몫은 사용자가 느낄 수 없다.
+
+    **셋 다 이미 한 것을 건너뛴다.** 뜯기는 `document` 가 있으면, 판정은 `unknown`
+    이 아니면, 읽기는 `needs_decided_by` 가 차 있으면 넘어간다 — 같은 공고를 두 번
+    열어도 LLM 을 다시 부르지 않는다.
+
+    **`finnect.extract` 를 함수 안에서 임포트한다.** 이 모듈을 읽기 경로가 물면
+    파서가 딸려 오고, 그러면 로컬은 통과하고 배포본만 죽는다(ADR-0034 와 같은 함정).
+    """
+    from finnect.extract import service as ex
+
+    ex.run(notice=(source, external_id))
+    ex.classify_unknown(notice=(source, external_id))
+    read_forms(notice=(source, external_id))
+
+
+def _value_answer(
+    item: _ItemPlan,
+    allot: al.Allotment,
+    facts: dict[int, wr.FactMaterial],
+) -> tuple[list[wr.Paragraph], int, str | None] | None:
+    """값 칸이면 답을 만들고, 아니면 `None` (plan/24 T-0154 · ADR-0060 결정 6 옆자리).
+
+    **자리가 전부 매칭 정보일 때만 값 칸이다.** 하나라도 서술 자리가 섞이면 글을
+    써야 한다 — `기업소개` 가 `company_name` 과 `Company` 를 같이 요구하는 식이고,
+    그때 값만 넣으면 상호 한 줄이 회사 소개 자리에 앉는다.
+
+    **`place_kind` 를 여기서 다시 계산하지 않는다.** `item_need` 에 이미 저장돼
+    있지만 세션 밖이라 못 읽고, `nd.PLACE_KIND` 가 그 값을 만든 바로 그 표다.
+
+    재료가 없으면 `None` 을 준다 — **`blank` 로 떨어져 물어볼 자리가 되어야 한다.**
+    여기서 빈 문단을 만들면 위키에 값이 없는 것이 「썼다」로 기록된다.
+    """
+    places = item.places + item.places_optional
+    if not places or any(nd.PLACE_KIND.get(p) != "value" for p in places):
+        return None
+
+    by_place: dict[str, list[wr.FactMaterial]] = {}
+    for i in allot.fact_ids:
+        f = facts.get(i)
+        if f is not None and f.value:
+            by_place.setdefault(f.place, []).append(f)
+
+    # **자리를 하나로 줄이지 않는다.** 한 칸이 값 둘을 요구하는 일이 흔하다 —
+    # `사업자등록번호 (법인등록번호)` 가 그렇고 `대표자 정보` 가 이름과 생년월일을
+    # 같이 묻는다. 하나만 고르면 **엉뚱한 쪽이 남는다**: 실측에서 `대표자 정보` 칸에
+    # 이름 대신 `1992-07-04` 이 앉았다.
+    #
+    # 순서는 `item_need` 의 것이다 — LLM 이 칸 이름을 읽은 순서라 `(법인등록번호)`
+    # 처럼 괄호로 뒤에 온 것이 뒤에 온다.
+    texts: list[str] = []
+    ids: list[int] = []
+    for p in places:
+        got = by_place.get(p)
+        if not got:
+            continue
+        # 같은 자리에 값이 여럿이면 **시점이 가장 늦은 것**이다. `headcount` 가
+        # 15·10·8 로 서 있고 칸에는 하나만 들어간다.
+        best = max(got, key=lambda f: f.as_of or "")
+        if best.value and best.value not in texts:
+            texts.append(best.value)
+            ids.append(best.id)
+
+    if not texts:
+        return None
+    # **검증을 안 돌린다.** `verify()` 는 모델이 지어낸 숫자를 재료에 대조하는 것인데
+    # 이 값은 재료에서 그대로 온 것이라 언제나 통과한다 — 돌리면 검사가 통과했다는
+    # 사실이 아무 뜻도 없어진다.
+    return [wr.Paragraph(text=" / ".join(texts), fact_ids=tuple(ids))], 0, None
 
 
 def _run(
@@ -451,7 +564,7 @@ def _usage_of(writer: object) -> Usage:
 
 
 def _read_plans(s: Session, source: str, external_id: str) -> list[_FormPlan]:
-    """공고에 붙은 서술형 양식을 **평범한 데이터로** 읽는다.
+    """공고에 붙은 **채울 수 있는 양식**을 평범한 데이터로 읽는다(`WRITABLE`).
 
     **공고와 문서를 잇는 표를 만들지 않았다.** 조인으로 푼다(ADR-0022).
     """
@@ -462,7 +575,7 @@ def _read_plans(s: Session, source: str, external_id: str) -> list[_FormPlan]:
         .where(
             Attachment.source == source,
             Attachment.external_id == external_id,
-            Document.kind == str(DocumentKind.NARRATIVE),
+            Document.kind.in_(WRITABLE_KINDS),
         )
         .order_by(Attachment.position, Document.seq)
     ).scalars().all()
@@ -613,6 +726,9 @@ def _company_facts(s: Session, company_id: str) -> dict[int, wr.FactMaterial]:
             quotes=tuple(q for _, q in ev),
             chunk_ids=tuple(c for c, _ in ev),
             source_type=v.source_type,
+            #: 값 칸이 그대로 옮긴다. **라벨을 뺀 것이 `text` 와 다른 점이다**
+            value=profile.display(v.key, v.value),
+            as_of=v.as_of.isoformat() if v.as_of else None,
         )
     return out
 

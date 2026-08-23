@@ -115,7 +115,6 @@ export function WritePanes({
               source={source}
               externalId={externalId}
               company={company}
-              fields={docs}
               onFocusDoc={focusDoc}
             />
           ) : (

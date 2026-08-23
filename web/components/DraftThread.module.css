@@ -135,24 +135,6 @@
   gap: var(--s3);
 }
 
-/* ── 칸 채우기 서식 (접힘) ──────────────────────────── */
-
-.fields {
-  border-top: 1px solid var(--line);
-  padding-top: var(--s3);
-}
-
-/* **flex 를 안 쓴다.** flex 컨테이너는 자식 사이의 텍스트 노드 공백을 먹어서
- * 「칸만 채우는 서식4개」가 된다. 세로 가운데는 line-height 로 맞춘다 */
-.fieldsSummary {
-  cursor: pointer;
-  min-height: 44px;
-  padding: var(--s2) 0;
-  font-size: var(--t-aux);
-  line-height: var(--lh-aux);
-  color: var(--ink-2);
-}
-
 /* ── 바닥 ───────────────────────────────────────────── */
 
 .foot {

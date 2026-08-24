@@ -199,7 +199,7 @@ def svg(size: int = BASE) -> str:
         for a in rads
     )
     ink = "#%02x%02x%02x" % INK
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" role="img" aria-label="차차">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" role="img" aria-label="라스트마일">
   <!-- tools/make-icons.py 가 낸 파일이다. 손으로 고치지 않는다 — 좌표 정본이 저기다. -->
   <rect width="{size}" height="{size}" rx="{size * CORNER:.0f}" fill="{ink}" />
   <g fill="none" stroke="#fff" stroke-width="{RING_W * 2:g}" stroke-linecap="round">

@@ -160,7 +160,7 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
       <aside className={styles.rail}>
         <Link href="/" className={styles.railBrand}>
           <i className={styles.mark} aria-hidden />
-          차차
+          라스트마일
         </Link>
         <nav className={styles.railNav} aria-label="주요 메뉴">
           <Axes path={path} />
@@ -181,7 +181,7 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
             {/* 브랜드. ≤1023px 에서만 뜬다 — 위로는 사이드바가 맡는다 */}
             <Link href="/" className={styles.brand}>
               <i className={styles.mark} aria-hidden />
-              차차
+              라스트마일
             </Link>
 
             {/* 3축. 641~1023px 에서만 뜬다 — 위로는 사이드바가, 아래로는 탭 바가 맡는다 */}

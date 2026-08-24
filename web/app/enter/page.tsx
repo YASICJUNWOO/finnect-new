@@ -22,7 +22,7 @@ export default async function EnterPage({
         <header className={styles.head}>
           <span className={styles.brand}>
             <i className={styles.mark} aria-hidden />
-            차차
+            라스트마일
           </span>
           <h1 className={styles.title}>내 사업 이름을 알려 주세요</h1>
           <p className={styles.sub}>

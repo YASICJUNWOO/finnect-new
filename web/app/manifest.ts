@@ -24,8 +24,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "차차 — 지원사업",
-    short_name: "차차",
+    name: "라스트마일 — 지원사업",
+    short_name: "라스트마일",
     description: "맞는 공고를 골라 주고, 들어가면 문서가 이미 써져 있어요.",
     lang: "ko",
     dir: "ltr",

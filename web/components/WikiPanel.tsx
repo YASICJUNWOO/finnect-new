@@ -94,28 +94,40 @@ export function WikiPanel({
 function Facts({ node }: { node: WikiNode }) {
   return (
     <ul className={styles.facts}>
-      {node.statements.map((s, i) => (
-        <li key={i} className={styles.fact}>
-          {(s.key || s.as_of || s.grade) && (
-            <p className={styles.factMeta}>
-              {/* **이름이 값 옆에 붙는다**(ADR-0059). 이름 없이 숫자만 찍으면 한 자리에
-                * 값이 여럿일 때 무엇의 값인지 모른다. **단위는 안 붙인다** */}
-              {s.key && <span className={styles.qual}>{s.key}</span>}
-              {s.value && <span className={styles.factValue}>{s.value}</span>}
-              {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
-              {/* **`1차` 는 안 낸다.** 기본값이라 모든 줄에 붙으면 `가정` 이 안 보인다 */}
-              {s.grade && s.grade !== "1차" && (
-                <span className={styles.grade}>
-                  {s.grade}
-                  {s.source && ` · ${s.source}`}
-                </span>
-              )}
-            </p>
-          )}
-          {s.text && <p className={styles.factText}>{s.text}</p>}
-          <Sources evidence={s.evidence} />
-        </li>
-      ))}
+      {node.statements.map((s, i) => {
+        /** **둘 다 있어야 값이다**(ADR-0059). 반쪽은 서술이라 이름을 안 낸다 —
+         * 이름만 온 사실은 그 이름이 추출기가 쓴 슬러그(`ecommerce_data_integration`)라
+         * 화면에 내면 사용자가 모르는 영어 식별자가 문장 위에 뜬다. 값만 온 사실은
+         * 이름 없는 숫자가 된다. `wiki/markdown.py` `_meta` 와 같은 판정이다 —
+         * **두 뷰가 갈리면 같은 사실이 마크다운에서는 문장이고 여기서는 값이 된다.** */
+        const named = Boolean(s.key && s.value);
+        return (
+          <li key={i} className={styles.fact}>
+            {(named || s.as_of || s.grade) && (
+              <p className={styles.factMeta}>
+                {/* **이름이 값 옆에 붙는다**(ADR-0059). 이름 없이 숫자만 찍으면 한 자리에
+                  * 값이 여럿일 때 무엇의 값인지 모른다. **단위는 안 붙인다** */}
+                {named && (
+                  <>
+                    <span className={styles.qual}>{s.key}</span>
+                    <span className={styles.factValue}>{s.value}</span>
+                  </>
+                )}
+                {s.as_of && <span className={styles.asOf}>{s.as_of} 기준</span>}
+                {/* **`1차` 는 안 낸다.** 기본값이라 모든 줄에 붙으면 `가정` 이 안 보인다 */}
+                {s.grade && s.grade !== "1차" && (
+                  <span className={styles.grade}>
+                    {s.grade}
+                    {s.source && ` · ${s.source}`}
+                  </span>
+                )}
+              </p>
+            )}
+            {s.text && <p className={styles.factText}>{s.text}</p>}
+            <Sources evidence={s.evidence} />
+          </li>
+        );
+      })}
     </ul>
   );
 }

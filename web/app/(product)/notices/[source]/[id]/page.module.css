@@ -190,7 +190,7 @@
   gap: var(--s3);
 }
 
-/* 왜 맞는지 (plan/21 T-0120). **개요와 같은 껍데기를 쓴다** — 판정이 특별한
+/* 추천 사유 (plan/21 T-0120). **개요와 같은 껍데기를 쓴다** — 판정이 특별한
  * 물건으로 보이면 안 된다. 액센트는 마감 하나다(§7).
  *
  * **2026-08-23 제목 바로 아래로 올라왔다.** 자리가 바뀌었을 뿐 껍데기는 그대로다 —
@@ -206,22 +206,22 @@
   border-radius: var(--r);
 }
 
-/* **막대도 숫자도 없다**(§7 · §12.2). 이유 한 줄이 전부다 */
+/* **막대도 숫자도 없다**(§7 · §12.2). 이유 한 줄이 전부다.
+ *
+ * **`word-break: keep-all` 이 어절을 안 쪼갠다**(2026-08-24). 기본값으로는 중간점
+ * 뒤에서 줄이 끊겨 `중소 이커머스의 주문·광` / `고·재고 데이터를` 로 나갔다 —
+ * 공고 취지와 사업 내용을 잇는 문장이라 `주문·광고·재고` 같은 나열이 자주 온다.
+ * 추천 카드가 같은 문장에 이미 이걸 걸고 있었고 **여기만 빠져 있었다.**
+ *
+ * 대신 안 끊기는 긴 낱말이 칸을 넘칠 수 있어 `overflow-wrap` 을 같이 준다.
+ *
+ * **근거 수(`.fitEvidence`)가 여기 있었다**(2026-08-24 삭제). */
 .fitReason {
   font-size: var(--t-body);
   line-height: var(--lh-body);
   max-width: 62ch;
-}
-
-.fitEvidence {
-  margin-top: var(--s2);
-  font-size: var(--t-caption);
-  line-height: var(--lh-caption);
-  color: var(--ink-3);
-}
-
-.fitEvidence b {
-  font-weight: var(--w-medium);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {

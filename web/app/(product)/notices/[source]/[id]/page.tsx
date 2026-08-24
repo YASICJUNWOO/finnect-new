@@ -20,7 +20,9 @@ const SOURCE_NAME: Record<string, string> = {
  *
  * **빈 섹션이 넷에서 둘로 줄었다**(2026-08-22 · plan/21 T-0120).
  *
- * - 「왜 맞는지」 — `notice_fit` 이 채운다. 이제 값이 있다
+ * - 「추천 사유」 — `notice_fit` 이 채운다. 이제 값이 있다. **2026-08-24 이 화면
+ *   하나만 남았다** — S2 추천 카드가 같은 문장과 근거 수를 같이 들고 있었고, 한
+ *   값을 두 화면이 그리면 한쪽이 먼저 낡는다
  * - ~~「자격이 되는지」~~ — **없앴다.** [ADR-0003](../../../../../docs/adr/0003-판별-비노출.md)
  *   이 「판정은 뒤에서 하고 화면은 결과만 준다」로 정했고, 자격 결과는 **목록에서
  *   빼는 것**으로 이미 나갔다. 이 자리를 값으로 채우면 그 결정을 되돌리는 것이 된다 —
@@ -37,7 +39,7 @@ export default async function NoticeDetailPage({
   const sp = await searchParams;
   const external = decodeURIComponent(id);
   // **게이트가 안 걸린 화면이다**(ADR-0066 결정 5) — 쿠키가 없으면 `DEFAULT_COMPANY`
-  // 까지 내려가고 `fit`(왜 맞는지)만 남의 것이 된다. 목록과 같은 자리다.
+  // 까지 내려가고 `fit`(추천 사유)만 남의 것이 된다. 목록과 같은 자리다.
   const company = await currentCompany(sp.company);
   // 서류는 없어도 화면이 떠야 한다. 공고와 같이 부르되 실패를 따로 받는다.
   const [notice, docs] = await Promise.all([
@@ -100,11 +102,18 @@ export default async function NoticeDetailPage({
         </p>
       </header>
 
-      {/* 왜 맞는지. **제목 바로 아래다**(2026-08-23).
+      {/* 추천 사유. **제목 바로 아래다**(2026-08-23).
         *
         * 전에는 첨부 뒤 맨 아래였다. 추천 카드를 눌러 들어온 사람의 첫 질문이
         * 「왜 나한테 맞대?」인데 개요·서류·첨부를 다 지나야 나왔다 — 그 동선에서
         * 이 문단은 **답이 아니라 각주**가 된다.
+        *
+        * **2026-08-24 이 자리가 그 문장의 유일한 자리가 됐다.** S2 추천 카드에도
+        * 같은 이유가 있었는데 둘 다 `notice_fit` 한 행이라 같은 값이었다. 목록은
+        * 훑는 화면이고 이유는 읽는 문장이라 읽는 쪽에만 둔다.
+        *
+        * **근거 수(`evidence_count`)도 같이 지웠다.** 「내 사업 정보 N개에서
+        * 나왔어요」가 이유 아래 있었다 — 값은 `fit` 에 그대로 오고 화면만 안 그린다.
         *
         * **값이 없으면 여기 자리를 안 만든다.** 「아직 안 봤어요」로 화면을 여는
         * 것이라, 그때는 아래 `NotYet` 셋에 섞여 내려간다.
@@ -114,14 +123,9 @@ export default async function NoticeDetailPage({
       {notice.fit && (
         <section className={styles.fit} aria-labelledby="fit-title">
           <h2 id="fit-title" className={styles.sectionTitle}>
-            왜 맞는지
+            추천 사유
           </h2>
           <p className={styles.fitReason}>{notice.fit.reason}</p>
-          {notice.fit.evidence_count > 0 && (
-            <p className={styles.fitEvidence} data-numeric>
-              내 사업 정보 <b>{notice.fit.evidence_count}</b>개에서 나왔어요
-            </p>
-          )}
         </section>
       )}
 
@@ -178,10 +182,10 @@ export default async function NoticeDetailPage({
 
       {/* 자리는 있고 값이 없는 것들. 예시 데이터를 넣지 않는다.
         *
-        * **「왜 맞는지」가 여기 섞이는 것은 판정이 없을 때뿐이다.** 값이 있으면
+        * **「추천 사유」가 여기 섞이는 것은 판정이 없을 때뿐이다.** 값이 있으면
         * 위로 올라가 있다 — 그때 이 그리드는 둘이다.
         *
-        * **한 `.gaps` 에 모은다**(2026-08-23). 전에는 「왜 맞는지」가 제 그리드를
+        * **한 `.gaps` 에 모은다**(2026-08-23). 전에는 「추천 사유」가 제 그리드를
         * 따로 갖고 그 아래 둘이 또 있어서, 2열에 **1 + 2 로 깨져** 첫 칸 옆이
         * 빈 채로 남았다. 셋이 한 흐름이라 한 그리드가 맞다.
         *
@@ -191,7 +195,7 @@ export default async function NoticeDetailPage({
       <div className={styles.gaps}>
         {!notice.fit && (
           <NotYet
-            title="왜 맞는지"
+            title="추천 사유"
             why="사업 위키가 있어야 공고 취지와 대 볼 수 있어요. 파일을 올리면 골라 드려요."
           />
         )}

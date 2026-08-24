@@ -3,13 +3,19 @@
 **API 가 첨부 필드를 안 준다.** 공고 31,327건 중 29,789건(95.1%)에 첨부가 0건이었고,
 평가 정보가 공고 본문에 0% 라 그 95% 는 자격 요건도 양식도 없는 상태다.
 
-여기서 검증하는 것은 셋이다 — 마감 우회, 파일명 추출, **재수집이 안 지운다는 것**.
+여기서 검증하는 것은 넷이다 — 마감 우회, 파일명 추출, **재수집이 안 지운다는 것**,
+**`ids` 로 좁히면 그 밖은 안 본다는 것**(2026-08-24 — `ingest.service.execute()` 가
+모집중만 받은 직후 이걸로 부른다).
 """
 
 from __future__ import annotations
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from finnect.attach import kstartup
 from finnect.ingest import kstartup as ingest_kstartup
+from finnect.models import Attachment, Base, KstartupNotice, Source
 
 ONGOING = "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do?schM=view&pbancSn=1"
 
@@ -118,3 +124,78 @@ def test_재수집이_긁은_첨부를_안_지운다() -> None:
     assert normalized.attachments == [], (
         "K-Startup 이 첨부를 내기 시작했다. _flush 가 긁은 첨부를 지운다"
     )
+
+
+def _db():  # noqa: ANN202
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[KstartupNotice.__table__, Attachment.__table__])
+    return sessionmaker(bind=engine, expire_on_commit=False, future=True)
+
+
+def test_ids로_좁히면_그_밖은_안_본다() -> None:
+    """**`--limit` 만으로는 안 되는 이유다.** 정렬이 `rcrt_prgs_yn` 기준이라 낡은 `Y`
+    잔여분이 진짜 모집중과 같은 순위에 섞인다 — 개수로 끊으면 엉뚱한 게 걸릴 수 있다.
+    `ids` 는 애초에 그 표 밖을 보지 않는다.
+    """
+    with _db()() as s:
+        s.add_all(
+            [
+                KstartupNotice(pbanc_sn="1", content_hash="h1", detl_pg_url="u1", rcrt_prgs_yn="Y"),
+                KstartupNotice(pbanc_sn="2", content_hash="h2", detl_pg_url="u2", rcrt_prgs_yn="Y"),
+                # 첨부 없는 잔여분. ids 밖이니 안 걸려야 한다 — 지금 실제로 수천 건이다.
+                KstartupNotice(
+                    pbanc_sn="99", content_hash="h99", detl_pg_url="u99", rcrt_prgs_yn="Y"
+                ),
+            ]
+        )
+        s.flush()
+
+        targets = kstartup._targets(s, limit=None, redo=False, ids=["1", "2"])
+
+    assert {sn for sn, _, _ in targets} == {"1", "2"}
+
+
+def test_ids_안에서도_이미_첨부있으면_건너뛴다() -> None:
+    """`ids` 는 범위를 좁힐 뿐이다. `redo=False` 면 이미 긁은 것은 여전히 건너뛴다."""
+    with _db()() as s:
+        s.add_all(
+            [
+                KstartupNotice(pbanc_sn="1", content_hash="h1", detl_pg_url="u1", rcrt_prgs_yn="Y"),
+                KstartupNotice(pbanc_sn="2", content_hash="h2", detl_pg_url="u2", rcrt_prgs_yn="Y"),
+            ]
+        )
+        s.add(
+            Attachment(
+                id=1,
+                source=str(Source.KSTARTUP),
+                external_id="1",
+                position=0,
+                kind="other",
+                filename="이미있음.hwp",
+                ext="hwp",
+                url="https://example.com/a",
+            )
+        )
+        s.flush()
+
+        targets = kstartup._targets(s, limit=None, redo=False, ids=["1", "2"])
+
+    assert {sn for sn, _, _ in targets} == {"2"}
+
+
+def test_ids_없으면_예전처럼_표_전체를_본다() -> None:
+    """`ids=None` 이 기본값이다 — 독립 실행(`--scrape-kstartup`)의 기존 동작을 안 바꾼다."""
+    with _db()() as s:
+        s.add_all(
+            [
+                KstartupNotice(pbanc_sn="1", content_hash="h1", detl_pg_url="u1", rcrt_prgs_yn="Y"),
+                KstartupNotice(
+                    pbanc_sn="99", content_hash="h99", detl_pg_url="u99", rcrt_prgs_yn="N"
+                ),
+            ]
+        )
+        s.flush()
+
+        targets = kstartup._targets(s, limit=None, redo=False, ids=None)
+
+    assert {sn for sn, _, _ in targets} == {"1", "99"}

@@ -67,6 +67,7 @@ def execute(
     only_open: bool = True,
     limit: int | None = None,
     skip_mlsfc: bool = True,
+    scrape_attachments: bool = True,
     trigger: str,
     on_page: Callable[[IngestReport], None] | None = None,
 ) -> IngestReport:
@@ -76,6 +77,13 @@ def execute(
     `skip_mlsfc` 는 기업마당에만 걸린다 — 서로 무관한 출처의 파라미터라 둘 다 기본
     켬으로 둬도 섞이지 않는다. 전량이 필요하면 CLI `--full` 또는 둘 다 `False` 로
     직접 부른다(`docs/dataset.md` 의 정본 절차).
+
+    **K-Startup 은 모집중만 받을 때 상세 페이지까지 이 자리에서 같이 긁는다**(2026-08-24).
+    `only_open` 이 걸리면 이번 배치가 300건 안팎이라 — 그리고 이 명령이 끝나기 전에
+    첨부 목록까지 있는 게 "따로 `attach --scrape-kstartup` 을 또 돌려야 한다"는 플래그
+    하나를 없앤다. **`--full` 에는 안 걸린다** — 전량이면 예전처럼 몇 시간짜리라 여기서
+    조용히 같이 돌면 안 된다. `scrape_attachments=False` 는 테스트와 그 예외적인 상황을
+    위한 탈출구다.
     """
     if source not in BY_NAME:
         raise ValueError(f"모르는 출처: {source}")
@@ -94,6 +102,17 @@ def execute(
             )
             with session_scope() as session:
                 report = run(adapter, session, on_page=on_page)
+
+        if (
+            source == str(Source.KSTARTUP)
+            and only_open
+            and scrape_attachments
+            and report.touched_ids
+        ):
+            from finnect.attach.kstartup import scrape as scrape_kstartup_attachments
+
+            report.attach_report = scrape_kstartup_attachments(ids=report.touched_ids)
+            report.attachments += report.attach_report.attachments
     except BaseException as e:
         # 적재는 롤백돼도 이 행은 남는다. 실패가 '아무 일 없었음'으로 보이면 안 된다.
         runs.fail(run_id, e)

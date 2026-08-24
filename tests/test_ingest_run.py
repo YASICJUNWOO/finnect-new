@@ -63,3 +63,24 @@ def test_보고서에_처음_보는_필드가_남는다() -> None:
     rendered = report.render()
     assert "처음 보는 필드" in rendered
     assert "sprtRealmNm(12)" in rendered
+
+
+def test_touched_ids가_기본으로_비어있다() -> None:
+    """K-Startup 이 아닌 출처(기업마당)는 아무도 안 채운다 — 빈 리스트가 정상이다."""
+    assert IngestReport(source="bizinfo").touched_ids == []
+
+
+def test_attach_report가_있으면_같이_찍힌다() -> None:
+    """K-Startup 이 모집중만 받으면 상세 페이지 결과가 같은 보고서에 붙는다(2026-08-24)."""
+    from finnect.attach.kstartup import ScrapeReport
+
+    report = IngestReport(source="kstartup", items=3, inserted=3)
+    report.attach_report = ScrapeReport(total=3, done=3, with_files=2, attachments=5)
+
+    rendered = report.render()
+    assert "K-Startup 첨부 긁기" in rendered
+    assert "대상 3건" in rendered
+
+
+def test_attach_report가_없으면_그_문단이_안_붙는다() -> None:
+    assert "첨부 긁기" not in IngestReport(source="bizinfo").render()

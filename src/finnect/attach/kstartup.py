@@ -115,11 +115,17 @@ def parse_attachments(html: str) -> list[tuple[str, str]]:
     return [(name.strip(), BASE + href) for name, href in PAIR.findall(html)]
 
 
-def _targets(s: Session, *, limit: int | None, redo: bool) -> list[tuple[str, str, str]]:
+def _targets(
+    s: Session, *, limit: int | None, redo: bool, ids: list[str] | None = None
+) -> list[tuple[str, str, str]]:
     have = select(Attachment.external_id).where(Attachment.source == str(Source.KSTARTUP))
     stmt = select(
         KstartupNotice.pbanc_sn, KstartupNotice.detl_pg_url, KstartupNotice.rcrt_prgs_yn
     ).where(KstartupNotice.detl_pg_url.is_not(None))
+    if ids is not None:
+        # 호출자가 이미 범위를 정했다(예: 이번에 받은 모집중 공고만). 그 밖은 안 본다 —
+        # 안 그러면 첨부 없는 옛 잔여분(수천 건)까지 걸려서 "몇백 건이면 금방"이 깨진다.
+        stmt = stmt.where(KstartupNotice.pbanc_sn.in_(ids))
     if not redo:
         stmt = stmt.where(KstartupNotice.pbanc_sn.not_in(have))
     # 모집중을 먼저 본다. 지금 신청할 수 있는 공고가 제품에 먼저 필요하다.
@@ -133,6 +139,7 @@ def scrape(
     *,
     limit: int | None = None,
     redo: bool = False,
+    ids: list[str] | None = None,
     on_progress=None,  # noqa: ANN001
 ) -> ScrapeReport:
     """상세 페이지를 돌며 `attachment` 행을 만든다. **파일은 안 받는다.**
@@ -140,11 +147,16 @@ def scrape(
     이미 첨부를 가진 공고는 건너뛴다. **첨부가 0개인 공고는 그 사실을 남길 자리가 없어
     다시 돌 때마다 또 받는다** — 실측 15건 중 2건(13%)이 그렇다. 그걸 줄이려면 표가
     하나 더 필요한데, 지금 규모에서는 다시 받는 편이 싸다.
+
+    **`ids` 는 `ingest.service.execute()` 가 준다.** 모집중만 받은 직후 그 외부 ID
+    목록으로 좁혀 부르면, 첨부 없는 잔여분(지금 수천 건)을 안 건드리고 이번에 받은
+    공고만 긁는다 — `--limit` 만으로는 안 된다. 정렬은 `rcrt_prgs_yn` 기준인데 낡은
+    `Y` 잔여분이 진짜 모집중과 같은 순위에 섞여 있어 개수로 끊으면 엉뚱한 게 걸린다.
     """
     report = ScrapeReport()
 
     with SessionFactory() as s:
-        targets = _targets(s, limit=limit, redo=redo)
+        targets = _targets(s, limit=limit, redo=redo, ids=ids)
         report.total = len(targets)
         if redo:
             report.skipped = 0

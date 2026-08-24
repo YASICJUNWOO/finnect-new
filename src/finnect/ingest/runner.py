@@ -6,7 +6,7 @@ import datetime as dt
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import delete, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 
 from finnect.ingest.base import Adapter, NormalizedNotice
 from finnect.models import Attachment, RawFetch
+
+if TYPE_CHECKING:
+    from finnect.attach.kstartup import ScrapeReport
 
 BATCH = 500
 
@@ -32,6 +35,8 @@ class IngestReport:
     ratelimit_remaining: int | None = None
     unknown_fields: Counter = field(default_factory=Counter)
     expected: int | None = None  # 출처가 말한 총 건수. 진행률 표시용이다
+    touched_ids: list[str] = field(default_factory=list)  # 이번에 살아남은 외부 ID 전부
+    attach_report: ScrapeReport | None = None  # K-Startup 만. 상세 페이지까지 긁었으면 찬다
 
     def render(self) -> str:
         lines = [
@@ -54,6 +59,9 @@ class IngestReport:
             # API 가 필드를 늘렸다. 조용히 넘기지 않는다.
             got = ", ".join(f"{k}({v:,})" for k, v in self.unknown_fields.most_common())
             lines.append(f"  ⚠ 처음 보는 필드 → extra 에 담음: {got}")
+        if self.attach_report is not None:
+            lines.append("")
+            lines.append(self.attach_report.render())
         return "\n".join(lines)
 
 
@@ -108,6 +116,7 @@ def run(
                 continue
             for name in row.extra:
                 report.unknown_fields[name] += 1
+            report.touched_ids.append(row.external_id)
 
             prev = known.get(row.external_id)
             if prev is None:

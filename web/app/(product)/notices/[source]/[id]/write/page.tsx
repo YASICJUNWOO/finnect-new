@@ -6,7 +6,7 @@ import { getNotice, getNoticeDocuments } from "@/lib/api";
 import { getDraft } from "@/lib/draft";
 import type { Draft } from "@/lib/draft";
 import { fromApi } from "@/lib/documents";
-import { DEFAULT_COMPANY } from "@/lib/wiki";
+import { currentCompany } from "@/lib/wiki";
 import styles from "./page.module.css";
 
 /** S4 신청서 쓰기 — SPEC §5.2. **2단 워크스페이스다**(2026-08-22).
@@ -25,7 +25,8 @@ import styles from "./page.module.css";
  * 것을 `<Suspense>` 안으로 내린다. `?doc` 이 searchParams 라 fetch 없이 이름을
  * 붙일 수 있는 것이 이 구조가 성립하는 이유다.
  *
- * **`company` 를 주소가 말한다.** 인증이 없어서다 — `/wiki` 와 같은 규칙이다. */
+ * **`company` 는 `currentCompany()` 가 정한다**(ADR-0066). 주소가 말하면 그것이
+ * 이기고, 아니면 입장 게이트가 앉힌 쿠키다 — `/wiki` 와 같은 규칙이다. */
 export default async function NoticeWritePage({
   params,
   searchParams,
@@ -46,7 +47,7 @@ export default async function NoticeWritePage({
   const { source, id } = await params;
   const sp = await searchParams;
   const external = decodeURIComponent(id);
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  const company = await currentCompany(sp.company);
 
   // **`view-transition-name` 에 그대로 들어가는 값이다.** 숫자만 통과시킨다 —
   // 아무 문자열이나 CSS 식별자 자리에 넣으면 안 된다.

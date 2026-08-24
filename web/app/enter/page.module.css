@@ -1,0 +1,132 @@
+/* 베타 입장 화면(ADR-0066).
+ *
+ * **`(product)` 껍데기가 없다.** 3축도 상단 막대도 없이 이 한 장이 화면 전부다 —
+ * 여기 온 사람은 아직 갈 수 있는 곳이 없다. */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 안전영역. `viewportFit: "cover"` 가 없으면 이 값이 조용히 0 이 된다 */
+  padding: var(--s5) calc(var(--s5) + env(safe-area-inset-left)) calc(var(--s5) + env(safe-area-inset-bottom))
+    calc(var(--s5) + env(safe-area-inset-right));
+  background: var(--canvas);
+}
+
+.box {
+  width: 100%;
+  max-width: 380px;
+}
+
+.head {
+  margin-bottom: var(--s6);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+/* 로고 마크. **`--ink` 이고 `--action` 이 아니다** — 동작이 아니라 표시다(DESIGN.md §4).
+ * 값이 `(product)/layout.module.css` 의 `.mark` 와 같다. 조각을 공유하지 않는 이유는
+ * 저기가 클라이언트 컴포넌트의 CSS Module 이라 꺼내려면 컴포넌트를 하나 만들어야 하고,
+ * 규칙 다섯 줄에는 그 값이 안 나온다 */
+.mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: var(--ink);
+}
+
+.title {
+  margin-top: var(--s4);
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--tracking-title);
+  color: var(--ink);
+}
+
+.sub {
+  margin-top: var(--s2);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.label {
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--ink);
+}
+
+/* DESIGN.md §4 «입력» — 잠잠한 면에 4px 모서리. **테두리가 없다**(관측된 입력이 채움뿐이다).
+ * 16px 을 고정한다 — 폭에 따라 갈리는 것은 보조 글자이고 입력은 아니다(ADR-0044) */
+.input {
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  min-height: 44px;
+  padding: 0 var(--s3);
+  color: var(--ink);
+  background: var(--quiet);
+  border: none;
+  border-radius: var(--r-sm);
+}
+
+.hint {
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  color: var(--ink-3);
+}
+
+.error {
+  padding: var(--s3);
+  background: var(--urgent-bg);
+  border: 1px solid var(--urgent-line);
+  border-radius: var(--r-sm);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  color: var(--urgent);
+}
+
+/* DESIGN.md §4 «주 버튼» — 화면당 하나이고 이 화면에서는 이것이다 */
+.submit {
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  color: var(--surface);
+  background: var(--action);
+  border: 1px solid var(--action);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.submit:hover {
+  opacity: 0.88;
+}
+
+.submit:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

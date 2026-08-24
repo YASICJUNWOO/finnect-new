@@ -5,7 +5,7 @@ import { Pager } from "@/components/Pager";
 import { RecommendationCard } from "@/components/RecommendationCard";
 import { getRecommendations, listNotices } from "@/lib/api";
 import { viewOf } from "@/lib/view";
-import { DEFAULT_COMPANY } from "@/lib/wiki";
+import { currentCompany } from "@/lib/wiki";
 import styles from "./page.module.css";
 
 type Search = { q?: string; source?: string; page?: string; view?: string; company?: string };
@@ -40,9 +40,13 @@ export default async function NoticeListPage({
   const source = sp.source ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
   const view = viewOf(sp.view);
-  // 인증이 없어서 주소가 누구인지 말한다. **`/wiki` 와 같은 규칙을 쓴다** —
-  // 두 화면이 회사를 다르게 고르면 사용자가 남의 위키 위에서 추천을 받는다
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  // **`/wiki` 와 같은 규칙을 쓴다** — 두 화면이 회사를 다르게 고르면 사용자가 남의
+  // 위키 위에서 추천을 받는다.
+  //
+  // **이 화면은 게이트가 안 걸린다**(ADR-0066 결정 5). 회사 없이도 도는 화면이라
+  // 처음 링크를 받은 사람이 로그인부터 강요당하지 않는다 — 그래서 쿠키가 없으면
+  // `DEFAULT_COMPANY` 까지 내려간다. **고르는 규칙은 그래도 같아야 한다**
+  const company = await currentCompany(sp.company);
   const upload = sp.company?.trim()
     ? `/wiki/files?company=${encodeURIComponent(sp.company.trim())}`
     : "/wiki/files";

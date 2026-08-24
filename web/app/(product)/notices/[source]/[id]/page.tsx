@@ -7,7 +7,7 @@ import { NotYet } from "@/components/NotYet";
 import { getNotice, getNoticeDocuments } from "@/lib/api";
 import { fromApi } from "@/lib/documents";
 import { periodOf } from "@/lib/deadline";
-import { DEFAULT_COMPANY } from "@/lib/wiki";
+import { currentCompany } from "@/lib/wiki";
 import styles from "./page.module.css";
 
 const SOURCE_NAME: Record<string, string> = {
@@ -37,7 +37,9 @@ export default async function NoticeDetailPage({
   const { source, id } = await params;
   const sp = await searchParams;
   const external = decodeURIComponent(id);
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  // **게이트가 안 걸린 화면이다**(ADR-0066 결정 5) — 쿠키가 없으면 `DEFAULT_COMPANY`
+  // 까지 내려가고 `fit`(왜 맞는지)만 남의 것이 된다. 목록과 같은 자리다.
+  const company = await currentCompany(sp.company);
   // 서류는 없어도 화면이 떠야 한다. 공고와 같이 부르되 실패를 따로 받는다.
   const [notice, docs] = await Promise.all([
     getNotice(source, external, company),

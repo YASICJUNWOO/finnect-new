@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { DEFAULT_COMPANY, getWiki } from "@/lib/wiki";
+import { currentCompany, getWiki } from "@/lib/wiki";
+import { ExitAccount } from "@/components/ExitAccount";
 import { WikiBoard } from "@/components/WikiBoard";
 import styles from "./page.module.css";
 
@@ -17,7 +18,7 @@ type Search = { company?: string; spot?: string };
  * **주소에 남겨야 딥링크가 되고 새로고침해도 살아 있다.** */
 export default async function WikiPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  const company = await currentCompany(sp.company);
   const wiki = await getWiki(company);
   const upload = sp.company?.trim()
     ? `/wiki/files?company=${encodeURIComponent(sp.company.trim())}`
@@ -47,6 +48,13 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
           {wiki.review > 0 && (
             <span data-numeric>갈 자리를 못 찾은 것 {wiki.review}건</span>
           )}
+        </p>
+
+        {/* 다른 이름으로 들어가기(ADR-0066). **상단 막대가 아니라 여기 있다** —
+          * 저 껍데기는 `fc` 쿠키를 못 읽어서(`httpOnly`) 아직 안 들어온 사람에게도
+          * 「나가기」를 보여 주게 된다. 이 화면은 게이트가 걸려 있다. */}
+        <p className={styles.exit}>
+          <ExitAccount />
         </p>
       </header>
 

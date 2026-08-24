@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DEFAULT_COMPANY, getProfile } from "@/lib/wiki";
+import { currentCompany, getProfile } from "@/lib/wiki";
 import { CompanyTable } from "@/components/CompanyTable";
 import styles from "./page.module.css";
 
@@ -15,7 +15,7 @@ type Search = { company?: string };
  * 정답지가 없어서 이걸 못 한다. */
 export default async function CompanyPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  const company = await currentCompany(sp.company);
   const profile = await getProfile(company);
   const upload = sp.company?.trim()
     ? `/wiki/files?company=${encodeURIComponent(sp.company.trim())}`

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/CopyButton";
-import { DEFAULT_COMPANY, getWikiMarkdown } from "@/lib/wiki";
+import { currentCompany, getWikiMarkdown } from "@/lib/wiki";
 import styles from "./page.module.css";
 
 type Search = { company?: string };
@@ -20,7 +20,7 @@ export default async function WikiMarkdownPage({
   searchParams: Promise<Search>;
 }) {
   const sp = await searchParams;
-  const company = sp.company?.trim() || DEFAULT_COMPANY;
+  const company = await currentCompany(sp.company);
   const body = await getWikiMarkdown(company);
 
   // 아직 아무것도 없으면 이 화면 자체가 성립하지 않는다. 빈 <pre> 를 보여 주지 않는다

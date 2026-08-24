@@ -2,6 +2,7 @@
  *
  * **필드 이름을 새로 짓지 않는다.** 서버가 쓰는 이름 그대로다. */
 
+import { COOKIE } from "./account";
 import { ApiError, authHeaders, BASE, get } from "./api";
 
 /** 근거 하나. **출처는 문자열이 아니라 연결이다**(SPEC F1-3).
@@ -139,21 +140,39 @@ export type Wiki = {
   extractor: string | null;
 };
 
-/** 인증이 아직 없다. **누구의 위키를 볼지 주소가 말한다.**
+/** 아무도 말해 주지 않았을 때의 회사. **2026-08-24 부터 최후 폴백이다**(ADR-0066).
  *
- * 로그인이 붙으면 이 값이 세션에서 오고 `?company=` 는 사라진다. 그때까지는
- * 기본값 하나를 두고 주소로 갈아탄다 — 시연 대상이 하나뿐이라 성립하는 임시 조치다.
+ * 그전에는 이 값이 **기본값**이었고, `?company=` 없는 모든 화면이 여기로 떨어졌다.
+ * 테스터가 여럿이 되면서 그것이 「세 사람의 사실이 한 위키에 섞인다」가 됐다 —
+ * 지금은 `currentCompany()` 가 쿠키를 먼저 보고, 게이트가 걸린 화면은 쿠키가
+ * 없으면 애초에 여기까지 안 온다(`web/middleware.ts`).
  *
- * **기본값이 `c_dasiro` 인 이유는 그쪽만 스텁으로 도는 것이다.** 픽스처에
+ * **여전히 `c_dasiro` 인 이유는 그쪽만 스텁으로 도는 것이다.** 픽스처에
  * `facts.json` 이 있어서 `WIKI_EXTRACTOR=stub` 으로 위키가 서고, 나린데이터
- * (`tests/fixtures/wiki-narin/`)는 그 파일이 없어 `llm` 이어야 돈다. 기본값을
+ * (`tests/fixtures/wiki-narin/`)는 그 파일이 없어 `llm` 이어야 돈다. 폴백을
  * 나린으로 두면 키가 없는 사람의 화면이 빈다.
  *
  * 나린으로 시연하려면 `FINNECT_COMPANY=c_narin` 을 준다. **`next.config.ts` 의
- * `env` 에 없어서 런타임 값이다** — 이 값을 읽는 일곱 자리가 전부 서버 컴포넌트라
+ * `env` 에 없어서 런타임 값이다** — 이 값을 읽는 자리가 전부 서버 컴포넌트라
  * 그것으로 충분하다. 클라이언트에서 읽어야 할 날이 오면 거기 더해야 하고, 그때는
  * `FINNECT_API` 처럼 빌드 때 박히므로 고친 뒤 웹을 다시 세워야 한다. */
 export const DEFAULT_COMPANY = process.env.FINNECT_COMPANY ?? "c_dasiro";
+
+/** 지금 보고 있는 회사. **순서가 뜻을 갖는다**(ADR-0066 결정 6).
+ *
+ * 1. `?company=` — 데모 링크(`c_dasiro`·`c_narin`)와 이 커밋 이전의 모든 주소가
+ *    그대로 산다. **주소가 명시했으면 그것이 이긴다.**
+ * 2. `fc` 쿠키 — 입장 게이트가 앉힌 값. 평소 경로가 여기다
+ * 3. `DEFAULT_COMPANY` — 게이트가 안 걸린 화면(공고 목록·상세)에서만 닿는다
+ *
+ * **`await` 가 필요하다.** Next 15 부터 `cookies()` 가 비동기다 — 부르는 쪽이 이미
+ * `await searchParams` 를 하고 있어서 새 규칙이 아니다. */
+export async function currentCompany(explicit?: string): Promise<string> {
+  const said = explicit?.trim();
+  if (said) return said;
+  const { cookies } = await import("next/headers");
+  return (await cookies()).get(COOKIE)?.value ?? DEFAULT_COMPANY;
+}
 
 /** 위키가 없어도 200 이고 카테고리 열이 온다.
  *

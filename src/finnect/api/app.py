@@ -15,7 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy import select
 
-from finnect.api import admin_service, draft_service, service, wiki_service
+from finnect.api import account_service, admin_service, draft_service, service, wiki_service
+from finnect.api.account_schemas import AccountIn, AccountOut
 from finnect.api.admin_schemas import (
     AdminAttachmentsOut,
     AdminIngestOut,
@@ -443,10 +444,42 @@ def edit_draft_item(
     return out
 
 
+# --- 베타 입장 게이트 (ADR-0066) --------------------------------------------
+
+
+@app.post("/api/account", response_model=AccountOut)
+def account_enter(body: AccountIn) -> AccountOut:
+    """이름과 비밀번호를 `company_id` 로 바꾼다.
+
+    **`SPEC.md` §6 이 계정을 범위 밖에 두고 있고 이것이 그 예외다**(ADR-0066).
+    베타 테스터가 여럿이 되면서 「누구의 위키인가」를 주소(`?company=`)로만 정하던 것이
+    한계에 왔다 — 링크 하나가 파라미터를 빠뜨리면 남의 위키에 파일이 쌓인다.
+
+    **가입과 로그인을 안 나눈다.** 처음 보는 이름이면 만들고 아는 이름이면 대조한다.
+
+    **비밀번호가 틀린 것과 없는 이름을 구분해 주지 않는다** — 나누면 어떤 이름이
+    이미 쓰이는지가 새어 나간다. `require_token` 이 "헤더가 없다" 와 "값이 다르다" 를
+    안 가르는 것과 같은 이유다.
+    """
+    name = body.name.strip()
+    if not name or not body.password:
+        raise HTTPException(400, "회사 이름과 비밀번호를 둘 다 적어 주세요")
+
+    with SessionFactory() as s:
+        try:
+            row = account_service.enter(s, name, body.password)
+        except account_service.WrongPassword as e:
+            raise HTTPException(401, "그 이름에 이 비밀번호가 아니에요") from e
+        out = AccountOut(company_id=row.company_id, name=row.name)
+        s.commit()
+    return out
+
+
 # --- 사업 위키 (S7) ---------------------------------------------------------
 #
-# **`company_id` 를 경로로 받는다.** 인증이 아직 없어서 세션에서 꺼낼 자리가 없다 —
-# 지금은 부르는 쪽이 누구인지 말한다. 로그인이 붙으면 이 인자가 사라지고 세션이 대신한다.
+# **`company_id` 를 경로로 받는다.** 값을 정하는 것은 위의 입장 게이트이고, 여기까지
+# 오는 길에 그 값이 쿠키에 실린다(`web/middleware.ts`). **그 쿠키가 세션이 아니다** —
+# 이 API 는 여전히 부르는 쪽이 말하는 `company_id` 를 그대로 믿는다.
 #
 # **격리가 이 인자 하나에 걸려 있다.** `wiki/storage.py` 와 `chunk.company_id` 가 같은
 # 값을 쓰고, 서비스가 그 값으로만 조회한다. 지금 이 API 는 누구의 위키든 열어 준다.

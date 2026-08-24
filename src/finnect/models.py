@@ -603,6 +603,28 @@ class UserFileStatus(enum.StrEnum):
     UNPACKED = "unpacked"
 
 
+class CompanyAccount(Base):
+    """베타 테스트 식별용 이름+비밀번호 게이트(SPEC.md §6 예외 · ADR-0066).
+
+    **정식 계정이 아니다.** 비밀번호는 평문이고, 재설정·이메일 인증이 없다 — 테스터끼리
+    데이터가 안 섞이게 하는 것이 유일한 목적이다. `company_id` 를 발급하는 쪽이 여기뿐이다 —
+    `wiki/storage.py` 의 `_COMPANY_ID` 정규식을 통과해야 해서 한글 회사명을 그대로 못 쓰고,
+    `name` 은 표시·조회용으로 따로 둔다.
+    """
+
+    __tablename__ = "company_account"
+
+    #: 내부 발급 opaque id(`c_` + hex 12자). 경로에 쓰이므로 `_COMPANY_ID` 규격을 지킨다
+    company_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    #: 표시용 회사명. 재입장의 조회 키라 unique 다
+    name: Mapped[str] = mapped_column(Text, unique=True)
+    #: 평문이다 — 암호화를 안 하기로 정했다(위 참고)
+    password: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class UserFile(Base):
     """사용자가 올린 파일 하나. 원본은 `data/user-files/<company_id>/...` 에 있다.
 

@@ -112,7 +112,7 @@ export function WikiBoard({
             {empty && (
               /* 5. 빈 화면(§7). **자리를 지우지 않는다** — 무엇이 없는지 보여야 한다 */
               <p className={styles.hole}>
-                아직 위키가 없어요. 파일을 올리면 카테고리 아래로 자리가 자라요.
+                아직 위키가 없어요. 파일을 올려주세요.
                 <span className={styles.holeSub}>
                   <Link href={upload}>파일 올리러 가기</Link>
                 </span>

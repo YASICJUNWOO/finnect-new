@@ -47,13 +47,21 @@
   min-width: 0;
 }
 
+/* **상한을 안 건다**(2026-08-24). `max-width: 32ch` 이 걸려 있었고 §5 의 「줄길이
+ * 62ch 이하」를 근거로 적어 뒀는데, **32 는 62 가 아니다** — 32px 에서 32ch 가
+ * 614px 이라 옆에 250px 넘게 비어 있는데도 제목이 두 줄로 접혔다.
+ *
+ * 지금은 줄을 껍데기가 잡는다. `main` 이 1040px 이고(`layout.module.css`) 그중
+ * 버튼과 gap 이 빠지면 제목에 874px ≈ 45ch 이 남는다 — 버튼이 없는 공고(해독된
+ * 첨부 0건)에서 전폭을 써도 1040px ≈ 54ch 다. **둘 다 62ch 아래라 캡이 할 일이
+ * 없다.** 62ch 는 1190px 이고 여기 콘텐츠가 거기까지 못 넓어진다.
+ *
+ * 되돌릴 조건은 `main` 의 1040px 캡이 없어지는 날이다 — 그때는 `62ch` 를 건다. */
 .title {
   font-size: var(--t-display);
   line-height: var(--lh-display);
   font-weight: var(--w-bold);
   letter-spacing: var(--tracking-title);
-  /* 줄길이 62ch 이하 — DESIGN.md §5 */
-  max-width: 32ch;
 }
 
 /* 기관 · 주관 · 분야 · 출처 한 줄. **넷을 이으면 산문 길이가 된다** —

@@ -901,7 +901,15 @@ def admin_ingest_run(
     if source not in ingest_service.BY_NAME:
         raise HTTPException(404, f"모르는 출처: {source}")
 
+    # **`full` 하나가 필터 넷을 다 끈다.** 화면 체크박스가 그 하나다 — 나눠 두면
+    # 「어떤 조합으로 받은 코퍼스인지」가 실행마다 달라져 재현이 안 된다.
     result = ingest_service.launch(
-        source, only_open=not full, skip_mlsfc=not full, limit=limit, trigger="admin"
+        source,
+        only_open=not full,
+        skip_mlsfc=not full,
+        require_form=not full,
+        sample=1 if full else None,  # None 이면 출처 기본값(기업마당 10 · K-Startup 3)
+        limit=limit,
+        trigger="admin",
     )
     return IngestTriggerOut(started=result.started, reason=result.reason)

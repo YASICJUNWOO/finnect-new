@@ -26,6 +26,7 @@ from typing import Any
 import httpx
 
 from finnect.config import settings
+from finnect.dataset import sample as sampling
 from finnect.ingest.base import (
     FetchedPage,
     NormalizedNotice,
@@ -58,17 +59,27 @@ class KstartupAdapter:
         api_key: str | None = None,
         only_open: bool = True,
         limit: int | None = None,
+        sample: int = 1,
     ) -> None:
         self.client = client
         self.api_key = api_key if api_key is not None else settings.data_go_kr_api_key
         self.only_open = only_open
         self.limit = limit
+        self.sample = sample
         if not self.api_key:
             raise RuntimeError("DATA_GO_KR_API_KEY 가 없다")
 
     def keep(self, item: dict[str, Any]) -> bool:
-        """전부 적재한다. 좁히는 것은 `only_open` 이 서버측에서 한다."""
-        return True
+        """표본만 본다. 좁히는 것은 `only_open` 이 서버측에서 이미 했다.
+
+        **첨부 낱말로는 여기서 못 거른다.** K-Startup 은 목록 API 가 첨부를 안 줘서
+        상세 페이지를 긁어야 아는데, 그 긁기는 이 판정보다 **뒤에** 돈다
+        (`service.execute()`). 그쪽은 스크랩이 끝난 뒤에 거른다.
+
+        **표본이 스크랩보다 앞인 것이 요점이다.** 뒤에 두면 버릴 공고의 상세 페이지까지
+        열게 된다 — `docs/초기화.md` 의 「표본이 첨부 받기 앞이다」와 같은 자리다.
+        """
+        return sampling.keeps(str(item.get("pbanc_sn") or ""), self.sample)
 
     def pages(self) -> Iterator[FetchedPage]:
         # 건수 제한 파라미터가 따로 없다. perPage 로 한 장에 담고 일찍 끊는 수밖에 없다.

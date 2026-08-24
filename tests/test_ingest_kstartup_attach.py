@@ -32,6 +32,10 @@ def _no_real_io(monkeypatch: pytest.MonkeyPatch) -> None:
         yield None
 
     monkeypatch.setattr(service, "session_scope", fake_session_scope)
+    # 스크랩이 끝나면 `execute()` 가 첨부 파일명으로 한 번 더 솎는다(2026-08-24).
+    # **그건 DB 를 여는 단계라 여기서 막는다** — 이 파일은 배관만 본다.
+    # 무엇을 솎는지는 `tests/test_ingest_form_filter.py` 가 따로 잠근다.
+    monkeypatch.setattr(service, "drop_formless", lambda ids: 0)  # noqa: ARG005
 
 
 def _fake_run(touched_ids: list[str]):  # noqa: ANN202

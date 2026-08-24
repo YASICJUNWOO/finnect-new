@@ -18,7 +18,14 @@ from finnect.ingest.runner import IngestReport
 
 
 def _item(mlsfc: str) -> dict[str, str]:
-    return {"pblancId": "PBLN_1", "pldirSportRealmMlsfcCodeNm": mlsfc}
+    """중분류만 보려는 항목. **첨부에 양식을 넣어 둔다** — 2026-08-24 부터 필터가
+    둘이라(T-0165) 양식이 없으면 중분류와 무관하게 빠져서 이 파일이 무엇을 재는지
+    흐려진다."""
+    return {
+        "pblancId": "PBLN_1",
+        "pldirSportRealmMlsfcCodeNm": mlsfc,
+        "fileNm": "[서식1] 사업계획서.hwp",
+    }
 
 
 def test_기본_생성자가_이미_거른다() -> None:
@@ -30,13 +37,20 @@ def test_기본_생성자가_이미_거른다() -> None:
 
 
 def test_명시적으로_끄면_전량이다() -> None:
-    a = BizinfoAdapter(httpx.Client(), api_key="테스트키", skip_mlsfc=False)
-    assert a.keep(_item("융자"))
+    """`--full` 이 중분류 솎기와 양식 요구를 **같이** 끈다."""
+    a = BizinfoAdapter(
+        httpx.Client(), api_key="테스트키", skip_mlsfc=False, require_form=False
+    )
+    assert a.keep({"pblancId": "P", "pldirSportRealmMlsfcCodeNm": "융자", "fileNm": ""})
 
 
 def test_중분류가_없어도_안_죽는다() -> None:
-    """API 가 필드를 빠뜨리고 주는 건이 있다. 그때는 남긴다."""
-    assert BizinfoAdapter(httpx.Client(), api_key="테스트키").keep({"pblancId": "PBLN_1"})
+    """API 가 필드를 빠뜨리고 주는 건이 있다. **중분류로는** 안 버린다.
+
+    양식 요구(T-0165)는 별개라 여기서 끈다 — 이 테스트가 재는 것은 중분류 쪽이다.
+    """
+    a = BizinfoAdapter(httpx.Client(), api_key="테스트키", require_form=False)
+    assert a.keep({"pblancId": "PBLN_1"})
 
 
 def test_kstartup_도_기본이_모집중만이다() -> None:

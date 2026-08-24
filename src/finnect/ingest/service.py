@@ -26,6 +26,21 @@ from finnect.sources import BY_NAME, SOURCES, SourceInfo
 
 UA = "finnect-ingest/0.1 (+https://github.com/joonoo3/finnect-new)"
 
+#: 출처마다 다른 표본 나눗수. **`--full` 이 아니면 이것이 기본으로 걸린다.**
+#:
+#: 2026-08-24 실측 — 앞 필터를 통과한 수에 대고 잰 값이다.
+#:
+#:     기업마당   566 → 10 으로 → 55
+#:     K-Startup  268 →  3 으로 → 88 → 낱말로 → 34
+#:                                          합 89
+#:
+#: **나눗수가 다른 이유는 앞 필터가 이미 깎은 정도가 달라서다.** 기업마당은 중분류와
+#: 양식으로 1,552 → 566(36%)까지 줄지만, K-Startup 은 목록 API 가 중분류도 첨부도
+#: 안 줘서 그 자리에서 268 그대로다 — 같은 10 을 걸면 27건까지 떨어진다.
+#:
+#: **100건 아래로 두는 것이 목적이다.** 개발·테스트에서 한 바퀴를 돌릴 수 있는 크기다.
+DEFAULT_SAMPLE: dict[str, int] = {str(Source.BIZINFO): 10, str(Source.KSTARTUP): 3}
+
 __all__ = ["BY_NAME", "SOURCES", "SourceInfo", "launch", "missing_key", "parse_limit"]
 
 
@@ -68,7 +83,9 @@ def execute(
     only_open: bool = True,
     limit: int | None = None,
     skip_mlsfc: bool = True,
+    require_form: bool = True,
     scrape_attachments: bool = True,
+    sample: int | None = None,
     trigger: str,
     on_page: Callable[[IngestReport], None] | None = None,
     on_scrape: Callable[[Any], None] | None = None,
@@ -95,17 +112,23 @@ def execute(
     if source not in BY_NAME:
         raise ValueError(f"모르는 출처: {source}")
 
+    # None 이면 출처 기본값이다. **`--full` 은 1 을 명시해서 끈다** — 여기서 `if not
+    # sample` 로 쓰면 `--full` 이 도로 기본값을 집는다.
+    if sample is None:
+        sample = DEFAULT_SAMPLE.get(source, 1)
+
     run_id = runs.start(
         source,
         only_open=only_open,
         trigger=trigger,
         item_limit=limit,
-        filter_name="mlsfc" if skip_mlsfc else None,
+        filter_name=_filter_name(source, skip_mlsfc, require_form, sample),
     )
     try:
         with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True) as client:
             adapter = _adapter(
-                source, client, only_open=only_open, limit=limit, skip_mlsfc=skip_mlsfc
+                source, client, only_open=only_open, limit=limit,
+                skip_mlsfc=skip_mlsfc, require_form=require_form, sample=sample,
             )
             with session_scope() as session:
                 report = run(adapter, session, on_page=on_page)
@@ -122,6 +145,11 @@ def execute(
                 ids=report.touched_ids, on_progress=on_scrape
             )
             report.attachments += report.attach_report.attachments
+            if require_form:
+                # **여기서만 할 수 있다.** 첨부 파일명은 방금 긁어서 처음 알게 된 것이라
+                # `keep()` 시점에는 없었다 — 기업마당과 갈리는 자리다. 저쪽은 목록 응답에
+                # 첨부가 같이 와서 적재 전에 거르고, 여기는 **넣었다가 뺀다.**
+                report.filtered += drop_formless(report.touched_ids)
     except BaseException as e:
         # 적재는 롤백돼도 이 행은 남는다. 실패가 '아무 일 없었음'으로 보이면 안 된다.
         runs.fail(run_id, e)
@@ -136,6 +164,8 @@ def launch(
     *,
     only_open: bool = True,
     skip_mlsfc: bool = True,
+    require_form: bool = True,
+    sample: int | None = None,
     limit: int | None = None,
     trigger: str = "admin",
 ) -> jobs.Launch:
@@ -183,6 +213,8 @@ def launch(
             source,
             only_open=only_open,
             skip_mlsfc=skip_mlsfc,
+            require_form=require_form,
+            sample=sample,
             limit=limit,
             trigger=trigger,
             on_page=on_page,
@@ -200,8 +232,71 @@ def _adapter(  # noqa: ANN202
     only_open: bool,
     limit: int | None,
     skip_mlsfc: bool = False,
+    require_form: bool = False,
+    sample: int = 1,
 ):
     if source == str(Source.BIZINFO):
-        # 솎기는 기업마당만이다. K-Startup 에는 중분류 필드가 없다.
-        return BizinfoAdapter(client, limit=limit, skip_mlsfc=skip_mlsfc)
-    return KstartupAdapter(client, only_open=only_open, limit=limit)
+        # 중분류·양식 솎기는 기업마당만이다. K-Startup 은 둘 다 목록 API 에 없다 —
+        # 중분류 필드가 없고 첨부는 상세 페이지를 긁어야 안다.
+        return BizinfoAdapter(
+            client, limit=limit, skip_mlsfc=skip_mlsfc,
+            require_form=require_form, sample=sample,
+        )
+    return KstartupAdapter(client, only_open=only_open, limit=limit, sample=sample)
+
+
+def _filter_name(source: str, skip_mlsfc: bool, require_form: bool, sample: int) -> str | None:
+    """이 코퍼스가 왜 이 크기인지의 유일한 단서다.
+
+    **출처를 본다.** 중분류·양식 솎기는 기업마당에만 걸린다 — K-Startup 은 목록 API 에
+    중분류 필드가 없고 첨부는 상세를 긁어야 안다. 출처를 안 보면 K-Startup 실행에도
+    `mlsfc+form` 이 적혀서 **기록이 거짓말을 한다.**
+    """
+    parts = []
+    if skip_mlsfc and source == str(Source.BIZINFO):
+        parts.append("mlsfc")
+    if require_form:
+        parts.append("form")
+    if sample > 1:
+        parts.append(f"s{sample}")
+    return "·".join(parts) or None
+
+
+
+
+def drop_formless(ids: list[str]) -> int:
+    """첨부 파일명에 양식 낱말이 없는 K-Startup 공고를 지우고 건수를 낸다.
+
+    **기업마당과 대칭이 아니다.** 저쪽은 목록 응답에 첨부가 같이 와서 `keep()` 이
+    적재 전에 거르는데, K-Startup 은 상세 페이지를 긁어야 파일명을 알 수 있어서
+    **넣었다가 뺀다.** 이 레포에서 적재 경로가 삭제를 하는 유일한 자리다.
+
+    낱말 표는 `bizinfo.FORM_WORDS` 하나다 — **두 벌로 두지 않는다.** 파이썬 쪽에서
+    파일명을 이어 붙여 판정하므로 SQL 정규식을 따로 쓰지 않는다.
+
+    `attachment` 는 FK CASCADE 로 같이 지워진다.
+    """
+    if not ids:
+        return 0
+    from sqlalchemy import delete, select
+
+    from finnect.ingest.bizinfo import has_form
+    from finnect.models import Attachment, KstartupNotice
+
+    with session_scope() as s:
+        names: dict[str, list[str]] = {}
+        rows = s.execute(
+            select(Attachment.external_id, Attachment.filename).where(
+                Attachment.source == str(Source.KSTARTUP),
+                Attachment.external_id.in_(ids),
+            )
+        ).all()
+        for external_id, filename in rows:
+            names.setdefault(external_id, []).append(filename or "")
+
+        # **첨부가 아예 없는 공고도 뺀다.** 채울 것이 없다는 뜻이라 판정이 같다.
+        formless = [i for i in ids if not has_form(" ".join(names.get(i, [])))]
+        if not formless:
+            return 0
+        s.execute(delete(KstartupNotice).where(KstartupNotice.pbanc_sn.in_(formless)))
+        return len(formless)

@@ -5,6 +5,7 @@
     uv run python -m finnect.ingest --source all        # 둘 다
     uv run python -m finnect.ingest --source bizinfo --full     # 전량. 정본 절차용(docs/dataset.md)
     uv run python -m finnect.ingest --source kstartup --limit 500  # 맛보기 500건
+    uv run python -m finnect.ingest --source all --sample 1        # 표본만 끄고 나머지는 그대로
 
 **기본값이 2026-08-24 부터 필터링된 수집이다.** K-Startup 은 검증된 서버측 필터
 (`cond[rcrt_prgs_yn::EQ]=Y` → 요청 1회 · 268건, 2026-08-24)로 모집중만 받고, 기업마당은
@@ -12,6 +13,15 @@
 첨부 해독·`--classify` 비용이 저장한 공고 수에 비례하는데, 마감 공고는 화면에 안 뜨고
 그 중분류는 애초에 계획서를 안 받는다 — 근거는
 `docs/adr/evidence/2026-08-16-목록-API-실측.md`.
+
+**필터가 셋이다**(2026-08-24 실측 · 총 89건).
+
+    기업마당    중분류 20개 → 첨부 양식 낱말 → 표본 10     1,552 → 932 → 566 → 55
+    K-Startup   모집중만(서버측) → 표본 3 → 첨부 양식 낱말   268 → 88 → 34
+
+**순서가 출처마다 반대다.** 기업마당은 첨부가 목록 응답에 같이 와서 적재 전에 다 거르고,
+K-Startup 은 상세를 긁어야 파일명을 알아서 **표본이 먼저고 낱말이 나중이다** — 그래야
+버릴 공고의 상세 페이지를 안 연다.
 
 **K-Startup 은 모집중만 받을 때 상세 페이지까지 이 명령 안에서 같이 긁는다**(2026-08-24).
 배치가 300건 안팎이라 실측 0.38초/건 기준 2분 안이고, 끝나면 `attachment` 행까지 있다 —
@@ -51,6 +61,14 @@ def main(argv: list[str] | None = None) -> int:
         help="필터를 안 쓴다. K-Startup 전량 · 기업마당 중분류 안 거름 (docs/dataset.md 정본 절차)",
     )
     p.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        metavar="N",
+        help="공고번호를 N 으로 나눠 나머지 0 만 남긴다. 안 주면 출처 기본값"
+        "(기업마당 10 · K-Startup 3). 1 이면 표본을 끈다. 멱등하다",
+    )
+    p.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -61,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.limit is not None and args.limit < 1:
         p.error("--limit 은 1 이상이어야 한다")
+    if args.sample is not None and args.sample < 1:
+        p.error("--sample 은 1 이상이어야 한다")
 
     targets = (
         [str(Source.BIZINFO), str(Source.KSTARTUP)] if args.source == "all" else [args.source]
@@ -73,6 +93,10 @@ def main(argv: list[str] | None = None) -> int:
                 only_open=not args.full,
                 limit=args.limit,
                 skip_mlsfc=not args.full,
+                require_form=not args.full,
+                # **`--full` 이 표본도 끈다.** 1 을 명시해야 한다 — None 으로 두면
+                # execute() 가 출처 기본값을 집어서 전량이 안 된다.
+                sample=1 if args.full else args.sample,
                 trigger="cli",
             )
         except EnvelopeError as e:

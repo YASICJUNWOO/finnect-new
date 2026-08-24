@@ -45,7 +45,11 @@ class IngestReport:
         ]
         if self.filtered:
             # 조용히 버리지 않는다. 코퍼스가 왜 이 크기인지는 이 줄이 유일한 단서다.
-            lines.append(f"  솎아 낸 것 {self.filtered:,}건 (중분류)")
+            # **어느 규칙이 걸렀는지 여기서 말하지 않는다.** 규칙이 출처마다 다르고
+            # (기업마당은 중분류·양식·표본 · K-Startup 은 표본뿐) 한 문장으로 적으면
+            # 한쪽에서 반드시 거짓말이 된다. 무엇이 걸렸는지는 `ingest_run.filter_name`
+            # 이 든다 — 거기는 실행마다 실제로 켠 것만 적힌다.
+            lines.append(f"  솎아 낸 것 {self.filtered:,}건")
         if self.expected is not None and self.items < self.expected:
             # 맛보기 수집이든 사고든 여기서 드러난다. 건수만 보고 성공으로 읽지 않게.
             lines.append(f"  ⚠ 전량 {self.expected:,}건 중 {self.items:,}건만 받았다")

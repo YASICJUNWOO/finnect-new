@@ -56,42 +56,48 @@ export default async function NoticeDetailPage({
       </Link>
 
       <header className={styles.head}>
-        <div className={styles.headText}>
-          <Deadline notice={notice} />
+        <Deadline notice={notice} />
+
+        {/* **버튼이 제목과 같은 줄이다.** 머리 전체와 한 줄로 두면 flex 가 위를
+            맞춰서 44px 버튼이 20px 짜리 마감 배지 옆에 걸리고 제목은 그 아래로
+            내려간다 — 그러면 둘이 안 맞는 것으로 읽힌다. 여기서는 `baseline` 으로
+            **제목 첫 줄의 밑선**에 붙는다. */}
+        <div className={styles.titleRow}>
           <h1 className={styles.title}>{notice.title ?? "제목이 없어요"}</h1>
-          <p className={styles.meta}>
-            {meta.length > 0 ? meta.join(" · ") : "기관을 안 알려줬어요"}
-            <span className={styles.dot} aria-hidden="true">
-              ·
-            </span>
-            <span className={styles.source}>{SOURCE_NAME[source] ?? source}</span>
-          </p>
+
+          {/* **쓰기로 나가는 문이 하나다**(2026-08-24). 전에는 셋이었다 — 서류
+              카드마다 붙던 「이 양식으로 쓰기」와 서류 목록 아래의 「여기에 뭘
+              쓰는지 보기」가 **같은 주소로** 갔고, 라벨이 셋 다 달랐다. 같은
+              동작을 흐름 안에서 다른 말로 부르면 사용자가 다른 화면인 줄 안다(§10).
+
+              **양식 수로 문을 잠그지 않는다.** 파싱이 초안 시작으로 옮겨가서
+              (plan/24) 여기서 `documents` 가 비어 있는 것이 **정상 상태**다 — 아직
+              아무도 이 공고를 안 열었다는 뜻일 뿐이다. 그 수로 잠그면 **처음 여는
+              사람은 영원히 못 연다.**
+
+              대신 해독된 첨부가 하나도 없으면 닫는다. 뜯을 원본이 없으므로
+              저쪽에서도 채울 것이 안 나온다.
+
+              **`company` 를 물고 간다.** 저쪽이 초안을 열려면 누구의 것인지 알아야
+              하는데 인증이 없다 — 안 물리면 쓰기 화면이 기본 회사로 떨어져서
+              사용자가 남의 초안을 본다. */}
+          {notice.decoded_count > 0 && (
+            <Link
+              href={`/notices/${source}/${encodeURIComponent(external)}/write?company=${encodeURIComponent(company)}`}
+              className={styles.write}
+            >
+              사업계획서 작성
+            </Link>
+          )}
         </div>
 
-        {/* **쓰기로 나가는 문이 하나다**(2026-08-24). 전에는 셋이었다 — 서류
-            카드마다 붙던 「이 양식으로 쓰기」와 서류 목록 아래의 「여기에 뭘
-            쓰는지 보기」가 **같은 주소로** 갔고, 라벨이 셋 다 달랐다. 같은 동작을
-            흐름 안에서 다른 말로 부르면 사용자가 다른 화면인 줄 안다(§10).
-
-            **양식 수로 문을 잠그지 않는다.** 파싱이 초안 시작으로 옮겨가서
-            (plan/24) 여기서 `documents` 가 비어 있는 것이 **정상 상태**다 — 아직
-            아무도 이 공고를 안 열었다는 뜻일 뿐이다. 그 수로 잠그면 **처음 여는
-            사람은 영원히 못 연다.**
-
-            대신 해독된 첨부가 하나도 없으면 닫는다. 뜯을 원본이 없으므로
-            저쪽에서도 채울 것이 안 나온다.
-
-            **`company` 를 물고 간다.** 저쪽이 초안을 열려면 누구의 것인지 알아야
-            하는데 인증이 없다 — 안 물리면 쓰기 화면이 기본 회사로 떨어져서
-            사용자가 남의 초안을 본다. */}
-        {notice.decoded_count > 0 && (
-          <Link
-            href={`/notices/${source}/${encodeURIComponent(external)}/write?company=${encodeURIComponent(company)}`}
-            className={styles.write}
-          >
-            사업계획서 작성
-          </Link>
-        )}
+        <p className={styles.meta}>
+          {meta.length > 0 ? meta.join(" · ") : "기관을 안 알려줬어요"}
+          <span className={styles.dot} aria-hidden="true">
+            ·
+          </span>
+          <span className={styles.source}>{SOURCE_NAME[source] ?? source}</span>
+        </p>
       </header>
 
       {/* 왜 맞는지. **제목 바로 아래다**(2026-08-23).

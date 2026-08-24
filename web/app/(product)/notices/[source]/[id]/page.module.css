@@ -28,23 +28,34 @@
   text-underline-offset: 3px;
 }
 
-/* 제목 왼쪽 · 쓰기 버튼 오른쪽 한 줄. **≤640px 에서 세로로 접힌다**(§5) —
- * 32px 제목 옆에 44px 버튼이 붙으면 폰에서 제목이 서너 글자로 쭈그러든다. */
 .head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s4);
-}
-
-/* 마감 · 제목 · 기관 한 덩어리. **`min-width: 0` 이 있어야 한다** — flex 항목의
- * 기본값이 `min-width: auto` 라, 없으면 긴 제목이 버튼을 오른쪽 밖으로 민다. */
-.headText {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s2);
-  min-width: 0;
+}
+
+/* 제목 왼쪽 · 쓰기 버튼 오른쪽. **머리 전체를 한 줄로 두지 않는다**(2026-08-24).
+ *
+ * 그렇게 두면 flex 가 위를 맞춰서 44px 버튼이 20px 짜리 마감 배지 옆에 걸리고
+ * 제목은 그 아래로 내려간다 — 버튼이 아무것과도 안 맞는 자리에 뜬다. 줄을 제목
+ * 하나로 좁히고 `baseline` 으로 맞추면 **제목 첫 줄의 밑선**에 붙는다.
+ *
+ * `align-items: center` 를 안 쓴다 — 제목이 두 줄이 되는 순간 버튼이 둘째 줄
+ * 옆으로 내려가서 제목 길이에 따라 자리가 흔들린다. 밑선은 안 흔들린다.
+ *
+ * **`width: 100%` 가 있어야 한다.** `.head` 가 `align-items: flex-start` 인
+ * 세로 flex 라 이 줄이 내용만큼만 넓어지고, 그러면 `space-between` 이 밀 자리가
+ * 없어 버튼이 제목에 달라붙는다.
+ *
+ * **≤640px 에서 세로로 접힌다**(§5) — 32px 제목 옆에 44px 버튼이 붙으면 폰에서
+ * 제목이 서너 글자로 쭈그러든다. */
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  width: 100%;
 }
 
 /* **상한을 안 건다**(2026-08-24). `max-width: 32ch` 이 걸려 있었고 §5 의 「줄길이
@@ -58,6 +69,9 @@
  *
  * 되돌릴 조건은 `main` 의 1040px 캡이 없어지는 날이다 — 그때는 `62ch` 를 건다. */
 .title {
+  /* flex 항목 기본값이 `min-width: auto` 라, 없으면 긴 제목이 버튼을 오른쪽
+   * 밖으로 민다 */
+  min-width: 0;
   font-size: var(--t-display);
   line-height: var(--lh-display);
   font-weight: var(--w-bold);
@@ -211,10 +225,13 @@
 }
 
 @media (max-width: 640px) {
-  /* 버튼이 제목 아래로 내려온다. `.head` 의 `align-items: flex-start` 가 그대로
-   * 살아서 왼쪽 정렬이고, 폭도 글자만큼이다 — 전 폭으로 늘이지 않는다. */
-  .head {
+  /* 버튼이 제목 아래로 내려온다. 왼쪽 정렬이고 폭도 글자만큼이다 — 전 폭으로
+   * 늘이지 않는다. **기관줄이 버튼 아래로 밀린다** — 폰에서는 주 동작이 제목
+   * 바로 다음에 오는 편이 낫다고 보고 받아들인 대가다. */
+  .titleRow {
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
   }
 
   .facts {

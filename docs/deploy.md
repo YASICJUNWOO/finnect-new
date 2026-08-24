@@ -401,8 +401,19 @@ vercel deploy --prod
 | | 어디서 읽나 | 바꾸면 |
 |---|---|---|
 | `FINNECT_API` | `next.config.ts` 의 `env` — **빌드 시점에 박힌다** | **재배포해야 한다** |
-| `FINNECT_API_TOKEN` | `web/lib/api.ts` 가 런타임에 읽는다 | 재배포 없이 바로 먹는다 |
-| `ADMIN_USER`·`ADMIN_PASSWORD` | `web/proxy.ts` 와 `web/lib/api.ts` 가 런타임에 읽는다 — **`proxy.ts` 가 Node.js 런타임이라 그렇다**(Next 16 기본) | 재배포 없이 바로 먹는다 |
+| `FINNECT_API_TOKEN` | `web/lib/api.ts` 가 런타임에 읽는다 | **재배포해야 한다**(아래) |
+| `ADMIN_USER`·`ADMIN_PASSWORD` | `web/proxy.ts` 와 `web/lib/api.ts` 가 런타임에 읽는다 | **재배포해야 한다**(아래) |
+
+**「런타임에 읽는다」가 「재배포가 필요 없다」는 뜻이 아니다.** 2026-08-24 까지 이 표가
+뒤의 둘을 「재배포 없이 바로 먹는다」로 적고 있었고 **그것이 틀렸다.** Vercel 은
+환경변수를 **배포 하나에 묶어서** 넣는다 — 값만 바꾸면 지금 떠 있는 배포는 그 값을
+영영 못 본다. 코드가 값을 언제 읽느냐(빌드냐 런타임이냐)와 별개다.
+
+`FINNECT_API` 만 성질이 하나 더 있다 — 저건 **번들에 문자열로 박혀서** 재배포해도
+빌드가 안 돌면(아래 `ignoreCommand`) 옛 값이 그대로 산다.
+
+**재배포는 대시보드 Deployments → `⋯` → Redeploy 다.** 다만 아래 «재배포도 이 명령을
+탄다» 를 먼저 읽는다 — `web/` 을 안 건드린 커밋을 재배포하면 **`CANCELED` 로 끝난다.**
 
 토큰이 `env` 에 없는 것은 **의도다.** 시크릿을 번들에 박지 않고, 돌릴 때 빌드를 안 기다린다.
 

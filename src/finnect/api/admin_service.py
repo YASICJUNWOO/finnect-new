@@ -28,6 +28,8 @@ from finnect.api.admin_schemas import (
     AdminNoticeDetailOut,
     AdminNoticeListOut,
     AdminNoticeOut,
+    AdminWikiCompanyOut,
+    AdminWikiOut,
     ByExtOut,
     CoverageOut,
     FieldOut,
@@ -44,11 +46,19 @@ from finnect.models import (
     Attachment,
     AttachmentFile,
     BizinfoNotice,
+    Chunk,
+    CompanyAccount,
+    CompanyValue,
+    Draft,
     IngestRun,
     KstartupNotice,
+    NoticeFit,
     ParseStatus,
     RawFetch,
     Source,
+    UserFile,
+    WikiFact,
+    WikiNode,
 )
 from finnect.sources import SOURCES
 from finnect.views import Notice
@@ -435,3 +445,73 @@ def _progress_out(p: jobs.Progress | None) -> IngestProgressOut | None:
         goal=p.goal, percent=p.percent,
         phase=p.phase, scraped=p.scraped, scrape_total=p.scrape_total,
     )
+
+
+# ─── 위키 지우기 (ADR-0072) ─────────────────────────────────────────
+
+
+def wikis(s: Session) -> AdminWikiOut:
+    """위키가 서 있는 회사를 센다. **읽기만 한다** — 지우는 것은 `app.py` 의
+    `POST /api/admin/wiki/purge/{company_id}` 다([ADR-0072](
+    ../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)).
+
+    **표를 다섯 개 따로 센다.** 조인 하나로 묶으면 곱집합이 생겨 파일 7개 × 청크 40개가
+    280 으로 나온다 — 화면에 서는 것이 전부 숫자라 그 고장이 그럴듯하게 보인다.
+    회사 수가 두 자리라 질의 일곱 번이 비싸지 않다.
+
+    **`company_account` 를 모수로 삼지 않는다.** `c_dasiro`·`c_narin` 은 CLI 로 만든
+    회사라 그 표에 행이 없는데, **시연에서 실제로 지울 것이 그쪽이다.** 반대로 입장만
+    하고 아무것도 안 올린 사람은 지울 것이 없어서 목록에 안 선다 — 모수는 **행이 있는
+    쪽**이고 이름은 있으면 붙인다.
+
+    **`drafts`·`fits` 는 안 지우는 것을 세는 칸이다.** 위키만 지우는 버튼이라 저 둘이
+    남는데, 화면이 안 적으면 남은 것이 고장으로 읽힌다.
+    """
+
+    def tally(model: object) -> dict[str, int]:
+        return dict(
+            s.execute(
+                select(model.company_id, func.count()).group_by(model.company_id)  # type: ignore[attr-defined]
+            ).all()
+        )
+
+    files = tally(UserFile)
+    chunks = tally(Chunk)
+    facts = tally(WikiFact)
+    values = tally(CompanyValue)
+    nodes = tally(WikiNode)
+    drafts = tally(Draft)
+    fits = tally(NoticeFit)
+
+    # **모수는 위키 쪽 다섯이다.** 초안과 판정만 남은 회사는 여기 안 선다 — 이 버튼이
+    # 그 둘을 안 지우므로, 목록에 세워 두면 눌러도 아무 일도 안 일어난다.
+    ids = set(files) | set(chunks) | set(facts) | set(values) | set(nodes)
+
+    names = dict(s.execute(select(CompanyAccount.company_id, CompanyAccount.name)).all())
+    uploaded = dict(
+        s.execute(
+            select(UserFile.company_id, func.max(UserFile.uploaded_at)).group_by(
+                UserFile.company_id
+            )
+        ).all()
+    )
+
+    rows = [
+        AdminWikiCompanyOut(
+            company_id=cid,
+            name=names.get(cid),
+            files=files.get(cid, 0),
+            chunks=chunks.get(cid, 0),
+            facts=facts.get(cid, 0),
+            values=values.get(cid, 0),
+            nodes=nodes.get(cid, 0),
+            uploaded_at=uploaded.get(cid),
+            drafts=drafts.get(cid, 0),
+            fits=fits.get(cid, 0),
+        )
+        for cid in ids
+    ]
+    # 최근에 올린 것이 위다. **시각이 없는 회사를 맨 뒤로 보낸다** — 사실만 남고 파일이
+    # 지워진 상태라 방금 만진 것일 리가 없다. 같은 값이면 id 로 갈라 순서를 고정한다.
+    rows.sort(key=lambda r: (r.uploaded_at is not None, r.uploaded_at, r.company_id), reverse=True)
+    return AdminWikiOut(companies=rows)

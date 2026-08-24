@@ -297,3 +297,54 @@ class IngestTriggerOut(BaseModel):
 
     started: bool
     reason: str = ""
+
+
+# ─── 위키 지우기 (ADR-0072) ─────────────────────────────────────────
+
+
+class AdminWikiCompanyOut(BaseModel):
+    """위키가 서 있는 회사 하나.
+
+    **회사 목록이 아니라 「지울 것이 있는 회사」 목록이다.** 입장만 하고 아무것도 안
+    올린 사람은 여기 없다 — 지우기 버튼이 할 일이 없는 행을 세워 두면 그 버튼이
+    무엇을 지우는지가 흐려진다.
+
+    `name` 은 입장 게이트가 든 표시용 이름(`company_account.name`)이고 **없을 수 있다** —
+    `c_dasiro`·`c_narin` 처럼 CLI 로 만든 회사는 그 표에 행이 없다. 빈 자리를
+    `company_id` 로 메우지 않는다. 메우면 게이트로 들어온 회사와 구분이 안 된다.
+
+    **`drafts`·`fits` 는 이 버튼이 안 지우는 것이다.** 세어서 내는 이유가 그것이다 —
+    안 적으면 "위키를 지웠는데 초안이 그대로다" 가 고장으로 읽힌다.
+    """
+
+    company_id: str
+    #: 입장 게이트가 든 이름. CLI 로 만든 회사는 없다
+    name: str | None
+    files: int
+    chunks: int
+    facts: int
+    values: int
+    nodes: int
+    #: 마지막으로 파일이 올라온 시각. 파일이 없으면 None 이다
+    uploaded_at: dt.datetime | None
+    #: **안 지운다.** 초안은 화면의 「초기화」가 지운다(ADR-0062)
+    drafts: int
+    #: **안 지운다.** 판정은 `match --company` 가 다시 만든다
+    fits: int
+
+
+class AdminWikiOut(BaseModel):
+    companies: list[AdminWikiCompanyOut]
+
+
+class WikiPurgeOut(BaseModel):
+    """지우고 나서 무엇이 없어졌나. **`IngestTriggerOut` 과 모양이 다르다** —
+    저건 "시작했다" 이고 이건 **이미 끝났다.** 위키 지우기는 스레드로 안 뗀다."""
+
+    company_id: str
+    #: 지운 사용자 파일 행 수
+    files: int
+    #: 지운 사실 + 값 수(`wiki/build.py` `clear()` 가 세는 것과 같은 값이다)
+    facts: int
+    #: 원본 파일 디렉터리가 있어서 지웠나. 없었으면 거짓이다
+    storage: bool

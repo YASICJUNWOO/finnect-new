@@ -146,8 +146,14 @@ def _lock_key(company_id: str) -> int:
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
-def _hold(session: Session, company_id: str) -> None:
+def hold(session: Session, company_id: str) -> None:
     """이 회사를 이 트랜잭션 동안 붙잡는다. 못 잡으면 거절한다(plan/12 T-0094).
+
+    **세우는 쪽과 지우는 쪽이 같은 키를 잡는다**([ADR-0072](
+    ../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)). 이름이 `_hold` 였다가
+    공개된 이유가 그것이다 — 락의 뜻이 「빌드 하나」에서 **「이 회사의 위키를 쓰는 일
+    하나」**로 넓어졌다. 안 넓히면 `--build` 가 도는 중에 `--purge` 가 들어가서
+    **읽는 중인 파일이 지워진다.**
 
     `ingest/jobs.py` 의 락은 `threading.Lock` 이라 **한 프로세스 안에서만 산다.**
     2026-08-21 CLI `--build` 가 도는 중에 화면에서 올린 파일이 `chunked` 로 되돌려졌다 —
@@ -187,9 +193,9 @@ def build_company(
     `clear()` 를 따로 부르고 커밋한 뒤 `build_company` 를 불렀는데, 그 사이에 락이
     거절되면 **사실이 지워진 채로 아무것도 안 서고 끝났다.** 실제로 밟았다 —
     다른 프로세스가 세우는 중에 `--rebuild` 를 돌렸고, 그때 지운 것이 0건이라
-    운이 좋았을 뿐이다. `_hold` 뒤로 옮기면 그 창이 없어진다.
+    운이 좋았을 뿐이다. `hold` 뒤로 옮기면 그 창이 없어진다.
     """
-    _hold(session, company_id)
+    hold(session, company_id)
     ex = extractor or Extractors.default()
     report = BuildReport(company_id=company_id)
     if rebuild:

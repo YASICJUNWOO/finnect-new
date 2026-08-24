@@ -337,9 +337,21 @@ def purge(session: Session, company_id: str) -> tuple[int, int]:
     사실 하나가 파일 여럿을 근거로 들 수 있으니 그게 맞다 — 파일을 지워도 안 따라 지워진다.
     2026-08-18 실제로 그랬다: 탈퇴 뒤 다시 올렸더니 사실 118건이 전부 '이미 있음' 으로
     나왔고, **지웠어야 할 값이 DB 에 그대로 있었다.**
+
+    **세우는 중이면 거절한다**([ADR-0072](
+    ../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md) · `BuildBusy`). `build.hold` 가
+    잡는 키가 `build_company` 의 것과 같다 — 안 잡으면 `--build` 가 청크를 읽는 동안
+    그 행이 지워지고, 그쪽은 **이미 없는 파일을 들고 끝까지 돈다.** 부르는 쪽이 이
+    예외를 받아야 한다(CLI 는 exit 1 · API 는 409).
+
+    **초안과 판정은 안 지운다.** `draft`·`notice_fit` 은 `company_id` 를 들지만 여기서
+    안 건드린다 — 사람이 고친 글이 거기 있고(ADR-0055), 지우는 자리는 화면의
+    「초기화」다(ADR-0062). 사실을 가리키던 근거 행(`draft_evidence`·
+    `notice_fit_evidence`)은 FK 가 `CASCADE` 라 사실과 함께 없어진다.
     """
     from finnect.wiki import build  # 순환 임포트를 피한다 — build 가 service 를 안 쓴다
 
+    build.hold(session, company_id)
     facts = build.clear(session, company_id)
     files = session.scalars(select(UserFile).where(UserFile.company_id == company_id)).all()
     # **청크를 DB 캐스케이드에 맡기지 않는다.** Postgres 는 지워 주지만 SQLite 는

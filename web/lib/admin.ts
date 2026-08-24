@@ -301,3 +301,53 @@ export function triggerIngest(
     headers: { "x-ingest-trigger-token": opts.token },
   });
 }
+
+/** 위키가 서 있는 회사 하나([ADR-0072](../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)).
+ *
+ * **`name` 이 없을 수 있다** — `c_dasiro`·`c_narin` 처럼 CLI 로 만든 회사는 입장 게이트
+ * 표(`company_account`)에 행이 없다. **`company_id` 로 메우지 않는다.**
+ *
+ * **`drafts`·`fits` 는 지우기가 안 건드리는 것이다.** 화면이 그걸 적어야 남은 것이
+ * 고장으로 안 읽힌다. */
+export type AdminWikiCompany = {
+  company_id: string;
+  name: string | null;
+  files: number;
+  chunks: number;
+  facts: number;
+  values: number;
+  nodes: number;
+  /** 파일이 없으면 null */
+  uploaded_at: string | null;
+  /** **안 지운다.** 초안은 화면의 「초기화」가 지운다(ADR-0062) */
+  drafts: number;
+  /** **안 지운다.** 판정은 `match --company` 가 다시 만든다 */
+  fits: number;
+};
+
+export type AdminWiki = {
+  companies: AdminWikiCompany[];
+};
+
+/** 지우고 나서 무엇이 없어졌나. **`IngestTrigger` 와 모양이 다르다** — 저건 "시작했다"
+ *  이고 이건 **이미 끝났다.** 위키 지우기는 스레드로 안 뗀다. */
+export type WikiPurge = {
+  company_id: string;
+  files: number;
+  facts: number;
+  /** 원본 파일 디렉터리가 있어서 지웠나 */
+  storage: boolean;
+};
+
+export function getAdminWiki(): Promise<AdminWiki> {
+  return get<AdminWiki>("/api/admin/wiki");
+}
+
+/** 그 회사의 위키를 지운다([ADR-0072](../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)).
+ *  **수집·첨부와 같은 토큰을 쓴다** — 버튼마다 토큰을 나누지 않는다(ADR-0071 결정 3). */
+export function purgeWiki(companyId: string, token: string): Promise<WikiPurge> {
+  return send<WikiPurge>(`/api/admin/wiki/purge/${encodeURIComponent(companyId)}`, {
+    method: "POST",
+    headers: { "x-ingest-trigger-token": token },
+  });
+}

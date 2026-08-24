@@ -550,6 +550,6 @@ def test_sqlite_에서는_락을_안_건다(built):  # noqa: ANN001
     """테스트는 인메모리로 돌고 **거기는 프로세스가 하나다.** 거절하면 전부 죽는다."""
     factory, _ = built
     with factory() as s:
-        build._hold(s, COMPANY)
-        build._hold(s, COMPANY)  # 두 번 불러도 안 터진다
+        build.hold(s, COMPANY)
+        build.hold(s, COMPANY)  # 두 번 불러도 안 터진다
         assert build.build_company(s, COMPANY) is not None

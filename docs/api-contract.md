@@ -491,8 +491,10 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 | `GET /api/admin/attach` | 첨부 받기 카드 — 지금 돌고 있나 · **아직 안 받은 것이 몇 건인가** |
 | `POST /api/admin/ingest/run/{source}` | 수집을 시작한다 |
 | `POST /api/admin/attach/run` | 첨부를 내려받아 해독한다. **아직 안 받은 것만 대상이다** |
+| `GET /api/admin/wiki` | 위키가 서 있는 회사와 표별 건수. **읽기라 실행 토큰을 안 묻는다** |
+| `POST /api/admin/wiki/purge/{company_id}` | 그 회사의 위키를 지운다. **되돌릴 수 없다** |
 
-**쓰기가 둘이다.** 조회 다섯은 GET 이고 이 둘만 쓰기다 — `tests/test_draft_start.py` 가 제품 경로까지 합쳐 전량을 잠근다.
+**쓰기가 셋이다.** 조회 여섯은 GET 이고 이 셋만 쓰기다 — `tests/test_draft_start.py` 가 제품 경로까지 합쳐 전량을 잠근다.
 
 ### 운영 상세가 더 주는 것
 
@@ -557,6 +559,54 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 | 400 | `limit` 이 1 미만 |
 | 401 | 토큰이 없거나 틀렸다 |
 | 503 | 이 배포에 `INGEST_TRIGGER_TOKEN` 이 설정 안 됐다 |
+
+### 위키 지우기 — `GET /api/admin/wiki` · `POST /api/admin/wiki/purge/{company_id}`
+
+[ADR-0072](adr/0072-위키-지우기를-운영-화면에-연다.md)로 열렸다. 한 번 세운 위키를
+되돌리는 길이 CLI 하나뿐이었고, 그래서 **시연이 두 번째부터 「빈 위키에서 시작」을 못
+보여 준다.**
+
+**`GET` 이 모수를 정한다.** 행이 있는 회사(`user_file`·`chunk`·`wiki_fact`·
+`company_value`·`wiki_node` 다섯 중 하나라도)만 선다 — 입장만 하고 아무것도 안 올린
+사람은 지울 것이 없어서 안 나온다. **`company_account` 를 모수로 삼지 않는다**:
+`c_dasiro`·`c_narin` 은 CLI 로 만들어 그 표에 행이 없는데 실제로 지울 것이 있다.
+
+**`name` 이 `null` 일 수 있다.** 입장 게이트(ADR-0066)를 안 거친 회사다.
+**`company_id` 로 메우지 않는다** — 메우면 게이트로 들어온 회사와 구분이 안 된다.
+
+**`drafts`·`fits` 는 이 버튼이 안 지우는 것을 센다.** 안 내면 남은 초안이 고장으로
+읽힌다.
+
+| | |
+|---|---|
+| GET 200 | `{companies: [{company_id, name, files, chunks, facts, values, nodes, uploaded_at, drafts, fits}]}` |
+| GET 헤더 | Basic 만. **실행 토큰을 안 묻는다** — 물으면 무엇을 지울지 모르는 채로 토큰부터 치게 된다 |
+
+**`POST` 는 `wiki.service.purge` + `storage.purge` 를 부른다** — `python -m
+finnect.wiki --company … --purge` 가 부르는 **바로 그 둘이다.** 베끼면 두 벌이 되고
+한쪽이 낡는데, 여기서 낡는 쪽은 **지우는 코드**다.
+
+**200 이고 202 가 아니다.** 스레드로 안 뗀다 — 몇 밀리초라 기다릴 것이 없고, 진행
+표가 없으므로 화면이 물으러 올 곳도 없다.
+
+| | |
+|---|---|
+| 헤더 | `x-ingest-trigger-token` — **수집·첨부와 같은 문이다**(ADR-0071 결정 3) |
+| 200 | `{company_id, files, facts, storage}`. 지울 것이 없으면 **0 건이고 오류가 아니다** |
+| 400 | `company_id` 가 경로에 쓸 수 없는 모양이다(ADR-0029 `_COMPANY_ID`) |
+| 401 | 토큰이 없거나 틀렸다 |
+| 409 | **지금 그 회사의 위키를 세우고 있다.** 수집·첨부의 `started=false` 와 다르다 — 여기는 시작할 것이 없어서 안 지웠으면 성공이 아니다 |
+| 503 | 이 배포에 `INGEST_TRIGGER_TOKEN` 이 설정 안 됐다 |
+
+**문이 둘 겹친다.** `jobs.running`(이 프로세스 · 해독 구간까지 덮는다)과 어드바이저리
+락(프로세스를 건넌다 · `build.hold`)이다 — **덮는 구간이 달라서 둘 다 있어야 한다.**
+락이 `service.purge` 안에 있으므로 **CLI `--purge` 도 같은 문을 지나고**, 거절되면
+한 줄을 찍고 exit 1 이다.
+
+**초안과 판정은 안 지운다.** 사람이 고친 글이 초안에 있고(ADR-0055) 지우는 자리는
+공고 화면의 「초기화」다(ADR-0062). 판정은 `match --company` 가 다시 만든다.
+**사실을 인용한 근거 행은 따라 없어진다** — `draft_evidence`·`notice_fit_evidence` 의
+`fact_id` 가 `ON DELETE CASCADE` 다.
 
 **`source` 와 `only` 가 없다.** CLI 에는 둘 다 있지만 버튼에는 안 붙였다 — 출처는
 화면에서 고를 이유가 아직 없고(락이 하나라 둘을 동시에 못 돌린다), `--only` 목록은

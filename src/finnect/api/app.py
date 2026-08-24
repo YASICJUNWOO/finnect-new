@@ -25,9 +25,11 @@ from finnect.api.admin_schemas import (
     AdminIngestOut,
     AdminNoticeDetailOut,
     AdminNoticeListOut,
+    AdminWikiOut,
     AttachProgressOut,
     IngestTriggerOut,
     JobOutcomeOut,
+    WikiPurgeOut,
 )
 from finnect.api.schemas import (
     DraftItemEditIn,
@@ -817,13 +819,16 @@ def wiki_progress(company_id: str) -> ProgressOut:
         return wiki_service.get_progress(s, company_id, running=jobs.running(_job_key(company_id)))
 
 
-# --- 운영 화면 (ADR-0027 · 실행은 ADR-0065) ---------------------------------
+# --- 운영 화면 (ADR-0027 · 실행은 ADR-0065 · 0071 · 0072) --------------------
 #
-# 조회 넷은 GET 이다. **`POST /api/admin/ingest/run/{source}` 하나만 쓰기다** —
-# ADR-0027 은 이걸 "서버리스가 데몬 스레드를 못 돌린다"는 이유로 로컬 CLI 에만
+# **조회 여섯은 GET 이고 쓰기가 셋이다** — 수집 실행 · 첨부 받기 · 위키 지우기.
+# ADR-0027 은 실행을 "서버리스가 데몬 스레드를 못 돌린다"는 이유로 로컬 CLI 에만
 # 남겼는데, ADR-0035 로 이 API 자체가 서버리스에서 이 서버의 상시 프로세스로
 # 내려오면서 그 전제가 없어졌다. `jobs.py` 의 락과 진행 상태가 이 프로세스
 # 안에 그대로 산다 — 배포본이 자기 자신을 궁금해할 수 있게 됐다.
+#
+# **셋째는 성질이 다르다.** 앞의 둘은 시작하는 일이고(202 · `started`) 위키 지우기는
+# **되돌릴 수 없이 지우는 일**이다(200 · 거절이 409). ADR-0072 결정 6 이 그 자리다.
 #
 # 제품 경로와 접두사를 갈라 둔다(`/api/admin/`). 목적이 반대인 응답이라
 # 한 이름 아래 섞이면 어느 쪽 계약인지 알 수 없다.
@@ -1004,3 +1009,71 @@ def admin_attach_run(
 
     result = attach_service.launch(limit=limit, redo=redo)
     return IngestTriggerOut(started=result.started, reason=result.reason)
+
+
+@app.get("/api/admin/wiki", response_model=AdminWikiOut, tags=["admin"])
+def admin_wiki() -> AdminWikiOut:
+    """위키가 서 있는 회사 목록([ADR-0072](
+    ../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)).
+
+    **`admin_service` 에 있다.** 이 계산은 모델만 읽고 파서도 httpx 도 안 부른다 —
+    `attach`·`ingest` 를 저 모듈에서 뺀 이유가 여기는 안 걸린다.
+    """
+    with SessionFactory() as s:
+        return admin_service.wikis(s)
+
+
+@app.post(
+    "/api/admin/wiki/purge/{company_id}",
+    response_model=WikiPurgeOut,
+    tags=["admin"],
+)
+def admin_wiki_purge(company_id: str, request: Request) -> WikiPurgeOut:
+    """그 회사의 위키를 지운다 — 파일 · 청크 · 사실 · 값 · 노드 · 원본([ADR-0072](
+    ../../docs/adr/0072-위키-지우기를-운영-화면에-연다.md)).
+
+    **`uv run python -m finnect.wiki --company … --purge` 와 같은 함수를 부른다.**
+    베끼지 않는 이유는 `attach` 의 `backlog()` 와 같다 — 두 벌이면 한쪽이 반드시 낡고,
+    낡은 쪽이 **지우는 코드**다.
+
+    **202 가 아니라 200 이다.** 수집·첨부와 달리 스레드로 안 뗀다 — 지우는 일은 몇
+    밀리초라 기다릴 것이 없고, 진행 표가 없으므로 화면이 물으러 올 곳도 없다.
+
+    **문 둘을 겹친다.**
+
+    1. `jobs.running` — 이 프로세스에서 그 회사의 빌드가 도는 중인가. 해독 단계에는
+       아래 어드바이저리 락이 아직 안 잡혀 있어서 **이것 없이는 읽는 중인 파일이
+       지워진다.**
+    2. `wiki.service.purge` 안의 `build.hold` — 다른 프로세스(CLI `--build`)가 세우는
+       중인가. `jobs` 의 락은 `threading.Lock` 이라 프로세스를 못 건넌다(plan/12 T-0094).
+       **그 락을 여기서 따로 안 잡는다** — 잡는 자리가 지우는 함수 안이라 CLI `--purge`
+       도 같은 문을 지난다.
+
+    **거절이 409 다.** 수집·첨부의 「이미 돌고 있어요」는 202 에 `started: false` 인데,
+    저건 **시작하는 일**이라 "안 시작했다" 가 답이 된다. 여기는 시작할 것이 없고
+    지우거나 안 지우거나 둘뿐이라, 안 지웠으면 그것은 성공이 아니다.
+    """
+    _require_trigger_token(request)
+
+    if jobs.running(_job_key(company_id)):
+        raise HTTPException(409, "지금 그 회사의 위키를 세우고 있어요. 끝나고 다시 눌러 주세요")
+
+    # 최상단에 두면 `import finnect.api.app` 이 pdfplumber 를 끌고 온다 —
+    # `admin_ingest_run` · `wiki_upload` 와 같은 이유다(`tests/test_admin_api.py`).
+    from finnect.wiki import build
+    from finnect.wiki import service as wiki_files
+
+    try:
+        with SessionFactory() as s:
+            files, facts = wiki_files.purge(s, company_id)
+            # **디스크를 커밋 전에 지운다.** 순서를 뒤집으면 행은 없어졌는데 파일이
+            # 남는 창이 생기고, 그 파일은 가리키는 행이 없어 아무도 못 찾는다.
+            # 반대로 여기서 터지면 롤백돼서 **둘 다 남는다** — 다시 누르면 된다.
+            gone = storage.purge(company_id)
+            s.commit()
+    except build.BuildBusy as e:
+        raise HTTPException(409, str(e)) from e
+    except storage.IsolationError as e:
+        raise HTTPException(400, str(e)) from e
+
+    return WikiPurgeOut(company_id=company_id, files=files, facts=facts, storage=gone)

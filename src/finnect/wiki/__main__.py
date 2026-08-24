@@ -91,10 +91,17 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--company 는 필수예요. (--score 만 예외예요)")
 
     if args.purge:
-        with SessionFactory() as s:
-            n, facts = service.purge(s, args.company)
-            s.commit()
-        gone = storage.purge(args.company)
+        # **세우는 중이면 거절된다**(ADR-0072). `--build` 와 같은 락이고 같은 모양으로
+        # 답한다 — 트레이스백이 아니라 한 줄이다.
+        try:
+            with SessionFactory() as s:
+                n, facts = service.purge(s, args.company)
+                # 디스크를 커밋 전에 지운다. 뒤집으면 행은 없는데 파일이 남는 창이 생긴다
+                gone = storage.purge(args.company)
+                s.commit()
+        except build.BuildBusy as e:
+            print(f"[못 지웠어요] {e}")
+            return 1
         print(
             f"{args.company}: 파일 {n}건 · 사실 {facts}건 삭제 · "
             f"원본 디렉터리 {'삭제' if gone else '없음'}"

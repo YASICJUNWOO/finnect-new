@@ -466,7 +466,7 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 |---|---|---|
 | `x-finnect-token` | 이 API 에 말을 걸어도 되나 | **검사를 끈다**(로컬 편의) |
 | `Authorization: Basic` | 운영 자료를 봐도 되나 | **막는다** |
-| `x-ingest-trigger-token` | 수집 버튼을 눌러도 되나 | **막는다** |
+| `x-ingest-trigger-token` | **실행 버튼**을 눌러도 되나 (수집 · 첨부 받기) | **막는다** |
 
 **Basic 이 토큰보다 안쪽이다.** 토큰이 없는 요청은 Basic 창을 보기 전에 막힌다. 화면 쪽 문은 `web/proxy.ts` 가 따로 들고, **같은 자격이어야 한다** — 갈리면 `/admin` 은 열리는데 안의 표가 전부 401 이다.
 
@@ -488,7 +488,11 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 | `GET /api/admin/notices/{source}/{external_id}` | 상세. 컬럼 전부 + 설명 + 첨부 + 원문 응답 |
 | `GET /api/admin/attachments` | 해독 현황 집계와 OCR 후보 |
 | `GET /api/admin/ingest` | 수집 실행 기록 · 출처별 저장 건수 · **지금 진행 상태** |
-| `POST /api/admin/ingest/run/{source}` | 수집을 시작한다. **이 경로만 쓰기다** |
+| `GET /api/admin/attach` | 첨부 받기 카드 — 지금 돌고 있나 · **아직 안 받은 것이 몇 건인가** |
+| `POST /api/admin/ingest/run/{source}` | 수집을 시작한다 |
+| `POST /api/admin/attach/run` | 첨부를 내려받아 해독한다. **아직 안 받은 것만 대상이다** |
+
+**쓰기가 둘이다.** 조회 다섯은 GET 이고 이 둘만 쓰기다 — `tests/test_draft_start.py` 가 제품 경로까지 합쳐 전량을 잠근다.
 
 ### 운영 상세가 더 주는 것
 
@@ -522,6 +526,47 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 **`GET /api/admin/ingest` 가 `running`·`progress` 를 이제 낸다.** 값은 DB 가 아니라
 **이 프로세스의 메모리**(`ingest/jobs.py`)에서 온다 — 그래서 여러 API 프로세스를
 띄우면(현재는 워커 1개) 진행 상태가 그중 하나에만 보일 수 있다. 재시작하면 사라진다.
+
+### 첨부 받기 — `GET /api/admin/attach` · `POST /api/admin/attach/run`
+
+[ADR-0071](adr/0071-첨부-받기를-운영-화면에-연다.md)로 열렸다. 첨부를 받는 길이 CLI
+하나뿐이었고, 그 CLI 가 **매번 전량을 대상으로 잡아서** 숫자가 거짓이었다.
+
+**`pending` 이 이 경로의 요점이다.** 아직 안 받은 첨부 URL 수이고, `run()` 이 대상을
+고르는 **바로 그 함수**(`attach/service.py` `backlog()`)가 센다. 화면이 527건이라고
+했는데 눌러 보니 3,354건이 돌면 그 화면은 없느니만 못하다 — 그래서 셈을
+`api/admin_service.py` 에 베끼지 않았고, 경로가 `app.py` 에서 `attach.service` 를
+**함수 안에서** 임포트한다.
+
+**`GET /api/admin/attachments` 와 따로 둔다.** 저 경로는 집계 다섯을 훑는 무거운
+질의라 실행 중에 1.5초마다 두드릴 것이 아니다. 여기는 URL 표만 센다.
+
+| | |
+|---|---|
+| GET 200 | `{running, progress, pending, urls, last}` |
+| `progress` | `running` 일 때만 뜻이 있다. **첫 보고 전에는 `null`** — 「아직 세는 중」이다 |
+| `progress.total` | **이번에 받을 것.** 이미 받아 둔 것은 여기 없다 — 있으면 막대가 84% 에서 시작한다 |
+| `progress.skipped` | 이미 받아 둬서 대상에서 뺀 것. **`total` 밖의 숫자다** |
+| `last` | 마지막 실행이 어떻게 끝났나. **메모리에만 산다** — 재시작하면 사라진다. 첨부 받기에는 `ingest_run` 같은 표가 없다 |
+
+| | |
+|---|---|
+| POST 쿼리 | `limit`(int, 선택 — **안 받은 것 중 N건**) · `redo`(bool, 기본 false) |
+| 헤더 | `x-ingest-trigger-token` — **수집과 같은 문이다** |
+| 200 | `{started, reason}`. `started=false` 면 이미 돌고 있다는 뜻이지 오류가 아니다 |
+| 400 | `limit` 이 1 미만 |
+| 401 | 토큰이 없거나 틀렸다 |
+| 503 | 이 배포에 `INGEST_TRIGGER_TOKEN` 이 설정 안 됐다 |
+
+**`source` 와 `only` 가 없다.** CLI 에는 둘 다 있지만 버튼에는 안 붙였다 — 출처는
+화면에서 고를 이유가 아직 없고(락이 하나라 둘을 동시에 못 돌린다), `--only` 목록은
+`notice-filter/` 가 만들어 **파일로** 온다.
+
+**`redo` 는 파서를 고쳤을 때다.** 디스크에 있는 파일은 다시 안 받고 해독만 다시 한다.
+그때는 이미 받아 둔 것도 전부 대상이 된다 — 그것이 `redo` 의 뜻이다.
+
+**한 프로세스 안에서만 막힌다.** CLI 로 `finnect.attach` 를 돌리는 동안 버튼을 누르면
+둘 다 돈다. 저장이 콘텐츠 주소이고 행은 URL 이 유일 키라 **느려질 뿐 깨지지 않는다.**
 
 ---
 

@@ -1,4 +1,4 @@
-"""버튼 뒤 — 한 출처에 하나만, 백그라운드 스레드에서.
+"""버튼 뒤 — 키 하나에 하나만, 백그라운드 스레드에서.
 
 요청 스레드에서 돌리면 K-Startup 149회가 끝날 때까지 응답이 안 나간다.
 그래서 스레드로 뗀다. **스케줄러도 잡 큐도 아니다.** 프로세스가 죽으면 실행도 죽고,
@@ -6,6 +6,10 @@
 ../../../docs/adr/0011-수집-실행-화면.md)).
 
 이 모듈은 DB 를 모른다. 락과 진행 상태만 들고 있어서 가짜 작업으로 시험할 수 있다.
+**어느 표가 들어오는지도 모른다** — 수집은 `Progress` 를, 첨부 받기는
+`attach.service.AttachProgress` 를 넣는다([ADR-0071](
+../../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)). 여기서 둘을 알면 이
+모듈이 다시 수집기의 것이 된다.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import threading
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 #: 목록을 받는 단계. 기본값이다.
 PHASE_LIST = "목록"
@@ -71,47 +76,83 @@ class Launch:
     reason: str = ""
 
 
+@dataclass(frozen=True)
+class Outcome:
+    """마지막 실행이 어떻게 끝났나. **메모리에만 산다** — 재시작하면 사라진다.
+
+    수집은 `ingest_run` 표가 이 자리를 대신하지만 **첨부 받기는 그 표가 없다.**
+    실패가 '아무 일도 없었음' 과 구분되지 않으면 버튼은 없느니만 못하다
+    (`models.py` `IngestRun` 이 같은 이유로 실패한 실행도 행으로 남긴다).
+    """
+
+    ok: bool
+    detail: str = ""
+
+
 _guard = threading.Lock()
 _locks: dict[str, threading.Lock] = {}
-_progress: dict[str, Progress] = {}
+#: 어느 표인지 여기서 모른다. 넣는 쪽이 자기 표를 넣고 꺼내는 쪽이 그걸 안다.
+_progress: dict[str, Any] = {}
+_last: dict[str, Outcome] = {}
 
 
-def launch(key: str, work: Callable[[], None]) -> Launch:
+def launch(key: str, work: Callable[[], str | None], *, initial: Any = None) -> Launch:  # noqa: ANN401
     """key 하나에 하나만 돌린다. 이미 돌고 있으면 거절한다.
 
     거절이 기본값이다. 큐에 쌓아 두면 버튼을 두 번 누른 사람이 두 번 도는 것을 못 본다.
+
+    `work` 가 돌려주는 한 줄이 `Outcome.detail` 이 된다. **안 돌려줘도 된다** —
+    수집은 `ingest_run` 이 이미 그 자리를 갖고 있어서 `None` 이다.
+
+    **`initial` 을 여기서 지어내지 않는다.** 예전에는 `Progress()` 를 깔았는데, 그건
+    수집의 표라 첨부 받기가 첫 보고를 하기 전에 화면이 그걸 읽으면 없는 칸을 묻는다.
+    안 주면 첫 보고 전까지 `progress_of` 가 None 이고, **그것이 "아직 세는 중" 이다.**
     """
     lock = _lock_for(key)
     if not lock.acquire(blocking=False):
         return Launch(False, "이미 돌고 있다")
 
     with _guard:
-        _progress[key] = Progress()
+        if initial is None:
+            _progress.pop(key, None)
+        else:
+            _progress[key] = initial
+        _last.pop(key, None)  # 지난 결과가 이번 실행 옆에 남아 있으면 그것이 이번 것으로 읽힌다
 
     def runner() -> None:
+        outcome = Outcome(False, "끝나기 전에 죽었다")
         try:
-            work()
-        except BaseException:  # noqa: BLE001 - 스레드 밖으로 안 나가므로 여기서 찍는다
-            # work 안에서 이미 IngestRun.error 에 남긴다. 여기는 터미널용 사본이다.
+            outcome = Outcome(True, work() or "")
+        except BaseException as e:  # noqa: BLE001 - 스레드 밖으로 안 나가므로 여기서 찍는다
+            # 수집은 work 안에서 이미 IngestRun.error 에 남긴다. 여기는 그 사본이자,
+            # **표가 없는 첨부 받기에게는 유일한 자국이다.**
+            outcome = Outcome(False, f"{type(e).__name__}: {e}")
             traceback.print_exc()
         finally:
             with _guard:
                 _progress.pop(key, None)
+                _last[key] = outcome
             lock.release()
 
-    threading.Thread(target=runner, name=f"ingest:{key}", daemon=True).start()
+    threading.Thread(target=runner, name=f"job:{key}", daemon=True).start()
     return Launch(True)
 
 
-def report(key: str, progress: Progress) -> None:
+def report(key: str, progress: Any) -> None:  # noqa: ANN401 - 표를 여기서 모르는 것이 요점이다
     with _guard:
         _progress[key] = progress
 
 
-def progress_of(key: str) -> Progress | None:
-    """돌고 있으면 진행 상태, 아니면 None."""
+def progress_of(key: str) -> Any | None:  # noqa: ANN401
+    """돌고 있으면 진행 상태, 아니면 None. **넣은 쪽이 넣은 표 그대로 나온다.**"""
     with _guard:
         return _progress.get(key)
+
+
+def outcome_of(key: str) -> Outcome | None:
+    """마지막 실행 결과. 아직 한 번도 안 돌렸거나 지금 돌고 있으면 None."""
+    with _guard:
+        return _last.get(key)
 
 
 def running(key: str) -> bool:

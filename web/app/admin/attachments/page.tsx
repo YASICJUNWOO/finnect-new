@@ -1,4 +1,5 @@
-import { getAdminAttachments } from "@/lib/admin";
+import AttachCard from "@/components/AttachCard";
+import { getAdminAttach, getAdminAttachments } from "@/lib/admin";
 import a from "../admin.module.css";
 import styles from "./page.module.css";
 
@@ -39,7 +40,10 @@ const T0007 =
   "https://github.com/YASICJUNWOO/finnect-new/blob/master/docs/plan/02-수집과-추출.md#t-0007-스캔-pdf-처리-판단";
 
 export default async function AdminAttachmentsPage() {
-  const { coverage: c, ocr, formats } = await getAdminAttachments();
+  const [{ coverage: c, ocr, formats }, attach] = await Promise.all([
+    getAdminAttachments(),
+    getAdminAttach(),
+  ]);
 
   const n = (v: number) => v.toLocaleString("ko-KR");
 
@@ -73,6 +77,17 @@ export default async function AdminAttachmentsPage() {
       <p className={a.note}>
         이 화면에서 가장 먼저 봐야 하는 값이다. 여기가 0이 아니면 해독률은 믿을 게 못 된다.
       </p>
+
+      {/* **「조용한 누락」 아래다.** 저 절이 스스로 "가장 먼저 봐야 하는 값"이라고
+       *  적어 뒀으니 동작을 그 위에 올리면 그 문장이 거짓이 된다(ADR-0071). */}
+      <h2 className={a.h2}>첨부 받기</h2>
+      <p className={a.note}>
+        아직 안 받은 것만 받는다. 수집은 첨부 메타데이터까지만 담고 파일은 여기서 받는다.
+        실행에는 수집과 같은 실행 토큰이 필요하다 — 없으면 버튼이 503으로 막힌다.
+      </p>
+      <div className={a.cards}>
+        <AttachCard initial={attach} />
+      </div>
 
       <h2 className={a.h2}>내려받기</h2>
       <StatusTable rows={c.fetch} why={FETCH_WHY} fallback="" />

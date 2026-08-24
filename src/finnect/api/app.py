@@ -21,10 +21,13 @@ from finnect.api import account_service, admin_service, draft_service, service, 
 from finnect.api.account_schemas import AccountIn, AccountOut
 from finnect.api.admin_schemas import (
     AdminAttachmentsOut,
+    AdminAttachOut,
     AdminIngestOut,
     AdminNoticeDetailOut,
     AdminNoticeListOut,
+    AttachProgressOut,
     IngestTriggerOut,
+    JobOutcomeOut,
 )
 from finnect.api.schemas import (
     DraftItemEditIn,
@@ -868,6 +871,30 @@ def admin_ingest() -> AdminIngestOut:
         return admin_service.ingest(s)
 
 
+def _require_trigger_token(request: Request) -> None:
+    """실행 버튼을 눌러도 되는 사람인지([ADR-0065](
+    ../../docs/adr/0065-수집-실행을-배포-api-에-연다.md)).
+
+    **`x-finnect-token` 과는 다른 문이다.** 저 토큰은 Next.js 서버가 이 API 로
+    들어오는 문이라 운영 화면을 보는 누구나 이미 그 문을 통과한 뒤다. 여기는 **버튼을
+    눌러도 되는 사람인지**를 묻는다 — 수집도 첨부 받기도 외부 서버에 실제 요청을
+    수천 번 내보내고 쿼터를 쓴다.
+
+    **쓰기 둘이 같은 문을 쓴다.** 토큰을 하나 더 만들면 "수집은 되는데 첨부는 안 되는
+    사람" 이 생기는데, 그 구분이 필요하다는 근거가 없다 — 둘 다 운영자가 이 서버에서
+    돌리는 같은 종류의 일이다([ADR-0071](
+    ../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)).
+
+    **설정 안 돼 있으면 503 이다.** `api_token` 처럼 비어 있을 때 조용히 검사를
+    끄지 않는다 — 잊고 비워 두면 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+    """
+    if not settings.ingest_trigger_token:
+        raise HTTPException(503, "이 배포에 실행 토큰이 설정돼 있지 않다")
+    sent = request.headers.get("x-ingest-trigger-token", "")
+    if not secrets.compare_digest(sent.encode(), settings.ingest_trigger_token.encode()):
+        raise HTTPException(401, "실행 토큰이 없거나 틀렸어요")
+
+
 @app.post(
     "/api/admin/ingest/run/{source}",
     response_model=IngestTriggerOut,
@@ -878,20 +905,10 @@ def admin_ingest_run(
 ) -> IngestTriggerOut:
     """수집을 시작한다(ADR-0065). 응답을 기다리지 않는다 — `jobs.launch` 가 스레드로 뗀다.
 
-    **`x-finnect-token` 과는 다른 문을 하나 더 지난다.** 저 토큰은 Next.js 서버가
-    이 API 로 들어오는 문이라 `/admin/ingest` 를 보는 누구나 이미 그 문을 통과한
-    뒤다. 여기는 **실행 버튼을 눌러도 되는 사람인지**를 `x-ingest-trigger-token` 으로
-    한 번 더 묻는다 — 이 동작이 외부 정부 API 에 실제 요청을 내보내고 쿼터를 쓰기
-    때문이다(K-Startup 일 한도 10,000회 · 기업마당 키는 IP 에 묶일 수 있다).
-
-    **설정 안 돼 있으면 503 이다.** `api_token` 처럼 비어 있을 때 조용히 검사를
-    끄지 않는다 — 잊고 비워 두면 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+    문은 `_require_trigger_token` 이 지킨다. 외부 정부 API 에 실제 요청을 내보내고
+    쿼터를 쓰기 때문이다(K-Startup 일 한도 10,000회 · 기업마당 키는 IP 에 묶일 수 있다).
     """
-    if not settings.ingest_trigger_token:
-        raise HTTPException(503, "이 배포에 실행 토큰이 설정돼 있지 않다")
-    sent = request.headers.get("x-ingest-trigger-token", "")
-    if not secrets.compare_digest(sent.encode(), settings.ingest_trigger_token.encode()):
-        raise HTTPException(401, "실행 토큰이 없거나 틀렸어요")
+    _require_trigger_token(request)
 
     # 서버리스 시절의 흔적이다 — 최상단에 두면 이 모듈을 그냥 import 하는 것만으로
     # httpx 가 딸려 온다. 지금은 배포본에도 httpx 가 있지만(ADR-0065), 굳이 그
@@ -912,4 +929,78 @@ def admin_ingest_run(
         limit=limit,
         trigger="admin",
     )
+    return IngestTriggerOut(started=result.started, reason=result.reason)
+
+
+@app.get("/api/admin/attach", response_model=AdminAttachOut, tags=["admin"])
+def admin_attach() -> AdminAttachOut:
+    """첨부 받기 카드 — 지금 돌고 있나, 아직 안 받은 것이 몇 건인가([ADR-0071](
+    ../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)).
+
+    **`/api/admin/attachments` 와 따로 둔다.** 저 경로는 집계 다섯을 훑는 무거운
+    질의라 실행 중에 1.5초마다 부를 것이 아니다. 여기는 URL 표만 센다.
+
+    **`attach.service` 를 함수 안에서 임포트한다.** `admin_ingest_run` 과 같은
+    이유이고, 이 계산이 `api/admin_service.py` 에 없는 것도 같은 이유다 — 저 모듈은
+    파서와 httpx 를 안 끌고 오는 것이 계약이고 `tests/test_admin_api.py` 가 잠근다.
+
+    **셈을 여기 베끼지 않는다.** `backlog()` 가 `run()` 이 대상을 고르는 바로 그
+    함수를 쓴다 — 화면이 527건이라고 했는데 눌러 보니 3,354건이면 그 화면은 없느니만
+    못하다. `coverage()` 를 베낀 자리가 이미 하나 있고 그것을 테스트가 지키고 있다.
+    """
+    from finnect.attach import service as attach_service
+
+    with SessionFactory() as s:
+        back = attach_service.backlog(s)
+
+    p = jobs.progress_of(attach_service.JOB_KEY)
+    last = jobs.outcome_of(attach_service.JOB_KEY)
+    return AdminAttachOut(
+        running=jobs.running(attach_service.JOB_KEY),
+        progress=(
+            None
+            if p is None
+            else AttachProgressOut(
+                total=p.total,
+                done=p.done,
+                skipped=p.skipped,
+                bytes_in=p.bytes_in,
+                target=p.target,
+                goal=p.goal,
+                percent=p.percent,
+            )
+        ),
+        pending=back.pending,
+        urls=back.urls,
+        last=None if last is None else JobOutcomeOut(ok=last.ok, detail=last.detail),
+    )
+
+
+@app.post("/api/admin/attach/run", response_model=IngestTriggerOut, tags=["admin"])
+def admin_attach_run(
+    request: Request, limit: int | None = None, redo: bool = False
+) -> IngestTriggerOut:
+    """첨부를 내려받아 해독한다. **아직 안 받은 것만 대상이다**([ADR-0071](
+    ../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)).
+
+    수집과 **같은 문**을 지난다(`_require_trigger_token`). 이 동작도 외부 서버에
+    실제 요청을 수천 번 내보내고 디스크를 GB 단위로 쓴다.
+
+    **출처를 안 가른다.** `finnect.attach` CLI 에는 `--source` 가 있지만 버튼에는
+    안 붙였다 — 운영자가 화면에서 고를 이유가 아직 없고, 락이 어차피 하나라 둘을
+    동시에 못 돌린다. 필요해지면 그때 쿼리 하나를 더한다.
+
+    **`only` 는 여기 없다.** 그 목록은 `notice-filter/` 가 만드는 것이고 파일로
+    온다 — 화면에서 파일을 받는 경로를 여는 것은 다른 결정이다.
+
+    `redo` 는 파서를 고쳤을 때다. 디스크에 있는 파일은 다시 안 받고 해독만 다시 한다.
+    **그때는 이미 받아 둔 것도 전부 대상이 된다** — 그것이 `redo` 의 뜻이다.
+    """
+    _require_trigger_token(request)
+    if limit is not None and limit < 1:
+        raise HTTPException(400, "건수는 1 이상이어야 해요")
+
+    from finnect.attach import service as attach_service
+
+    result = attach_service.launch(limit=limit, redo=redo)
     return IngestTriggerOut(started=result.started, reason=result.reason)

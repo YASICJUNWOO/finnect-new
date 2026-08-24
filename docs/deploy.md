@@ -130,14 +130,19 @@ uv run python -c "from finnect.attach import ocr; print(ocr.available())"
 (`USER_FILE_OCR` 과 별개다) 그림 포맷 자체가 목록에 없다 — 켜면 plan/07 이 측정한
 2,827/3,354 를 다시 재야 한다.
 
-### A-1-3. 수집 실행 버튼을 켠다 (2026-08-24 추가 · ADR-0065)
+### A-1-3. 실행 버튼을 켠다 (2026-08-24 추가 · ADR-0065 · [ADR-0071](adr/0071-첨부-받기를-운영-화면에-연다.md))
 
 **A-1 과 다른 문이다.** `API_TOKEN` 은 Next.js 서버가 이 API 로 들어오는 문이고,
-`/admin/ingest` 를 보는 누구나 이미 그 문을 지난 뒤다. **이 토큰은 그 화면의
-실행 버튼을 눌러도 되는 사람인지를 한 번 더 묻는다** — 눌리면 외부 정부 API 에
-실제 요청이 나가고 쿼터를 쓴다.
+운영 화면을 보는 누구나 이미 그 문을 지난 뒤다. **이 토큰은 그 화면의 실행 버튼을
+눌러도 되는 사람인지를 한 번 더 묻는다** — 눌리면 외부 서버에 실제 요청이 나가고
+쿼터와 디스크를 쓴다.
 
-**빼먹으면 버튼이 503 이다.** `API_TOKEN` 과 반대로 **기본이 꺼짐이다.** 쓰기이고
+**버튼이 둘이고 문은 하나다.** `/admin/ingest` 의 수집과 `/admin/attachments` 의
+첨부 받기가 같은 토큰을 쓴다. **나누지 않는다** — 「수집은 되는데 첨부는 안 되는
+사람」이 필요하다는 근거가 없고, 둘 다 운영자가 이 서버에서 돌리는 같은 종류의
+일이다(ADR-0071 결정 3).
+
+**빼먹으면 버튼 둘 다 503 이다.** `API_TOKEN` 과 반대로 **기본이 꺼짐이다.** 쓰기이고
 쿼터를 쓰는 동작이라, 설정을 잊었을 때 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
 
 ```bash
@@ -146,18 +151,21 @@ python3 -c "import secrets; print('INGEST_TRIGGER_TOKEN=' + secrets.token_urlsaf
 systemctl --user restart finnect-api
 ```
 
-확인은 토큰 없이 찔러 본다. `401` 이 나와야 정상이다 — `503` 이면 위 단계를 빼먹은 것이다.
+확인은 토큰 없이 찔러 본다. **둘 다** `401` 이 나와야 정상이다 — `503` 이면 위
+단계를 빼먹은 것이다.
 
 ```bash
 TOKEN=$(grep -oP '(?<=^API_TOKEN=).*' ~/.config/finnect/api.env)
-curl -s -o /dev/null -w '%{http_code}\n' -X POST \
-  -H "x-finnect-token: $TOKEN" http://127.0.0.1:8101/api/admin/ingest/run/bizinfo
+for P in /api/admin/ingest/run/bizinfo /api/admin/attach/run; do
+  curl -s -o /dev/null -w "$P %{http_code}\n" -X POST \
+    -H "x-finnect-token: $TOKEN" "http://127.0.0.1:8101$P"
+done
 ```
 
 ### A-1-4. 운영 자격을 건다 — 셋째 문 (2026-08-24 추가 · [ADR-0067](adr/0067-운영-화면을-basic-으로-막는다.md))
 
 `/api/admin/*` 에 HTTP Basic 을 건다. **앞의 둘과 또 다른 것을 묻는다** — `API_TOKEN`
-은 화면 서버가 이 API 로 들어오는 문이고 `INGEST_TRIGGER_TOKEN` 은 수집 버튼 하나의
+은 화면 서버가 이 API 로 들어오는 문이고 `INGEST_TRIGGER_TOKEN` 은 실행 버튼 둘의
 문이다. 이건 **운영 자료를 봐도 되는 사람인지**다.
 
 **빼먹으면 운영 경로가 통째로 503 이다.** `INGEST_TRIGGER_TOKEN` 과 같은 규칙이다 —

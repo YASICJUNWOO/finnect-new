@@ -1,7 +1,9 @@
 """초안 만들기·고치기 경로 — plan/21 T-0121 · T-0123 · [ADR-0054](
 ../docs/adr/0054-초안을-만드는-길을-api-에-열고-공고-회사-단위로-잠근다.md).
 
-**쓰기 경로가 하나에서 셋이 됐다.** 올리기(plan/15) · 초안 만들기 · 초안 고치기다.
+**제품 쓰기 경로가 하나에서 셋이 됐다.** 올리기(plan/15) · 초안 만들기 · 초안 고치기다.
+아래 «쓰기 경로가 이것뿐이다» 는 그 셋에 입장 하나와 운영 둘(수집 실행 · 첨부 받기)을
+더해 **전량**을 잠근다.
 여기서 잠그는 것 여섯.
 
 1. **202 다.** 다 쓰고 답하면 요청이 몇 분씩 묶인다
@@ -297,8 +299,12 @@ class Test배포_경계:
         assert cors, "CORS 미들웨어가 없다"
         assert "PUT" in cors[0].kwargs["allow_methods"]
 
-    def test_쓰기_경로가_셋이다(self) -> None:
-        """**늘어나면 여기가 먼저 깨진다.** 쓰기가 늘 때마다 계약 문서를 같이 고친다."""
+    def test_쓰기_경로가_이것뿐이다(self) -> None:
+        """**늘어나면 여기가 먼저 깨진다.** 쓰기가 늘 때마다 계약 문서를 같이 고친다.
+
+        제품 셋(올리기 · 초안 만들기 · 초안 고치기) + 입장 하나 + **운영 둘**이다.
+        운영 쪽 둘은 수집 실행과 첨부 받기이고 `x-ingest-trigger-token` 이 같이 지킨다.
+        """
         writes = {
             (r.path, m)
             for r in api.app.routes
@@ -311,5 +317,6 @@ class Test배포_경계:
             ("/api/notices/{source}/{external_id}/draft", "POST"),
             ("/api/notices/{source}/{external_id}/draft/items/{document_item_id}", "PUT"),
             ("/api/admin/ingest/run/{source}", "POST"),
+            ("/api/admin/attach/run", "POST"),
             ("/api/account", "POST"),
         }

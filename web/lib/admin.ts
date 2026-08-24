@@ -188,6 +188,43 @@ export type IngestTrigger = {
   reason: string;
 };
 
+/** 첨부 받기 진행. `attach/service.py` `AttachProgress` 사본.
+ *
+ * **`total` 에 이미 받아 둔 것은 없다.** 3,354건 중 2,827건이 끝난 상태에서 분모가
+ * 3,354 면 막대가 처음부터 84% 에서 시작한다 — 그건 이번 실행의 진행이 아니다. */
+export type AttachProgress = {
+  total: number;
+  done: number;
+  /** 이미 받아 둬서 대상에서 뺀 것. **`total` 밖의 숫자다** */
+  skipped: number;
+  bytes_in: number;
+  /** 이번에 받기로 한 건수(맛보기). null 이면 전량 */
+  target: number | null;
+  /** 막대의 분모. **`total` 이 아니다** — 맛보기 2건이면 2다. **화면이 다시 안 나눈다** */
+  goal: number | null;
+  /** 분모가 0 이면 null. **0% 로 그리지 않는다** */
+  percent: number | null;
+};
+
+/** 마지막 실행이 어떻게 끝났나. `ingest/jobs.py` `Outcome` 사본.
+ *
+ * **메모리에만 산다** — API 를 재시작하면 사라진다. 첨부 받기에는 `ingest_run` 같은
+ * 표가 없다([ADR-0071](../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)). */
+export type JobOutcome = {
+  ok: boolean;
+  detail: string;
+};
+
+export type AdminAttach = {
+  running: boolean;
+  /** 첫 보고 전에는 null. **`running` 인데 여기가 비면 "아직 세는 중" 이다** */
+  progress: AttachProgress | null;
+  /** 아직 안 받은 첨부 URL 수. **버튼이 이 숫자만큼만 받는다** */
+  pending: number;
+  urls: number;
+  last: JobOutcome | null;
+};
+
 export function listAdminNotices(params: {
   source?: string;
   q?: string;
@@ -224,6 +261,29 @@ export function getAdminAttachments(): Promise<AdminAttachments> {
 
 export function getAdminIngest(): Promise<AdminIngest> {
   return get<AdminIngest>("/api/admin/ingest");
+}
+
+/** 첨부 받기 카드. **`getAdminAttachments()` 와 따로다** — 저건 집계 다섯을 훑는
+ *  무거운 질의라 실행 중에 1.5초마다 부를 것이 아니다. */
+export function getAdminAttach(): Promise<AdminAttach> {
+  return get<AdminAttach>("/api/admin/attach");
+}
+
+/** 첨부 받기를 시작한다([ADR-0071](../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)).
+ *  **수집과 같은 토큰을 쓴다** — 둘 다 운영자가 이 서버에서 돌리는 같은 종류의 일이다. */
+export function triggerAttach(opts: {
+  limit?: number;
+  redo?: boolean;
+  token: string;
+}): Promise<IngestTrigger> {
+  const qs = new URLSearchParams();
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  if (opts.redo) qs.set("redo", "true");
+  const query = qs.toString();
+  return send<IngestTrigger>(`/api/admin/attach/run${query ? `?${query}` : ""}`, {
+    method: "POST",
+    headers: { "x-ingest-trigger-token": opts.token },
+  });
 }
 
 /** 수집을 시작한다(ADR-0065). **토큰은 여기서 안 든다** — 화면에서 사람이 입력한

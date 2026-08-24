@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from finnect.attach import download, extract, store
 from finnect.config import settings
 from finnect.db import SessionFactory
+from finnect.ingest import jobs
 from finnect.models import Attachment, AttachmentFile, FetchStatus, ParseStatus
 
 COMMIT_EVERY = 20
@@ -26,9 +27,9 @@ COMMIT_EVERY = 20
 
 @dataclass(slots=True)
 class AttachReport:
-    total: int = 0  # 대상 첨부
+    total: int = 0  # 받을 것. **이미 받아 둔 것은 여기 안 들어간다**
     done: int = 0  # 이번에 처리한 것
-    skipped: int = 0  # 이미 되어 있어 건너뛴 것
+    skipped: int = 0  # 이미 되어 있어 대상에서 뺀 것
     bytes_in: int = 0
     fetch: Counter = field(default_factory=Counter)
     parse: Counter = field(default_factory=Counter)
@@ -36,7 +37,8 @@ class AttachReport:
 
     def render(self) -> str:
         lines = [
-            f"[첨부] 대상 {self.total:,}건 · 처리 {self.done:,} · 건너뜀 {self.skipped:,}",
+            f"[첨부] 받을 것 {self.total:,}건 · 처리 {self.done:,} · "
+            f"이미 받아 둠 {self.skipped:,}",
             f"  받음 {self.bytes_in / 1024 / 1024:,.0f}MB",
         ]
         if self.fetch:
@@ -71,6 +73,11 @@ def run(
     K-Startup 전량이 55GB 인데 디스크가 24GB 라 골라 받아야 하고, 고르는 규칙은
     `notice-filter/` 에 따로 산다. 이 인자는 목록을 받을 뿐이라 규칙이 바뀌거나
     사라져도 이 코드는 안 바뀐다.
+
+    **이미 받아 둔 것은 대상에 안 들어간다**(2026-08-24). 예전에는 전량을 대상으로
+    잡고 루프 안에서 한 건씩 건너뛰었다 — 결과는 같지만 `report.total` 이 "전량" 을
+    말해서 **진행 막대와 버튼이 이미 받아 둔 것까지 세었다.** 3,354건 중 2,827건이
+    끝난 상태에서 "대상 3,354건" 은 화면이 할 말이 아니다.
     """
     report = AttachReport()
     settings.attachment_dir.mkdir(parents=True, exist_ok=True)
@@ -79,18 +86,24 @@ def run(
         targets = _targets(s, source=source)
         if only is not None:
             targets = [t for t in targets if t[0] in only]
+        if not redo:
+            # **`only` 를 건 뒤에 센다.** 먼저 세면 목록 밖의 끝난 것까지 건너뛴 수에
+            # 들어가서, 40건짜리 목록을 준 사람이 "2,827건 건너뜀" 을 보게 된다.
+            done = _done_urls(s, source=source)
+            fresh = [t for t in targets if t[0] not in done]
+            report.skipped = len(targets) - len(fresh)
+            targets = fresh
         report.total = len(targets)
         if limit is not None:
             targets = targets[:limit]
+        if on_progress is not None:
+            # **대상을 센 직후에 한 번 알린다.** 첫 커밋(20건)까지 몇 분이 걸릴 수 있어서
+            # 그때까지 화면이 분모를 모른다 — 「0 / 0건」은 「받을 게 없다」로 읽힌다.
+            on_progress(report)
 
         with httpx.Client(follow_redirects=True) as client:
             for i, (url, src, filename) in enumerate(targets, 1):
                 row = s.scalar(select(AttachmentFile).where(AttachmentFile.url == url))
-
-                if not redo and _is_done(row):
-                    report.skipped += 1
-                    continue
-
                 row = _process(client, s, row, url, src, filename, redo=redo, report=report)
                 report.done += 1
                 report.fetch[row.fetch_status] += 1
@@ -123,17 +136,51 @@ def _targets(s: Session, *, source: str | None) -> list[tuple[str, str, str]]:
     return [(u, sc, fn) for u, sc, fn in s.execute(stmt).all()]
 
 
-def _is_done(row: AttachmentFile | None) -> bool:
-    """이미 끝난 것.
+def _done_urls(s: Session, *, source: str | None) -> set[str]:
+    """이미 끝난 URL. **판정이 여기 한 곳에 있다.**
+
+    예전에는 URL 마다 행을 다시 읽어 루프 안에서 걸렀다(`_is_done`). 규칙은 같지만
+    대상에서 아예 빼려면 한 번에 알아야 한다 — 그래야 `report.total` 과 화면의
+    "아직 안 받은 N건" 이 같은 숫자를 말한다.
 
     **받기 실패는 끝난 것으로 친다.** 다시 돌릴 때마다 404 를 3,354번 두드리지 않는다.
     다시 시도하려면 --redo 를 쓴다.
+
+    **디스크를 여기서 본다.** 파일이 사라진 것은 컬럼으로 알 수 없다 — `stored_path`
+    가 가리키는 자리를 실제로 확인해야 지운 파일이 다시 받아진다. SQL 만으로 세면
+    빠르지만 그 경우에 조용히 틀린다.
     """
-    if row is None:
-        return False
-    if row.fetch_status != str(FetchStatus.OK):
-        return True
-    return row.parse_status is not None and store.exists(row.stored_path)
+    stmt = select(
+        AttachmentFile.url,
+        AttachmentFile.fetch_status,
+        AttachmentFile.parse_status,
+        AttachmentFile.stored_path,
+    )
+    if source:
+        stmt = stmt.where(AttachmentFile.source == source)
+    done: set[str] = set()
+    for url, fetch, parse, path in s.execute(stmt):
+        if fetch != str(FetchStatus.OK) or (parse is not None and store.exists(path)):
+            done.add(url)
+    return done
+
+
+@dataclass(frozen=True)
+class Backlog:
+    """아직 안 받은 것이 몇이고 전체가 몇인가. **버튼이 이 숫자를 말한다.**"""
+
+    urls: int
+    pending: int
+
+
+def backlog(s: Session, *, source: str | None = None) -> Backlog:
+    """`run()` 이 대상을 고르는 규칙과 **같은 함수를 쓴다.**
+
+    화면이 527건이라고 했는데 눌러 보니 3,354건이면 그 화면은 없느니만 못하다.
+    질의를 여기 베껴 두지 않는 이유가 그것이다.
+    """
+    urls = {u for u, _, _ in _targets(s, source=source)}
+    return Backlog(urls=len(urls), pending=len(urls - _done_urls(s, source=source)))
 
 
 def _process(
@@ -194,6 +241,84 @@ def _process(
         row.text_path = None
 
     return row
+
+
+# --- 버튼 뒤 (ADR-0071) -----------------------------------------------------
+
+
+#: 락 하나. **출처로 가르지 않는다** — 둘이 같은 표와 같은 디스크에 쓴다. 수집이
+#: 출처마다 락을 갖는 것과 반대 자리다(저기는 외부 API 쿼터가 출처마다 따로다).
+JOB_KEY = "attach"
+
+
+@dataclass(frozen=True)
+class AttachProgress:
+    """진행 한 컷.
+
+    **`AttachReport` 를 그대로 넘기지 않는다.** 저건 루프가 계속 고쳐 쓰는 표라 화면
+    스레드가 읽으면 한 화면 안에서 앞뒤가 안 맞는 숫자가 나온다 — `ingest/jobs.py`
+    `Progress` 가 frozen 인 것과 같은 이유다.
+    """
+
+    total: int = 0  # 받을 것 전부. **이미 받아 둔 것은 여기 없다**
+    done: int = 0
+    skipped: int = 0
+    bytes_in: int = 0
+    target: int | None = None  # 이번에 받기로 한 건수(`--limit`). None 이면 전량
+
+    @property
+    def goal(self) -> int | None:
+        """진행률의 분모. **`total` 이 아니다** — 맛보기로 2건만 받는 중이면 분모도 2다.
+
+        `jobs.Progress.goal` 과 같은 모양이다. 안 그러면 386건이 남은 상태에서
+        `--limit 2` 를 건 실행이 **0% 에서 끝난다.**
+        """
+        if self.target is None:
+            return self.total or None
+        return min(self.target, self.total) if self.total else self.target
+
+    @property
+    def percent(self) -> int | None:
+        goal = self.goal
+        if not goal:
+            return None
+        return min(100, round(self.done * 100 / goal))
+
+
+def launch(
+    *, limit: int | None = None, redo: bool = False, source: str | None = None
+) -> jobs.Launch:
+    """백그라운드로 시작한다. 이미 돌고 있으면 거절한다 — `ingest.service.launch` 와 같다.
+
+    **검사가 하나뿐이다.** 저쪽은 `runs.live` 로 다른 프로세스(CLI)까지 봤는데 여기는
+    볼 표가 없다. CLI 로 `finnect.attach` 를 돌리는 동안 버튼을 누르면 **둘 다 돈다** —
+    같은 URL 을 두 번 받을 수는 있어도 저장이 콘텐츠 주소라 덮어써도 같은 파일이고,
+    행은 URL 이 유일 키라 하나로 모인다. 느려질 뿐 깨지지 않는다.
+
+    **실행 기록 표가 없다.** 수집은 `ingest_run` 이 실패를 남기지만 여기는 그 표가
+    없어서 `jobs.Outcome` 이 유일한 자국이고 **프로세스가 죽으면 사라진다.** 표를
+    만들려면 마이그레이션이 배포 DB 까지 가야 해서 그건 따로 정한다.
+    """
+
+    def work() -> str:
+        def on_progress(r: AttachReport) -> None:
+            jobs.report(
+                JOB_KEY,
+                AttachProgress(
+                    total=r.total, done=r.done, skipped=r.skipped,
+                    bytes_in=r.bytes_in, target=limit,
+                ),
+            )
+
+        report = run(limit=limit, redo=redo, source=source, on_progress=on_progress)
+        return (
+            f"받을 것 {report.total:,}건 중 {report.done:,}건 처리 · "
+            f"{report.bytes_in / 1024 / 1024:,.0f}MB"
+        )
+
+    # **빈 진행을 안 깐다.** 대상을 세는 동안(URL 3,354개에 디스크 확인 한 번씩)
+    # 「0 / 0건」이 서면 그건 「받을 게 없다」로 읽힌다. 없는 것이 「세는 중」이다.
+    return jobs.launch(JOB_KEY, work)
 
 
 # --- 집계 -------------------------------------------------------------------

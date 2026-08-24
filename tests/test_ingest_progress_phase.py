@@ -78,7 +78,7 @@ def test_launch가_훅_둘을_다_건다(monkeypatch) -> None:  # noqa: ANN001
     monkeypatch.setattr(service.runs, "live", lambda _s: None)  # noqa: ARG005
     # jobs.launch 가 스레드를 띄우지 않게, work() 를 그 자리에서 부른다.
     monkeypatch.setattr(
-        service.jobs, "launch", lambda _k, work: (work(), jobs.Launch(True))[1]
+        service.jobs, "launch", lambda _k, work, **_kw: (work(), jobs.Launch(True))[1]
     )
 
     result = service.launch("kstartup", trigger="admin")

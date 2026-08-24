@@ -165,6 +165,58 @@ class AdminAttachmentsOut(BaseModel):
     formats: list[str]
 
 
+class AttachProgressOut(BaseModel):
+    """첨부 받기 진행. `attach/service.py` `AttachProgress` 사본이고 **`running` 일 때만
+    의미가 있다.**
+
+    **`total` 에 이미 받아 둔 것은 없다.** 3,354건 중 2,827건이 끝난 상태에서 분모가
+    3,354 면 막대가 처음부터 84% 에서 시작한다 — 그것은 이번 실행의 진행이 아니다.
+    """
+
+    #: 이번에 받을 것
+    total: int
+    #: 그중 처리한 것
+    done: int
+    #: 이미 받아 둬서 대상에서 뺀 것. **`total` 밖의 숫자다**
+    skipped: int
+    bytes_in: int
+    #: 이번에 받기로 한 건수(맛보기). None 이면 전량
+    target: int | None
+    #: 막대의 분모. **`total` 이 아니다** — 맛보기 2건이면 2다. **화면이 다시 안 나눈다**
+    goal: int | None
+    #: 분모가 0 이면 None 이다. **0% 로 그리지 않는다** — 받을 것이 없는 것과 다르다
+    percent: int | None
+
+
+class JobOutcomeOut(BaseModel):
+    """마지막 실행이 어떻게 끝났나. `ingest/jobs.py` `Outcome` 사본.
+
+    **메모리에만 산다** — API 를 재시작하면 사라진다. 수집은 `ingest_run` 표가 이
+    자리를 대신하지만 첨부 받기는 그 표가 없다([ADR-0071](
+    ../../../docs/adr/0071-첨부-받기를-운영-화면에-연다.md)).
+    """
+
+    ok: bool
+    detail: str
+
+
+class AdminAttachOut(BaseModel):
+    """첨부 받기 카드.
+
+    **`AdminAttachmentsOut`(해독 현황)과 따로다.** 저건 집계 다섯을 훑는 무거운
+    질의라 실행 중에 1.5초마다 두드릴 것이 아니다. 여기는 URL 표만 센다.
+    """
+
+    running: bool
+    #: 첫 보고 전에는 None 이다. **`running` 이 참인데 여기가 비어 있으면 "세는 중" 이다**
+    progress: AttachProgressOut | None
+    #: 아직 안 받은 첨부 URL 수. **버튼이 이 숫자만큼만 받는다**
+    pending: int
+    #: 첨부 URL 전체. `pending` 이 그중 몇인지 화면이 말할 수 있어야 한다
+    urls: int
+    last: JobOutcomeOut | None
+
+
 class RunOut(BaseModel):
     """수집 실행 한 건. **실패한 실행도 행으로 남는다.**"""
 

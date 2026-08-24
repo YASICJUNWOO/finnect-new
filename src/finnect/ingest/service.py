@@ -222,7 +222,9 @@ def launch(
         )
 
     # 락 키는 (출처, 옵션) 이 아니라 출처다. 필터를 켜든 끄든 같은 표에 쓴다.
-    return jobs.launch(source, work)
+    # **빈 `Progress` 를 여기서 깐다.** 첫 응답이 오기 전에 화면이 폴링하면 막대가
+    # 아예 안 그려지는데, 0% 로 서 있는 것과 없는 것은 다르게 읽힌다.
+    return jobs.launch(source, work, initial=jobs.Progress())
 
 
 def _adapter(  # noqa: ANN202

@@ -58,12 +58,17 @@ uv run python -m finnect.dataset --purge --yes    # 지운다
 ### 3. 받는다 — 전량이다
 
 ```bash
-uv run python -m finnect.ingest --source bizinfo    # 1,538건 · 요청 1회
-uv run python -m finnect.ingest --source kstartup   # 29,789건 · 요청 149회
+uv run python -m finnect.ingest --source bizinfo --full    # 1,538건 · 요청 1회
+uv run python -m finnect.ingest --source kstartup --full   # 29,789건 · 요청 149회
 ```
 
 **수집에 필터를 걸지 않는다.** 좁히는 것은 6단계이고, 이 단계는 규칙이 바뀌어도 안 바뀐다.
 `--limit` 을 쓰지 않는다 — 잘린 것을 정본으로 삼으면 뒤 단계가 무엇을 못 본 건지 모른다.
+
+**`--full` 이 빠지면 안 된다.** `finnect.ingest` 의 기본값이 2026-08-24 부터
+필터링된 수집이다(K-Startup 모집중만 · 기업마당 중분류 스무 개 제외) — 개발·운영
+화면의 기본 수집이 그것이다. **이 절차는 그 기본을 쓰지 않는다.** 전량이 정본이라는
+이 문서의 전제와 어긋난다.
 
 ### 4. K-Startup 첨부 목록을 긁는다 — **파일은 안 받는다**
 

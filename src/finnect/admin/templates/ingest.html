@@ -60,14 +60,19 @@
       </label>
       <button type="submit" {% if c.running %}disabled{% endif %}>수집</button>
     </form>
-    <p class="muted">비워 두면 전량이다. 넣으면 그만큼만 받고 <b>잘렸다는 표시가 기록에 남는다</b>.</p>
+    <p class="muted">
+      {% if c.info.name == 'kstartup' %}
+        기본이 모집중만이다(검증된 서버측 필터 rcrt_prgs_yn=Y). 건수를 넣으면 그 안에서 그만큼만 받는다.
+      {% else %}
+        기본이 계획서로 심사하지 않는 중분류 스무 개를 뺀 수집이다. 건수를 넣으면 필터 전 값에서 그만큼만 받는다.
+      {% endif %}
+      <b>잘렸다는 표시가 기록에 남는다.</b>
+    </p>
 
-    {% if c.info.name == 'kstartup' %}
-    <form class="actions" method="post" action="/ingest/run/kstartup?only_open=true">
-      <button type="submit" {% if c.running %}disabled{% endif %}>모집중만 (274건)</button>
-      <span class="muted">검증된 서버측 필터 rcrt_prgs_yn=Y</span>
+    <form class="actions" method="post" action="/ingest/run/{{ c.info.name }}?full=true">
+      <button type="submit" {% if c.running %}disabled{% endif %}>전량 ({{ "{:,}".format(c.info.expected) }}건)</button>
+      <span class="muted">필터를 안 쓴다. 재수집·정본 코퍼스용이다</span>
     </form>
-    {% endif %}
 
     <p class="muted" style="margin-bottom:0">{{ c.info.note }}</p>
   </div>

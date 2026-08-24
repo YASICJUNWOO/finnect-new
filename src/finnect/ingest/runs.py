@@ -24,12 +24,20 @@ from finnect.models import IngestRun, RunStatus
 RECENT_LIMIT = 20
 
 
-def start(source: str, *, only_open: bool, trigger: str, item_limit: int | None = None) -> int:
+def start(
+    source: str,
+    *,
+    only_open: bool,
+    trigger: str,
+    item_limit: int | None = None,
+    filter_name: str | None = None,
+) -> int:
     """RUNNING 행을 만들고 id 를 낸다. 바로 커밋한다."""
     with session_scope() as s:
         row = IngestRun(
             source=source,
             only_open=only_open,
+            filter_name=filter_name,
             trigger=trigger,
             item_limit=item_limit,
             status=str(RunStatus.RUNNING),
@@ -53,6 +61,7 @@ def finish(run_id: int, report: IngestReport) -> None:
         changed=report.changed,
         unchanged=report.unchanged,
         skipped=report.skipped,
+        filtered=report.filtered,
         attachments=report.attachments,
         ratelimit_remaining=report.ratelimit_remaining,
         unknown_fields=dict(report.unknown_fields),

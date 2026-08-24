@@ -65,6 +65,15 @@ class Adapter(Protocol):
         """원문 item 하나를 행으로 만든다. 키가 없으면 None."""
         ...
 
+    def keep(self, item: dict[str, Any]) -> bool:
+        """이 item 을 적재하나. **`normalize` 가 None 을 내는 것과 다른 사건이다.**
+
+        저기는 사고(외부 ID 가 없다)이고 여기는 정책(우리가 안 받기로 했다)이다.
+        한 숫자로 세면 `skipped` 가 늘었을 때 API 가 깨진 건지 우리가 거른 건지
+        구분이 안 된다.
+        """
+        ...
+
 
 def content_hash(item: dict[str, Any]) -> str:
     """원문 item 의 해시.

@@ -26,7 +26,8 @@ class IngestReport:
     inserted: int = 0
     changed: int = 0
     unchanged: int = 0
-    skipped: int = 0  # 외부 ID 가 없어 못 넣은 것
+    skipped: int = 0  # 외부 ID 가 없어 못 넣은 것 — **사고다**
+    filtered: int = 0  # 우리가 안 받기로 해서 뺀 것 — **정책이다**
     attachments: int = 0
     ratelimit_remaining: int | None = None
     unknown_fields: Counter = field(default_factory=Counter)
@@ -37,6 +38,9 @@ class IngestReport:
             f"[{self.source}] 응답 {self.pages}건 · 공고 {self.items:,}건",
             f"  신규 {self.inserted:,} · 변경 {self.changed:,} · 그대로 {self.unchanged:,}",
         ]
+        if self.filtered:
+            # 조용히 버리지 않는다. 코퍼스가 왜 이 크기인지는 이 줄이 유일한 단서다.
+            lines.append(f"  솎아 낸 것 {self.filtered:,}건 (중분류)")
         if self.expected is not None and self.items < self.expected:
             # 맛보기 수집이든 사고든 여기서 드러난다. 건수만 보고 성공으로 읽지 않게.
             lines.append(f"  ⚠ 전량 {self.expected:,}건 중 {self.items:,}건만 받았다")
@@ -95,6 +99,9 @@ def run(
             report.expected = page.total_count
 
         for item in page.items:
+            if not adapter.keep(item):
+                report.filtered += 1
+                continue
             row = adapter.normalize(item)
             if row is None:
                 report.skipped += 1

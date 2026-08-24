@@ -113,10 +113,14 @@ def ingest_page(request: Request, ok: int = -1, reason: str = "") -> HTMLRespons
 
 
 @app.post("/ingest/run/{source}")
-async def ingest_start(request: Request, source: str, only_open: bool = False) -> RedirectResponse:
+async def ingest_start(request: Request, source: str, full: bool = False) -> RedirectResponse:
     """수집을 시작하고 목록으로 돌려보낸다. 응답을 붙잡고 기다리지 않는다.
 
     K-Startup 전량이 149회다. 요청 안에서 끝내려 하면 브라우저가 먼저 끊는다.
+
+    **기본이 필터링된 수집이다**(2026-08-24). `full=true` 가 CLI `--full` 과 같은
+    자리다 — K-Startup 은 모집중만, 기업마당은 중분류 스무 개를 뺀 것이 기본이고,
+    `?full=true` 를 준 요청만 옛 전량 동작으로 돈다.
     """
     form = await request.form()
     try:
@@ -124,8 +128,10 @@ async def ingest_start(request: Request, source: str, only_open: bool = False) -
     except ValueError as e:
         return RedirectResponse(f"/ingest?ok=0&reason={quote(str(e))}", status_code=303)
 
-    result = service.launch(source, only_open=only_open, limit=limit, trigger="admin")
-    scope = f"{limit:,}건" if limit else "전량"
+    result = service.launch(
+        source, only_open=not full, skip_mlsfc=not full, limit=limit, trigger="admin"
+    )
+    scope = f"{limit:,}건" if limit else ("전량" if full else "필터링된 기본 수집")
     reason = result.reason or f"{source} {scope} 수집을 시작했다"
     # POST 뒤 303. 새로 고침으로 같은 수집이 다시 나가지 않게 한다.
     return RedirectResponse(

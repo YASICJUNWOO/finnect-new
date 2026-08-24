@@ -96,10 +96,11 @@ Python 3.13 · uv · FastAPI · Jinja2 · PostgreSQL 18 · SQLAlchemy 2.0 · Ale
 uv sync                                          # 의존성
 docker compose up -d db                          # PostgreSQL (127.0.0.1:55433)
 uv run alembic upgrade head                      # 스키마
-uv run python -m finnect.ingest --source bizinfo    # 1,538건 · 요청 1회
-uv run python -m finnect.ingest --source kstartup   # 29,789건 · 요청 149회
+uv run python -m finnect.ingest --source bizinfo    # 기본. 중분류 스무 개 제외
+uv run python -m finnect.ingest --source kstartup   # 기본. 모집중만. 검증된 서버측 필터(rcrt_prgs_yn=Y)
+uv run python -m finnect.ingest --source bizinfo --full   # 전량 1,538건 · 요청 1회
+uv run python -m finnect.ingest --source kstartup --full  # 전량 29,789건 · 요청 149회
 uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘림이 기록에 남는다
-uv run python -m finnect.ingest --source kstartup --only-open  # 모집중만. 검증된 서버측 필터(rcrt_prgs_yn=Y)
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
 uv run python -m finnect.attach --limit 40       # 맛보기
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
@@ -248,6 +249,7 @@ cd web && npm run lint && npm run typecheck && npm run build
 
 - **두 API 모두 실패를 HTTP 200으로 준다.** 기업마당은 `reqErr`, K-Startup은 봉투 없는 `{"code":0,"msg":"정상"}`. 후자는 `data.get("data") or []`로 받으면 **0건 성공으로 읽고 조용히 넘어간다.** 봉투 검증은 방어 코드가 아니라 파싱의 첫 단계다(`ingest/envelope.py`)
 - **K-Startup의 서버측 날짜 필터는 틀린 값을 준다.** `cond[...::GTE]` 계열이 조건을 위반하는 레코드를 섞어 준다. 코드값 `EQ`와 이름 `LIKE`만 검증됐다. 전량이 149회(일 한도 10,000)라 아낄 이유가 없다
+- **`finnect.ingest` 기본값이 2026-08-24 부터 필터링된 수집이다**([ADR-0064](docs/adr/0064-수집-기본값을-필터링한다.md)) — K-Startup 모집중만(`rcrt_prgs_yn=Y`) · 기업마당 중분류 스무 개 제외. **전량이 필요하면 `--full`이다** — `docs/dataset.md`의 정본 절차가 이걸 안 붙이면 문서가 적은 「전량이다」와 다른 결과가 조용히 나온다. 운영 화면 수집 버튼도 같은 기본을 쓴다(`?full=true`)
 - K-Startup 페이징 종료는 **`matchCount`** 기준이다. `totalCount`는 필터와 무관하게 29,789 고정이다
 - K-Startup은 **수정일시 필드가 없다.** 변경 감지는 콘텐츠 해시뿐이다
 - **기업마당 접수 기간의 57%는 날짜가 아니다**(예산 소진시까지 597 · 상시 접수 123 등). 날짜가 없는 것이 정상 상태다

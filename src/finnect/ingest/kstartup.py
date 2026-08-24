@@ -6,7 +6,15 @@
   수정일시 필드가 없다. 변경 감지는 콘텐츠 해시뿐이다.
 
 **서버측 날짜 필터를 쓰지 않는다.** cond[...::GTE] 계열이 조건을 위반하는 레코드를 섞어 준다.
-전량이 149회라 일 한도의 1.5%다. 아낄 이유가 없는데 아끼면 조용히 틀린 모집단을 얻는다.
+
+**`only_open` 기본값이 2026-08-24 부터 켬이다**(docs/adr/evidence/2026-08-16-목록-API-실측.md
+«기업마당 `searchLclasId` 코드값» 절 위). `cond[rcrt_prgs_yn::EQ]=Y` 는 검증된 필터라서
+모집중만 받아도 틀린 레코드가 안 섞인다(요청 1회 · 268건, 2026-08-24). 첨부 해독·`--classify`
+비용이 공고 수에 비례하는데 전량 29,789건은 대부분 마감 공고라 화면에 안 뜬다.
+
+**그래도 이것이 진짜 모집단은 아니다.** 274건 중 74건(27%)이 수집 뒤 며칠 새 마감됐다
+— 플래그가 수집 시점 스냅샷이라 썩는다. 전량이 필요하면(재수집·정본 코퍼스) `--full` 로
+끈다. 그때는 149회가 일 한도의 1.5%라 아낄 이유가 없다.
 """
 
 from __future__ import annotations
@@ -48,7 +56,7 @@ class KstartupAdapter:
         self,
         client: httpx.Client,
         api_key: str | None = None,
-        only_open: bool = False,
+        only_open: bool = True,
         limit: int | None = None,
     ) -> None:
         self.client = client
@@ -57,6 +65,10 @@ class KstartupAdapter:
         self.limit = limit
         if not self.api_key:
             raise RuntimeError("DATA_GO_KR_API_KEY 가 없다")
+
+    def keep(self, item: dict[str, Any]) -> bool:
+        """전부 적재한다. 좁히는 것은 `only_open` 이 서버측에서 한다."""
+        return True
 
     def pages(self) -> Iterator[FetchedPage]:
         # 건수 제한 파라미터가 따로 없다. perPage 로 한 장에 담고 일찍 끊는 수밖에 없다.

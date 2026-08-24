@@ -47,7 +47,8 @@ http://127.0.0.1:8000 이 열리고 **화면이 하나다.**
 | `/ingest` | 수집 실행. 버튼과 진행률 |
 
 처음에는 DB가 비어 있다. 여기서 버튼을 누르면 채워진다.
-건수 칸을 비우면 전량, 숫자를 넣으면 그만큼만 받는다(맛보기). CLI도 같은 일을 한다.
+건수 칸을 비우면 기본 수집(K-Startup 모집중만 · 기업마당 중분류 스무 개 제외),
+숫자를 넣으면 그만큼만 받는다(맛보기). 전량은 별도 버튼이다. CLI도 같은 일을 한다.
 
 ```bash
 uv run python -m finnect.ingest --source bizinfo
@@ -85,13 +86,19 @@ http://localhost:3000 이 사용자 화면, http://127.0.0.1:8100/docs 가 API �
 화면 대신 CLI로도 된다. **같은 코드를 타고 실행 기록도 같은 표에 남는다.**
 
 ```bash
-uv run python -m finnect.ingest --source bizinfo      # 1,538건 · 요청 1회
-uv run python -m finnect.ingest --source kstartup     # 29,789건 · 요청 149회
-uv run python -m finnect.ingest --source kstartup --only-open   # 모집중 274건만
+uv run python -m finnect.ingest --source bizinfo     # 기본. 중분류 스무 개 제외
+uv run python -m finnect.ingest --source kstartup    # 기본. 모집중만 (요청 1회 · 268건)
+uv run python -m finnect.ingest --source bizinfo --full    # 전량. 1,538건 · 요청 1회
+uv run python -m finnect.ingest --source kstartup --full   # 전량. 29,789건 · 요청 149회
 uv run python -m finnect.ingest --source bizinfo --limit 40     # 맛보기 40건
 ```
 
-건수는 2026-08-16 실측이다. `--limit`으로 잘라 받으면 **잘렸다는 사실이 실행 기록에 남는다.**
+**기본값이 2026-08-24 부터 필터링된 수집이다.** 첨부 해독·`--classify` 비용이 저장한
+공고 수에 비례하는데, 마감 공고는 화면에 안 뜨고 제외된 중분류는 애초에 계획서를 안
+받는다 — 근거는 `docs/adr/evidence/2026-08-16-목록-API-실측.md`. 전량이 필요하면
+`--full`이다(재수집·배포 DB 동기화는 `docs/dataset.md`가 정본).
+
+전량 건수는 2026-08-16 실측이다. `--limit`으로 잘라 받으면 **잘렸다는 사실이 실행 기록에 남는다.**
 
 ### 첨부 내려받기와 해독
 

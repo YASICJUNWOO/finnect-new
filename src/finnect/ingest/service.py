@@ -64,19 +64,34 @@ def parse_limit(raw: str | None) -> int | None:
 def execute(
     source: str,
     *,
-    only_open: bool = False,
+    only_open: bool = True,
     limit: int | None = None,
+    skip_mlsfc: bool = True,
     trigger: str,
     on_page: Callable[[IngestReport], None] | None = None,
 ) -> IngestReport:
-    """한 출처를 끝까지 받아 적재하고 실행 기록을 닫는다. 실패하면 기록만 남기고 다시 던진다."""
+    """한 출처를 끝까지 받아 적재하고 실행 기록을 닫는다. 실패하면 기록만 남기고 다시 던진다.
+
+    **기본이 필터링된 수집이다**(2026-08-24). `only_open` 은 K-Startup 에만,
+    `skip_mlsfc` 는 기업마당에만 걸린다 — 서로 무관한 출처의 파라미터라 둘 다 기본
+    켬으로 둬도 섞이지 않는다. 전량이 필요하면 CLI `--full` 또는 둘 다 `False` 로
+    직접 부른다(`docs/dataset.md` 의 정본 절차).
+    """
     if source not in BY_NAME:
         raise ValueError(f"모르는 출처: {source}")
 
-    run_id = runs.start(source, only_open=only_open, trigger=trigger, item_limit=limit)
+    run_id = runs.start(
+        source,
+        only_open=only_open,
+        trigger=trigger,
+        item_limit=limit,
+        filter_name="mlsfc" if skip_mlsfc else None,
+    )
     try:
         with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True) as client:
-            adapter = _adapter(source, client, only_open=only_open, limit=limit)
+            adapter = _adapter(
+                source, client, only_open=only_open, limit=limit, skip_mlsfc=skip_mlsfc
+            )
             with session_scope() as session:
                 report = run(adapter, session, on_page=on_page)
     except BaseException as e:
@@ -89,7 +104,12 @@ def execute(
 
 
 def launch(
-    source: str, *, only_open: bool = False, limit: int | None = None, trigger: str = "admin"
+    source: str,
+    *,
+    only_open: bool = True,
+    skip_mlsfc: bool = True,
+    limit: int | None = None,
+    trigger: str = "admin",
 ) -> jobs.Launch:
     """백그라운드로 시작한다. 이미 돌고 있으면 거절한다.
 
@@ -107,6 +127,7 @@ def launch(
         execute(
             source,
             only_open=only_open,
+            skip_mlsfc=skip_mlsfc,
             limit=limit,
             trigger=trigger,
             on_page=lambda r: jobs.report(
@@ -115,11 +136,19 @@ def launch(
             ),
         )
 
-    # 락 키는 (출처, 옵션) 이 아니라 출처다. --only-open 이든 아니든 같은 표에 쓴다.
+    # 락 키는 (출처, 옵션) 이 아니라 출처다. 필터를 켜든 끄든 같은 표에 쓴다.
     return jobs.launch(source, work)
 
 
-def _adapter(source: str, client: httpx.Client, *, only_open: bool, limit: int | None):  # noqa: ANN202
+def _adapter(  # noqa: ANN202
+    source: str,
+    client: httpx.Client,
+    *,
+    only_open: bool,
+    limit: int | None,
+    skip_mlsfc: bool = False,
+):
     if source == str(Source.BIZINFO):
-        return BizinfoAdapter(client, limit=limit)
+        # 솎기는 기업마당만이다. K-Startup 에는 중분류 필드가 없다.
+        return BizinfoAdapter(client, limit=limit, skip_mlsfc=skip_mlsfc)
     return KstartupAdapter(client, only_open=only_open, limit=limit)

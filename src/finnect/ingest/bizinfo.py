@@ -3,6 +3,11 @@
 실측 2026-08-16: searchCnt=2000 한 번에 전량 1,538건(3.67MB)이 온다.
 pageUnit·pageIndex 가 공식 문서에 있으나 쓸 일이 없다.
 일 한도는 공식 안내에 명시가 없다.
+
+**`skip_mlsfc` 기본값이 2026-08-24 부터 켬이다.** 서버측 필터(`searchLclasId`)로 좁히면
+분류마다 한 번씩 8회가 되는데 전량이 1회·5초라 오히려 손해다(docs/adr/evidence/
+2026-08-16-목록-API-실측.md). 그래서 전량을 받아 놓고 적재 직전에 `ingest.mlsfc` 표로
+뺀다. 전량이 필요하면(재수집·정본 코퍼스) `--full` 로 끈다.
 """
 
 from __future__ import annotations
@@ -13,6 +18,7 @@ from typing import Any
 import httpx
 
 from finnect.config import settings
+from finnect.ingest import mlsfc
 from finnect.ingest.base import (
     FetchedPage,
     NormalizedAttachment,
@@ -35,13 +41,30 @@ class BizinfoAdapter:
     model = BizinfoNotice
 
     def __init__(
-        self, client: httpx.Client, api_key: str | None = None, limit: int | None = None
+        self,
+        client: httpx.Client,
+        api_key: str | None = None,
+        limit: int | None = None,
+        skip_mlsfc: bool = True,
     ) -> None:
         self.client = client
         self.api_key = api_key if api_key is not None else settings.bizinfo_api_key
         self.limit = limit
+        # 계획서로 심사하지 않는 중분류를 적재에서 뺀다. 기본은 켬이다 —
+        # 끄는 것은 `docs/dataset.md` 의 정본 전량 절차뿐이다(CLI `--full`).
+        self.skip_mlsfc = skip_mlsfc
         if not self.api_key:
             raise RuntimeError("BIZINFO_API_KEY 가 없다")
+
+    def keep(self, item: dict[str, Any]) -> bool:
+        """중분류로 거른다. **`pages()` 가 아니라 여기서 한다.**
+
+        `raw_fetch` 는 응답 통째를 남기는 표라, 응답에서 빼면 API 가 무엇을 줬는지가
+        기록에서 사라진다. 거르는 자리는 적재 직전이다.
+        """
+        if not self.skip_mlsfc:
+            return True
+        return mlsfc.keeps(item.get("pldirSportRealmMlsfcCodeNm"))
 
     def pages(self) -> Iterator[FetchedPage]:
         # searchCnt 가 그대로 건수 제한이다. 2026-08-16 실측: 10→10건, 100→100건, 500→500건.

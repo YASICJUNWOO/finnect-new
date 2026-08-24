@@ -357,6 +357,9 @@ class IngestRun(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     source: Mapped[str] = mapped_column(String(16))
     only_open: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 어느 솎기 정책으로 받았나. NULL 이면 안 솎았다. `only_open` 과 같은 자리다 —
+    # 한쪽만 기록하면 나중에 「이 코퍼스가 왜 이 크기지」를 못 푼다.
+    filter_name: Mapped[str | None] = mapped_column(String(16))
     trigger: Mapped[str] = mapped_column(String(16))  # cli | admin
     status: Mapped[str] = mapped_column(String(16))
 
@@ -380,6 +383,8 @@ class IngestRun(Base):
     changed: Mapped[int] = mapped_column(Integer, default=0)
     unchanged: Mapped[int] = mapped_column(Integer, default=0)
     skipped: Mapped[int] = mapped_column(Integer, default=0)
+    # 우리가 안 받기로 해서 뺀 건수. skipped(사고) 와 섞지 않는다.
+    filtered: Mapped[int] = mapped_column(Integer, default=0)
     attachments: Mapped[int] = mapped_column(Integer, default=0)
     ratelimit_remaining: Mapped[int | None] = mapped_column(Integer)
 

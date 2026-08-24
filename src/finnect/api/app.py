@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import secrets
 from typing import Annotated
 
@@ -45,6 +47,65 @@ app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
 
 #: 토큰 없이 여는 경로. 살아 있는지만 답하고 아무것도 흘리지 않는다.
 _OPEN = frozenset({"/healthz"})
+
+
+#: 운영 경로. **접두사 하나로 판단한다** — 라우트마다 의존성을 다는 것과 달리
+#: 새 경로를 더할 때 **잊을 수가 없다**. `tests/test_admin_auth.py` 가 그것을 잠근다.
+_ADMIN_PREFIX = "/api/admin/"
+
+
+@app.middleware("http")
+async def require_admin(request: Request, call_next):
+    """운영 경로에 HTTP Basic 을 건다([ADR-0067](
+    ../../docs/adr/0067-운영-화면을-basic-으로-막는다.md)).
+
+    **`require_token` 보다 안쪽이다.** 아래에서 먼저 더해서 그렇게 된다 — Starlette 은
+    나중에 더한 것이 바깥이라 순서가 CORS → `require_token` → 여기 → 라우트다.
+    바깥 문이 "이 API 에 말을 걸어도 되나"이고 여기가 "운영 자료를 봐도 되나"라,
+    **토큰이 없는 요청은 Basic 창을 보기 전에 막힌다.**
+
+    **설정이 비어 있으면 503 이다.** `api_token` 처럼 조용히 검사를 끄지 않는다 —
+    이 경로는 사용자 것이 아니라서 잊고 비워 두면 닫히는 쪽이어야 한다
+    (`ingest_trigger_token` 과 같은 규칙).
+
+    **`WWW-Authenticate` 를 낸다.** 없으면 브라우저가 아이디·비밀번호를 물을 자리를
+    모른다 — 화면(`web/proxy.ts`)이 같은 자격으로 같은 창을 띄운다.
+    """
+    if not request.url.path.startswith(_ADMIN_PREFIX):
+        return await call_next(request)
+
+    if not settings.admin_user or not settings.admin_password:
+        return JSONResponse({"detail": "이 배포에 운영 자격이 설정돼 있지 않다"}, status_code=503)
+
+    if not _basic_ok(request.headers.get("authorization", "")):
+        # **무엇이 틀렸는지 나누지 않는다** — `require_token` 과 같은 이유다.
+        return JSONResponse(
+            {"detail": "운영 자격이 없거나 틀렸어요"},
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="finnect admin", charset="UTF-8"'},
+        )
+    return await call_next(request)
+
+
+def _basic_ok(header: str) -> bool:
+    """`Authorization: Basic <base64(user:pass)>` 를 대조한다.
+
+    **둘 다 비교하고 중간에 안 빠져나온다.** 아이디에서 먼저 돌아서면 "그 아이디는
+    있다"가 응답 시간에 새어 나온다.
+
+    **비ASCII 와 깨진 base64 에서 500 이 나면 안 된다.** 값이 사람이 치는 것이라
+    실제로 들어온다 — `require_token` 이 바이트로 바꿔 넣는 것과 같은 자리다.
+    """
+    scheme, _, raw = header.partition(" ")
+    if scheme.lower() != "basic":
+        return False
+    try:
+        user, _, password = base64.b64decode(raw, validate=True).decode().partition(":")
+    except (binascii.Error, UnicodeDecodeError):
+        return False
+    ok_user = secrets.compare_digest(user.encode(), settings.admin_user.encode())
+    ok_password = secrets.compare_digest(password.encode(), settings.admin_password.encode())
+    return ok_user and ok_password
 
 
 @app.middleware("http")

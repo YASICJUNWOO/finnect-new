@@ -154,6 +154,34 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
   -H "x-finnect-token: $TOKEN" http://127.0.0.1:8101/api/admin/ingest/run/bizinfo
 ```
 
+### A-1-4. 운영 자격을 건다 — 셋째 문 (2026-08-24 추가 · [ADR-0067](adr/0067-운영-화면을-basic-으로-막는다.md))
+
+`/api/admin/*` 에 HTTP Basic 을 건다. **앞의 둘과 또 다른 것을 묻는다** — `API_TOKEN`
+은 화면 서버가 이 API 로 들어오는 문이고 `INGEST_TRIGGER_TOKEN` 은 수집 버튼 하나의
+문이다. 이건 **운영 자료를 봐도 되는 사람인지**다.
+
+**빼먹으면 운영 경로가 통째로 503 이다.** `INGEST_TRIGGER_TOKEN` 과 같은 규칙이다 —
+이 자료는 사용자 것이 아니라서 잊었을 때 닫히는 쪽이어야 한다.
+
+```bash
+cat >> ~/.config/finnect/api.env <<'EOF'
+ADMIN_USER=<아이디>
+ADMIN_PASSWORD=<비밀번호>
+EOF
+systemctl --user restart finnect-api
+```
+
+확인은 자격 없이 찔러 본다. `401` 이면 정상이고 `503` 이면 위를 빼먹은 것이다.
+
+```bash
+TOKEN=$(grep -oP '(?<=^API_TOKEN=).*' ~/.config/finnect/api.env)
+curl -s -o /dev/null -w '%{http_code}\n' -H "x-finnect-token: $TOKEN" \
+  http://127.0.0.1:8101/api/admin/attachments
+```
+
+**화면 쪽에도 같은 값을 넣어야 한다** — 5장 «값 넷» 의 `ADMIN_USER`·`ADMIN_PASSWORD`
+다. 여기만 넣으면 `/admin` 화면은 열리는데 안의 표가 전부 401 이 된다.
+
 ### A-2. API 를 서비스로 올린다
 
 ```bash
@@ -345,19 +373,36 @@ vercel env add FINNECT_API_TOKEN production  # ~/.config/finnect/api.env 의 값
 vercel deploy
 ```
 
-### 값 둘 (2026-08-18 · [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md))
+### 값 넷 (2026-08-24 · [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md) · [ADR-0067](adr/0067-운영-화면을-basic-으로-막는다.md))
 
 ```
 FINNECT_API        = https://49.247.203.210
 FINNECT_API_TOKEN  = <~/.config/finnect/api.env 의 API_TOKEN 과 같은 값>
+ADMIN_USER         = <~/.config/finnect/api.env 의 ADMIN_USER 와 같은 값>
+ADMIN_PASSWORD     = <~/.config/finnect/api.env 의 ADMIN_PASSWORD 와 같은 값>
 ```
 
-**둘의 성질이 다르다. 여기서 자주 틀린다.**
+```bash
+cd web
+vercel env add ADMIN_USER production
+vercel env add ADMIN_PASSWORD production
+vercel deploy --prod
+```
+
+**뒤의 둘이 백엔드와 같은 값이어야 한다**(ADR-0067). 화면이 그 값으로 브라우저에게
+묻고(`web/proxy.ts`), **같은 값을 API 로 넘겨** 서버 쪽 문(`require_admin`)도 지난다.
+갈리면 `/admin` 이 열리는데 그 안의 표가 전부 401 이 된다.
+
+**안 넣으면 배포본 `/admin` 이 503 이다.** 열려 있는 것보다 낫지만 운영자도 못 본다 —
+자격이 비었을 때 닫히는 쪽으로 정했다(ADR-0067 결정 4).
+
+**넷의 성질이 다르다. 여기서 자주 틀린다.**
 
 | | 어디서 읽나 | 바꾸면 |
 |---|---|---|
 | `FINNECT_API` | `next.config.ts` 의 `env` — **빌드 시점에 박힌다** | **재배포해야 한다** |
 | `FINNECT_API_TOKEN` | `web/lib/api.ts` 가 런타임에 읽는다 | 재배포 없이 바로 먹는다 |
+| `ADMIN_USER`·`ADMIN_PASSWORD` | `web/proxy.ts` 와 `web/lib/api.ts` 가 런타임에 읽는다 — **`proxy.ts` 가 Node.js 런타임이라 그렇다**(Next 16 기본) | 재배포 없이 바로 먹는다 |
 
 토큰이 `env` 에 없는 것은 **의도다.** 시크릿을 번들에 박지 않고, 돌릴 때 빌드를 안 기다린다.
 

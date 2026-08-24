@@ -448,7 +448,27 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 
 ## 운영 경로 — `/api/admin/*`
 
-> 정본은 `src/finnect/api/admin_schemas.py`. 결정은 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md).
+> 정본은 `src/finnect/api/admin_schemas.py`. 결정은 [ADR-0027](adr/0027-운영-화면을-nextjs로-옮긴다.md) · [ADR-0067](adr/0067-운영-화면을-basic-으로-막는다.md).
+
+### 이 접두사 전체에 HTTP Basic 이 걸린다
+
+**경로마다가 아니라 접두사로 판단한다**(`api/app.py` 의 `_ADMIN_PREFIX`). 라우트마다 달면 **새 운영 경로가 생긴 날 하나가 빠지고, 그 하나만 열려 있다.** `tests/test_admin_auth.py` 가 양방향으로 잠근다 — `tags=["admin"]` 인 경로가 전부 접두사 아래인가, 접두사 아래가 전부 운영 경로인가.
+
+| | |
+|---|---|
+| 헤더 | `Authorization: Basic <base64(user:pass)>` — `ADMIN_USER`·`ADMIN_PASSWORD` |
+| 401 | 자격이 없거나 틀렸다. `WWW-Authenticate: Basic` 이 같이 나간다 |
+| 503 | 이 배포에 자격이 설정 안 됐다 — **기본이 꺼짐이다** |
+
+**문이 셋이 됐다.** 셋 다 다른 것을 묻는다 — 합치면 "수집을 돌려도 되는 사람"과 "기록을 봐도 되는 사람"이 같아진다.
+
+| 문 | 무엇을 묻나 | 비었을 때 |
+|---|---|---|
+| `x-finnect-token` | 이 API 에 말을 걸어도 되나 | **검사를 끈다**(로컬 편의) |
+| `Authorization: Basic` | 운영 자료를 봐도 되나 | **막는다** |
+| `x-ingest-trigger-token` | 수집 버튼을 눌러도 되나 | **막는다** |
+
+**Basic 이 토큰보다 안쪽이다.** 토큰이 없는 요청은 Basic 창을 보기 전에 막힌다. 화면 쪽 문은 `web/proxy.ts` 가 따로 들고, **같은 자격이어야 한다** — 갈리면 `/admin` 은 열리는데 안의 표가 전부 401 이다.
 
 `web/app/admin/` 이 부른다. **제품 경로와 목적이 반대다.**
 
@@ -488,7 +508,7 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 | | |
 |---|---|
 | 쿼리 | `full`(bool, 기본 false) · `limit`(int, 선택) |
-| 헤더 | `x-ingest-trigger-token` — `x-finnect-token` 과 **다른 문**이다. 아래 참조 |
+| 헤더 | `x-ingest-trigger-token` — 위 Basic 과 **또 다른 문**이다. 아래 참조 |
 | 200 | `{started, reason}`. `started=false` 면 이미 돌고 있다는 뜻이지 오류가 아니다 |
 | 401 | 토큰이 없거나 틀렸다 |
 | 404 | 모르는 출처 |

@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     #: 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
     ingest_trigger_token: str = ""
 
+    #: 운영 경로(`/api/admin/*`)에 걸리는 HTTP Basic 자격([ADR-0067](
+    #: ../../docs/adr/0067-운영-화면을-basic-으로-막는다.md)). **토큰 둘과 또 다른 문이다** —
+    #: `api_token` 은 Next.js 서버가 이 API 로 들어오는 문이고 `ingest_trigger_token` 은
+    #: 수집 버튼 하나의 문이다. 이건 **운영 자료를 봐도 되는 사람인지**를 묻는다.
+    #:
+    #: **둘 중 하나라도 비어 있으면 운영 경로를 통째로 막는다**(`ingest_trigger_token`
+    #: 과 같은 규칙 · `api_token` 과 반대다). 이 경로는 사용자 것이 아니라서, 설정을
+    #: 잊었을 때 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+    admin_user: str = ""
+    admin_password: str = ""
+
     bizinfo_api_key: str = ""
     data_go_kr_api_key: str = ""
 

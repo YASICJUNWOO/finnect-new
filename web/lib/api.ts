@@ -13,14 +13,31 @@ const BYPASS = process.env.FINNECT_API_BYPASS;
  *  API 가 이 서버로 내려오면서 그 문이 없어졌고, 없으면 올리기 경로가 인터넷에 열린다. */
 const TOKEN = process.env.FINNECT_API_TOKEN;
 
+/** 운영 자격(ADR-0067). **`FINNECT_API_TOKEN` 과 다른 문이다** — 저건 이 서버가 API 로
+ *  들어오는 문이고 이건 운영 자료를 봐도 되는 사람인지다. 화면 쪽 같은 값을 `proxy.ts`
+ *  가 들고 브라우저에게 묻는다. */
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+/** 운영 경로 접두사. **서버(`api/app.py` 의 `_ADMIN_PREFIX`)와 같은 규칙이다** —
+ *  경로마다 손으로 달면 새 운영 경로가 생긴 날 한쪽만 붙고, 그때 그 경로만 401 이 된다. */
+const ADMIN_PREFIX = "/api/admin/";
+
 /** API 로 나가는 모든 요청이 붙이는 헤더. **한 곳에 모은다** — `get()` 과 `uploadFiles()`
  *  가 각자 헤더를 만들면 한쪽만 고쳐지는 날이 오고, 그날 올리기만 401 이 된다.
  *
- *  값이 없으면 그 헤더를 안 붙인다. 로컬은 둘 다 없어서 빈 객체가 나간다. */
-export function authHeaders(): Record<string, string> {
+ *  값이 없으면 그 헤더를 안 붙인다. 로컬은 둘 다 없어서 빈 객체가 나간다.
+ *
+ *  **운영 경로에만 Basic 을 더한다**(ADR-0067). 제품 요청에 실어 보내면 운영 자격이
+ *  갈 이유가 없는 곳까지 매 요청 따라다닌다. */
+export function authHeaders(path = ""): Record<string, string> {
   const h: Record<string, string> = {};
   if (BYPASS) h["x-vercel-protection-bypass"] = BYPASS;
   if (TOKEN) h["x-finnect-token"] = TOKEN;
+  if (path.startsWith(ADMIN_PREFIX) && ADMIN_USER && ADMIN_PASSWORD) {
+    const raw = Buffer.from(`${ADMIN_USER}:${ADMIN_PASSWORD}`).toString("base64");
+    h["authorization"] = `Basic ${raw}`;
+  }
   return h;
 }
 
@@ -127,7 +144,7 @@ export async function get<T>(path: string): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, {
       cache: "no-store",
-      headers: authHeaders(),
+      headers: authHeaders(path),
       // 리다이렉트를 따라가면 SSO 로그인 HTML 을 200 으로 받아 JSON 파싱에서 죽는다.
       // 막혔으면 302 그대로 받아 ApiError 로 올린다.
       redirect: "manual",
@@ -153,7 +170,7 @@ export async function send<T>(path: string, init: RequestInit): Promise<T> {
     res = await fetch(`${BASE}${path}`, {
       ...init,
       cache: "no-store",
-      headers: { "content-type": "application/json", ...authHeaders(), ...init.headers },
+      headers: { "content-type": "application/json", ...authHeaders(path), ...init.headers },
       redirect: "manual",
     });
   } catch (cause) {

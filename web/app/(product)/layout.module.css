@@ -142,34 +142,6 @@
   cursor: not-allowed;
 }
 
-/* 운영 도구로 나가는 문. 3축 내비와 같은 줄에 있지만 **같은 층이 아니다** —
- * 그래서 .menu 밖에 있고 오른쪽 끝으로 밀린다.
- *
- * 테두리를 둘러 조작 요소로 읽히게 하고 반경은 --r-sm(§4 조작 요소)을 쓴다.
- * 색은 --ink-3 과 --line-2 뿐이다 — UI 크롬에 색을 쓰지 않는다(§7).
- * 13px 은 제품 내비(16px)보다 작다. 사용자 것이 아니라는 뜻이다.
- *
- * **--t-aux 를 안 쓴다.** 이 13px 은 폭이 좁아서 작은 게 아니라 사용자 것이
- * 아니라서 작은 것이다. 넓은 화면에서 제품 글자가 13px 로 내려가면 이 대비가
- * 사라지므로 아래 min-width 블록에서 12px 로 한 칸 더 내린다. */
-.admin {
-  margin-left: auto;
-  flex: none;
-  padding: var(--s1) var(--s3);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
-  color: var(--ink-3);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.admin:hover {
-  color: var(--ink-2);
-  border-color: var(--ink-4);
-}
-
 /* ── 본문 ──────────────────────────────────────────── */
 
 .main {
@@ -223,10 +195,10 @@
     display: none;
   }
 
-  /* 3축이 내려가면 위에 남는 조작 요소가 이 둘뿐이다. **둘 다 28px 였다** —
-   * §5 가 44px 이상을 요구한다. 글자 크기는 그대로 두고 높이만 준다 */
-  .brand,
-  .admin {
+  /* 3축이 내려가면 위에 남는 조작 요소가 브랜드 하나다. **28px 였다** —
+   * §5 가 44px 이상을 요구한다. 글자 크기는 그대로 두고 높이만 준다.
+   * **2026-08-24 까지 `.admin` 이 같이 걸려 있었다**(ADR-0069) */
+  .brand {
     min-height: 44px;
     display: flex;
     align-items: center;
@@ -445,12 +417,5 @@
   .sep {
     margin: 0 var(--s2);
     color: var(--ink-4);
-  }
-
-  /* 제품 글자가 13px 로 내려간 폭이다. 운영 도구가 같은 13px 이면
-   * "사용자 것이 아니다" 를 말하던 크기 대비가 사라진다 */
-  .admin {
-    font-size: var(--t-caption);
-    line-height: var(--lh-caption);
   }
 }

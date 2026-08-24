@@ -178,16 +178,6 @@
   min-width: 0;
 }
 
-/* 아직 아무것도 안 골랐을 때. **상자를 안 그린다** — 카드는 고른 자리의 몫이고,
- * 빈 카드를 세우면 640px 짜리 그래프 옆에 70px 짜리 빈 상자가 떠 있게 된다.
- * **카드가 없는 것 자체가 «아직 안 골랐다»** 이고, 그게 크롬을 덜 쓰는 방법이다. */
-.hint {
-  padding: var(--s4) var(--s3);
-  border-left: 2px solid var(--line);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
-  color: var(--ink-3);
-}
 
 /* ── ≥1024px 에서만 옆에 선다 ─────────────────────────────
  *

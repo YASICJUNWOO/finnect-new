@@ -20,11 +20,6 @@
   letter-spacing: var(--tracking-title);
 }
 
-.sub {
-  margin-top: var(--s2);
-  color: var(--ink-2);
-  max-width: 62ch;
-}
 
 .counts {
   display: flex;

@@ -35,20 +35,21 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
             파일 올리기
           </Link>
         </div>
-        <p className={styles.sub}>
-          올린 파일에서 뽑은 것들이에요. 값마다 어느 파일 몇 쪽에서 왔는지 볼 수 있어요.
-        </p>
-
-        {/* 채움 상태(F1-4-2). **막대를 만들지 않는다** — 숫자가 근거를 갖는 값이라
-          * 막대로 그리면 비율처럼 읽히고, 그러면 §7 이 막은 것과 같은 물건이 된다 */}
-        <p className={styles.counts}>
-          <span data-numeric>
-            자리 {wiki.total}개 중 <b>{wiki.filled}개</b>가 찼어요
-          </span>
-          {wiki.review > 0 && (
+        {/* **찬 자리 수를 여기서 안 적는다**(2026-08-24). 그래프 가운데가 이미
+          * `{filled}/{total}` 을 들고 있어서(`WikiGraph` 의 `.hubCount`) 같은 숫자가
+          * 한 화면에 두 번 섰다 — `DESIGN.md` §2 가 「찬 자리/전체」를 글자로 서는
+          * 둘 중 하나로 꼽은 그 자리가 그래프 쪽이다.
+          *
+          * **갈 자리를 못 찾은 것은 남는다.** 저건 그래프에 점이 없어서 여기서
+          * 말하지 않으면 아무도 말하지 않는다(`Custom/검토 대기`).
+          *
+          * 막대를 만들지 않는다 — 숫자가 근거를 갖는 값이라 막대로 그리면 비율처럼
+          * 읽히고, 그러면 §7 이 막은 것과 같은 물건이 된다 */}
+        {wiki.review > 0 && (
+          <p className={styles.counts}>
             <span data-numeric>갈 자리를 못 찾은 것 {wiki.review}건</span>
-          )}
-        </p>
+          </p>
+        )}
 
         {/* 다른 이름으로 들어가기(ADR-0066). **상단 막대가 아니라 여기 있다** —
           * 저 껍데기는 `fc` 쿠키를 못 읽어서(`httpOnly`) 아직 안 들어온 사람에게도

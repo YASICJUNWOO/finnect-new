@@ -1,4 +1,6 @@
-/* 첨부 해독 상태. S3 상세에만 쓴다.
+/* 첨부파일 한 절. **2026-08-24 「내야 할 서류」와 「낼 서류」를 합쳤다** —
+ * 파일이 바깥이고 뽑은 양식 구간이 그 줄 안에 접힌다. 구간 안쪽의 항목 트리와
+ * 칸 칩은 여기 없다 — `FormDocuments.module.css` 가 그대로 든다.
  *
  * 2026-08-21 보조 글자가 `--t-small`(13px 고정)에서 `--t-aux`(넓으면 13 · 좁으면 16)로
  * 갔다(ADR-0044). **폰에서 13px 산문이 나가던 자리 중 하나다.** */
@@ -41,13 +43,29 @@
   flex-direction: column;
 }
 
+/* 파일 한 줄. **이제 세로다** — 안에 양식 구간이 들어와서 이름·상태 한 줄만으로
+ * 끝나지 않는다. 좌우 배치는 `.row` 로 한 겹 내려갔다. */
 .item {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s4);
-  padding: var(--s3) 0;
-  border-top: 1px solid var(--line);
+}
+
+/* 그 파일에서 뽑은 양식 구간. **파일 이름보다 한 단 안으로 들여쓴다** —
+ * 들여쓰지 않으면 구간 제목이 다음 파일 이름과 같은 층으로 읽힌다. */
+.forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line);
 }
 
 .name {
@@ -107,9 +125,14 @@
 }
 
 @media (max-width: 640px) {
-  .item {
+  .row {
     flex-direction: column;
     gap: var(--s1);
+  }
+
+  /* 좁은 화면에서는 들여쓰기를 줄인다 — 항목 트리가 제 안에서 또 들여쓴다 */
+  .forms {
+    padding-left: var(--s2);
   }
 
   .state {

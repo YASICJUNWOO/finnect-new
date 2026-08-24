@@ -1,48 +1,15 @@
-/* 내야 할 서류. plan/11 T-0039.
+/* 양식 구간 하나의 안쪽 — 구간 카드 · 항목 트리 · 채울 칸 칩 · 공고문 인용.
+ *
+ * **절 껍데기가 여기 없다**(2026-08-24). 「내야 할 서류」 절이 「낼 서류」와 합쳐져
+ * 「첨부파일」 한 절이 됐고, 그 껍데기와 파일명 줄은 `Attachments.module.css` 가
+ * 든다. 여기 남은 것은 그 절의 **줄 안에 접히는 것**뿐이다.
  *
  * 색 리터럴을 쓰지 않는다 — 값의 자리는 tokens.css 하나다(ADR-0041 이 ADR-0025 를 대체).
  * 흐름 안의 카드라 그림자 대신 경계선을 쓴다(DESIGN.md §6).
  *
  * 2026-08-21 보조 글자가 `--t-small`(13px 고정)에서 `--t-aux`(넓으면 13 · 좁으면 16)로
  * 갔다(ADR-0044). **원문 지시문이 여기 있어서 넘어갈 수 없었다** — 그게 산문이라
- * §3 의 "본문 16px 이상" 이 폰에서 그대로 걸린다.
- *
- * **이 파일은 `/documents/<표본>` 도 쓴다.** 그 화면은 이번 재설계의 범위 밖이지만
- * 같은 토큰을 받는다 — 한 컴포넌트가 화면마다 다른 크기를 갖게 만들지 않는다. */
-
-.section {
-  margin-top: var(--s6);
-}
-
-.head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
-  margin-bottom: var(--s3);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--t-lead);
-  line-height: var(--lh-lead);
-  font-weight: var(--w-bold);
-  color: var(--ink);
-}
-
-/* 숫자는 사실까지만. 준비도·완성도 같은 척도를 만들지 않는다(DESIGN.md §6) */
-.count {
-  margin: 0;
-  font-size: var(--t-aux);
-  line-height: var(--lh-aux);
-  color: var(--ink-2);
-}
-
-.docs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-}
+ * §3 의 "본문 16px 이상" 이 폰에서 그대로 걸린다. */
 
 .doc {
   background: var(--surface);
@@ -81,28 +48,8 @@
   color: var(--ink-2);
 }
 
-/* 파일명과 미리보기 버튼이 한 줄에 선다. 파일명이 길어서 좁은 화면에서는 접힌다 */
-.actions {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  margin-bottom: var(--s4);
-}
 
-.source {
-  margin: 0;
-  min-width: 0;
-  font-size: var(--t-aux);
-  line-height: var(--lh-aux);
-  color: var(--ink-3);
-  word-break: break-all;
-}
 
-.link {
-  color: var(--ink-2);
-}
 
 /* --- 항목 트리 --- */
 
@@ -322,33 +269,4 @@
   line-height: var(--lh-aux);
   color: var(--ink-3);
   max-width: 62ch;
-}
-
-/* 「이 양식으로 쓰기」. §4 «오버레이 트리거» — 배경 투명 · 1px 선 · 6px 반경.
- *
- * **`--action` 검정을 안 쓴다.** 문서마다 반복되는 자리라 액센트가 아니게 된다
- * (§2 «행마다 버튼이 반복되는 자리에는 쓰지 않는다»). */
-.open {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  color: var(--ink);
-  font-size: var(--t-aux);
-  line-height: var(--lh-aux);
-  text-decoration: none;
-}
-
-.open:hover {
-  border-color: var(--ink-3);
-}
-
-/* 좁은 폭에서는 손가락 밀도다(§5) */
-@media (max-width: 1023px) {
-  .open {
-    min-height: 44px;
-  }
 }

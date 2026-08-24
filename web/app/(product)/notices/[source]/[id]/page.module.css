@@ -28,11 +28,23 @@
   text-underline-offset: 3px;
 }
 
+/* 제목 왼쪽 · 쓰기 버튼 오른쪽 한 줄. **≤640px 에서 세로로 접힌다**(§5) —
+ * 32px 제목 옆에 44px 버튼이 붙으면 폰에서 제목이 서너 글자로 쭈그러든다. */
 .head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+/* 마감 · 제목 · 기관 한 덩어리. **`min-width: 0` 이 있어야 한다** — flex 항목의
+ * 기본값이 `min-width: auto` 라, 없으면 긴 제목이 버튼을 오른쪽 밖으로 민다. */
+.headText {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s2);
+  min-width: 0;
 }
 
 .title {
@@ -60,6 +72,35 @@
 
 .source {
   color: var(--ink-3);
+}
+
+/* 쓰기로 나가는 문. **이 화면의 주 동작이고 하나뿐이다**(§4.1) — 근검정 배경에
+ * 흰 글자. 목록의 행마다 반복되는 버튼이 아니라 §2 «행마다 반복되는 자리에는
+ * 쓰지 않는다» 에 걸리지 않는다.
+ *
+ * **2026-08-24 서류 목록 아래에서 제목 옆으로 올라왔다.** 그때 서류 카드마다
+ * 있던 「이 양식으로 쓰기」(선 버튼)도 같이 없어졌다 — 같은 주소로 가는 문이
+ * 셋이었다.
+ *
+ * 반경은 조작 요소라 --r-sm 이고, 높이 44px 은 터치 타깃 하한이다(§8.2).
+ * **`flex: none` 과 `nowrap` 이 짝이다** — 제목이 길 때 버튼이 먼저 쭈그러들면
+ * 글자가 두 줄로 접혀 44px 짜리 타깃이 아니게 된다. */
+.write {
+  flex: none;
+  min-height: 44px;
+  line-height: 44px;
+  padding: 0 var(--s5);
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.write:hover {
+  background: var(--ink-2);
 }
 
 .facts {
@@ -162,6 +203,12 @@
 }
 
 @media (max-width: 640px) {
+  /* 버튼이 제목 아래로 내려온다. `.head` 의 `align-items: flex-start` 가 그대로
+   * 살아서 왼쪽 정렬이고, 폭도 글자만큼이다 — 전 폭으로 늘이지 않는다. */
+  .head {
+    flex-direction: column;
+  }
+
   .facts {
     grid-template-columns: 1fr;
     gap: var(--s1);
@@ -174,25 +221,4 @@
   .gaps {
     grid-template-columns: 1fr;
   }
-}
-
-/* 쓰기로 나가는 문. **이 화면의 주 동작이다** — 근검정 배경에 흰 글자(§4.1).
- *
- * 목록의 행마다 반복되는 버튼이 아니라 상세에 하나뿐이라 §5.4-5 에 걸리지 않는다.
- * 반경은 조작 요소라 --r-sm 이고, 높이 44px 은 터치 타깃 하한이다(§8.2). */
-.write {
-  align-self: flex-start;
-  min-height: 44px;
-  line-height: 44px;
-  padding: 0 var(--s5);
-  border-radius: var(--r-sm);
-  background: var(--ink);
-  color: var(--surface);
-  font-size: var(--t-body);
-  font-weight: var(--w-medium);
-  text-decoration: none;
-}
-
-.write:hover {
-  background: var(--ink-2);
 }

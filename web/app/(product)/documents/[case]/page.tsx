@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FormDocuments } from "@/components/FormDocuments";
+import { Attachments } from "@/components/Attachments";
 import { FIXTURES } from "@/lib/fixtures/documents";
 import styles from "./page.module.css";
 
@@ -58,9 +58,14 @@ export default async function DocumentsPreviewPage({
         ))}
       </nav>
 
-      {/* 표본 화면이라 회사가 없다. 픽스처의 `sha256` 이 빈 문자열이라
-          「이 양식으로 쓰기」 링크도 원본 뷰어도 안 뜬다 — 그게 맞다 */}
-      <FormDocuments data={data} company="" />
+      {/* **`items` 를 안 넘긴다**(2026-08-24). 「내야 할 서류」가 「낼 서류」와 합쳐져
+          「첨부파일」 한 절이 됐고, 그 절은 첨부 목록이 있으면 그것으로 줄을 세우고
+          없으면 구간이 든 파일만 세운다 — 픽스처에는 첨부 목록이 없다. 그래서
+          여기서는 해독 상태 배지도 안 뜬다. **모르는 것을 안 적는 것이 맞다.**
+
+          「이 양식으로 쓰기」도 없어졌다 — 공고 상세 상단의 「사업계획서 작성」
+          하나로 합쳐졌다. 픽스처의 `sha256` 이 빈 문자열이라 원본 뷰어도 안 뜬다 */}
+      <Attachments docs={data} />
 
       {/* 아직 없는 것을 있는 척하지 않는다 */}
       <p className={styles.note}>

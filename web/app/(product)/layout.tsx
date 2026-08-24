@@ -47,7 +47,22 @@ import styles from "./layout.module.css";
  *
  * **좁은 화면에서 숨기지 않는다.** 시안은 숨긴다. 그 이유도 자리가 없어서인데 제품에는
  * 자리가 있다(3축이 아래로 내려가 상단이 비었다). 숨기면 폰에서 `/admin` 으로 가는 문이
- * 사라지고, 그건 시각 결정이 아니라 기능 축소다. */
+ * 사라지고, 그건 시각 결정이 아니라 기능 축소다.
+ *
+ * **`<Link>` 를 쓰지 않는다**(2026-08-24). `/admin` 에 HTTP Basic 이 걸리면서
+ * ([ADR-0067](../../../docs/adr/0067-운영-화면을-basic-으로-막는다.md)) `<Link>` 의
+ * prefetch 가 함정이 됐다 — 이 링크는 **모든 화면 상단에 있어서 늘 뷰포트 안**이고,
+ * Next 가 그 주소를 미리 치면 401 + `WWW-Authenticate` 가 돌아와 **아무것도 누르지
+ * 않은 사람에게 브라우저 비밀번호 창이 뜬다.** 실제로 배포본에서 그랬다.
+ *
+ * **proxy 에서는 못 막는다.** Next 가 프록시로 넘길 때 `rsc`·`next-router-prefetch`
+ * 헤더를 지워서 그 요청이 prefetch 인지 알 방법이 없다(`proxy.md` «RSC requests»).
+ *
+ * **`prefetch={false}` 로도 부족하다.** 그건 미리 치는 것만 막고, 눌렀을 때는 여전히
+ * 클라이언트 내비게이션이라 401 을 RSC 응답으로 받는다. `<a>` 는 전체 페이지 이동이라
+ * **브라우저가 Basic 을 제 방식대로 처리한다** — 창을 띄우고, 받은 자격으로 다시 친다.
+ *
+ * **로컬 dev 에서는 재현이 안 된다** — prefetch 가 프로덕션 전용이다. */
 const ADMIN = "/admin/notices";
 
 /** 3축. **레일·상단 막대·하단 탭 바가 이 배열 하나를 읽는다.**
@@ -198,9 +213,12 @@ export default function ProductLayout({ children }: { children: React.ReactNode 
               </span>
             )}
 
-            <Link href={ADMIN} className={styles.admin}>
+            {/* **`<Link>` 가 아니라 `<a>` 다.** 아래 ADMIN 주석 참고 — Next 의 prefetch 가
+              * 이 주소를 미리 치면 401 + `WWW-Authenticate` 가 돌아와 **누르지도 않은
+              * 사람에게 브라우저 비밀번호 창이 뜬다.** */}
+            <a href={ADMIN} className={styles.admin}>
               운영 도구
-            </Link>
+            </a>
           </div>
         </header>
 

@@ -23,13 +23,13 @@ const plex = IBM_Plex_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "라스트마일 — 지원사업",
+  title: "차차 — 지원사업",
   description: "맞는 공고를 골라 주고, 들어가면 문서가 이미 써져 있어요.",
   // iOS 는 매니페스트의 `display` 를 안 본다. 크롬 없이 열려면 이게 있어야 한다.
   // `title` 을 따로 주는 이유는 홈 화면 아래 글자가 `metadata.title` 이면 너무 길어서다
   appleWebApp: {
     capable: true,
-    title: "라스트마일",
+    title: "차차",
     statusBarStyle: "default",
   },
   // **Next 는 `mobile-web-app-capable` 만 낸다** — 접두사 없는 최신 이름이다.

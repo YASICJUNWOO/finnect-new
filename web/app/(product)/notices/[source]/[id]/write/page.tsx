@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { WritePanes } from "@/components/WritePanes";
+import { accountName } from "@/lib/account";
 import { getNotice, getNoticeDocuments } from "@/lib/api";
 import { getDraft } from "@/lib/draft";
 import type { Draft } from "@/lib/draft";
@@ -93,10 +94,13 @@ async function Panes({
 }) {
   // 초안을 못 불러와도 **양식은 떠야 한다.** 셋을 같이 부르되 실패를 따로 받는다 —
   // `getNoticeDocuments` 가 배포본에서 상세를 통째로 500 으로 만든 적이 있다.
-  const [notice, docs, draft] = await Promise.all([
+  // **이름이 넷째로 붙었다.** 채운 양식을 `파일명_회사이름` 으로 내려받는 데 쓴다 —
+  // 화면에 적는 값이 아니라서 못 불러오면 `null` 이고 꼬리만 빠진다(`accountName`).
+  const [notice, docs, draft, name] = await Promise.all([
     getNotice(source, external, company),
     getNoticeDocuments(source, external),
     safeDraft(source, external, company),
+    accountName(company),
   ]);
   if (!notice) notFound();
 
@@ -118,6 +122,7 @@ async function Panes({
       source={source}
       externalId={external}
       company={company}
+      companyName={name}
       initialDoc={doc}
     />
   );

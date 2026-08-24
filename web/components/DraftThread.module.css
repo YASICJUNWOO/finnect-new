@@ -265,10 +265,6 @@
   font-size: var(--t-body);
 }
 
-.input::placeholder {
-  color: var(--ink-3);
-}
-
 /* 보내기는 주 동작이 아니다 — 이 단의 주 버튼은 「초안 쓰기」다(§4 화면당 하나) */
 .send {
   flex: none;

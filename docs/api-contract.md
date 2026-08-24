@@ -648,6 +648,25 @@ finnect.wiki --company … --purge` 가 부르는 **바로 그 둘이다.** 베�
 
 ---
 
+## `GET /api/account/{company_id}`
+
+발급된 키로 **입장 때 적은 이름**을 되찾는다. 응답은 `POST /api/account` 와 같은 모양이다.
+
+```json
+// 응답 200
+{"company_id": "c_4f2a9b1c8e07", "name": "다시로"}
+```
+
+**부르는 자리가 하나다.** S4 가 채운 양식을 `파일명_회사이름.확장자` 로 내려받는다(`WritePanes` 의 `download`) — 파일이 사용자 디스크에 남으므로 `c_4f2a9b1c8e07` 이 아니라 사람이 적은 이름이라야 한다. **화면에 이름을 적지 않는다**: 못 불러오면 꼬리 없이 내려갈 뿐이라 `web/lib/account.ts` 의 `accountName` 이 실패를 `null` 로 삼킨다.
+
+**새어 나가는 것이 없다.** `company_id` 를 아는 쪽은 이미 그 회사의 위키와 초안을 통째로 열 수 있다 — 이름은 그보다 적게 말한다.
+
+| 코드 | 언제 |
+|---|---|
+| 404 | 모르는 키다. **`c_dasiro` 처럼 CLI 로 만든 회사가 여기 든다** — 빈 이름을 돌려주면 부르는 쪽이 「이름이 없는 회사」와 「없는 회사」를 못 가른다 |
+
+---
+
 ## `GET /api/wiki/{company_id}`
 
 사업 위키 한 장(S7). **정본은 [`api/wiki_schemas.py`](../src/finnect/api/wiki_schemas.py) 다.**

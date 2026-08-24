@@ -45,7 +45,13 @@ from finnect.api.wiki_schemas import ProfileOut, ProgressOut, UploadOut, WikiOut
 from finnect.config import settings
 from finnect.db import SessionFactory
 from finnect.ingest import jobs
-from finnect.models import AttachmentFile, Document, UserFile, UserFileStatus
+from finnect.models import (
+    AttachmentFile,
+    CompanyAccount,
+    Document,
+    UserFile,
+    UserFileStatus,
+)
 from finnect.wiki import storage
 
 app = FastAPI(title="finnect API", docs_url="/docs", redoc_url=None)
@@ -539,6 +545,29 @@ def account_enter(body: AccountIn) -> AccountOut:
         out = AccountOut(company_id=row.company_id, name=row.name)
         s.commit()
     return out
+
+
+@app.get("/api/account/{company_id}", response_model=AccountOut)
+def account_of(company_id: str) -> AccountOut:
+    """발급된 키로 **입장 때 적은 이름**을 되찾는다.
+
+    쓰는 자리는 지금 하나다 — S4 가 채운 양식을 `파일명_회사이름` 으로 내려받는다.
+    파일이 사용자 디스크에 남으므로 `c_8f6d525e7b97` 이 아니라 사람이 적은 이름이라야
+    한다.
+
+    **새어 나가는 것이 없다.** `company_id` 를 아는 쪽은 이미 그 회사의 위키와 초안을
+    통째로 열 수 있다(위 «사업 위키» 주석) — 이름은 그보다 적게 말한다.
+
+    **모르는 키는 404 다.** 빈 이름을 돌려주면 부르는 쪽이 「이름이 없는 회사」와
+    「없는 회사」를 못 가른다.
+    """
+    with SessionFactory() as s:
+        row = s.scalars(
+            select(CompanyAccount).where(CompanyAccount.company_id == company_id)
+        ).one_or_none()
+        if row is None:
+            raise HTTPException(404, "모르는 회사예요")
+        return AccountOut(company_id=row.company_id, name=row.name)
 
 
 # --- 사업 위키 (S7) ---------------------------------------------------------

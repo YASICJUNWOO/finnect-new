@@ -26,6 +26,7 @@ export function WritePanes({
   source,
   externalId,
   company,
+  companyName,
   initialDoc,
 }: {
   title: string;
@@ -37,6 +38,11 @@ export function WritePanes({
   source: string;
   externalId: string;
   company: string;
+  /** 입장 때 적은 이름. **내려받는 파일 이름의 꼬리다**(`파일명_회사이름`).
+   *
+   * **`company` 를 대신 쓰지 않는다** — `c_8f6d525e7b97` 이 디스크에 남으면 사용자가
+   * 자기 파일을 못 알아본다. 못 불러왔으면 `null` 이고 그때는 꼬리 없이 내려간다. */
+  companyName: string | null;
   /** 구간 id. **sha256 이 아니다** */
   initialDoc: string | null;
 }) {
@@ -46,6 +52,10 @@ export function WritePanes({
   const [docId, setDocId] = useState<string | null>(initialDoc ?? all[0]?.id ?? null);
   const [pages, setPages] = useState<number | null>(null);
   const [left, setLeft] = useState<number | null>(null);
+  /** **뷰어가 실제로 연 파일의 주소.** 머리줄의 내려받기가 이 값을 쓴다 —
+   *  `filledUrl` 을 그대로 쓰면 채우기가 415 로 물러난 화면에서 버튼만 그 415 를
+   *  다시 부른다(`DocViewer` 의 `onOpened`). 여는 중에는 `null` 이라 버튼이 없다. */
+  const [opened, setOpened] = useState<string | null>(null);
   /** 왼쪽에서 살아 움직이는 초안. **서버가 준 `draft` 는 처음 한 장뿐이다** —
    *  초안을 쓰거나 고치면 그 결과가 `DraftThread` 안에서만 갱신되므로, 여기로
    *  올려 받지 않으면 오른쪽 뷰어가 **새로고침 전까지 옛 파일을 보여 준다.** */
@@ -102,6 +112,25 @@ export function WritePanes({
   const onFilled = useCallback((_filled: number, remaining: number) => {
     setLeft(remaining);
   }, []);
+
+  /** 내려받을 것. **여는 중이거나 못 열었으면 없다** — 눌러도 아무 일이 안 일어나는
+   *  버튼은 고장 난 것으로 읽힌다(왼쪽 단의 `canStart` 와 같은 규칙).
+   *
+   *  이름이 `파일명_회사이름.확장자` 다. **확장자는 파일명에서 안 떼 온다** — 3,354건
+   *  중 7건이 이름과 내용이 다르고(`.hwpx` 인데 HWP), 틀린 확장자로 내려가면 그
+   *  파일은 한/글에서 안 열린다. `ext` 는 내용으로 판정한 값이다.
+   *
+   *  **`download` 가 있어야 실제로 내려간다.** 없으면 hwp 는 받아지지만 pdf 는
+   *  브라우저가 새 탭에서 열고, 채운 파일은 이름이 `filled` 가 된다(프록시가
+   *  `content-disposition` 을 안 넘긴다). 같은 출처라 이 속성이 먹는다. */
+  const download = useMemo(() => {
+    if (!opened || !active) return null;
+    const base = active.attachment.filename.replace(/\.[^.]+$/, "") || active.title;
+    const tail = companyName ? `_${companyName}` : "";
+    // 파일 이름에 못 쓰는 글자를 지운다. **줄바꿈까지 본다** — 구간 제목에서 온 값이다
+    const safe = `${base}${tail}`.replace(/[\\/:*?"<>|\r\n]+/g, " ").trim();
+    return { href: opened, name: active.ext ? `${safe}.${active.ext}` : safe };
+  }, [opened, active, companyName]);
 
   /** 주소를 따라 바꾼다. **`scroll: false`** — 단이 각자 구르는 화면이라
    * 위로 튀면 읽던 자리를 잃는다. */
@@ -164,6 +193,17 @@ export function WritePanes({
         )}
         {sameFile && <span className={styles.same}>같은 파일이에요. 파일 전체가 열려요.</span>}
       </p>
+      {/* **화면에 뜬 그 파일을 받는다.** 초안이 들어갔으면 채운 파일이고, 채우기가
+          물러났으면 원본이다 — 뷰어가 무엇을 열었는지 알려 준다(`onOpened`).
+          §4 «오버레이 트리거» 다. 채운 검정은 화면당 하나이고 그 자리는 왼쪽 단의
+          「초안 쓰기」가 갖는다.
+          **시연이 세는 동안에는 안 낸다** — 그때 아래 문서는 아직 안 고쳐진 것이라
+          받으면 화면이 말하는 것과 다른 파일이 디스크에 남는다 */}
+      {download && !demoBusy && (
+        <a className={styles.download} href={download.href} download={download.name}>
+          내려받기
+        </a>
+      )}
     </div>
   );
 
@@ -204,6 +244,7 @@ export function WritePanes({
               onPages={setPages}
               filledUrl={filledUrl}
               onFilled={onFilled}
+              onOpened={setOpened}
             />
             {demoBusy && <DemoViewerLoading revising={demo.phase === "revising"} />}
           </div>

@@ -77,6 +77,31 @@
   color: var(--ink-3);
 }
 
+/* §4 «오버레이 트리거». **채운 검정이 아니다** — 화면당 하나이고 그 자리는 왼쪽
+ * 단의 「초안 쓰기」가 갖는다. 옆의 「초안 접기」와 같은 모양이라 머리줄 오른쪽이
+ * 한 종류로 읽힌다.
+ *
+ * **`flex: none` 이다.** 칩 줄이 넘칠 때 이 버튼이 먼저 눌려 글자가 잘리면 안 된다 */
+.download {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--t-aux);
+  line-height: var(--lh-aux);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.download:hover {
+  border-color: var(--ink-3);
+}
+
 /* 칩이 여럿인데 같은 파일을 가리킬 때. **숨기지 않는다** — 숨기면 칩을 눌러도
  * 같은 화면이 떠서 사용자가 우리가 고장 났다고 읽는다(§10 제약을 그대로 적는다) */
 .same {
@@ -107,6 +132,10 @@
 /* 좁은 폭에서는 손가락 밀도다(§5) */
 @media (max-width: 1023px) {
   .chip {
+    min-height: 44px;
+  }
+
+  .download {
     min-height: 44px;
   }
 }

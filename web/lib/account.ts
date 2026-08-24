@@ -1,4 +1,4 @@
-import { send } from "./api";
+import { get, send } from "./api";
 
 /** 베타 입장 게이트([ADR-0066](../../docs/adr/0066-베타-테스터를-이름과-비밀번호로-가른다.md)).
  *
@@ -25,6 +25,20 @@ export function enterAccount(name: string, password: string): Promise<Account> {
     method: "POST",
     body: JSON.stringify({ name, password }),
   });
+}
+
+/** 발급된 키로 **입장 때 적은 이름**을 되찾는다. **모르는 회사면 `null` 이다** —
+ * `?company=` 로 손으로 적은 값(`c_dasiro`)에는 계정 행이 없다.
+ *
+ * 쓰는 자리는 S4 의 내려받기 하나다(`파일명_회사이름`). 화면에 이름을 적는 것이
+ * 아니므로 **못 불러와도 조용히 지나간다** — 파일명에서 꼬리 하나가 빠질 뿐이다. */
+export async function accountName(companyId: string): Promise<string | null> {
+  try {
+    const account = await get<Account>(`/api/account/${encodeURIComponent(companyId)}`);
+    return account.name.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /** 쿠키 이름. **`web/middleware.ts` 와 `lib/wiki.ts` 가 같은 값을 읽는다** —

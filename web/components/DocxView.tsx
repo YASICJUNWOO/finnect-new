@@ -23,6 +23,7 @@ export function DocxView({
   filename,
   downloadUrl,
   onFilled,
+  onOpened,
 }: {
   url: string;
   filename: string;
@@ -30,6 +31,11 @@ export function DocxView({
   downloadUrl: string | null;
   /** 몇 칸을 채웠고 몇 칸이 남았나. **헤더로 온다** */
   onFilled?: (filled: number, left: number) => void;
+  /** 화면에 실제로 뜬 파일의 주소. 머리줄의 내려받기가 쓴다(`DocViewer` 와 같은 규약).
+   *
+   * **여기는 물러나는 길이 없다** — 채운 파일을 못 받으면 「못 열었어요」이고, 그때
+   * `null` 을 올려 머리줄에서 버튼이 빠진다. */
+  onOpened?: (url: string | null) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"여는 중" | "열렸다" | "못 열었다">("여는 중");
@@ -40,6 +46,11 @@ export function DocxView({
   useEffect(() => {
     filledRef.current = onFilled;
   }, [onFilled]);
+
+  const openedRef = useRef(onOpened);
+  useEffect(() => {
+    openedRef.current = onOpened;
+  }, [onOpened]);
 
   // 문서가 바뀌면 상태를 되돌린다. **`useEffect` 가 아니라 렌더 중에 맞춘다** —
   // 효과로 하면 지난 문서의 「못 열었어요」가 한 프레임 스쳐 지나간다.
@@ -53,6 +64,7 @@ export function DocxView({
   useEffect(() => {
     // **취소 깃발.** 문서를 바꾸면 늦게 온 응답이 없어진 DOM 에 붙는다
     let dead = false;
+    openedRef.current?.(null);
 
     (async () => {
       try {
@@ -91,10 +103,12 @@ export function DocxView({
         });
         if (dead) return;
         setPhase("열렸다");
+        openedRef.current?.(url);
       } catch (e) {
         if (dead) return;
         setWhy(e instanceof Error ? e.message : "알 수 없는 이유예요");
         setPhase("못 열었다");
+        openedRef.current?.(null);
       }
     })();
 

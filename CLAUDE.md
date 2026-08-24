@@ -6,9 +6,11 @@
 
 **2026-08-16 v2로 피봇했다**([ADR-0012](docs/adr/0012-v2-피봇-사업-위키.md)). 폼 입력 → 판정 → 3단계 집필이던 v1 명세는 대체됐다. **`SPEC.md`를 다시 읽어라. 기억하고 있는 F0~F9와 S1~S8은 없다.**
 
-코드는 **공고 수집(F2-1)과 첨부 해독(F2-2 앞부분), 낼 서류·작성 항목 추출(F2-3), 그리고 그걸 보여 주는 화면 두 장(S2·S3 — 옛 이름 S4·S5)까지 있다.** 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). **2026-08-21 진짜 추출기를 실제 회사에 처음 돌렸다** — `c_dasiro` 가 `stub/v1` 에서 `llm/gpt-5.6-luna` 로 갈렸고 노드가 30→143 이 됐다. 슬롯 여덟 값은 사람이 옮긴 것과 글자까지 같았다. **대신 결함 둘이 나왔다**(위키가 공고문을 삼킨다 · 표 부스러기가 노드에 섞인다) — [plan/12](docs/plan/12-사업-위키-구축.md) T-0077·T-0078 이 다시 열렸다. **2026-08-18 입구가 화면에 생겼다** — `/wiki/files` 에 던지면 단계 다섯이 돌고 파일마다 어느 자리를 채웠는지 이름으로 뜬다([plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
+코드는 **공고 수집(F2-1) · 첨부 해독(F2-2) · 낼 서류와 작성 항목 추출(F2-3) · 사업 위키(F1) · 맞는 공고 고르기(M) · 초안 집필(G) · 양식 채우기까지 있다.** 모듈은 `src/finnect/` 아래 열이다(`ingest` · `attach` · `extract` · `wiki` · `match` · `draft` · `forms` · `dataset` · `api` · `admin`). 제품의 뿌리인 사업 위키(F1)는 **2026-08-18 섰다** — 파일을 던지면 **청크 → 사실 → 노드**까지 가고 노드에서 원문이 열린다([plan/12](docs/plan/12-사업-위키-구축.md) 완료). **2026-08-21 진짜 추출기를 실제 회사에 처음 돌렸다** — `c_dasiro` 가 `stub/v1` 에서 `llm/gpt-5.6-luna` 로 갈렸고 노드가 30→143 이 됐다. 슬롯 여덟 값은 사람이 옮긴 것과 글자까지 같았다. **대신 결함 둘이 나왔다**(위키가 공고문을 삼킨다 · 표 부스러기가 노드에 섞인다) — [plan/12](docs/plan/12-사업-위키-구축.md) T-0077·T-0078 이 다시 열렸다. **2026-08-18 입구가 화면에 생겼다** — `/wiki/files` 에 던지면 단계 다섯이 돌고 파일마다 어느 자리를 채웠는지 이름으로 뜬다([plan/15](docs/plan/15-파일-올리기와-진행-표시.md)). 무엇이 있고 없는지는 [plan/README](docs/plan/README.md) 한 곳에 있다.
 
-**2026-08-21 [plan/18](docs/plan/18-설치되는-앱.md)이 닫혔다** — 홈 화면에 얹히고 크롬 없이 열린다. **2026-08-18 [plan/06](docs/plan/06-목록-수집과-조회.md)·[plan/07](docs/plan/07-첨부-내려받기와-해독.md)·[plan/08](docs/plan/08-사용자-화면-공고-조회.md)가 닫혔고 [plan/03](docs/plan/03-자격-판별.md)·[plan/09](docs/plan/09-사용자-앱-분리.md)·[plan/11](docs/plan/11-작성-항목-추출과-표시.md)·[plan/13](docs/plan/13-kstartup-첨부-수집.md)·[plan/14](docs/plan/14-사업-위키-화면.md)·[plan/15](docs/plan/15-파일-올리기와-진행-표시.md)·[plan/16](docs/plan/16-항목마다-초안을-쓴다.md)·[plan/17](docs/plan/17-맞는-공고를-고른다.md)가 열려 있다. **[plan/12](docs/plan/12-사업-위키-구축.md)는 2026-08-21 다시 열렸다**(T-0077·T-0078). **2026-08-21 [plan/19](docs/plan/19-위키-자리-구조.md)가 열렸고 층 구조를 정했다** — `sector` 6 → `orbit` 15 → `topic` 37([ADR-0048](docs/adr/0048-노드-층을-없애고-topic-을-orbit-에-직접-매단다.md)).** **2026-08-23 [plan/24](docs/plan/24-양식을-채워서-돌려준다.md)가 열렸다** — 집필 결과를 **받은 양식 파일에 넣어 같은 포맷으로 돌려준다**([ADR-0060](docs/adr/0060-양식을-채워서-원본-포맷으로-돌려준다.md)). 양식 20건에 165칸을 채워 보고 되는 범위를 못 박았고 **제품 코드는 아직 없다.** 공고 31,327건이 적재됐고(기업마당 1,538 · K-Startup 29,789), 첨부 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md)).
+**계획별 상태와 적재량을 여기 옮겨 적지 않는다.** 정본은 [plan/README](docs/plan/README.md) 한 곳이고, 두 곳에 적으면 한 곳이 반드시 낡는다 — **2026-08-24 까지 이 자리가 그 예였다.** 닫힌 계획 넷(01·02·19·20)을 안 적고 열려 있다고 적었고, 「공고 31,327건이 적재됐다」를 현재형으로 적고 있었다. 그 숫자는 **한때 쌓았던 값이고 지금 로컬 DB 에 있는 것이 아니다** — plan/README 가 「로컬 코퍼스는 작게 다시 세워져 있다」 절에서 정정해 뒀다. 작게 세우는 절차는 [`초기화.md`](docs/초기화.md)에 있다.
+
+여기 남기는 것은 **낡지 않는 결정과 그 근거**뿐이다. 첨부는 전량 실측에서 3,354건을 받아 2,827건에서 텍스트가 나왔다([실측](docs/adr/evidence/2026-08-17-첨부-해독-실측.md) · 그때의 전량 기준이다). 집필 결과를 **받은 양식 파일에 넣어 같은 포맷으로 돌려준다**([ADR-0060](docs/adr/0060-양식을-채워서-원본-포맷으로-돌려준다.md) · [plan/24](docs/plan/24-양식을-채워서-돌려준다.md)) — 양식 20건에 165칸을 채워 되는 범위를 못 박았고 **제품 코드는 `src/finnect/forms/` 에 있다**(어댑터 셋 · `slots.py` 값 자리 판정). **`FORM_SLOTS` 기본값이 `off` 다** — 육안이 2건이라 ADR-0060 결정 3 을 아직 안 뒤집었다.
 
 **앱이 셋이고 그중 둘이 한 몸이다.** `web/` Next.js — `(product)/` 사용자 화면과 `admin/` 운영 조회 화면 · `src/finnect/api/` 제품 API + 운영 API · `src/finnect/admin/` **수집 실행만** 남은 로컬 앱([ADR-0023](docs/adr/0023-제품-프론트를-nextjs로-분리한다.md) · [ADR-0027](docs/adr/0027-운영-화면을-nextjs로-옮긴다.md)).
 
@@ -52,6 +54,7 @@
 - **초기화는 사람이 고친 글도 지운다. 대신 먼저 알린다.** ADR-0055 를 안 뒤집는다 — 저기는 **집필기가** 사람 글을 덮는 것이고 여기는 **사람이** 스스로 누른 것이다. 고친 항목이 있으면 머리줄 아래에 확인 줄이 펼쳐지고, **없으면 안 묻는다**(잃을 것이 없는데 확인을 받으면 다음의 진짜 경고까지 흘려본다). 말로 시켜도 같은 자리로 간다 — `readCommand` 가 **「초기화」도 받는다**(화면에 적힌 말을 그대로 쳤는데 못 알아들으면 그 버튼이 없는 것으로 읽힌다). **조각 셋을 두 화면이 같이 쓴다**(`StartRow`·`ResetButton`·`ConfirmRow`) — 예전에는 카피를 각자 들고 있었고 **둘 다 거짓이었다**
 - **`redo` 가 아니면 이미 초안이 있는 양식을 조립 단계에서 걷어낸다**(`_drafted_documents`). `_draft_row` 도 같은 것을 보지만 **저기는 저장 직전이라 늦다** — 배분과 집필이 끝난 뒤라 버리는 것이 결과가 아니라 이미 쓴 돈이다. 2026-08-23 까지 화면의 「다시 쓰기」가 그 상태였다: LLM 을 다 부르고 결과를 버려서 **화면에는 아무 일도 안 일어났고 토큰만 나갔다.** 건너뛴 수는 `BuildReport.skipped` 에 뜬다 — 조용히 건너뛰면 「왜 안 늘었지」를 못 되짚는다
 - **채운 파일을 저장하지 않는다.** `filled_document` 가 요청마다 원본(`data/attachments/<sha256>`)을 열어 그때의 초안을 넣고 임시 파일로 낸다 — **원본은 아무도 안 쓴다.** 그래서 「다시 쓰면 원본 양식 기준으로 돌아간다」가 공짜로 성립한다. 회사별 사본을 디스크에 두면 그 사본과 DB 초안 중 **어느 쪽이 정본인지** 정해야 하고, 그것은 위키 마크다운을 저장하지 않기로 한 자리와 같다
+- **시연용 흉내 장치가 셋이고 기본이 전부 꺼짐이다**(`5b96312`). `DEMO_RECOMMENDATIONS` 가 판정 대신 고정 목록을 내고, `DEMO_SNAPSHOT` 이 미리 세운 위키를 올리는 순간 앉히고(`wiki/demo.py` · `wiki --snapshot` 이 그 스냅샷을 뜬다), `DemoReply.DEMO` 가 초안 쓰기를 5초 뒤 문구로 대신한다. **레포 기본값으로는 이 셋이 없는 것과 같이 돈다.** 위키를 세우는 데 241초가 걸려서(나린데이터 일곱 건 · OCR 두 장 + 파일당 LLM 2회) 시연이 실제 동작을 기다릴 수 없었던 것이 이유다. **정확성을 재는 자리에서 이 값을 켜지 않는다** — 켜면 판정이 아니라 고정 목록을 재게 된다
 - **테스트 SQLite 에 FK 를 켠다**(`tests/test_draft_service.py`). 기본이 꺼짐이라 `ON DELETE CASCADE` 가 안 돌고, `_draft_row` 의 `delete(DraftItem)` 이 남긴 근거가 **배포 DB(Postgres)에서만 지워진다** — 재작성이 로컬에서만 깨지거나 로컬에서만 통과한다. 「로컬은 통과하고 배포본만 죽는다」의 거울상이다
 - **공고 상세에 자격을 안 낸다**([ADR-0003](docs/adr/0003-판별-비노출.md)). 「자격이 되는지」 칸이 오래 비어 있었는데 **값이 없어서가 아니라 만들면 안 되는 화면이라서** 2026-08-22 없앴다 — 못 넘는 공고는 목록에서 빠지는 것으로 이미 답했고, 상세에 대조표를 두면 우리 일을 사용자에게 떠넘긴다. 「왜 맞는지」는 `notice_fit` 이 채운다. **등급(`맞다`·`애매`)을 글자로도 안 낸다** — 그것이 눈금 없는 점수가 된다
 - **위키의 자리는 기획 문서 §2 의 마흔여섯 고정이다**([ADR-0058](docs/adr/0058-자리표를-기획-트리로-고정하고-key-를-없앤다.md)이 [ADR-0056](docs/adr/0056-위키를-동적-노드-트리로-바꾸고-매칭-정보를-따로-뽑는다.md) 결정 2·3 을 대체). 정본은 `wiki/spots.py` 이고 **폴더 10 · 자리 46(고정 29 + `{…}` 템플릿 17)** 이다. **완전 고정이 아니고 그것도 기획 문서의 것이다**(§1-3 「개수가 고정이면 파일, 늘어나면 폴더」) — 폴더는 우리가 고정하고 인스턴스 이름만 문서가 정한다. 구멍은 마디가 아니라 **마디 안의 빈자리**라 `Custom/특허/{상태}-{번호}` 는 `등록-10-2025-0114882` 한 덩어리로 받는다. **표 밖으로 나가는 길이 없다** — 번호가 범위 밖이거나 이름이 안 오면 `Custom/검토 대기` 로 가고, 그 자리 하나만 기획 표 밖이다. 옛말은 `sector`·`orbit`·`topic`·`category`·`node` 이고 **되살리지 않는다**
@@ -96,8 +99,11 @@ uv run alembic upgrade head                      # 스키마
 uv run python -m finnect.ingest --source bizinfo    # 1,538건 · 요청 1회
 uv run python -m finnect.ingest --source kstartup   # 29,789건 · 요청 149회
 uv run python -m finnect.ingest --source bizinfo --limit 40   # 맛보기. 잘림이 기록에 남는다
+uv run python -m finnect.ingest --source kstartup --only-open  # 모집중만. 검증된 서버측 필터(rcrt_prgs_yn=Y)
 uv run python -m finnect.attach                  # 첨부 3,354건 · 약 2GB · 30분 남짓
+uv run python -m finnect.attach --limit 40       # 맛보기
 uv run python -m finnect.attach --redo           # 파서를 고쳤을 때. 파일은 다시 안 받는다
+uv run python -m finnect.attach --ocr            # 0자인 스캔본만 OCR 로 다시 본다. 새로 안 받는다
 uv run python -m finnect.attach --report         # 해독 집계만
 uv run python -m finnect.attach --scrape-kstartup             # K-Startup 첨부 목록. 파일은 안 받는다
 uv run python -m finnect.attach --only 목록.txt --source kstartup  # 목록에 있는 URL 만 받는다
@@ -113,22 +119,31 @@ cd notice-filter && python3 kstartup.py --json ../out/덤프.json --ids ../out/k
 uv run python -m finnect.wiki --company c_dasiro tests/fixtures/wiki/*   # 파일 → 청크 → 사실 → 노드
 uv run python -m finnect.wiki --company c_narin tests/fixtures/wiki-narin/*  # 둘째 페르소나. llm 이어야 돈다
 uv run python -m finnect.wiki --company c_dasiro --wiki      # 세워진 위키를 본다
+uv run python -m finnect.wiki --company c_dasiro --report    # 집계만
 uv run python -m finnect.wiki --company c_dasiro --show 회사소개  # 원문 청크를 본다
 uv run python -m finnect.wiki --company c_dasiro --rechunk   # 청킹 규칙을 고쳤을 때. 원본은 안 읽는다
+uv run python -m finnect.wiki --company c_dasiro --build     # 청크에서 사실을 뽑는다. `chunked` 만 읽는다
 uv run python -m finnect.wiki --company c_dasiro --rebuild   # 추출기를 바꿨을 때. 청크는 안 건드린다
 uv run python -m finnect.wiki --company c_dasiro --export 폴더  # 기획 트리 47장으로 내보낸다
+uv run python -m finnect.wiki --company c_dasiro --snapshot 파일  # 시연용 스냅샷을 뜬다. 시연 전용이다
 uv run python -m finnect.wiki --company c_dasiro --purge     # 탈퇴. 원본까지 지운다
 uv run python -m finnect.wiki --score                        # 추출 정확도. DB 도 회사도 필요 없다
 uv run python -m finnect.extract                 # 첨부 텍스트 → 구간 → 칸. 네트워크 안 쓴다
+uv run python -m finnect.extract --limit 40      # 파일 N개만 (맛보기)
+uv run python -m finnect.extract --report        # 집계만
+uv run python -m finnect.extract --title-like 사업계획서   # 표본 고르기다. 판정 규칙이 아니다
+uv run python -m finnect.extract --redo          # 다시 판정한다. **그 파일에 쓴 초안이 지워진다**(FK CASCADE)
 uv run python -m finnect.extract --classify 40 --dry   # 서술형 판별을 찍어만 본다 (LLM · 안 쓴다)
 uv run python -m finnect.extract --classify      # unknown 7,717개에 종류를 붙인다 (LLM)
 uv run python -m finnect.match --normalize 40 --dry  # 공고 정규화를 찍어만 본다 (LLM)
 uv run python -m finnect.match --normalize          # 열린 공고 전량. 회사와 무관하다 (LLM)
+uv run python -m finnect.match --normalize --redo --workers 8  # 본문이 그대로여도 다시 뽑는다 (LLM)
 uv run python -m finnect.match --company c_dasiro   # 자격 → 분야 → 추천 3건. LLM 0회
 uv run python -m finnect.match --company c_dasiro --only 후보.txt   # 층0 목록으로 좁힌다
 uv run python -m finnect.match --report             # 퍼널만
 uv run python -m finnect.draft --read-forms 20   # 양식을 읽어 항목마다 필요한 자리를 정한다 (LLM)
 uv run python -m finnect.draft --company c_dasiro --notice bizinfo:PBLN-000   # 초안 (LLM)
+uv run python -m finnect.draft --company c_dasiro --notice bizinfo:PBLN-000 --redo --workers 4  # 다시 쓴다 (LLM)
 uv run python -m finnect.draft --report          # 집필 현황만
 uv run uvicorn finnect.admin.app:app --reload    # 수집 실행 :8000 (/ingest 하나뿐이다)
 uv run uvicorn finnect.api.app:app --port 8100   # API :8100 — 제품 + 운영. /docs 에 OpenAPI
@@ -186,6 +201,8 @@ cd web && npm run lint && npm run typecheck && npm run build
 - [`docs/api-contract.md`](docs/api-contract.md) — 제품 API 계약. `web/`과 `src/finnect/api/` 사이의 유일한 경계다. **정본은 코드**(`api/schemas.py`)이고 이 문서가 뜻을 적는다
 - [`docs/deploy.md`](docs/deploy.md) — 배포 절차. **올라가는 것은 읽기 경로뿐이다**([ADR-0026](docs/adr/0026-읽기-경로만-vercel에-올린다.md)). 수집·해독·admin은 로컬에 남는다
 - [`docs/dataset.md`](docs/dataset.md) — **공고 코퍼스 초기화·재적재 절차 일곱 단계.** 「공고 초기화하고 다시 채워」가 뜻하는 것이 거기 있다. **로컬 전용이고 배포 DB 에 안 쓴다**
+- [`docs/초기화.md`](docs/초기화.md) — 같은 절차의 **좁은 경로.** 개발용으로 작게 세운다(기업마당 97 · K-Startup 138 · 12분). **`dataset.md` 가 정본이고 어긋나면 저기가 이긴다**
+- [`docs/초안-집필-구조.md`](docs/초안-집필-구조.md) — `src/finnect/draft/` 일곱 파일을 읽어 적은 **설명 문서.** 진행 상태는 [plan/16](docs/plan/16-항목마다-초안을-쓴다.md), 결정은 ADR 이 든다. **코드가 바뀌면 이 문서가 먼저 낡는다**
 - [`docs/plan/`](docs/plan/README.md) — 계획과 태스크. **진행 상태의 정본이다.** 무엇이 막혀 있는지는 `plan/README.md` 한 곳에만 적는다
 - [`docs/adr/`](docs/adr/README.md) — 결정 로그. **append-only. 기존 파일 본문을 수정하지 않는다**
 - [`docs/adr/evidence/2026-08-16-v2-기획문서/`](docs/adr/evidence/2026-08-16-v2-기획문서/) — **기획이 넘긴 v2 원본 일곱.** SPEC이 이걸 흡수했다. 문서끼리 안 맞는 곳이 있으니 SPEC §9를 먼저 본다

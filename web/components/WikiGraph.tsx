@@ -212,9 +212,22 @@ export function WikiGraph({
   selected: string | null;
   onSelect: (path: string) => void;
 }) {
+  /** 아직 아무것도 없다. **자리 점 마흔여섯을 안 그린다**(2026-08-24).
+   *
+   * 전에는 빈 위키에서도 판을 통째로 그렸고 근거가 「무엇이 없는지 보여야 한다」였다.
+   * 그런데 **비어 있을 때는 그 마흔여섯이 무엇이 없는지를 말해 주지 않는다** — 이름표가
+   * 안 붙는 크기(4.5px)라 점선 동그라미 마흔여섯 개와 폴더 이름 열이고, 처음 온 사람이
+   * 거기서 읽어 낼 것이 없다. 첫 화면의 일은 **파일을 올리는 것**이고 그 말은 옆의
+   * 빈 화면 문구가 한다.
+   *
+   * 자리는 사실이 하나라도 앉는 순간 전부 돌아온다 — 지우는 것이 아니라 **미루는 것**이다. */
+  const bare = filled === 0;
+
   // 배치는 비싸고 노드가 바뀔 때만 달라진다. **고를 때마다 다시 잡으면 그림이 튄다**
   const { drawn, edges, box, named } = useMemo(() => {
-    const { bodies, edges: links, meta } = build(nodes, categories);
+    // **빈 목록을 넣는다.** 허브 하나만 남고 `place` 가 `fixed` 를 판 정중앙에 앉힌다
+    // (물체가 하나면 scale 이 1 이고 mid 가 곧 그 점이라 정확히 `W/2 · H/2` 다)
+    const { bodies, edges: links, meta } = build(bare ? [] : nodes, categories);
     const at = place(bodies, links, { width: W, height: H, spread: 0.56 });
 
     const items: Drawn[] = bodies.map((b) => {
@@ -239,12 +252,16 @@ export function WikiGraph({
       drawn: items,
       named: kept,
       // 점과 이름표를 같이 재고 여백은 얇게. **틀이 커지면 글자가 작아진다**
-      box: fit([...dots, ...boxes], 14),
+      //
+      // **허브 하나에 틀을 맞추면 안 된다.** 그러면 viewBox 가 96px 이 되고
+      // `preserveAspectRatio` 가 그걸 캔버스 폭으로 늘여서 「내 사업」이 여섯 배로
+      // 뜬다. 빈 화면에서는 판 전체를 틀로 둬서 배율을 1 근처에 붙인다
+      box: bare ? { x: 0, y: 0, width: W, height: H } : fit([...dots, ...boxes], 14),
       edges: links
         .map((l) => ({ ...l, a: pos.get(l.from), b: pos.get(l.to) }))
         .filter((l): l is typeof l & { a: Point; b: Point } => !!l.a && !!l.b),
     };
-  }, [nodes, categories]);
+  }, [nodes, categories, bare]);
 
   const meta = useMemo(() => new Map(drawn.map((d) => [d.id, d])), [drawn]);
   const hot = useMemo(
@@ -315,7 +332,9 @@ export function WikiGraph({
         )}
       </svg>
 
-      <Zoom zoom={zoom} zoomBy={zoomBy} reset={reset} />
+      {/* **점이 하나면 손잡이를 안 띄운다.** 확대할 것이 없는데 버튼이 서 있으면
+          크롬만 는다 — 「전체 보기」를 확대했을 때만 내는 것과 같은 규칙이다 */}
+      {!bare && <Zoom zoom={zoom} zoomBy={zoomBy} reset={reset} />}
     </div>
   );
 }

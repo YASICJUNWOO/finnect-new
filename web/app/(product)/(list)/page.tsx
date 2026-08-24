@@ -149,7 +149,6 @@ export default async function NoticeListPage({
                 {list.total.toLocaleString("ko-KR")}건
               </span>
             </h2>
-            <p className={styles.sub}>마감이 가까운 순서예요. 이미 마감된 공고는 빼 뒀어요.</p>
           </div>
         </div>
 

@@ -132,11 +132,16 @@ export function WikiBoard({
 
             {/* 범례. **색이 없으므로 모양이 무엇을 뜻하는지 말한다.**
               * 사실 점을 뺐으므로 「사실 하나」도 같이 뺐다 — 그래프에 없는 표시를
-              * 범례가 설명하면 사용자가 없는 것을 찾는다 */}
-            <ul className={styles.legend}>
-              <li data-mark="filled">찼어요</li>
-              <li data-mark="empty">아직 비었어요</li>
-            </ul>
+              * 범례가 설명하면 사용자가 없는 것을 찾는다.
+              *
+              * **비어 있을 때가 바로 그 경우다**(2026-08-24). 그래프에 허브 하나만
+              * 남으므로 찬 점도 빈 점도 화면에 없다 */}
+            {!empty && (
+              <ul className={styles.legend}>
+                <li data-mark="filled">찼어요</li>
+                <li data-mark="empty">아직 비었어요</li>
+              </ul>
+            )}
           </section>
 
           {/* P2. **그래프를 안 가리고 옆에 선다.** 스크롤이 따로 논다 */}

@@ -171,6 +171,11 @@ class RunOut(BaseModel):
     id: int
     source: str
     only_open: bool
+    #: 어느 솎기 정책으로 받았나. `only_open` 과 같은 자리다 — 한쪽만 기록하면
+    #: 나중에 "이 코퍼스가 왜 이 크기지" 를 못 푼다(ADR-0064).
+    filter_name: str | None
+    #: 정책으로 뺀 건수. `skipped`(외부 ID 가 없어 못 넣은 사고)와 다른 숫자다
+    filtered: int
     trigger: str
     status: str
     started_at: dt.datetime | None
@@ -190,11 +195,23 @@ class RunOut(BaseModel):
     unknown_fields: dict[str, int]
 
 
+class IngestProgressOut(BaseModel):
+    """지금까지 받은 양. `running` 이 참일 때만 의미가 있다 — `ingest/jobs.py` `Progress` 사본."""
+
+    pages: int
+    items: int
+    expected: int | None
+    target: int | None
+    goal: int | None
+    percent: int | None
+
+
 class SourceCardOut(BaseModel):
     """출처 카드 한 장.
 
-    **실행 상태(`running`·`progress`)가 없다.** 그 값은 수집을 돌리는 프로세스 안에서만
-    사는 것이라 배포본이 알 수 없다(ADR-0027). 카드는 저장된 건수와 마지막 기록만 말한다.
+    **`running`·`progress` 가 2026-08-24 부터 있다**(ADR-0065). API 가 더 이상
+    서버리스가 아니라 이 값을 만드는 프로세스와 같은 프로세스에서 읽는다 — ADR-0027 이
+    "배포본이 알 수 없다"고 적은 전제가 ADR-0035 로 바뀌었다.
     """
 
     name: str
@@ -204,8 +221,17 @@ class SourceCardOut(BaseModel):
     note: str
     stored: int
     last: RunOut | None
+    running: bool
+    progress: IngestProgressOut | None
 
 
 class AdminIngestOut(BaseModel):
     cards: list[SourceCardOut]
     runs: list[RunOut]
+
+
+class IngestTriggerOut(BaseModel):
+    """실행 요청의 결과. `ingest/jobs.py` `Launch` 사본."""
+
+    started: bool
+    reason: str = ""

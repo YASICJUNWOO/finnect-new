@@ -130,6 +130,30 @@ uv run python -c "from finnect.attach import ocr; print(ocr.available())"
 (`USER_FILE_OCR` 과 별개다) 그림 포맷 자체가 목록에 없다 — 켜면 plan/07 이 측정한
 2,827/3,354 를 다시 재야 한다.
 
+### A-1-3. 수집 실행 버튼을 켠다 (2026-08-24 추가 · ADR-0065)
+
+**A-1 과 다른 문이다.** `API_TOKEN` 은 Next.js 서버가 이 API 로 들어오는 문이고,
+`/admin/ingest` 를 보는 누구나 이미 그 문을 지난 뒤다. **이 토큰은 그 화면의
+실행 버튼을 눌러도 되는 사람인지를 한 번 더 묻는다** — 눌리면 외부 정부 API 에
+실제 요청이 나가고 쿼터를 쓴다.
+
+**빼먹으면 버튼이 503 이다.** `API_TOKEN` 과 반대로 **기본이 꺼짐이다.** 쓰기이고
+쿼터를 쓰는 동작이라, 설정을 잊었을 때 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+
+```bash
+python3 -c "import secrets; print('INGEST_TRIGGER_TOKEN=' + secrets.token_urlsafe(24))" \
+  >> ~/.config/finnect/api.env
+systemctl --user restart finnect-api
+```
+
+확인은 토큰 없이 찔러 본다. `401` 이 나와야 정상이다 — `503` 이면 위 단계를 빼먹은 것이다.
+
+```bash
+TOKEN=$(grep -oP '(?<=^API_TOKEN=).*' ~/.config/finnect/api.env)
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "x-finnect-token: $TOKEN" http://127.0.0.1:8101/api/admin/ingest/run/bizinfo
+```
+
 ### A-2. API 를 서비스로 올린다
 
 ```bash

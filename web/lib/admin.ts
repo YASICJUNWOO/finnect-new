@@ -8,7 +8,7 @@
  *
  * **여기 말고 어디에서도 fetch 하지 않는다.** 프론트는 DB 를 모르고 SQL 도 모른다. */
 
-import { ApiError, get } from "./api";
+import { ApiError, get, send } from "./api";
 
 export type AdminNotice = {
   source: string;
@@ -119,6 +119,10 @@ export type Run = {
   id: number;
   source: string;
   only_open: boolean;
+  /** 어느 솎기 정책으로 받았나. null 이면 안 솎았다(ADR-0064) */
+  filter_name: string | null;
+  /** 정책으로 뺀 건수. `unchanged` 와 다르다 — 저건 안 바뀐 것이고 이건 안 받은 것이다 */
+  filtered: number;
   trigger: string;
   status: string;
   started_at: string | null;
@@ -138,17 +142,39 @@ export type Run = {
   unknown_fields: Record<string, number>;
 };
 
+/** `running` 이 참일 때만 의미가 있다. `ingest/jobs.py` `Progress` 사본 */
+export type IngestProgress = {
+  pages: number;
+  items: number;
+  expected: number | null;
+  target: number | null;
+  goal: number | null;
+  percent: number | null;
+};
+
+export type AdminIngestCard = {
+  name: string;
+  label: string;
+  expected: number;
+  requests: string;
+  note: string;
+  stored: number;
+  last: Run | null;
+  /** 2026-08-24 부터 있다(ADR-0065). 값은 DB 가 아니라 이 API 프로세스의 메모리에서 온다 —
+   *  재시작하면 사라지고, 다른 프로세스(CLI)에서 도는 것은 여기 안 보인다. */
+  running: boolean;
+  progress: IngestProgress | null;
+};
+
 export type AdminIngest = {
-  cards: {
-    name: string;
-    label: string;
-    expected: number;
-    requests: string;
-    note: string;
-    stored: number;
-    last: Run | null;
-  }[];
+  cards: AdminIngestCard[];
   runs: Run[];
+};
+
+/** 실행 요청의 결과. `ingest/jobs.py` `Launch` 사본 */
+export type IngestTrigger = {
+  started: boolean;
+  reason: string;
 };
 
 export function listAdminNotices(params: {
@@ -187,4 +213,20 @@ export function getAdminAttachments(): Promise<AdminAttachments> {
 
 export function getAdminIngest(): Promise<AdminIngest> {
   return get<AdminIngest>("/api/admin/ingest");
+}
+
+/** 수집을 시작한다(ADR-0065). **토큰은 여기서 안 든다** — 화면에서 사람이 입력한
+ *  값을 그대로 실어 보내고, 맞는지는 API 가 판정한다. `lib/admin.ts` 는 그 값을 모른다. */
+export function triggerIngest(
+  source: string,
+  opts: { full?: boolean; limit?: number; token: string },
+): Promise<IngestTrigger> {
+  const qs = new URLSearchParams();
+  if (opts.full) qs.set("full", "true");
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const query = qs.toString();
+  return send<IngestTrigger>(`/api/admin/ingest/run/${source}${query ? `?${query}` : ""}`, {
+    method: "POST",
+    headers: { "x-ingest-trigger-token": opts.token },
+  });
 }

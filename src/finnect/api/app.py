@@ -21,6 +21,7 @@ from finnect.api.admin_schemas import (
     AdminIngestOut,
     AdminNoticeDetailOut,
     AdminNoticeListOut,
+    IngestTriggerOut,
 )
 from finnect.api.schemas import (
     DraftItemEditIn,
@@ -78,8 +79,8 @@ async def require_token(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    # **쓰기가 셋이다** — 올리기(plan/15) · 초안 만들기 · 초안 고치기(plan/21).
-    # `PUT` 이 붙으면서 preflight 가 실제로 돈다.
+    # **쓰기가 넷이다** — 올리기(plan/15) · 초안 만들기 · 초안 고치기(plan/21) ·
+    # 수집 실행(ADR-0065). `PUT` 이 붙으면서 preflight 가 실제로 돈다.
     allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
 )
@@ -719,10 +720,13 @@ def wiki_progress(company_id: str) -> ProgressOut:
         return wiki_service.get_progress(s, company_id, running=jobs.running(_job_key(company_id)))
 
 
-# --- 운영 화면 (ADR-0027) ---------------------------------------------------
+# --- 운영 화면 (ADR-0027 · 실행은 ADR-0065) ---------------------------------
 #
-# **전부 GET 이다.** 수집 실행은 여기 없다 — 응답보다 오래 사는 데몬 스레드라
-# 서버리스 함수의 일이 아니고, 그 버튼은 로컬 CLI 에 남는다.
+# 조회 넷은 GET 이다. **`POST /api/admin/ingest/run/{source}` 하나만 쓰기다** —
+# ADR-0027 은 이걸 "서버리스가 데몬 스레드를 못 돌린다"는 이유로 로컬 CLI 에만
+# 남겼는데, ADR-0035 로 이 API 자체가 서버리스에서 이 서버의 상시 프로세스로
+# 내려오면서 그 전제가 없어졌다. `jobs.py` 의 락과 진행 상태가 이 프로세스
+# 안에 그대로 산다 — 배포본이 자기 자신을 궁금해할 수 있게 됐다.
 #
 # 제품 경로와 접두사를 갈라 둔다(`/api/admin/`). 목적이 반대인 응답이라
 # 한 이름 아래 섞이면 어느 쪽 계약인지 알 수 없다.
@@ -765,6 +769,45 @@ def admin_attachments() -> AdminAttachmentsOut:
 
 @app.get("/api/admin/ingest", response_model=AdminIngestOut, tags=["admin"])
 def admin_ingest() -> AdminIngestOut:
-    """수집 실행 기록. 읽기만 한다."""
+    """수집 실행 기록과 지금 진행 상태."""
     with SessionFactory() as s:
         return admin_service.ingest(s)
+
+
+@app.post(
+    "/api/admin/ingest/run/{source}",
+    response_model=IngestTriggerOut,
+    tags=["admin"],
+)
+def admin_ingest_run(
+    source: str, request: Request, full: bool = False, limit: int | None = None
+) -> IngestTriggerOut:
+    """수집을 시작한다(ADR-0065). 응답을 기다리지 않는다 — `jobs.launch` 가 스레드로 뗀다.
+
+    **`x-finnect-token` 과는 다른 문을 하나 더 지난다.** 저 토큰은 Next.js 서버가
+    이 API 로 들어오는 문이라 `/admin/ingest` 를 보는 누구나 이미 그 문을 통과한
+    뒤다. 여기는 **실행 버튼을 눌러도 되는 사람인지**를 `x-ingest-trigger-token` 으로
+    한 번 더 묻는다 — 이 동작이 외부 정부 API 에 실제 요청을 내보내고 쿼터를 쓰기
+    때문이다(K-Startup 일 한도 10,000회 · 기업마당 키는 IP 에 묶일 수 있다).
+
+    **설정 안 돼 있으면 503 이다.** `api_token` 처럼 비어 있을 때 조용히 검사를
+    끄지 않는다 — 잊고 비워 두면 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+    """
+    if not settings.ingest_trigger_token:
+        raise HTTPException(503, "이 배포에 실행 토큰이 설정돼 있지 않다")
+    sent = request.headers.get("x-ingest-trigger-token", "")
+    if not secrets.compare_digest(sent.encode(), settings.ingest_trigger_token.encode()):
+        raise HTTPException(401, "실행 토큰이 없거나 틀렸어요")
+
+    # 서버리스 시절의 흔적이다 — 최상단에 두면 이 모듈을 그냥 import 하는 것만으로
+    # httpx 가 딸려 온다. 지금은 배포본에도 httpx 가 있지만(ADR-0065), 굳이 그
+    # 자유를 새로 안 쓴다. `wiki.service` 도 같은 이유로 함수 안에서 임포트한다.
+    from finnect.ingest import service as ingest_service
+
+    if source not in ingest_service.BY_NAME:
+        raise HTTPException(404, f"모르는 출처: {source}")
+
+    result = ingest_service.launch(
+        source, only_open=not full, skip_mlsfc=not full, limit=limit, trigger="admin"
+    )
+    return IngestTriggerOut(started=result.started, reason=result.reason)

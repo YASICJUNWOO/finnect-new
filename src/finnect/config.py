@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     #: 창구가 된다.** 대체물이 없으면 안 되는 이유가 그 한 경로다.
     api_token: str = ""
 
+    #: 배포 화면에서 "수집 실행" 을 누를 때 사람이 입력해야 하는 값(ADR-0065).
+    #: `api_token` 과 다른 문이다 — 저건 Next.js 서버가 API 로 들어오는 문이고
+    #: 이건 **그 실행 버튼을 눌러도 되는 사람인지**를 묻는 문이다. **비어 있으면
+    #: 실행 자체를 막는다** — `api_token` 처럼 조용히 검사를 끄지 않는다. 이 버튼은
+    #: 외부 정부 API 에 실제 요청을 내보내는 쓰기 동작이라, 설정을 잊었을 때
+    #: 열리는 쪽이 아니라 닫히는 쪽이어야 한다.
+    ingest_trigger_token: str = ""
+
     bizinfo_api_key: str = ""
     data_go_kr_api_key: str = ""
 

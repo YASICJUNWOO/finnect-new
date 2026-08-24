@@ -1,0 +1,107 @@
+/* 수집 카드의 실행 폼(ADR-0065). 옛 Jinja2 `.meter`·`button` 을 그대로 옮긴다 —
+ * 운영 라우트는 제품 §4("주 버튼은 화면당 하나")를 안 따른다(DESIGN.md §5) —
+ * 이 화면은 카드마다 하나씩 여러 개가 있는 것이 맞다. */
+
+.meter {
+  height: 6px;
+  margin: var(--s2) 0 var(--s1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.running {
+  margin-top: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.form {
+  margin-top: var(--s4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.form input[type="password"] {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.form input,
+.form button {
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: var(--lh-small);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.form input[type="number"] {
+  width: 84px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* 주 동작은 동작 검정 배경에 흰 글자다(§2 · §4) */
+.submit {
+  background: var(--action);
+  color: var(--surface);
+  border-color: var(--action);
+  font-weight: var(--w-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.submit:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.submit:disabled,
+.form input:disabled {
+  background: var(--quiet);
+  color: var(--ink-3);
+  border-color: var(--line-2);
+  cursor: not-allowed;
+}
+
+.message {
+  margin-top: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+}
+
+.messageError {
+  color: var(--urgent);
+}
+
+.messageInfo {
+  color: var(--ink-2);
+}
+
+/* 출처 설명. `ingest/page.module.css` 에 있던 것을 카드와 함께 옮겼다. */
+.cardNote {
+  margin-top: var(--s3);
+  font-size: var(--t-caption);
+  line-height: var(--lh-caption);
+  color: var(--ink-2);
+}

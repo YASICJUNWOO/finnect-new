@@ -1,9 +1,11 @@
 """운영 화면 조회 — 읽기만 한다.
 
-**`attach.service` 와 `ingest.service` 를 임포트하지 않는다.** 저 둘이 `httpx` 와
-파서를 끌고 오는데 `requirements.txt` 가 서버리스 함수에서 그것들을 뺐다(ADR-0027).
-집계 질의를 여기 다시 쓴 이유가 그것이고, **`attach/service.py` 의 것과 결과가 같아야 한다** —
+**`attach.service` 는 임포트하지 않는다.** 그 모듈이 `httpx` 와 파서를 끌고 오는데,
+집계 질의를 여기 다시 쓴 이유는 **`attach/service.py` 의 것과 결과가 같아야 해서다** —
 어긋나면 로컬 `--report` 와 화면 숫자가 갈린다. `tests/test_admin_api.py` 가 그걸 잠근다.
+(`requirements.txt` 가 그 모듈을 뺐다는 것은 ADR-0026 시절 얘기다 — ADR-0035 로 API 가
+이 서버의 상시 프로세스로 내려오면서 그 제약은 없어졌지만, 정본과 갈리지 않아야 한다는
+이유는 그대로 남는다.)
 
 `ingest.runs` 도 안 쓴다. 거기 `reap()` 은 죽은 프로세스를 정리하는 **쓰기** 동작이고
 읽기 경로가 그걸 할 이유가 없다. 실행 기록은 그냥 `ingest_run` 을 읽는다.
@@ -29,6 +31,7 @@ from finnect.api.admin_schemas import (
     ByExtOut,
     CoverageOut,
     FieldOut,
+    IngestProgressOut,
     OcrOut,
     RawFetchOut,
     RunOut,
@@ -36,6 +39,7 @@ from finnect.api.admin_schemas import (
     StatusCountOut,
 )
 from finnect.config import settings
+from finnect.ingest import jobs
 from finnect.models import (
     Attachment,
     AttachmentFile,
@@ -358,6 +362,8 @@ def _run_out(r: IngestRun) -> RunOut:
         id=r.id,
         source=r.source,
         only_open=r.only_open,
+        filter_name=r.filter_name,
+        filtered=r.filtered,
         trigger=r.trigger,
         status=r.status,
         started_at=r.started_at,
@@ -377,10 +383,12 @@ def _run_out(r: IngestRun) -> RunOut:
 
 
 def ingest(s: Session) -> AdminIngestOut:
-    """수집 기록.
+    """수집 기록과 지금 상태.
 
-    **버튼이 없다.** 수집은 응답보다 오래 사는 데몬 스레드로 도는 것이라
-    서버리스 함수의 일이 아니다(ADR-0027). 이 화면은 기록만 읽는다.
+    **버튼은 여기 없다.** 실행은 `app.py` 의 `POST /api/admin/ingest/run/{source}` 다 —
+    이 함수는 DB 를 몰라야 하는 읽기 전용 계약을 유지한다. `running`·`progress` 는
+    DB 가 아니라 **이 프로세스의 메모리**(`ingest/jobs.py`)에서 온다(ADR-0065) — 그래서
+    함수 이름은 그대로인데 더 이상 순수 조회는 아니다.
     """
     stored = dict(s.execute(select(Notice.source, func.count()).group_by(Notice.source)).all())
 
@@ -410,8 +418,19 @@ def ingest(s: Session) -> AdminIngestOut:
                 note=info.note,
                 stored=stored.get(info.name, 0),
                 last=_run_out(last[info.name]) if info.name in last else None,
+                running=jobs.running(info.name),
+                progress=_progress_out(jobs.progress_of(info.name)),
             )
             for info in SOURCES
         ],
         runs=[_run_out(r) for r in recent],
+    )
+
+
+def _progress_out(p: jobs.Progress | None) -> IngestProgressOut | None:
+    if p is None:
+        return None
+    return IngestProgressOut(
+        pages=p.pages, items=p.items, expected=p.expected, target=p.target,
+        goal=p.goal, percent=p.percent,
     )

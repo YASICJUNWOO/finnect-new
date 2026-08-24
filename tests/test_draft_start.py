@@ -310,4 +310,5 @@ class Test배포_경계:
             ("/api/wiki/{company_id}/files", "POST"),
             ("/api/notices/{source}/{external_id}/draft", "POST"),
             ("/api/notices/{source}/{external_id}/draft/items/{document_item_id}", "PUT"),
+            ("/api/admin/ingest/run/{source}", "POST"),
         }

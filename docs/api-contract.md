@@ -467,7 +467,8 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 | `GET /api/admin/notices` | 목록. `source` · `q` · `sort` · `page` |
 | `GET /api/admin/notices/{source}/{external_id}` | 상세. 컬럼 전부 + 설명 + 첨부 + 원문 응답 |
 | `GET /api/admin/attachments` | 해독 현황 집계와 OCR 후보 |
-| `GET /api/admin/ingest` | 수집 실행 기록과 출처별 저장 건수 |
+| `GET /api/admin/ingest` | 수집 실행 기록 · 출처별 저장 건수 · **지금 진행 상태** |
+| `POST /api/admin/ingest/run/{source}` | 수집을 시작한다. **이 경로만 쓰기다** |
 
 ### 운영 상세가 더 주는 것
 
@@ -476,15 +477,31 @@ running             지금 쓰고 있다. 빈 목록이 「안 눌렀다」인�
 - **`extra` 가 비어 있지 않으면 API 가 늘어났다는 뜻이다.** 조용히 버리지 않는다
 - **`raw`** — 응답 원문. `envelope`(공고 배열 뺀 나머지)과 `item`(이 공고)을 갈라 준다. 기업마당 응답 하나가 1,538건 · 3.67MB 라 통째로는 못 쓴다. **인증키는 저장 전에 마스킹된다**(`ingest/base.py` `mask()`)
 
-### 여기 없는 것 — 수집 실행
+### 수집 실행 — `POST /api/admin/ingest/run/{source}`
 
-`POST` 가 없다. 수집은 응답보다 오래 사는 데몬 스레드이고 진행률은 그 프로세스 안에서만 산다. 로컬 `:8000` 에 남았다.
+[ADR-0065](adr/0065-수집-실행을-배포-api-에-연다.md)로 열렸다. ADR-0027 이 "서버리스가 데몬
+스레드를 못 돌린다"고 막았던 자리인데, [ADR-0035](adr/0035-api와-워커를-자체-서버로-내리고-vercel은-화면만-맡는다.md)로
+이 API 자체가 서버리스에서 이 서버의 상시 프로세스로 내려오면서 그 전제가 없어졌다.
 
-```bash
-uv run uvicorn finnect.admin.app:app --reload    # :8000 /ingest — 버튼과 진행률
-```
+`jobs.launch()` 가 데몬 스레드로 떼고 즉시 돌아온다 — **응답을 기다리지 않는다.**
 
-**`/api/admin/ingest` 는 기록만 읽는다.** `running`·`progress` 필드가 없는 것이 그 뜻이다. 없는 것을 있는 척하지 않는다.
+| | |
+|---|---|
+| 쿼리 | `full`(bool, 기본 false) · `limit`(int, 선택) |
+| 헤더 | `x-ingest-trigger-token` — `x-finnect-token` 과 **다른 문**이다. 아래 참조 |
+| 200 | `{started, reason}`. `started=false` 면 이미 돌고 있다는 뜻이지 오류가 아니다 |
+| 401 | 토큰이 없거나 틀렸다 |
+| 404 | 모르는 출처 |
+| 503 | 이 배포에 `INGEST_TRIGGER_TOKEN` 이 설정 안 됐다 — **기본이 꺼짐이다** |
+
+**토큰이 둘이다.** `x-finnect-token` 은 Next.js 서버가 이 API 로 들어오는 문이라
+`/admin/ingest` 를 보는 누구나 이미 통과한 뒤다. `x-ingest-trigger-token` 은 **그
+버튼을 눌러도 되는 사람인지**를 한 번 더 묻는다 — 이 동작이 외부 정부 API 에 실제
+요청을 내보내고 쿼터를 쓰기 때문이다(K-Startup 일 한도 10,000회).
+
+**`GET /api/admin/ingest` 가 `running`·`progress` 를 이제 낸다.** 값은 DB 가 아니라
+**이 프로세스의 메모리**(`ingest/jobs.py`)에서 온다 — 그래서 여러 API 프로세스를
+띄우면(현재는 워커 1개) 진행 상태가 그중 하나에만 보일 수 있다. 재시작하면 사라진다.
 
 ---
 

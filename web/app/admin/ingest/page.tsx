@@ -1,85 +1,33 @@
+import IngestCard from "@/components/IngestCard";
 import { type Run, getAdminIngest } from "@/lib/admin";
 import a from "../admin.module.css";
-import styles from "./page.module.css";
 
-/** 수집 실행 기록. Jinja2 `ingest.html` 을 옮긴 것이고 **버튼은 안 옮겼다.**
+/** 수집 실행 기록과 실행 폼. Jinja2 `ingest.html` 을 옮긴 것이었는데 **버튼을
+ * 2026-08-24 에 다시 붙였다**(ADR-0065). ADR-0027 이 "서버리스가 데몬 스레드를 못
+ * 돌린다"로 뺐던 자리인데, ADR-0035 로 이 API 가 이 서버의 상시 프로세스가 되면서
+ * 그 전제가 없어졌다.
  *
- * 수집은 응답보다 오래 사는 데몬 스레드로 돈다. K-Startup 전량이 149회이고
- * 첨부 해독은 30분짜리다. 서버리스 함수의 일이 아니라서 실행 경로는 로컬에 남았다
- * (ADR-0026 · ADR-0027). **화면이 그 사실을 숨기지 않고 적는다.**
- *
- * 진행률(`jobs.Progress`)과 '수집 중' 표시도 같이 빠졌다. 그 값은 수집을 돌리는
- * 프로세스 안에서만 사는 것이라 여기서 알 수 없다. 없는 것을 있는 척하지 않는다. */
+ * **폼과 진행률은 클라이언트 컴포넌트다**(`IngestCard`) — 실행 토큰을 입력받고
+ * `running` 일 때만 폴링해야 해서 서버 컴포넌트로는 못 한다. 이 페이지는 처음
+ * 그리기만 서버에서 하고 카드마다 그 초기값을 넘긴다. */
 
 /** **빌드 때 굳으면 안 된다.** 실행 기록이 배포 시점으로 박히면 그 뒤에 돌린 수집이
  *  화면에 영원히 안 나타난다. `/admin/attachments` 와 같은 이유다. */
 export const dynamic = "force-dynamic";
 export default async function AdminIngestPage() {
   const { cards, runs } = await getAdminIngest();
-  const n = (v: number) => v.toLocaleString("ko-KR");
 
   return (
     <>
       <h1 className={a.h1}>수집</h1>
       <p className={a.lead}>
-        목록 API를 받아 DB에 넣는다. 첨부는 메타데이터만 담고 내려받지 않는다.
+        목록 API를 받아 DB에 넣는다. 첨부는 메타데이터만 담고 내려받지 않는다. 실행에는
+        이 배포에 설정된 실행 토큰이 따로 필요하다 — 없으면 버튼이 503으로 막힌다.
       </p>
-
-      {/* 실행이 어디에 사는지 먼저 적는다. 버튼을 찾다가 없다고 여기지 않게 한다 */}
-      <div className={styles.where}>
-        <p className={styles.whereLead}>이 화면은 기록만 읽는다. 수집은 로컬에서 돌린다.</p>
-        <pre className={a.pre}>
-          uv run python -m finnect.ingest --source bizinfo{"\n"}
-          uv run python -m finnect.ingest --source kstartup{"\n"}
-          uv run uvicorn finnect.admin.app:app --reload{"   "}# :8000 /ingest — 버튼과 진행률
-        </pre>
-        <p className={a.note}>
-          CLI로 돌린 것도 아래 같은 표에 남는다. <code>trigger</code> 값만 다르다.
-        </p>
-      </div>
 
       <div className={a.cards}>
         {cards.map((c) => (
-          <div key={c.name} className={a.card}>
-            <h2 className={a.cardTitle}>
-              {c.label} <span className={a.tag}>{c.name}</span>
-            </h2>
-            <p className={a.note}>
-              실측 <span data-numeric>{n(c.expected)}</span>건 · {c.requests}
-            </p>
-
-            <div className={a.stored}>
-              {n(c.stored)}
-              <span className={a.storedUnit}>건 저장됨</span>
-            </div>
-
-            {c.last ? (
-              <p className={a.note}>
-                마지막 {stamp(c.last.started_at)} <StatusPill status={c.last.status} /> ·{" "}
-                {c.last.elapsed}
-                {c.last.status === "ok" && (
-                  <>
-                    {" "}
-                    · 신규 <span data-numeric>{n(c.last.inserted)}</span> · 변경{" "}
-                    <span data-numeric>{n(c.last.changed)}</span>
-                  </>
-                )}
-                {c.last.truncated && (
-                  <>
-                    <br />
-                    <span className={a.warn}>
-                      ⚠ 맛보기였다 — <span data-numeric>{n(c.last.items)}</span>건만 받았다
-                      {c.last.expected && <> (전량 {n(c.last.expected)})</>}
-                    </span>
-                  </>
-                )}
-              </p>
-            ) : (
-              <p className={a.note}>아직 한 번도 안 돌렸다.</p>
-            )}
-
-            <p className={styles.cardNote}>{c.note}</p>
-          </div>
+          <IngestCard key={c.name} initial={c} />
         ))}
       </div>
 

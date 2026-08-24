@@ -20,34 +20,6 @@
   letter-spacing: var(--tracking-title);
 }
 
-
-.counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2) var(--s4);
-  margin-top: var(--s4);
-  font-size: var(--t-small);
-  line-height: var(--lh-small);
-  color: var(--ink-2);
-}
-
-.counts b {
-  font-weight: var(--w-bold);
-  color: var(--ink);
-}
-
-.warn {
-  color: var(--blank);
-  font-weight: var(--w-medium);
-}
-
-/* 다른 이름으로 들어가기(ADR-0066). **채움 상태와 같은 층이다** — 이 화면의 일이
- * 아니라 곁에 있는 것이라 `.counts` 와 같은 13px 자리에 둔다. 모양은
- * `ExitAccount.module.css` 가 든다 */
-.exit {
-  margin-top: var(--s2);
-}
-
 /* 무엇이 뽑았는지. **본문이 아니라 각주다** — 사용자의 값이 아니라 우리 사정이다 */
 .note {
   margin-top: var(--s6);

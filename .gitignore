@@ -45,16 +45,33 @@ out/
 # 테스트 픽스처는 예외다. 내려받은 첨부가 아니라 일부러 만든 것이라 재생성되지 않는다
 !tests/fixtures/**
 
-# 시연 재료는 예외로 두지 않는다. 채워 둔 신청서(`web/public/demo/`)와 위키 스냅샷
-# (`data/demo/`) 둘인데, **레포에 있으면 다음 사람이 그것을 제품 자산으로 읽는다** —
-# `DemoReply.DEMO` 를 기본 꺼짐으로 돌린 것과 같은 자리다. 스냅샷은 더 나쁘다: 위키를
-# 통째로 뜬 DB 덤프라 **진짜 회사로 뜨는 순간 개인정보가 되고**, 예외를 한 번 열면
-# 그때 걸러 줄 것이 없다(`data/user-files/` 를 절대 안 올리는 규칙과 같은 이유).
+# 시연 재료 둘의 처지가 갈린다(2026-08-24). 오래 「둘 다 예외로 두지 않는다」였는데,
+# **화면이 Vercel 이고 거기 가는 길이 git 뿐이라** 그 규칙이 채워 둔 신청서에 대해서는
+# 「배포하지 말라」와 같은 말이 됐다.
 #
-# 다시 만드는 길은 남아 있다 — 스냅샷은 `wiki --company <회사> --snapshot <파일>`,
-# 채운 신청서는 `spike/hwp_fill_anchored.py` 다. 위키를 한 번 세워야 하는 것이 대가다.
+# **위키 스냅샷(`data/demo/`)은 그대로 막는다.** 저것은 API 가 이 서버의 로컬 디스크에서
+# 읽으므로(`DEMO_SNAPSHOT`) 레포를 통할 이유가 아예 없다. 그리고 위키를 통째로 뜬 DB
+# 덤프라 **진짜 회사로 뜨는 순간 개인정보가 된다** — `data/user-files/` 를 절대 안 올리는
+# 규칙과 같은 자리다. 다시 뜨는 길은 `wiki --company <회사> --snapshot <파일>` 이다.
+#
+# **채워 둔 신청서(`web/public/demo/`)만 예외를 연다.** 브라우저가 받는 정적 파일이고
+# 나린데이터는 `tools/make-persona.py` 가 지어낸 페르소나라 남의 정보가 아니다.
+# 남는 위험은 처음 적었던 것 그대로다 — **다음 사람이 이것을 제품 자산으로 읽는 것.**
+# 그래서 시연 장치 셋(`DEMO_SNAPSHOT` · `DEMO_RECOMMENDATIONS` · `DemoReply.DEMO`)을
+# 지우는 날 **이 예외와 파일도 같이 지운다.** 다시 만드는 길은 `spike/hwp_fill_anchored.py`
+# 이고, 위키를 한 번 세워야 하는 것이 대가다.
+#
+# **파일을 이름으로 하나씩 연다.** `web/public/demo/*` 로 폴더 안을 그대로 잠가 두고
+# 쓰는 것만 되돌린다 — `!web/public/demo/` 로 폴더째 열면 시연 파일이 하나 늘어난 날
+# 아무도 모르게 같이 올라간다. `*.hwp`(위)도 이것들을 막고 있어서 **뒤에 오는 이 줄이
+# 이긴다.**
+#
+# 대가는 반대 방향이다 — 셋째 파일이 생기면 **여기 안 적으면 배포본에서 404 다.**
+# 그쪽은 `DemoReply` 가 화면에 들어올 때 HEAD 로 물어보고 콘솔에 말해 준다.
 data/demo/
-web/public/demo/
+web/public/demo/*
+!web/public/demo/narin-application.hwp
+!web/public/demo/narin-application-revised.hwp
 
 # 스파이크 산출물 (재생성 가능 — git 미포함)
 spike/data/

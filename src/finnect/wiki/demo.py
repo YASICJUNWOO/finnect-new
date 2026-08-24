@@ -13,16 +13,26 @@
 
 ## 화면 연출과 다른 일이다
 
-`web/components/demoProgress.ts` 는 올리기 화면(S1)의 칸 다섯을 5초에 걸쳐 채우는 것이고
-**DB 를 아예 안 본다.** 이 파일은 위키 화면(S7)과 회사 정보가 읽을 **진짜 행**을 만든다.
+`web/components/Upload.tsx` 의 `frame()` 은 올리기 화면(S1)의 칸 다섯을 5초에 걸쳐 채우는
+것이고 **DB 를 아예 안 본다.** 이 파일은 위키 화면(S7)과 회사 정보가 읽을 **진짜 행**을 만든다.
 둘이 같이 있어야 「올렸다 → 위키가 섰다」가 이어진다.
 
-## ID 를 그대로 쓴다
+## ID 를 새로 발급한다
 
-행끼리 참조가 있어서(`wiki_evidence.fact_id` 등) ID 를 새로 발급하면 매핑 표를 들고
-다녀야 한다. 앉히기 전에 그 회사 행을 지우므로 자기 자신과는 안 겹치고, **시연 DB 에는
-회사가 하나뿐이라** 남과 겹칠 자리도 없다. 대신 앉힌 뒤 시퀀스를 올린다 — 안 올리면
-다음 INSERT 가 이미 쓰인 ID 를 발급해 유니크 위반이 난다.
+**2026-08-24 까지 뜬 ID 를 그대로 앉혔고, 그 근거가 「시연 DB 에는 회사가 하나뿐」이었다.**
+입장 게이트가 서면서(ADR-0066) 그 전제가 깨졌다 — 사람마다 `company_id` 가 따로 나오는데
+`clear()` 는 앉힐 회사 것만 지우므로 **둘째 사람의 올리기가 첫째 사람의 행과 같은 ID 로
+부딪친다**(`duplicate key … user_file_pkey`). 스냅샷을 뜬 회사가 같은 DB 에 남아 있으면
+첫 사람부터 그렇다.
+
+그래서 ID 를 버리고 표가 발급하게 둔다. 행끼리 참조(`wiki_evidence.fact_id` 등)는 옛→새
+표로 다시 잇고, **그 표를 손으로 안 적는다**(`_links` 가 모델에서 뽑는다) — 적어 두면 FK 가
+하나 늘어난 날 그 컬럼만 옛 ID 를 들고 남고, 그때 터지는 것이 아니라 **남의 청크를 근거로
+든 사실**이 조용히 선다. `TABLES` 순서가 부모를 먼저 넣으므로 자식이 물려받을 표는 그때
+이미 서 있다.
+
+**시퀀스를 안 만진다.** 발급을 표에 맡겼으니 올릴 것이 없다 — `setval` 이 없어지면서
+「롤백이 안 되는 쓰기」도 같이 없어졌다.
 
 **원본 파일은 안 뜬다.** `data/user-files/` 의 바이트는 `--rechunk`·`--rebuild` 만 읽고
 화면은 청크(DB)만 본다. 넣으면 스냅샷이 1.2MB 커지는데 시연에서 쓰는 곳이 없다.
@@ -35,7 +45,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Date, DateTime, delete, func, insert, select, text
+from sqlalchemy import Date, DateTime, delete, insert, select
 from sqlalchemy.orm import Session
 
 from finnect.models import (
@@ -50,6 +60,8 @@ from finnect.models import (
 
 #: 앉히는 순서다. **바꾸면 외래 키가 깨진다** — `chunk` 는 `user_file` 을, `wiki_fact` 는
 #: `wiki_node` 를, 근거 둘은 그 앞의 것을 전부 참조한다. 지울 때는 이 순서를 뒤집는다.
+#: **ID 를 다시 잇는 것도 이 순서에 기댄다** — 자식이 앉는 시점에 부모의 옛→새 표가
+#: 이미 서 있어야 한다.
 TABLES = (UserFile, WikiNode, CompanyValue, Chunk, WikiFact, WikiEvidence, ValueEvidence)
 
 
@@ -76,6 +88,15 @@ def _load(column: Any, value: Any) -> Any:
     return value
 
 
+def _links(model: Any) -> list[tuple[str, str]]:
+    """다시 이어야 하는 자리 — `(컬럼 이름, 가리키는 표)`. **모델에서 뽑는다.**"""
+    return [
+        (column.name, fk.column.table.name)
+        for column in model.__table__.columns
+        for fk in column.foreign_keys
+    ]
+
+
 def take(session: Session, company_id: str) -> dict[str, list[dict[str, Any]]]:
     """세워진 위키를 통째로 뜬다. 표 이름 → 행 목록이다."""
     out: dict[str, list[dict[str, Any]]] = {}
@@ -89,9 +110,9 @@ def take(session: Session, company_id: str) -> dict[str, list[dict[str, Any]]]:
 
 
 def clear(session: Session, company_id: str) -> None:
-    """그 회사 행을 전부 지운다. **앉히기 전에 부른다** — 안 지우면 같은 ID 가 두 번
-    들어가 유니크 위반이 난다. 캐스케이드에 맡기지 않고 역순으로 직접 지우는 이유는
-    `wiki/service.purge` 와 같다(SQLite 는 FK 가 기본으로 꺼져 있다)."""
+    """그 회사 행을 전부 지운다. **앉히기 전에 부른다** — 안 지우면 같은 파일이 두 벌
+    쌓여 `(company_id, sha256)` 유니크 위반이 난다. 캐스케이드에 맡기지 않고 역순으로
+    직접 지우는 이유는 `wiki/service.purge` 와 같다(SQLite 는 FK 가 기본으로 꺼져 있다)."""
     for model in reversed(TABLES):
         session.execute(delete(model).where(model.company_id == company_id))
 
@@ -101,48 +122,51 @@ def put(session: Session, company_id: str, snap: dict[str, list[dict[str, Any]]]
 
     **`company_id` 를 인자 것으로 덮어쓴다.** 스냅샷은 뜬 회사의 ID 를 들고 있는데, 앉는
     자리는 요청이 정한다 — 둘이 다르면 행은 들어가는데 그 회사 화면에서는 안 보인다.
+
+    **`id` 는 안 싣는다.** 표가 발급한 것을 옛 값과 짝지어 두고 뒤 표의 참조를 그것으로
+    바꾼다 — 이유는 파일 머리의 「ID 를 새로 발급한다」에 있다.
     """
     clear(session, company_id)
 
+    #: 표 이름 → 옛 ID → 새 ID
+    remap: dict[str, dict[int, int]] = {}
     counts: dict[str, int] = {}
-    for model in TABLES:
-        rows = snap.get(model.__tablename__) or []
-        counts[model.__tablename__] = len(rows)
-        if not rows:
-            continue
-        columns = {c.name: c for c in model.__table__.columns}
-        session.execute(
-            insert(model.__table__),
-            [
-                {k: _load(columns[k], v) for k, v in row.items() if k in columns}
-                | {"company_id": company_id}
-                for row in rows
-            ],
-        )
 
-    _bump_sequences(session)
-    return counts
-
-
-def _bump_sequences(session: Session) -> None:
-    """ID 를 그대로 넣었으니 시퀀스를 그 위로 올린다.
-
-    **Postgres 에서만 한다.** SQLite 는 `AUTOINCREMENT` 가 최대값 다음을 쓰므로 할 일이
-    없고, `pg_get_serial_sequence` 를 부르면 거기서 죽는다.
-    """
-    if session.bind is None or session.bind.dialect.name != "postgresql":
-        return
     for model in TABLES:
         table = model.__tablename__
-        top = session.scalar(select(func.max(model.id))) or 0
-        session.execute(
-            text(
-                "SELECT setval(pg_get_serial_sequence(:t, 'id'), :v)"
-                # 표가 비어 있으면 1 로 두되 아직 안 쓴 값이라고 알린다. `setval(…, 1,
-                # false)` 가 그 뜻이고, 0 을 넣으면 Postgres 가 범위 밖이라고 거절한다.
-                " WHERE pg_get_serial_sequence(:t, 'id') IS NOT NULL"
-            ).bindparams(t=table, v=max(top, 1))
-        )
+        rows = snap.get(table) or []
+        counts[table] = len(rows)
+        remap[table] = {}
+
+        columns = {c.name: c for c in model.__table__.columns}
+        links = _links(model)
+
+        for row in rows:
+            body = {
+                name: _load(columns[name], value)
+                for name, value in row.items()
+                if name in columns and name != "id"
+            }
+            body["company_id"] = company_id
+            for name, target in links:
+                old = body.get(name)
+                if old is None:
+                    continue
+                if old not in remap[target]:
+                    # **여기서 멈춘다.** 그냥 두면 FK 가 없는 SQLite 에서는 남의 행을
+                    # 가리키는 근거가 조용히 서고, Postgres 에서는 이유가 안 남는다.
+                    raise SnapshotError(
+                        f"스냅샷이 안 맞아요: {table}.{name}={old} 가 가리키는 "
+                        f"{target} 행이 스냅샷에 없어요"
+                    )
+                body[name] = remap[target][old]
+
+            new_id = session.execute(
+                insert(model.__table__).values(**body).returning(model.__table__.c.id)
+            ).scalar_one()
+            remap[table][row["id"]] = new_id
+
+    return counts
 
 
 def read(path: Path) -> dict[str, list[dict[str, Any]]]:

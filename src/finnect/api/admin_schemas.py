@@ -196,7 +196,12 @@ class RunOut(BaseModel):
 
 
 class IngestProgressOut(BaseModel):
-    """지금까지 받은 양. `running` 이 참일 때만 의미가 있다 — `ingest/jobs.py` `Progress` 사본."""
+    """지금까지 받은 양. `running` 이 참일 때만 의미가 있다 — `ingest/jobs.py` `Progress` 사본.
+
+    **단계가 둘이다**(2026-08-24). K-Startup 을 모집중만 받으면 목록 뒤에 상세 페이지
+    긁기가 이어 붙는데, `phase` 없이는 화면이 그 몇 분을 "멈췄다"로 그린다.
+    `goal`·`percent` 는 단계에 맞는 분모로 이미 계산돼서 온다 — **화면이 다시 안 나눈다.**
+    """
 
     pages: int
     items: int
@@ -204,6 +209,11 @@ class IngestProgressOut(BaseModel):
     target: int | None
     goal: int | None
     percent: int | None
+    #: "목록" 또는 "첨부". 화면이 이 값으로 문장을 고른다
+    phase: str
+    #: 첨부 단계에서만 찬다. 목록 단계에서는 0 이다
+    scraped: int
+    scrape_total: int
 
 
 class SourceCardOut(BaseModel):

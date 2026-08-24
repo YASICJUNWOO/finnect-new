@@ -15,6 +15,11 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 
+#: 목록을 받는 단계. 기본값이다.
+PHASE_LIST = "목록"
+#: K-Startup 상세 페이지에서 첨부 목록을 긁는 단계. 목록이 끝난 뒤에만 온다.
+PHASE_ATTACH = "첨부"
+
 
 @dataclass(frozen=True)
 class Progress:
@@ -22,16 +27,29 @@ class Progress:
 
     frozen 이다. 적재 스레드의 IngestReport 는 계속 변하는데 화면 스레드가 그걸 그대로
     읽으면 한 화면 안에서 앞뒤가 안 맞는 숫자가 나온다. 매번 새로 만들어 갈아 끼운다.
+
+    **단계가 둘이다**(2026-08-24). K-Startup 을 모집중만 받으면 목록이 끝난 뒤 상세
+    페이지 긁기가 이어 붙는데, 그 동안 목록 숫자만 보고 있으면 **막대가 멈춘 것처럼
+    보인다.** 그래서 단계를 이름으로 말하고 분모도 단계마다 갈라 쓴다.
+
+    **`items` 를 첨부 단계에서 재사용하지 않는다.** 저건 '공고 몇 건'이고 이쪽은
+    '상세 페이지 몇 장'이라 뜻이 다르다 — 한 칸에 두 뜻을 담으면 화면이 어느 쪽을
+    말하는지 못 가린다.
     """
 
     pages: int = 0
     items: int = 0
     expected: int | None = None  # 출처가 말한 전량
     target: int | None = None  # 이번에 받기로 한 건수. None 이면 전량
+    phase: str = PHASE_LIST
+    scraped: int = 0  # 첨부 단계에서 연 상세 페이지 수
+    scrape_total: int = 0  # 첨부 단계의 대상 수
 
     @property
     def goal(self) -> int | None:
         """진행률의 분모. 500건만 받는 중이면 분모도 500이어야 막대가 맞는다."""
+        if self.phase == PHASE_ATTACH:
+            return self.scrape_total or None
         if self.target is None:
             return self.expected
         return min(self.target, self.expected) if self.expected else self.target
@@ -41,7 +59,8 @@ class Progress:
         goal = self.goal
         if not goal:
             return None
-        return min(100, round(self.items * 100 / goal))
+        done = self.scraped if self.phase == PHASE_ATTACH else self.items
+        return min(100, round(done * 100 / goal))
 
 
 @dataclass(frozen=True)

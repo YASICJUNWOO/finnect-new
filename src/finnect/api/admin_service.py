@@ -433,4 +433,5 @@ def _progress_out(p: jobs.Progress | None) -> IngestProgressOut | None:
     return IngestProgressOut(
         pages=p.pages, items=p.items, expected=p.expected, target=p.target,
         goal=p.goal, percent=p.percent,
+        phase=p.phase, scraped=p.scraped, scrape_total=p.scrape_total,
     )

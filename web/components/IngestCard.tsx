@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import a from "../app/admin/admin.module.css";
-import type { AdminIngestCard, Run } from "@/lib/admin";
+import type { AdminIngestCard, IngestProgress, Run } from "@/lib/admin";
 import styles from "./IngestCard.module.css";
 
 /** 수집 카드 하나 — 정보 표시는 서버가 그린 값 그대로, 실행 폼과 진행률만
@@ -98,10 +98,7 @@ export default function IngestCard({ initial }: { initial: AdminIngestCard }) {
               style={{ width: `${card.progress.percent ?? 0}%` }}
             />
           </div>
-          <p className={styles.running}>
-            수집 중 — 응답 {n(card.progress.pages)}건 · 공고 {n(card.progress.items)}건
-            {card.progress.goal ? ` / ${n(card.progress.goal)}건` : ""}
-          </p>
+          <p className={styles.running}>{progressText(card.progress)}</p>
         </>
       )}
 
@@ -148,6 +145,20 @@ export default function IngestCard({ initial }: { initial: AdminIngestCard }) {
       )}
     </div>
   );
+}
+
+/** 단계마다 세는 것이 달라서 문장도 다르다.
+ *
+ * **첨부 단계에서 "공고 268건"만 보여 주면 멈춘 화면이 된다** — 목록이 이미 끝나서
+ * 그 숫자는 안 움직인다. 무엇이 지금 움직이는지를 앞에 둔다. */
+function progressText(p: IngestProgress): string {
+  const n = (v: number) => v.toLocaleString("ko-KR");
+  if (p.phase === "첨부") {
+    const of = p.scrape_total ? ` / ${n(p.scrape_total)}건` : "";
+    return `첨부 목록을 읽는 중 — ${n(p.scraped)}건${of} (공고 ${n(p.items)}건은 받았어요)`;
+  }
+  const of = p.goal ? ` / ${n(p.goal)}건` : "";
+  return `목록을 받는 중 — 응답 ${n(p.pages)}건 · 공고 ${n(p.items)}건${of}`;
 }
 
 function LastRun({ run }: { run: Run | null }) {

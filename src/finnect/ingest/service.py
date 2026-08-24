@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 
@@ -70,6 +71,7 @@ def execute(
     scrape_attachments: bool = True,
     trigger: str,
     on_page: Callable[[IngestReport], None] | None = None,
+    on_scrape: Callable[[Any], None] | None = None,
 ) -> IngestReport:
     """한 출처를 끝까지 받아 적재하고 실행 기록을 닫는다. 실패하면 기록만 남기고 다시 던진다.
 
@@ -84,6 +86,11 @@ def execute(
     하나를 없앤다. **`--full` 에는 안 걸린다** — 전량이면 예전처럼 몇 시간짜리라 여기서
     조용히 같이 돌면 안 된다. `scrape_attachments=False` 는 테스트와 그 예외적인 상황을
     위한 탈출구다.
+
+    **`on_scrape` 가 `on_page` 와 따로인 이유.** 저건 `IngestReport` 를 주고 이쪽은
+    `ScrapeReport` 를 준다 — 다른 표라 한 콜백으로 합치면 받는 쪽이 매번 어느 것인지
+    물어봐야 한다. **이 훅이 없으면 상세 긁기 몇 분 동안 진행률이 목록 숫자에 멈춰
+    있어서 죽은 것처럼 보인다.**
     """
     if source not in BY_NAME:
         raise ValueError(f"모르는 출처: {source}")
@@ -111,7 +118,9 @@ def execute(
         ):
             from finnect.attach.kstartup import scrape as scrape_kstartup_attachments
 
-            report.attach_report = scrape_kstartup_attachments(ids=report.touched_ids)
+            report.attach_report = scrape_kstartup_attachments(
+                ids=report.touched_ids, on_progress=on_scrape
+            )
             report.attachments += report.attach_report.attachments
     except BaseException as e:
         # 적재는 롤백돼도 이 행은 남는다. 실패가 '아무 일 없었음'으로 보이면 안 된다.
@@ -143,16 +152,41 @@ def launch(
         return jobs.Launch(False, f"이미 돌고 있다 (실행 #{busy.id}, pid {busy.pid})")
 
     def work() -> None:
+        # 목록 단계와 첨부 단계가 **같은 막대를 쓰되 분모가 다르다**(`jobs.Progress`).
+        # 훅이 둘인 이유는 넘어오는 표가 다르기 때문이다 — IngestReport 와 ScrapeReport.
+        state = {"pages": 0, "items": 0, "expected": None}
+
+        def on_page(r: IngestReport) -> None:
+            state.update(pages=r.pages, items=r.items, expected=r.expected)
+            jobs.report(
+                source,
+                jobs.Progress(pages=r.pages, items=r.items, expected=r.expected, target=limit),
+            )
+
+        def on_scrape(r: object) -> None:
+            # 목록 단계에서 센 값을 그대로 들고 간다 — 화면이 "공고 268건을 받았고
+            # 지금 그중 상세를 여는 중" 을 한 줄로 말할 수 있어야 한다.
+            jobs.report(
+                source,
+                jobs.Progress(
+                    pages=state["pages"],
+                    items=state["items"],
+                    expected=state["expected"],
+                    target=limit,
+                    phase=jobs.PHASE_ATTACH,
+                    scraped=getattr(r, "done", 0),
+                    scrape_total=getattr(r, "total", 0),
+                ),
+            )
+
         execute(
             source,
             only_open=only_open,
             skip_mlsfc=skip_mlsfc,
             limit=limit,
             trigger=trigger,
-            on_page=lambda r: jobs.report(
-                source,
-                jobs.Progress(pages=r.pages, items=r.items, expected=r.expected, target=limit),
-            ),
+            on_page=on_page,
+            on_scrape=on_scrape,
         )
 
     # 락 키는 (출처, 옵션) 이 아니라 출처다. 필터를 켜든 끄든 같은 표에 쓴다.

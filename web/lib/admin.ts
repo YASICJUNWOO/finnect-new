@@ -142,7 +142,13 @@ export type Run = {
   unknown_fields: Record<string, number>;
 };
 
-/** `running` 이 참일 때만 의미가 있다. `ingest/jobs.py` `Progress` 사본 */
+/** `running` 이 참일 때만 의미가 있다. `ingest/jobs.py` `Progress` 사본.
+ *
+ * **단계가 둘이다.** K-Startup 을 모집중만 받으면 목록 뒤에 상세 페이지 긁기가 이어
+ * 붙는다 — `phase` 없이는 그 몇 분이 "멈춘 화면"으로 보인다.
+ *
+ * **`goal`·`percent` 를 다시 계산하지 않는다.** 단계에 맞는 분모로 서버가 이미 나눠서
+ * 준다(`jobs.Progress`). 화면이 또 나누면 두 벌이 되고 한쪽만 고쳐지는 날이 온다. */
 export type IngestProgress = {
   pages: number;
   items: number;
@@ -150,6 +156,11 @@ export type IngestProgress = {
   target: number | null;
   goal: number | null;
   percent: number | null;
+  /** `"목록"` 또는 `"첨부"` */
+  phase: string;
+  /** 첨부 단계에서만 찬다 */
+  scraped: number;
+  scrape_total: number;
 };
 
 export type AdminIngestCard = {

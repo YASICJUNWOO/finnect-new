@@ -4,15 +4,22 @@ import { FormFill } from "@/components/FormFill";
 import { FIXTURES } from "@/lib/fixtures/documents";
 import styles from "./page.module.css";
 
-/** 신청서 쓰기 — SPEC §5.2 S4(문서 · F6).
+/** 신청서 쓰기 — SPEC §5.2 S4(문서 · F6). **표본 화면이고 제품 경로가 아니다.**
  *
- * **픽스처로 먼저 선다.** 글로 쓰는 양식(`narrative`)이 DB 에 0건이라
- * 실제 공고에 붙이면 칸 이름만 뜬다 — `document_item` 41,330개가 전부 `field` 고
- * `instruction`·`number`·`limit_text` 가 셋 다 0건이다(2026-08-19 실측).
- * 서술형 판별(plan/11 T-0036)이 붙으면 `FIXTURES[case]` 자리가
- * `GET /api/notices/{...}/documents` 로 바뀐다. 타입이 같아서 화면은 안 고친다.
+ * 옆 화면(`../`)은 **무슨 서류를 내나**를 읽기로 보여 준다. 여기는 **그 안에 뭘 쓰나**다.
  *
- * 옆 화면(`../`)은 **무슨 서류를 내나**를 읽기로 보여 준다. 여기는 **그 안에 뭘 쓰나**다. */
+ * **읽기와 달리 쓰기는 갈라졌다.** 실제 쓰기는 `/notices/[source]/[id]/write` 이고 저기는
+ * `WritePanes`·`DraftView` 를 쓴다 — `FormFill` 이 양식의 **빈 칸**을 보여 주고 `DraftView`
+ * 가 **쓴 초안**을 보여 주므로 다른 물건이다(`DraftView.tsx` 머리). 그래서 **`FormFill` 은
+ * 이 라우트에서만 부른다** — 여기를 지우면 그 컴포넌트가 같이 죽는다.
+ *
+ * ~~글로 쓰는 양식(`narrative`)이 DB 에 0건이라 픽스처로 먼저 선다~~ — **그 전제는 깨졌다.**
+ * 2026-08-24 로컬 실측이 `document` 1,067(`narrative` 20) · `document_item` 4,691
+ * (`field` 3,881 · `narrative` 810) · `instruction` 213 · `number` 810 · `limit_text` 18 이다.
+ * 넷 다 0 이 아니므로 **데이터 공백은 더 이상 이 화면의 근거가 아니다.**
+ *
+ * 남는 근거는 하나다 — 표본 셋이 일부러 고른 극단이라서(지시문 2,031자 · 칸 199개 · 양식
+ * 없음) 실제 코퍼스에 그만한 입력이 없으면 레이아웃이 버티는지 볼 자리가 여기뿐이다. */
 
 const CASES: { key: string; label: string; why: string }[] = [
   { key: "pohang", label: "긴 지시문", why: "트리 2단 · 지시문 최장 2,031자" },

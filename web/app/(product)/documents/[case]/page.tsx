@@ -4,14 +4,20 @@ import { FormDocuments } from "@/components/FormDocuments";
 import { FIXTURES } from "@/lib/fixtures/documents";
 import styles from "./page.module.css";
 
-/** plan/11 T-0039 — 내야 할 서류 화면.
+/** plan/11 T-0039 — 내야 할 서류 화면. **표본 화면이고 제품 경로가 아니다.**
  *
- * **아직 고정 데이터로 돈다.** 파이프라인(T-0035~T-0038)이 붙으면
- * `FIXTURES[case]` 자리가 `GET /api/notices/{id}/documents` 로 바뀐다.
- * 타입(`NoticeDocuments`)이 그때와 같아서 화면은 안 고친다.
+ * 2026-08-17 파이프라인(T-0035~T-0038) 앞에 세웠고, 순서를 뒤집은 이유는 계획에 적었다 —
+ * 화면이 "항목 102개를 어떻게 접을 것인가" 를 먼저 물어야 그 답이 저장 모델에 들어간다.
  *
- * 순서를 뒤집은 이유는 계획에 적었다 — 화면이 "항목 102개를 어떻게 접을 것인가" 를
- * 먼저 물어야 그 답이 저장 모델에 들어간다. */
+ * **그 뒤 읽기는 계획대로 DB 로 옮겼다**(plan/README 「T-0039 화면이 픽스처에서 DB 로
+ * 옮겼다」). `/notices/[source]/[id]` 가 **같은 `FormDocuments`** 에 `fromApi(docs)` 를
+ * 먹인다 — 타입(`NoticeDocuments`)을 맞춰 둔 것이 그때 값을 했고, 여기는 그 컴포넌트의
+ * **둘째 호출자**로 남았다. 이 라우트가 API 로 바뀔 일은 이제 없다.
+ *
+ * **남겨 두는 이유는 표본 셋이 일부러 고른 극단이라서다** — 지시문 2,031자 · 칸 199개 ·
+ * 양식 없음. 실제 코퍼스에 그만한 입력이 없으면 레이아웃이 버티는지 볼 자리가 여기뿐이다.
+ * 지우려면 `write/` · `components/FormFill.*` · `lib/fixtures/documents.ts` 와
+ * `(product)/layout.tsx` 의 경로 규칙 셋이 같이 간다. */
 
 const CASES: { key: string; label: string; why: string }[] = [
   { key: "pohang", label: "긴 지시문", why: "트리 2단 · 지시문 최장 2,031자" },

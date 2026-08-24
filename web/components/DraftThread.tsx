@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ConfirmRow, DraftItemCard, ResetButton, StartRow, useDraft } from "./DraftView";
-import { DEMO, DemoReply, useDemoReply, type DemoPhase } from "./DemoReply";
+import { DemoReply, DemoRevise, type DemoPhase } from "./DemoReply";
 import type { Draft } from "@/lib/draft";
 import styles from "./DraftThread.module.css";
 
@@ -28,7 +28,12 @@ import styles from "./DraftThread.module.css";
  * 것」에 쓰는 표시다.
  *
  * 진짜 대화가 붙는 자리는 `POST …/draft/ask` 이고 ADR-0028 이 그 모양을 이미
- * 정해 뒀다(답하면 위키에 먼저 저장한 뒤 그 항목만 재작성). */
+ * 정해 뒀다(답하면 위키에 먼저 저장한 뒤 그 항목만 재작성).
+ *
+ * **시연(`demo`)에서는 이 규칙이 통째로 갈린다.** 무엇을 쳐도 받아 주고, 친 말을
+ * 그대로 올리고, 도구 줄이 「고치고 있어요」를 말하고, 6초 뒤 오른쪽이 미리 고쳐 둔
+ * 파일로 갈린다 — **아무것도 안 부른다.** 그래서 아래 「못 알아들어요」 답과 제약
+ * 안내도 그때는 안 낸다: 알아듣는 척을 하는 화면이라 못 알아듣는다는 말이 거짓이 된다. */
 
 /** 사람이 친 말과 우리가 답한 말. **서버에 안 남는다** — 새로고침하면 사라지고
  * 그것을 화면이 말한다. */
@@ -52,7 +57,7 @@ export function DraftThread({
   company,
   onFocusDoc,
   onDraft,
-  onDemoPhase,
+  demo,
 }: {
   initial: Draft;
   source: string;
@@ -70,11 +75,13 @@ export function DraftThread({
    * 자리에 굳어 있다. 채운 파일 주소는 초안 항목 수로 만들어지므로, 알리지 않으면
    * 주소가 안 바뀌고 **새로고침해야 채운 값이 보인다.** */
   onDraft?: (draft: Draft) => void;
-  /** 시연이 어디까지 갔나. **오른쪽 단이 이걸 보고 파일을 갈아 끼운다** —
-   *  `done` 이 되면 채워 둔 신청서를 연다(`DEMO_FILLED_URL`).
+  /** 시연 시계. **`WritePanes` 가 들고 내려 준다**(`useDemoReply`) — 두 단이 같은
+   *  상태를 봐야 하고, 이 컴포넌트는 초안을 못 불러온 화면에서 아예 안 서기 때문에
+   *  여기가 들고 있으면 그때 오른쪽 로딩이 영영 안 걷힌다.
    *
-   *  `DEMO` 가 꺼져 있으면 `idle` 밖으로 안 나가므로 부르는 쪽이 아무것도 안 한다. */
-  onDemoPhase?: (phase: DemoPhase) => void;
+   *  **없는 것이 「이 화면에서 시연이 꺼졌다」는 뜻이다.** 부르는 쪽이 공고까지 보고
+   *  (`isDemoNotice`) 정한 값이라 여기서 다시 판정하지 않는다. */
+  demo?: { phase: DemoPhase; start: () => void; revise: () => void };
 }) {
   const {
     draft, starting, why, start, onSave, written, done,
@@ -82,19 +89,12 @@ export function DraftThread({
   } = useDraft({ initial, source, externalId, company });
   const [said, setSaid] = useState<Said[]>([]);
   const [typed, setTyped] = useState("");
-  const demo = useDemoReply();
 
   // **렌더 중에 부르지 않는다.** 부모의 setState 를 렌더 도중에 부르면 React 가
   // 경고하고, 폴링이 도는 화면이라 그 경고가 몇 분 동안 쌓인다.
   useEffect(() => {
     onDraft?.(draft);
   }, [draft, onDraft]);
-
-  // **같은 이유로 효과에서 부른다.** 렌더 중에 부모의 setState 를 부르면 React 가
-  // 경고한다 — 바로 위 `onDraft` 와 같은 자리다.
-  useEffect(() => {
-    onDemoPhase?.(demo.phase);
-  }, [demo.phase, onDemoPhase]);
 
   /** **안 써진 것을 이유별로 가른다.** 「썼다 − 전체」로 세면 안 된다 — 그 차이에는
    *  쓸 자리가 아닌 칸(표 구분선·서명란)과 다른 항목이 재료를 맡은 칸이 섞여 있고,
@@ -108,8 +108,13 @@ export function DraftThread({
    *  이 버튼이 아니라 머리줄의 초기화다(T-0161). */
   const canStart = draft.pending_documents > 0;
   /** 시연이 시작됐다. **이때 스레드가 양식과 내용을 안 그린다** — 대신 말풍선
-   *  하나가 「쓰고 있어요」와 「바꿨어요!」를 차례로 말한다. */
-  const demoing = DEMO && demo.phase !== "idle";
+   *  하나가 「쓰고 있어요」와 「작성을 완료했어요」를 차례로 말한다.
+   *
+   *  **2026-08-24 부터 화면에 들어오는 것만으로 참이다.** 예전에는 누르기 전까지
+   *  거짓이라 이 값이 걷는 것이 안내 줄 하나뿐이었는데, 지금은 진짜 초안이 이미
+   *  있는 공고에서도 처음부터 참이 된다 — 위 주석이 적어 둔 대로 **양식과 내용까지
+   *  같이 걷는다.** 안 걷으면 「쓰고 있어요」 옆에 다 써진 항목이 나란히 선다. */
+  const demoing = demo !== undefined && demo.phase !== "idle";
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -118,11 +123,15 @@ export function DraftThread({
     setTyped("");
 
     const mine: Said = { id: Date.now(), who: "나", text };
-    if (DEMO && readCommand(text) === "start") {
-      // **우리 말을 따로 안 붙인다.** 말풍선이 「초안을 쓰고 있어요」를 이미 말하고,
+    if (demo) {
+      // **시연에서는 무엇을 쳐도 수정 턴이다.** `readCommand` 를 안 본다 — 저 규칙은
+      // 「다시 써」를 초기화로 읽는데, 시연에서 자연히 나오는 「협업 이력 다시 써 줘」가
+      // 거기 걸려 문서를 고치는 대신 처음부터 다시 쓰게 된다.
+      //
+      // **우리 말을 따로 안 붙인다.** 도구 줄이 「고치고 있어요」를 이미 말하고,
       // 둘 다 내면 같은 말이 두 줄로 선다(§10 — 빼도 뜻이 같은 말은 지운다).
       setSaid((s) => [...s, mine]);
-      demo.start();
+      demo.revise();
       return;
     }
     if (readCommand(text) === "start") {
@@ -195,41 +204,43 @@ export function DraftThread({
           </p>
         )}
 
-        {/* 시연용 말풍선. `DEMO` 가 꺼져 있으면 `phase` 가 영영 `idle` 이라 안 그려진다 */}
-        <DemoReply phase={demo.phase} />
+        {/* 시연용 말풍선. **시연이 꺼진 화면에서는 `demo` 가 없다** — 그때 `idle` 을
+            넘겨서 아무것도 안 그린다 */}
+        <DemoReply phase={demo?.phase ?? "idle"} />
 
-        {draft.documents.map((doc) => (
-          <section key={doc.document_id} className={styles.doc}>
-            {/* 두 단이 이어져 있다는 유일한 표시. **오른쪽 칩과 같은 문자열이다** */}
-            {onFocusDoc ? (
-              <button
-                type="button"
-                className={styles.divider}
-                onClick={() => onFocusDoc(doc.document_id)}
-                aria-label={`${doc.title} 양식 열기`}
-              >
-                {doc.title}
-              </button>
-            ) : (
-              <p className={styles.dividerFlat}>{doc.title}</p>
-            )}
+        {!demoing &&
+          draft.documents.map((doc) => (
+            <section key={doc.document_id} className={styles.doc}>
+              {/* 두 단이 이어져 있다는 유일한 표시. **오른쪽 칩과 같은 문자열이다** */}
+              {onFocusDoc ? (
+                <button
+                  type="button"
+                  className={styles.divider}
+                  onClick={() => onFocusDoc(doc.document_id)}
+                  aria-label={`${doc.title} 양식 열기`}
+                >
+                  {doc.title}
+                </button>
+              ) : (
+                <p className={styles.dividerFlat}>{doc.title}</p>
+              )}
 
-            <ol className={styles.items}>
-              {doc.items.map((it) => (
-                <DraftItemCard key={it.document_item_id} item={it} onSave={onSave} />
-              ))}
-            </ol>
-          </section>
-        ))}
+              <ol className={styles.items}>
+                {doc.items.map((it) => (
+                  <DraftItemCard key={it.document_item_id} item={it} onSave={onSave} />
+                ))}
+              </ol>
+            </section>
+          ))}
 
-        {draft.running && (
+        {!demoing && draft.running && (
           <p className={styles.note}>
             지금 쓰고 있어요. 항목이 많으면 몇 분 걸려요 — 이 화면을 열어 둬도 돼요.
           </p>
         )}
 
         {/* **칭찬하지 않는다.** 다 썼다는 것은 사실이고 잘 됐다는 것은 우리가 모른다 */}
-        {!draft.running && hasDocs && (
+        {!demoing && !draft.running && hasDocs && (
           <p className={styles.system}>
             {blank === 0
               ? `${written.length}개 중 ${done}개를 썼어요. 나머지는 쓰는 자리가 아니에요.`
@@ -242,6 +253,10 @@ export function DraftThread({
             {s.text}
           </p>
         ))}
+
+        {/* 시연용 수정 턴. **`said` 뒤에 있어야 한다** — 사람이 친 말에 대한 답이라
+            위에 서면 답이 질문보다 먼저 온다. 첫 턴(`DemoReply`)은 그대로 위에 남는다 */}
+        <DemoRevise phase={demo?.phase ?? "idle"} />
 
         {why && <p className={styles.fail}>{why}</p>}
 
@@ -262,7 +277,7 @@ export function DraftThread({
             hasDocs={hasDocs}
             pending={draft.pending_documents}
             starting={starting}
-            onStart={() => (DEMO ? demo.start() : void start())}
+            onStart={() => (demo ? demo.start() : void start())}
             styles={styles}
           />
         )}
@@ -272,7 +287,9 @@ export function DraftThread({
             className={styles.input}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            placeholder="초안 써 줘"
+            /* **시연에서는 다른 말을 권한다.** 「초안 써 줘」는 이미 일어난 일이고,
+               지금 되는 것은 고칠 곳을 말하는 것이다 */
+            placeholder={demo ? "고칠 곳을 말해 주세요" : "초안 써 줘"}
             aria-label="초안에게 말하기"
           />
           <button type="submit" className={styles.send} disabled={!typed.trim()}>
@@ -280,9 +297,12 @@ export function DraftThread({
           </button>
         </form>
 
-        {/* **제약을 숨기지 않는다**(§10). 한 번만 적는다 */}
+        {/* **제약을 숨기지 않는다**(§10). 한 번만 적는다.
+            시연에서는 앞 문장이 거짓이라 뒤 문장만 남는다 — 저건 시연에서도 참이다 */}
         <p className={styles.limitNote}>
-          아직 「초안 써 줘」만 알아들어요. 여기 주고받은 말은 저장되지 않아요.
+          {demo
+            ? "여기 주고받은 말은 저장되지 않아요."
+            : "아직 「초안 써 줘」만 알아들어요. 여기 주고받은 말은 저장되지 않아요."}
         </p>
       </div>
     </div>

@@ -87,62 +87,93 @@
   }
 }
 
-/* ── 다 썼다 ────────────────────────────────────────── */
+/* ── 도구 줄 (수정 턴) ──────────────────────────────── */
 
-/* **느낌표가 여기 하나뿐이다.** 요청이 「바꿨어요!」였고, 아래 줄들은 그대로
- * 사실만 적는다 — §10 이 빈 조급함과 부풀리기를 금지한다 */
-.headline {
-  margin: 0;
-  font-size: var(--t-lead);
-  line-height: var(--lh-lead);
-  font-weight: var(--w-medium);
-  color: var(--ink);
-}
-
-.lede {
-  margin: var(--s2) 0 0;
-  font-size: var(--t-aux);
-  line-height: var(--lh-aux);
-  color: var(--ink-2);
-}
-
-.list {
-  list-style: none;
-  margin: var(--s3) 0 0;
-  padding: 0;
+/* **누를 것이 아니다.** 1px 선 + 4px 모서리는 §4 의 «필터 칩» 값이고, 채움과
+ * 그림자는 안 붙는다(§6 · §7). 말풍선 안에 있어서 배경이 이미 `--quiet` 다.
+ *
+ * **좁은 단에서 접힌다.** 스레드 단이 320px 까지 좁아지는데 이름과 상태를 한 줄에
+ * 붙여 두면 「고치고 있어요」가 잘린다 — `flex-wrap` 이 상태를 아래로 내린다. */
+.tool {
   display: flex;
-  flex-direction: column;
-  gap: var(--s2);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px var(--s2);
 }
 
-/* 한 줄에 덩어리 둘이다(§10 — 넷 이하) */
-.row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: var(--s2);
-  border-top: 1px solid var(--line-2);
-}
-
-.where {
+/* 도구 이름. **13px 로 안 내린다** — §3 이 1024px 아래에서 본문을 16px 이상으로
+ * 두라고 했고 이 단은 넓은 화면에서도 좁다. `--t-aux` 가 그 규칙을 이미 든다 */
+.toolName {
   font-size: var(--t-aux);
   line-height: var(--lh-aux);
   font-weight: var(--w-mid);
   color: var(--ink);
 }
 
-.what {
+.toolState {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
   font-size: var(--t-aux);
   line-height: var(--lh-aux);
   color: var(--ink-2);
 }
 
-/* 못 채운 자리. **`--urgent` 를 안 쓴다** — 액센트는 마감 하나다(§7) */
-.left {
-  margin: var(--s3) 0 0;
-  padding-top: var(--s2);
-  border-top: 1px solid var(--line-2);
+/* 도구 줄 뒤에 결과가 올 때만 벌린다. **`.tool` 에 아래 여백을 안 준다** —
+ * 고치는 중에는 뒤에 아무것도 없어서 말풍선이 이유 없이 길어진다 */
+.tool + .headline {
+  margin-top: var(--s3);
+}
+
+/* ── 양식 단에 겹치는 로딩 ──────────────────────────── */
+
+/* **문서를 덮지 않고 비친다.** 「그사이 문서는 띄워도 되고 로딩창은 유지」가 요청이라
+ * 아래에서 원본이 열리는 것이 보여야 한다. 색 리터럴을 안 쓴다(ADR-0041) — 캔버스
+ * 토큰에서 `color-mix` 로 만든다.
+ *
+ * **`pointer-events: none` 이다.** 덮고 있는 동안에도 문서는 굴러야 한다 — 열리는
+ * 것을 보여 주는 것이 이 화면의 요점이고, 막으면 로딩이 문서를 가린 것이 된다. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s5);
+  background: color-mix(in srgb, var(--canvas) 78%, transparent);
+  pointer-events: none;
+}
+
+/* **`DocViewer` 의 `.status` 와 같은 타입이다.** 같은 자리에 서는 같은 성질의 글이라
+ * 여기서 크기를 따로 정하면 10초 뒤 「문서를 여는 중이에요」로 넘어갈 때 글자가 튄다.
+ * 카드도 그림자도 안 붙인다(§6 · §7) — 비침이 이미 배경을 만든다. */
+.veilText {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  text-align: center;
   font-size: var(--t-aux);
   line-height: var(--lh-aux);
   color: var(--ink-2);
+}
+
+/* ── 턴이 끝났다 ────────────────────────────────────── */
+
+/* 턴 하나의 결과 문장. **`--t-lead` 가 16px 이라 본문과 같은 크기다**(tokens.css
+ * — 「사고가 아니다」) — 굵기 600 하나로만 앞선다. 크기로 벌리면 한 문장짜리 말이
+ * 화면에서 소리치게 된다(§3 «카드 제목이 본문과 같은 16/400인 것은 사고가 아니다»).
+ *
+ * **여기 있던 목록 · 부제 · 못 채운 자리 넷이 없어졌다**(`SAID` 주석) — 클래스도
+ * 같이 지웠다. 남겨 두면 다음 사람이 이 파일에서 그 모양을 되살리려 한다. */
+.headline {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--w-medium);
+  color: var(--ink);
 }

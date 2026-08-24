@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DocViewer } from "./DocViewer";
 import { DraftThread } from "./DraftThread";
-import { DEMO, DEMO_FILLED_URL, type DemoPhase } from "./DemoReply";
+import { DemoViewerLoading, isDemoNotice, useDemoReply } from "./DemoReply";
 import { WriteWorkspace } from "./WriteWorkspace";
 import { bodyOf, leaves, type Draft } from "@/lib/draft";
 import type { NoticeDocuments } from "@/lib/documents";
@@ -50,10 +50,29 @@ export function WritePanes({
    *  초안을 쓰거나 고치면 그 결과가 `DraftThread` 안에서만 갱신되므로, 여기로
    *  올려 받지 않으면 오른쪽 뷰어가 **새로고침 전까지 옛 파일을 보여 준다.** */
   const [live, setLive] = useState<Draft | null>(draft);
-  /** 시연이 어디까지 갔나. **`done` 이면 오른쪽이 채워 둔 신청서를 연다** */
-  const [demoPhase, setDemoPhase] = useState<DemoPhase>("idle");
+  /** 시연 시계. **두 단이 같은 것을 본다.**
+   *
+   *  예전에는 `DraftThread` 가 들고 `onDemoPhase` 로 올려 줬는데, 그 컴포넌트는
+   *  `draft` 가 있을 때만 서므로 **초안을 못 불러온 화면에서는 로딩이 영영 안 걷혔다.**
+   *  트리거가 「버튼을 눌렀다」에서 「화면에 들어왔다」로 바뀌면서 그 경우가 실제로
+   *  생겼다 — 누르는 사람이 없으니 못 불러온 화면도 로딩부터 시작한다.
+   *
+   *  **공고를 본다**(`isDemoNotice`). 안 보면 어느 신청서에서든 나린데이터로 채운
+   *  현대모비스 파일이 열린다. */
+  const demoOn = isDemoNotice(source, externalId);
+  const demo = useDemoReply(demoOn);
+  /** 세는 중인가. **턴 둘을 한 값으로 든다** — 오른쪽에 겹치는 로딩은 같은 것이고
+   *  글만 다르다(집필 · 수정). 부르는 쪽에서 둘을 따로 보면 한쪽을 빠뜨린다. */
+  const demoBusy = demoOn && (demo.phase === "writing" || demo.phase === "revising");
 
   const active = all.find((d) => d.id === docId) ?? all[0] ?? null;
+
+  /** 스레드로 내려 줄 시연 시계. **`demoOn` 이 아니면 `undefined` 다** — 있는 것이
+   *  「이 화면에서 시연이 켜졌다」는 뜻이라야 부르는 쪽이 값 하나만 보면 된다. */
+  const threadDemo = useMemo(
+    () => (demoOn ? { phase: demo.phase, start: demo.start, revise: demo.revise } : undefined),
+    [demoOn, demo.phase, demo.start, demo.revise],
+  );
 
   /** 채운 파일의 주소 (plan/24 T-0155). **초안이 없으면 안 만든다** — 채울 것이
    *  없는데 부르면 원본과 같은 파일을 한 번 더 만드는 값만 든다.
@@ -65,16 +84,20 @@ export function WritePanes({
    *  글이 통째로 달라져도 주소가 같아서 옛 파일이 그대로 떴다. 글 길이의 합까지
    *  넣으면 그 둘이 갈린다. */
   const filledUrl = useMemo(() => {
-    // **시연에서는 미리 채워 둔 파일을 연다.** 초안을 안 만들었으니 서버가 채울
+    // **시연에서는 미리 만들어 둔 파일을 연다.** 초안을 안 만들었으니 서버가 채울
     // 것이 없다 — 아래 진짜 경로는 `live.documents` 가 비어서 `null` 로 떨어진다.
-    // **「바꿨어요!」가 뜬 뒤에만 갈아 끼운다** — 처음부터 채워져 있으면 그 말이
-    // 이미 일어난 일을 두고 하는 거짓말이 된다.
-    if (DEMO && demoPhase === "done") return DEMO_FILLED_URL;
+    // **턴이 끝난 뒤에만 갈아 끼운다**(`file` 이 그때 앉는다) — 처음부터 채워져
+    // 있으면 「바꿨어요!」가 이미 일어난 일을 두고 하는 거짓말이 된다.
+    //
+    // **어느 파일인지는 시계가 안다**(`demo.file`). 여기서 단계로 갈래를 만들면
+    // 세는 동안(`revising`) 무엇을 열지 정할 수 없다 — 답이 「직전 것을 그대로」라서다.
+    // 갈래로 만들었더니 두 번째 수정에서 **고치기 전 파일로 6초 되돌아갔다**(실측).
+    if (demoOn && demo.file) return demo.file;
     if (!active || !live || live.documents.length === 0) return null;
     const items = leaves(live.documents.flatMap((d) => d.items));
     const stamp = `${items.length}-${items.reduce((n, i) => n + bodyOf(i).length, 0)}`;
     return `${filledDocumentUrl(source, externalId, active.id, company)}&v=${stamp}`;
-  }, [active, live, source, externalId, company, demoPhase]);
+  }, [active, live, source, externalId, company, demoOn, demo.file]);
 
   const onFilled = useCallback((_filled: number, remaining: number) => {
     setLeft(remaining);
@@ -159,7 +182,7 @@ export function WritePanes({
               company={company}
               onFocusDoc={focusDoc}
               onDraft={setLive}
-              onDemoPhase={setDemoPhase}
+              demo={threadDemo}
             />
           ) : (
             /* **`null` 은 「초안이 없다」가 아니라 「모른다」다.** 빈 화면을 띄우면
@@ -171,13 +194,19 @@ export function WritePanes({
           )
         }
         viewer={
-          <DocViewer
-            doc={active}
-            noticeUrl={noticeUrl}
-            onPages={setPages}
-            filledUrl={filledUrl}
-            onFilled={onFilled}
-          />
+          /* **감싸는 div 가 늘 있다.** 시연 로딩이 걷힐 때만 없애면 `DocViewer` 가
+             언마운트되고 rhwp WASM 8.3MB 를 다시 받는다 — 그 자리가 마침 채운 파일을
+             여는 순간이라 10초 뒤가 가장 느려진다 */
+          <div className={styles.stage}>
+            <DocViewer
+              doc={active}
+              noticeUrl={noticeUrl}
+              onPages={setPages}
+              filledUrl={filledUrl}
+              onFilled={onFilled}
+            />
+            {demoBusy && <DemoViewerLoading revising={demo.phase === "revising"} />}
+          </div>
         }
       />
     </>

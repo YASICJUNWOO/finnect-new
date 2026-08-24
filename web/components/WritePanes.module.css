@@ -110,3 +110,16 @@
     min-height: 44px;
   }
 }
+
+/* 시연 로딩이 겹칠 자리(`DemoReply` 의 `.veil`). **`DocViewer` 를 감싸는 것이 늘
+ * 있다** — 조건부로 만들면 로딩이 걷힐 때 뷰어가 언마운트되고 rhwp WASM 8.3MB 를
+ * 다시 받는다.
+ *
+ * `WriteWorkspace` 의 `.formBody` 가 flex 로 높이를 정해 주므로 `height: 100%` 가
+ * 잡힌다. **`min-height: 0` 을 같이 둔다** — 없으면 flex 자식이 안 줄어들어 문서가
+ * 긴 화면에서 단이 넘친다. */
+.stage {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}

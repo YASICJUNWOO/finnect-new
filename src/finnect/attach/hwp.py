@@ -11,6 +11,13 @@
 HWP 5.0 은 OLE 복합문서다. BodyText/Section* 스트림이 raw deflate 로 눌려 있고 그 안에
 레코드가 이어 붙어 있다. 본문은 HWPTAG_PARA_TEXT 레코드에 UTF-16LE 로 들어간다.
 제어문자 일부가 16바이트를 차지하므로 그만큼 건너뛰어야 글자가 안 깨진다.
+
+**레코드 층 셋이 공개다** — `iter_records` · `para_text` · `reject_flags`.
+`forms/hwp5.py` 가 같은 레코드를 좌표까지 읽으려고 쓴다(ADR-0070). 밑줄을 뗀 것이
+전부이고 동작은 안 바뀌었다. **거기서 복사해 가지 않는 것이 요점이다** — 제어문자
+폭 표(`CTRL_EXTENDED` 8워드)가 두 벌이 되면 한쪽만 고쳐지는 날 글자가 깨진다.
+`_assemble` 은 밑줄을 지킨다. 저것은 **텍스트로 펴는** 일이라 좌표를 버리고,
+양식 쪽은 좌표가 필요해서 같은 함수를 못 쓴다.
 """
 
 from __future__ import annotations
@@ -48,7 +55,7 @@ def _unescape(s: str) -> str:
     return s
 
 
-def _iter_records(buf: bytes) -> Iterator[tuple[int, int, bytes]]:
+def iter_records(buf: bytes) -> Iterator[tuple[int, int, bytes]]:
     """레코드 헤더 4바이트: tag 10bit · level 10bit · size 12bit.
 
     size == 0xFFF 면 다음 4바이트가 실제 크기다.
@@ -75,7 +82,7 @@ def _iter_records(buf: bytes) -> Iterator[tuple[int, int, bytes]]:
         pos += size
 
 
-def _para_text(payload: bytes) -> str:
+def para_text(payload: bytes) -> str:
     """PARA_TEXT 페이로드를 UTF-16LE 로 읽으며 제어문자를 건너뛴다.
 
     **코드유닛을 `chr()` 로 하나씩 옮기지 않는다.** 스파이크가 그렇게 했는데, 이모지처럼
@@ -113,7 +120,7 @@ HWP_FLAG_ENCRYPTED = 0x2
 HWP_FLAG_DISTRIBUTION = 0x4
 
 
-def _reject_flags(flags: int) -> None:
+def reject_flags(flags: int) -> None:
     """열어 봤자 본문이 안 나오는 문서를 **실패로 돌려세운다**(T-0034).
 
     배포용 문서는 본문이 `BodyText` 가 아니라 `ViewText` 에 암호화돼 들어간다.
@@ -205,7 +212,7 @@ def _assemble(records: Iterator[tuple[int, int, bytes]]) -> str:
                 col, row = struct.unpack_from("<HH", payload, 8)
                 stack[-1].open_cell(row, col)
         elif tag == HWPTAG_PARA_TEXT:
-            sink().append(_para_text(payload))
+            sink().append(para_text(payload))
             if not stack:
                 out.append("\n")
 
@@ -229,7 +236,7 @@ def from_hwp(path: Path) -> str:
             raise ValueError("HWP 시그니처 없음")
         (flags,) = struct.unpack_from("<I", header, 36)
         compressed = bool(flags & 1)
-        _reject_flags(flags)
+        reject_flags(flags)
 
         sections = sorted(
             ("/".join(e) for e in ole.listdir() if e[0] == "BodyText"),
@@ -242,7 +249,7 @@ def from_hwp(path: Path) -> str:
         for s in sections:
             raw = ole.openstream(s).read()
             data = zlib.decompress(raw, -15) if compressed else raw
-            chunks.append(_assemble(_iter_records(data)))
+            chunks.append(_assemble(iter_records(data)))
         return "\n".join(chunks)
     finally:
         ole.close()

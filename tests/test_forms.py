@@ -50,6 +50,21 @@ class Test임포트_경계:
         assert "finnect.forms.hwp" not in sys.modules
         assert "finnect.forms.docx" not in sys.modules
 
+    def test_hwp_를_열어도_jpype_가_안_붙는다(self) -> None:
+        """**여기가 ADR-0070 가 얻은 자리다.** 오래 hwp 어댑터를 여는 것이 곧 JVM 을
+        띄우는 것이었고, 그래서 Java 없는 서버에서는 파싱·항목추출·좌표가 통째로
+        꺼졌다(ADR-0060 결정 5). 이제 어댑터를 임포트해도 안 붙는다 — 붙는 것은
+        되쓸 본문이 원본 크기를 넘는 파일에서 `forms/hwplib.py` 를 부를 때뿐이다.
+        """
+        import sys
+
+        sys.modules.pop("jpype", None)
+        sys.modules.pop("finnect.forms.hwp", None)
+
+        from finnect.forms.hwp import HwpForm  # noqa: F401
+
+        assert "jpype" not in sys.modules
+
 
 class Test포맷_경계:
     def test_못_채우는_포맷은_거절한다(self) -> None:
@@ -107,6 +122,11 @@ class Test포맷_경계:
 class Test저장이_잃는_스트림:
     """`HWPWriter` 가 본문 모델만 써서 스트림 셋이 빠지는 자리 (2026-08-23).
 
+    **`forms/hwplib.py` 의 것이다** — 2026-08-24 부터 기본 경로가 아니다([ADR-0070](
+    ../docs/adr/0070-hwp-를-바이트로-읽고-쓴다.md)). 바이트로 쓰는 쪽은
+    `BodyText/Section*` 말고는 손을 안 대서 **이 문제가 애초에 생기지 않는다.**
+    폴백에는 그대로 걸리므로 계속 잠근다.
+
     **소스를 읽어서 잠근다.** 실제로 재려면 JVM 과 hwp 파일이 필요한데 이 파일은
     그것을 안 쓰기로 했다(모듈 머리말). 그렇다고 안 잠그면 `save()` 가 **한 번
     되돌아간 적이 있는 회귀**다 — 독스트링이 「미리보기 텍스트는 되살리고」라고
@@ -121,9 +141,9 @@ class Test저장이_잃는_스트림:
         조용히 비고, 파일은 정상으로 열려서 눈으로 보기 전까지 안 걸린다."""
         import inspect
 
-        from finnect.forms.hwp import HwpForm
+        from finnect.forms.hwplib import HwpLibForm
 
-        src = inspect.getsource(HwpForm.save)
+        src = inspect.getsource(HwpLibForm.save)
         assert "_graft(" in src
         assert "_prv_text()" in src
 
@@ -134,7 +154,7 @@ class Test저장이_잃는_스트림:
         들어가면 **빈 양식 썸네일**이 붙는다(ADR-0060 결정 4). 둘 다 파일은 멀쩡히
         열리므로 코드가 막아야 한다.
         """
-        from finnect.forms.hwp import _CARRY
+        from finnect.forms.hwplib import _CARRY
 
         assert "PrvText" not in _CARRY
         assert "PrvImage" not in _CARRY
@@ -145,9 +165,9 @@ class Test저장이_잃는_스트림:
         첫 표의 첫 행만 뜬다 — 상한 1,023자는 규격이 정한 것이라 뭉개도 더 안 담긴다."""
         import inspect
 
-        from finnect.forms.hwp import HwpForm
+        from finnect.forms.hwplib import HwpLibForm
 
-        assert '"\\r\\n".join' in inspect.getsource(HwpForm._prv_text)
+        assert '"\\r\\n".join' in inspect.getsource(HwpLibForm._prv_text)
 
 
 class Test앵커:
@@ -296,22 +316,25 @@ def _row(texts: list[str], row: int = 0) -> list:
 
 
 class Test라벨_짝:
-    """**바로 오른쪽 칸만 값 자리다.**
+    """**바로 왼쪽 라벨이 그 칸의 이름이다.**
 
-    예전에는 「오른쪽 첫 빈 칸」이었고 그 규칙이 칸을 건너뛰었다. 실측
-    (`bizinfo:PBLN_…125460` 신청서)의 한 행이 이렇게 생겼다.
+    실측(`bizinfo:PBLN_…125460` 신청서)의 한 행이 이렇게 생겼다.
 
         사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
 
-    `000-00-00000` 은 안내문이라 빈 칸이 아니고, 규칙이 그것을 지나쳐 **법인등록번호의
-    빈 칸**을 사업자등록번호의 값 자리로 골랐다. 채운 파일에서 사업자등록번호
-    `501-86-33271` 이 법인등록번호 칸에 앉았고, **파일은 정상으로 열려서** 제출
-    직전에야 드러난다. 라벨이 겹칠 때 아예 버리는 것과 같은 판단으로 좁힌다.
+    오래 「라벨의 오른쪽 첫 빈 칸」을 골랐고, 그 규칙이 `000-00-00000` 을 지나쳐
+    **법인등록번호의 빈 칸**을 사업자등록번호의 값 자리로 잡았다. 채운 파일에서
+    사업자등록번호가 법인등록번호 칸에 앉았고 **파일은 정상으로 열려서** 제출 직전에야
+    드러난다.
 
-    **재현율을 정확성과 바꾼 것이다.** 건너뛰어야 닿는 칸을 이제 못 채우는데, 그 자리는
-    안내문이 값 자리를 막고 있는 경우라 `fillable` 이 그 칸을 값 자리로 인정하면서
-    되찾는다([plan/24](../docs/plan/24-양식을-채워서-돌려준다.md) T-0153).
-    **모르는 자리를 찍어서 채우지 않는다.**
+    **2026-08-24 방향이 뒤집혔다**([ADR-0070](
+    ../docs/adr/0070-hwp-를-바이트로-읽고-쓴다.md)). 라벨에서 값을 찾는 것이 아니라
+    **값 자리에서 왼쪽의 라벨을 찾는다.** 그러면 건너뛸 일이 없다 — 위 행에서 넷이
+    각자 제 이름을 갖는다.
+
+    **건너뛰는 것은 열 머리가 뒷받침할 때뿐이다.** `매출액 | __ | __` 처럼 라벨이
+    떨어져 있어도 열 머리가 자리를 갈라 주면 이름이 하나로 안 겹친다. 뒷받침이
+    없는데 건너뛰면 셋이 같은 이름을 들고 **겹침으로 전부 버려진다.**
     """
 
     def test_바로_오른쪽_빈_칸을_고른다(self) -> None:
@@ -320,13 +343,19 @@ class Test라벨_짝:
         cells = _row(["기업명", ""])
         assert label_targets(cells) == [("기업명", Anchor(0, 0, 0, 1))]
 
-    def test_한_칸도_건너뛰지_않는다(self) -> None:
-        """실측에서 틀린 값이 들어간 바로 그 행이다."""
+    def test_안내문이_막고_있어도_둘_다_제_칸을_갖는다(self) -> None:
+        """실측에서 틀린 값이 들어간 바로 그 행이다. **이제 넷이 안 엉킨다.**
+
+        옛 규칙은 여기서 `사업자등록번호` 를 **포기하는 것**으로 사고를 막았다
+        (`fillable` 이 켜져야 되찾았다). 값 자리에서 왼쪽을 보는 규칙은 LLM 없이
+        둘 다 잡는다 — `000-00-00000` 이 플레이스홀더라 값 자리이면서 동시에
+        라벨이 아니기 때문이다.
+        """
         from finnect.forms import label_targets
 
         cells = _row(["사업자등록번호", "000-00-00000", "법인등록번호", ""])
         got = dict(label_targets(cells))
-        assert "사업자등록번호" not in got
+        assert got["사업자등록번호"] == Anchor(0, 0, 0, 1)
         assert got["법인등록번호"] == Anchor(0, 0, 0, 3)
 
     def test_병합된_라벨을_접는다(self) -> None:
@@ -371,6 +400,120 @@ class Test라벨_짝:
         assert label_targets(cells) == []
 
 
+def _sized(rows: list[list[str]], *, w: int = 5000, h: int = 2000) -> list:
+    """크기를 아는 어댑터(hwp)가 주는 모양. **되풀이 접기가 안 걸린다.**"""
+    from finnect.forms.base import Cell
+
+    return [
+        Cell(Anchor(0, 0, r, c), t, 1, 1, w, h)
+        for r, row in enumerate(rows)
+        for c, t in enumerate(row)
+    ]
+
+
+class Test행_라벨:
+    """**가장 가까운 연속 덩어리만.** 이 한 줄이 대표자와 실무자를 가른다."""
+
+    def test_덩어리가_끊기면_멈춘다(self) -> None:
+        """안 끊으면 실무자 칸이 `대표자 › 성명 › 실무자 › 성명` 이 되어 대표자
+        쪽과 **이름이 같아지고**, 겹침으로 둘 다 버려진다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["대표자", "성 명", "", "실무자", "성 명", ""]])
+        got = {str(x) for x in label_paths(cells)}
+
+        assert got == {"대표자 › 성 명", "실무자 › 성 명"}
+
+    def test_바깥에서_안으로_쌓는다(self) -> None:
+        from finnect.forms import label_paths
+
+        cells = _sized([["대표자", "성 명", ""]])
+
+        assert label_paths(cells)[0].row_path == ("대표자", "성 명")
+
+
+class Test열_머리:
+    """라벨이 **열 머리로 위에 있는** 표. 실측에서 값 자리의 63%가 이 모양이다."""
+
+    def test_같은_열을_위로_걸어_올라간다(self) -> None:
+        from finnect.forms import label_paths
+
+        cells = _sized(
+            [
+                ["구분", "2020년", "2021년", "2022년"],
+                ["매 출 액", "", "", ""],
+            ]
+        )
+        got = {str(x) for x in label_paths(cells)}
+
+        assert got == {"매 출 액 × 2020년", "매 출 액 × 2021년", "매 출 액 × 2022년"}
+
+    def test_머리_행이_아니면_안_쓴다(self) -> None:
+        """값이 하나 덩그러니 있는 행은 머리가 아니다 —
+        `사업자등록번호 × 2000-00-00` 이 그렇게 생긴다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["설립일자", "2000-00-00"], ["사업자등록번호", ""]])
+        got = {str(x) for x in label_paths(cells)}
+
+        assert got == {"설립일자", "사업자등록번호"}
+
+    def test_행_라벨_블록_위로_안_넘어간다(self) -> None:
+        """넘어가면 `매출액` 을 찾다가 위 블록의 `이메일` 까지 올라간다."""
+        from finnect.forms import label_paths
+
+        cells = _sized(
+            [
+                ["실무자", "이메일", "주소", "전화"],
+                ["구분", "국내", "국외", "합계"],
+                ["매출액", "", "", ""],
+            ]
+        )
+        got = [x for x in label_paths(cells) if x.anchor.row == 2]
+
+        assert {x.col_head for x in got} == {"국내", "국외", "합계"}
+
+
+class Test얇은_칸:
+    """양식 저자가 여백을 주려고 넣은 칸. **글자를 넣으면 파일엔 있는데 안 보인다.**
+
+    실측에서 「주식회사 나린데이터」가 5.4pt 짜리 칸에 앉았고 400%로 확대해야 보였다.
+    """
+
+    def test_얇으면_후보가_아니다(self) -> None:
+        from finnect.forms import label_targets
+
+        cells = _sized([["기업명", ""]], h=540)
+
+        assert label_targets(cells) == []
+
+    def test_크기를_모르면_안_거른다(self) -> None:
+        """`docx`·`hwpx` 어댑터는 크기를 안 준다. **모르는 것을 얇다고 하지 않는다.**"""
+        from finnect.forms import label_targets
+
+        assert label_targets(_row(["기업명", ""])) == [("기업명", Anchor(0, 0, 0, 1))]
+
+
+class Test경로_이름:
+    """`label_paths` 가 한정된 이름을, `label_targets` 가 안쪽 이름 하나를 낸다."""
+
+    def test_안쪽_이름이_열_머리일_수도_있다(self) -> None:
+        """행 라벨이 없으면 열 머리가 그 자리의 이름이다."""
+        from finnect.forms import label_paths, label_targets
+
+        cells = _sized([["구분", "2020년", "2021년", "2022년"], ["", "", "", ""]])
+        slot = next(x for x in label_paths(cells) if x.anchor.row == 1 and x.anchor.col == 1)
+
+        assert (slot.row_path, slot.col_head) == ((), "2020년")
+        assert ("2020년", Anchor(0, 0, 1, 1)) in label_targets(cells)
+
+    def test_이름이_없으면_안_낸다(self) -> None:
+        """**모르는 자리를 찍지 않는다.**"""
+        from finnect.forms import label_paths
+
+        assert label_paths(_sized([["", ""], ["", ""]])) == []
+
+
 class Test값_자리를_넓힌다:
     """`fillable` 이 **글자가 있는 칸도 값 자리로** 받는다 (plan/24 T-0153).
 
@@ -384,12 +527,27 @@ class Test값_자리를_넓힌다:
     """
 
     def test_비어_있지_않아도_값_자리가_된다(self) -> None:
+        """**규칙이 먼저 잡고, 판정이 그 위를 넓힌다.**
+
+        `주식회사 ○○○○` 는 `is_placeholder` 가 잡으므로 LLM 없이도 값 자리다 —
+        오래 여기가 `[]` 였고 판정을 켜야 열렸다. 규칙이 못 잡는 것(`본점 기재` ·
+        `5개사 내외 기재` 처럼 형식이 아니라 지시인 칸)이 `fillable` 의 자리다.
+        """
         from finnect.forms import label_targets
 
         cells = _row(["기업명", "주식회사 ○○○○"])
+        want = [("기업명", Anchor(0, 0, 0, 1))]
+        assert label_targets(cells) == want
+        assert label_targets(cells, frozenset({Anchor(0, 0, 0, 1)})) == want
+
+    def test_규칙이_못_잡는_것을_판정이_넓힌다(self) -> None:
+        """형식이 아니라 **지시**인 칸은 정규식으로 안 갈린다."""
+        from finnect.forms import label_targets
+
+        cells = _row(["본사 주소", "5개사 내외 기재"])
         assert label_targets(cells) == []
         assert label_targets(cells, frozenset({Anchor(0, 0, 0, 1)})) == [
-            ("기업명", Anchor(0, 0, 0, 1))
+            ("본사 주소", Anchor(0, 0, 0, 1))
         ]
 
     def test_건너뛴_칸을_되찾는다(self) -> None:

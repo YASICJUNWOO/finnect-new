@@ -13,8 +13,15 @@
 | 빈 칸 채우기 | 가능 | 가능 | 가능 |
 | 덮어쓰기 | 가능 (판본 I) | 가능 | 가능 |
 | 개체 앵커가 든 자리 | **불가** | 가능 | 가능 |
-| 런타임 | **JVM** | 순수 파이썬 | 순수 파이썬 |
+| 런타임 | **순수 파이썬** (일부만 JVM) | 순수 파이썬 | 순수 파이썬 |
 | 코퍼스 비율 | **73%** | 14% | 5% |
+
+**2026-08-24 hwp 에서 JVM 이 빠졌다**([ADR-0070](
+../../../docs/adr/0070-hwp-를-바이트로-읽고-쓴다.md)). 읽기·자리찾기·쓰기가 전부
+`forms/hwp5.py` 의 레코드 편집으로 돈다 — `olefile` 은 이미 기본 의존성이라 새로
+드는 것이 없다. **Java 가 붙는 자리는 하나 남았다**: 되쓴 본문이 원본 스트림 크기
+안에 안 들어가는 파일(실측 5~8%)에서만 `forms/hwplib.py` 로 넘어간다. 그때 Java 가
+없으면 **그 파일만** `FormsUnavailable` 이고 나머지는 그대로 돈다.
 
 **2026-08-23 hwp 의 덮어쓰기 칸이 열렸다**(plan/24 T-0164 · [실측](
 ../../../docs/adr/evidence/2026-08-23-hwp-덮어쓰기가-된다.md)). 오래 여기 「불가」가
@@ -31,7 +38,10 @@ from finnect.forms.base import (
     FormsUnavailable,
     Para,
     ParaAnchor,
+    Slot,
     UnsupportedFormat,
+    is_placeholder,
+    label_paths,
     label_targets,
     norm_label,
     outline_targets,
@@ -47,7 +57,10 @@ __all__ = [
     "FormsUnavailable",
     "Para",
     "ParaAnchor",
+    "Slot",
     "UnsupportedFormat",
+    "is_placeholder",
+    "label_paths",
     "label_targets",
     "norm_label",
     "open_form",

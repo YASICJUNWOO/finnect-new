@@ -21,7 +21,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 
@@ -95,10 +96,22 @@ def parse_anchor(s: str) -> Anchor | ParaAnchor:
 
 @dataclass(frozen=True, slots=True)
 class Cell:
-    """읽어 낸 칸 하나."""
+    """읽어 낸 칸 하나.
+
+    **병합과 크기가 기본값을 갖는다.** 어댑터가 못 주면 `1x1`·크기 0 이고, 그때는
+    그 값을 보는 규칙이 안 걸린다 — 모르는 것을 1 로 아는 척하는 것과 0 으로
+    모른다고 말하는 것이 다르다.
+    """
 
     anchor: Anchor
     text: str
+    #: 이 칸이 가로·세로로 몇 칸을 덮나. **좌표는 왼쪽 위 하나다**
+    colspan: int = 1
+    rowspan: int = 1
+    #: HWPUNIT(1/7200 inch). **0 이면 모른다.** 얇은 장식 칸을 거르는 데 쓴다 —
+    #: 실측에서 5.4pt 짜리 여백 칸이 값을 삼켰고 파일에 남았는데 안 보였다
+    width: int = 0
+    height: int = 0
 
     @property
     def blank(self) -> bool:
@@ -167,108 +180,255 @@ def norm_label(s: str) -> str:
     반대 규칙이다(`match/sectors.py` 는 지우면 안 되고 `wiki/topics.py` 는 지워야
     한다 — 여기는 뒤엣것과 같은 자리다).
     """
-    import re
-
     return re.sub(r"[\s　:：]", "", s or "").lower()
 
 
-def _fold_spans(row: list[Cell]) -> list[Cell]:
-    """가로로 병합된 칸을 하나로 접는다. **첫 좌표를 남긴다.**
+#: 채울 자리로 보기엔 너무 얇은 칸. HWPUNIT(1/7200 inch) 이고 8pt 다.
+#:
+#: 양식 저자가 표 사이 여백을 주려고 5.4pt 짜리 칸을 넣어 둔다. 글자를 넣으면
+#: **파일에는 들어가는데 화면에서 안 보인다** — 실측에서 「주식회사 나린데이터」가
+#: 그 칸에 앉았고 400% 로 확대해야 보였다. **크기를 모르는 어댑터에서는 안 건다.**
+_MIN_CELL = 800
 
-    `python-docx` 의 `row.cells` 가 병합된 칸을 걸친 수만큼 반복해서 준다 —
-    실측에서 `대표자명` 이 네 번 나왔다. 접지 않으면 라벨이 **자기 복제를 오른쪽
-    칸으로 보고** 짝을 통째로 잃는다.
+#: 열 머리로 인정하려면 그 행에 라벨이 이만큼은 있어야 한다.
+#:
+#: 값이 하나 덩그러니 있는 행은 머리가 아니다 — `사업자등록번호 × 2000-00-00` 이
+#: 그렇게 생긴다. 관공서 표의 머리 행은 `구분 | 2020년 | 2021년 | …` 처럼 찬다.
+_HEADER_ROW_MIN = 3
 
-    **연속된 것만 접는다.** `국내 | 국외 | 국내` 처럼 떨어져서 되풀이되는 것은
-    병합이 아니라 진짜 열이라 접으면 좌표가 밀린다.
+#: 채워 넣으라고 비워 둔 자리의 표시. `00 명` · `2000-00-00` · `OOOOO (상호명)`.
+#:
+#: **`Cell.blank` 를 안 바꾼다**(ADR-0060 결정 6). 저기는 글자가 없는 것만 보고,
+#: 여기는 그 위에 얹는 값싼 바닥이다 — LLM 판정(`forms/slots.py`)이 켜지면
+#: `fillable` 로 더 넓게 들어오고 둘은 겹쳐도 된다.
+_PLACEHOLDER = re.compile(r"(OO|00|○○|ＯＯ)")
+
+#: 플레이스홀더로 볼 글자 수 상한. 넘으면 안내 문장이지 채울 자리가 아니다.
+_PLACEHOLDER_MAX = 60
+
+
+def is_placeholder(text: str) -> bool:
+    """`00 명` 처럼 **형식만 적어 둔 칸**인가.
+
+    **라벨로 세면 안 된다.** 실측에서 `사업자등록번호 | 000-00-00000 | 법인등록번호`
+    가 그 자리였고, `000-00-00000` 을 라벨로 읽으면 그것이 **`법인등록번호` 라는 라벨
+    글자를 값 자리로 잡는다.**
+
+    **`2000년` 같은 진짜 라벨이 걸릴 수 있다.** `00` 두 자만 보는 규칙이라 그렇고,
+    대가로 얻는 것이 `2000-00-00`·`0000000-0000000`·`00 명` 셋이다. 걸리면 그 칸이
+    라벨 노릇을 못 할 뿐이고 값이 딴 데 가지는 않는다.
+    """
+    t = text.strip()
+    return bool(t) and len(t) <= _PLACEHOLDER_MAX and _PLACEHOLDER.search(t) is not None
+
+
+@dataclass(frozen=True, slots=True)
+class Slot:
+    """채울 자리 하나와 **그 자리의 이름**.
+
+    이름이 둘로 갈리는 이유는 표가 두 방향으로 짜여서다.
+
+        기업명 | ____                    행 라벨 하나
+        구분   | 2020년 | 2021년          ← 열 머리
+        매출액 | ____   | ____            행 라벨 + 열 머리
+    """
+
+    anchor: Anchor
+    #: 왼쪽으로 붙어 있는 라벨들. 바깥에서 안으로 (`대표자` → `성명`)
+    row_path: tuple[str, ...]
+    #: 같은 열을 위로 걸어 올라가 만난 머리. 없으면 `None`
+    col_head: str | None
+
+    @property
+    def label(self) -> str:
+        """**가장 안쪽 이름 하나.** 이미 깔린 항목과 짝지을 때 이걸 쓴다."""
+        return self.row_path[-1] if self.row_path else (self.col_head or "")
+
+    def __str__(self) -> str:
+        p = " › ".join(self.row_path)
+        return f"{p} × {self.col_head}" if self.col_head else p
+
+
+def _fold_repeats(cells: list[Cell]) -> list[Cell]:
+    """병합 칸을 되풀이해 주는 어댑터에서만 접는다. **첫 좌표를 남긴다.**
+
+    `python-docx` 의 `row.cells` 가 병합된 칸을 걸친 수만큼 준다 — 실측에서
+    `대표자명` 이 네 번 나왔다. 접지 않으면 라벨이 **자기 복제를 오른쪽 칸으로 보고**
+    짝을 통째로 잃는다.
+
+    **크기를 아는 어댑터에서는 안 접는다.** hwp 는 병합 칸을 한 번만 저장하고
+    `colspan` 을 같이 주므로, 나란한 빈 칸 셋은 진짜 칸 셋이다 —
+    `매출액 | __ | __ | __` 을 접으면 2021·2022 년 자리를 통째로 잃는다.
+
+    **연속된 것만 접는다.** `국내 | 국외 | 국내` 처럼 떨어져서 되풀이되는 것은 병합이
+    아니라 진짜 열이라 접으면 좌표가 밀린다.
+    """
+    if any(c.width or c.height or c.colspan > 1 or c.rowspan > 1 for c in cells):
+        return cells
+
+    by_row: dict[int, list[Cell]] = {}
+    for c in cells:
+        by_row.setdefault(c.anchor.row, []).append(c)
+
+    out: list[Cell] = []
+    for row in by_row.values():
+        row.sort(key=lambda c: c.anchor.col)
+        run: list[Cell] = []
+        for c in row:
+            adjacent = run and run[-1].anchor.col + max(run[-1].colspan, 1) == c.anchor.col
+            if adjacent and run[-1].text == c.text:
+                run.append(c)
+                continue
+            if run:
+                out.append(replace(run[0], colspan=len(run)))
+            run = [c]
+        if run:
+            out.append(replace(run[0], colspan=len(run)))
+    return out
+
+
+def _grid(cells: list[Cell]) -> dict[tuple[int, int], Cell]:
+    """`(행, 열)` → 그 자리를 덮는 칸. **병합 칸은 여러 자리를 덮는다.**"""
+    g: dict[tuple[int, int], Cell] = {}
+    for c in cells:
+        for dr in range(max(c.rowspan, 1)):
+            for dc in range(max(c.colspan, 1)):
+                g.setdefault((c.anchor.row + dr, c.anchor.col + dc), c)
+    return g
+
+
+def _is_label(c: Cell) -> bool:
+    """이 칸이 **이름**인가. 글자가 있고 플레이스홀더가 아니면 이름이다.
+
+    **`fillable` 을 안 본다.** 판정이 라벨을 값 자리로 오검출해도 그 오른쪽 빈 칸은
+    여전히 그 라벨의 자리다 — 실측에서 `실무자성명 | (빈칸)` 이 그렇게 살았고,
+    여기까지 버리면 오검출 하나가 **좌표 둘을 잃게 만든다.** 한 칸이 이름이면서
+    동시에 값 자리인 것은 모순이 아니다.
+    """
+    return bool(c.text.strip()) and not is_placeholder(c.text)
+
+
+def _is_slot(c: Cell, fillable: frozenset[Anchor]) -> bool:
+    """이 칸이 **채울 자리**인가."""
+    if c.height and c.height < _MIN_CELL:
+        return False
+    if c.width and c.width < _MIN_CELL:
+        return False
+    return c.blank or is_placeholder(c.text) or c.anchor in fillable
+
+
+def _row_labels(g: dict[tuple[int, int], Cell], c: Cell, *, skip: bool) -> list[Cell]:
+    """왼쪽으로 훑어 **가장 가까운 연속 덩어리**만.
+
+    처음 만난 라벨부터 붙어 있는 데까지 잡고 끊기면 멈춘다. 이 한 줄이
+    `대표자 › 성명` 과 `실무자 › 성명` 을 가른다 — 안 끊으면 실무자 칸이
+    `대표자 › 성명 › 실무자 › 성명` 이 되어 **둘이 구별되지 않는다.**
+
+        대표자 | 성명 | ____ | 실무자 | 성명 | ____
+                        └ [대표자, 성명]        └ [실무자, 성명]
+
+    `skip` 이 앞쪽의 값 자리를 건너뛸지 정한다. **건너뛰면 남의 라벨을 훔친다** —
+    `사업자등록번호 | 000-00-00000 | 법인등록번호 | ___` 에서 셋이 다 사업자등록번호를
+    자기 이름으로 들고 겹침으로 전부 버려진다. 그래서 기본은 안 건너뛰는 것이고,
+    `매출액 | __ | __` 처럼 **열 머리가 자리를 갈라 줄 때만** 건너뛴다.
     """
     out: list[Cell] = []
-    for c in row:
-        if out and out[-1].text == c.text:
-            continue
-        out.append(c)
+    col, started = c.anchor.col - 1, False
+    while col >= 0:
+        o = g.get((c.anchor.row, col))
+        if o is None or o is c:
+            break
+        if _is_label(o):
+            out.append(o)
+            started = True
+        elif started or not skip:
+            break
+        col = o.anchor.col - 1
+    out.reverse()
+    return out
+
+
+def _col_head(g: dict[tuple[int, int], Cell], c: Cell, labels: list[Cell]) -> Cell | None:
+    """같은 열을 위로 걸어 올라가 처음 만나는 머리 칸. **두 겹으로 거른다.**
+
+    **① 행 라벨 블록 위로 안 넘어간다.** 없으면 `매출액` 을 찾다가 위 블록의
+    `실무자 이메일` 까지 올라가고, 그러면 `실무자이메일 › 2024년 › 매출액` 이 나온다.
+
+    **② 머리 행에서만 인정한다.** 값이 하나 있는 행은 머리가 아니다 —
+    `사업자등록번호 × 2000-00-00` 이 그렇게 생긴다.
+    """
+    stop = min((o.anchor.row for o in labels), default=c.anchor.row)
+    r = c.anchor.row - 1
+    while r >= 0:
+        o = g.get((r, c.anchor.col))
+        if o is None or o is c:
+            return None
+        if _is_label(o):
+            if o.anchor.row > stop:
+                return None
+            peers = {id(x) for (rr, _cc), x in g.items() if rr == o.anchor.row and _is_label(x)}
+            return o if len(peers) >= _HEADER_ROW_MIN else None
+        # 빈 칸도 플레이스홀더도 머리가 아니다 — 지나쳐서 계속 올라간다
+        r = o.anchor.row - 1
+    return None
+
+
+def label_paths(cells: list[Cell], fillable: frozenset[Anchor] = frozenset()) -> list[Slot]:
+    """채울 자리마다 **이름을 붙인다** (ADR-0070).
+
+    `label_targets` 가 「같은 행 바로 오른쪽」만 볼 수 있었던 것은 좌표의 열이 격자
+    열이 아니어서였다 — 위 칸과 아래 칸이 같은 열인지 알 방법이 없었다. 좌표가
+    격자로 올라오면서 **열 축이 생겼고**, 그래서 열 머리를 걸어 올라갈 수 있다.
+
+    실측에서 값 자리 후보 29,497칸 중 **왼쪽에 라벨이 있는 것은 37%뿐**이고 나머지
+    63%는 머리가 위에 있었다. 그 63%가 여기서 열린다.
+
+    **모르면 안 낸다.** 라벨도 머리도 없는 칸은 목록에 안 오른다.
+    """
+    out: list[Slot] = []
+    by_table: dict[tuple[int, int], list[Cell]] = {}
+    for c in cells:
+        by_table.setdefault((c.anchor.section, c.anchor.table), []).append(c)
+
+    for group in by_table.values():
+        folded = _fold_repeats(group)
+        g = _grid(folded)
+        for c in folded:
+            if not _is_slot(c, fillable):
+                continue
+            # **바로 왼쪽이 먼저다.** 건너뛴 라벨은 열 머리가 뒷받침할 때만 쓴다
+            labels = _row_labels(g, c, skip=False)
+            head = _col_head(g, c, labels)
+            if not labels:
+                far = _row_labels(g, c, skip=True)
+                head = _col_head(g, c, far)
+                labels = far if head is not None else []
+            if not labels and head is None:
+                continue
+            out.append(
+                Slot(
+                    c.anchor,
+                    tuple(o.text.strip().replace("\n", " ") for o in labels),
+                    head.text.strip().replace("\n", " ") if head is not None else None,
+                )
+            )
     return out
 
 
 def label_targets(
     cells: list[Cell], fillable: frozenset[Anchor] = frozenset()
 ) -> list[tuple[str, Anchor]]:
-    """`(라벨, 값이 들어갈 칸)` 을 순서대로.
+    """`(라벨, 값이 들어갈 칸)` 을 순서대로. **가장 안쪽 이름 하나를 낸다.**
 
-    **바로 오른쪽 칸이 값 자리다.** 관공서 양식이 `라벨 | 빈칸` 으로 짜여 있고,
-    실측에서 그 모양으로 165칸을 채웠다(ADR-0060).
-
-    ## `fillable` 이 값 쪽만 넓힌다
-
-    빈 칸이 아니어도 값 자리인 칸이 있다(`주식회사 ○○○○`·`yyyy-mm-dd`). 그 판정은
-    규칙으로 못 하고 LLM 이 한다([plan/24] T-0153 · `forms/slots.py`) — 여기는 그
-    결과를 좌표 집합으로 받는다. **비어 있으면 예전과 똑같이 돈다.**
-
-    **값 자리 둘이 나란히 서면 짝이 아니다.** 왼쪽도 값 자리인데 오른쪽도 값 자리면
-    어느 쪽이 라벨인지 모른다 — 실측에서 그 자리가 이렇게 생겼다.
-
-        사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
-                        └ 값 자리      └ 값 자리로 오검출
-
-    `000-00-00000` 을 라벨로 읽으면 그것이 **`법인등록번호` 라는 라벨 글자를 값
-    자리로 잡는다.** 플레이스홀더가 항목 이름이 되는 일이 실제로 있어서(이 양식의
-    `000백만원`) 그 짝이 걸리면 라벨이 값으로 덮인다. **모르는 자리를 찍지 않는다** —
-    라벨이 겹칠 때 아예 버리는 것과 같은 판단이다.
-
-    **오른쪽이 빈 칸이면 그 규칙을 안 건다.** 왼쪽이 값 자리로 오검출돼도 오른쪽의
-    빈 칸은 여전히 그 라벨의 자리다 — 실측에서 `실무자성명 | (빈칸)` 이 그렇게
-    살았다. 대가는 `투자 | 주요 투자처 | 누적 투자금액` 처럼 **라벨이 열 머리로 위에
-    있는 표를 여전히 못 잡는다**는 것이다.
-
-    ## 건너뛰지 않는다
-
-    예전에는 「오른쪽 **첫 빈 칸**」이었고 그것이 칸을 건너뛰었다. 실측
-    (`bizinfo:PBLN_…125460` 신청서)의 한 행이 이렇게 생겼다.
-
-        사업자등록번호 | 000-00-00000 | 법인등록번호 | (빈칸)
-
-    `000-00-00000` 은 안내문이라 빈 칸이 아니고, 규칙이 그것을 지나쳐 **법인등록번호의
-    빈 칸**을 사업자등록번호의 값 자리로 골랐다. 채운 파일에서 사업자등록번호가
-    법인등록번호 칸에 앉았고 **파일은 정상으로 열려서** 제출 직전에야 드러난다.
-    한 칸이라도 건너뛴 시점에서 그 빈 칸은 **이미 다른 라벨의 값 자리**다.
-
-    **재현율을 정확성과 바꾼 것이다.** 건너뛰어야 닿는 칸을 이제 못 채우는데, 그
-    자리는 안내문이 값 자리를 막고 있는 경우라 **`fillable` 이 그 칸을 값 자리로
-    인정하면서 되찾는다.** 위 행이 실제로 그렇게 갈린다.
-
-        fillable 없음   사업자등록번호 → (건너뛰지 않으니 없음) · 법인등록번호 → 빈칸
-        fillable 있음   사업자등록번호 → 000-00-00000 · 법인등록번호 → 빈칸
-
-    **모르는 자리를 찍어서 채우지 않는다** — 라벨이 겹칠 때 아예 버리는 것과 같은
-    판단이다.
-
-    ## 그 밖의 경계
+    이미 깔린 `document_item` 과 짝지으려면 이름이 하나여야 한다 — 저쪽 제목은
+    텍스트 추출이 만든 것이라 `대표자 › 성명` 같은 경로가 아니다. 한정된 경로가
+    필요한 자리는 `label_paths` 를 쓴다.
 
     **라벨이 겹쳐도 여기서는 안 버린다.** 겹치는 것을 아는 것은 부르는 쪽이고,
     그쪽이 「둘 이상이면 안 채운다」를 정한다 — 여기서 첫 번째를 골라 주면 그
     선택이 조용히 일어난다(`spike/anchor_check.py` 가 부러뜨린 바로 그 방식).
-
-    같은 행에서만 오른쪽을 본다. 아래 칸으로 내려가지 않는다 — 표가 세로로 짜인
-    양식에서 엉뚱한 칸을 잡고, 그것을 가릴 근거가 아직 없다.
     """
-    by_row: dict[tuple[int, int, int], list[Cell]] = {}
-    for c in cells:
-        by_row.setdefault((c.anchor.section, c.anchor.table, c.anchor.row), []).append(c)
-
-    out: list[tuple[str, Anchor]] = []
-    for row in by_row.values():
-        row.sort(key=lambda c: c.anchor.col)
-        # **접고 나서 인접을 본다.** 순서가 반대면 병합된 라벨이 자기 복제를
-        # 오른쪽 칸으로 보고 전부 탈락한다.
-        run = _fold_spans(row)
-        for i, c in enumerate(run[:-1]):
-            nxt = run[i + 1]
-            if c.blank or not (nxt.blank or nxt.anchor in fillable):
-                continue
-            if c.anchor in fillable and not nxt.blank:
-                continue
-            out.append((c.text, nxt.anchor))
-    return out
+    return [(s.label, s.anchor) for s in label_paths(cells, fillable) if s.label]
 
 
 def outline_targets(

@@ -104,12 +104,12 @@ def test_배포용_문서는_해독_성공이_아니다() -> None:
     from finnect.attach import hwp
 
     with pytest.raises(ValueError, match="배포용"):
-        hwp._reject_flags(0x5)  # 압축 + 배포용. 실측 5건이 전부 이 값이다
+        hwp.reject_flags(0x5)  # 압축 + 배포용. 실측 5건이 전부 이 값이다
 
     with pytest.raises(ValueError, match="암호"):
-        hwp._reject_flags(0x3)
+        hwp.reject_flags(0x3)
 
-    hwp._reject_flags(0x4001)  # ViewText 는 있으나 배포용이 아니다. 멀쩡히 해독된다
+    hwp.reject_flags(0x4001)  # ViewText 는 있으나 배포용이 아니다. 멀쩡히 해독된다
 
 
 def test_표_컨트롤_id는_뒤집혀_들어온다() -> None:

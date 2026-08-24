@@ -345,8 +345,9 @@ def _plant_anchors(
     if len(fields_docs) != 1 or not ext:
         return
 
-    from finnect.forms import (  # 함수 안에서 — JVM 을 최상단으로 끌고 오지 않는다
+    from finnect.forms import (  # 함수 안에서 — 무거운 어댑터를 최상단으로 안 끌고 온다
         UnsupportedFormat,
+        label_paths,
         label_targets,
         norm_label,
         open_form,
@@ -356,7 +357,9 @@ def _plant_anchors(
     try:
         form = open_form(str(store.abs_path(store.rel_path(sha))), ext)
         cells = form.cells()
-        targets = label_targets(cells, _fillable(s, sha, cells, report))
+        fillable = _fillable(s, sha, cells, report)
+        targets = label_targets(cells, fillable)
+        slots = label_paths(cells, fillable)
     except (UnsupportedFormat, FormsUnavailable, FileNotFoundError):
         return
     except Exception as e:  # noqa: BLE001 — 파일 하나가 수집 전체를 안 죽인다
@@ -405,29 +408,30 @@ def _plant_anchors(
             )
             or -1
         ) + 1
-        for i, (label, _anchor) in enumerate(targets):
+        # **여기서는 한정된 이름을 쓴다**(ADR-0070). 우리가 항목을 만드는 자리라
+        # 대조가 없고, 그래서 겹침이 문제가 안 된다 — `매출액 × 2020년` 과
+        # `매출액 × 2021년` 이 각자 제 좌표를 갖는다. 안쪽 이름 하나(`매출액`)로
+        # 만들면 넷이 겹쳐 **전부 버려진다.**
+        for i, slot in enumerate(slots):
             # **서류 표지는 라벨이 아니다.** 한글 양식이 제목을 표로 감싸서
             # `붙임 1 | (빈칸) | 임대신청서 서식` 이 라벨쌍으로 잡히는데, 그 빈칸은
             # 장식이라 값을 넣으면 좁은 칸에서 글자가 세로로 눌린다(육안 확인).
             # `fx.rows` 가 텍스트 경로에서 막는 것과 같은 규칙이다.
-            if fx.is_marker(label):
+            if fx.is_marker(slot.label):
                 continue
-            key = norm_label(label)
-            hit = seen.get(key)
             s.add(
                 DocumentItem(
                     document_id=fields_docs[0],
                     ordinal=base + i,
                     number=None,
-                    title=label[:300],
+                    title=str(slot)[:300],
                     instruction=None,
                     input_kind="field",
-                    anchor=str(hit) if hit is not None else None,
+                    anchor=str(slot.anchor),
                 )
             )
             report.items += 1
-            if hit is not None:
-                report.anchored += 1
+            report.anchored += 1
         return
 
     # **못 찾으면 지운다.** `redo` 는 규칙을 고친 뒤에 부르는 것이라, 안 지우면 옛

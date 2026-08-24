@@ -166,12 +166,20 @@ TOP_N = 3
 #: (`(list)/page.module.css` 의 `.picks` 가 `auto-fit minmax(280px, 1fr)` 이다) —
 #: 셋이면 세 열이고 하나가 빠지면 남은 둘이 폭을 나눠 갖는다.
 #:
-#: **쓰기 데모는 `178951` 에서만 돈다.** `web/components/DemoReply.tsx` 의
-#: `DEMO_NOTICE` 가 그 한 건이고 미리 채워 둔 hwp 도 현대모비스 신청서다. 새로 더한 둘은
-#: **첨부를 아직 안 받아서**(`attachment` 행은 있고 `attachment_file` 이 없다) 양식이
-#: 없고, 카드를 눌러 들어가면 「왜 맞는지」까지는 뜨지만 쓰기 화면은 빈다.
-#: 열려면 `attach --only <그 둘의 URL 목록> --source kstartup` 뒤에 `extract` 다
-#: (LLM 을 안 쓴다) — 그래도 `DEMO_NOTICE` 는 하나라 진짜 집필 경로로 떨어진다.
+#: **셋 다 양식이 있다**(2026-08-24). 더한 직후에는 새 둘의 첨부를 안 받은 상태였고
+#: (`attachment` 행은 있고 `attachment_file` 이 없었다) 카드를 눌러 들어가면 「왜 맞는지」
+#: 까지만 뜨고 쓰기 화면이 비었다. `attach --only <그 둘의 URL 목록> --source kstartup`
+#: 로 5건을 받고 `extract` 를 돌려 열었다 — `178914` 는 규칙이 바로 `fields` 로 잡았고
+#: (17칸) `178941` 은 `--classify 3 --title-like 강남` 이 한 번 더 필요했다(29항목).
+#:
+#: **`is_fields` 를 안 건드렸다.** 강남 신청서는 표 라벨이 23개인데 제출·수신·서명 신호가
+#: 0이라 `signals() >= 2` 에서 떨어졌다 — 그 문턱은 「애매하면 아니라고 한다」가 근거고
+#: (`extract/fields.py`) 데모 한 건을 위해 낮추면 **공고문 표가 채울 칸으로 뜨는 쪽**을
+#: 전 코퍼스에서 연다. 대신 T-0036 이 이미 파 둔 LLM 판정을 그 한 건에만 썼다.
+#:
+#: **쓰기 데모는 그래도 `178951` 에서만 돈다.** `web/components/DemoReply.tsx` 의
+#: `DEMO_NOTICE` 가 그 한 건이고 미리 채워 둔 hwp 도 현대모비스 신청서다. 나머지 둘은
+#: 양식이 열렸으니 **진짜 집필 경로**로 떨어진다 — 화면은 도는데 LLM 시간이 걸린다.
 #:
 #: 진짜로 세우려면 플래그를 끄고, 회사 위키를 만든 뒤
 #: (`python -m finnect.wiki --company c_narin …`)

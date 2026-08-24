@@ -64,6 +64,21 @@ const nextConfig: NextConfig = {
           { key: "cache-control", value: "public, max-age=31536000, immutable" },
         ],
       },
+      /** 시연 신청서(`public/demo/`)의 파일 이름을 **응답이 정하지 않게 한다.**
+       *
+       * S4 머리줄의 「내려받기」가 `<a download="…">` 로 `파일명_회사이름.hwp` 를
+       * 적는데, **응답에 `filename` 이 있으면 그쪽이 이긴다**(브라우저 규칙).
+       * Vercel 이 `public/` 의 `.hwp` 에 `content-disposition: inline;
+       * filename="narin-application.hwp"` 를 붙여서, 로컬에서는 이름이 맞고
+       * **배포본에서만 `narin-application.hwp` 로 떨어졌다**(실측 2026-08-25).
+       *
+       * `filename` 없는 `inline` 으로 덮는다 — 뷰어는 이 파일을 `fetch` 로 받으므로
+       * 이 값이 화면에 영향을 주지 않는다. **`attachment` 로 안 바꾼다**: 그러면
+       * 주소로 직접 열었을 때도 받아지고, 그건 이 헤더가 할 말이 아니다. */
+      {
+        source: "/demo/:file*",
+        headers: [{ key: "content-disposition", value: "inline" }],
+      },
     ];
   },
 };

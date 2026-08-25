@@ -17,12 +17,88 @@ import { COOKIE } from "@/lib/account";
 const ADMIN_USER = process.env.ADMIN_USER;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
+/** **2026-08-25 임시 차단. 셋째 문이고 앞의 둘보다 먼저 닫힌다.**
+ *
+ * 배포본을 잠깐 아무에게도 안 보이게 해야 했다. Vercel Deployment Protection 으로
+ * 막으려 했는데 **Hobby 플랜이 프로덕션 배포에는 그것을 안 걸어 준다**
+ * (`invalid_sso_protection` · 프리뷰까지만 걸린다). 프로젝트를 지우면 환경변수 넷과
+ * `finnect-web.vercel.app` 이름을 잃고, 배포 하나만 지우면 남은 프로덕션 배포로
+ * 넘어가는지가 확실하지 않다. **확실한 것은 코드뿐이라 여기서 닫는다.**
+ *
+ * **`process.env` 로 안 뺐다.** Vercel 은 환경변수를 배포 하나에 묶어서 넣기 때문에
+ * (`docs/deploy.md` §5 «값 넷») 값을 바꿔도 재배포가 필요하다 — 환경변수로 만들어도
+ * 껐다 켜는 비용이 같은데 **지금 열려 있는지가 코드에 안 보이게** 된다.
+ *
+ * **푸는 법은 이 커밋을 revert 하는 것이다.** `CLOSED` 만 `false` 로 바꾸면 아래
+ * `config.matcher` 가 넓혀진 채로 남아서 정적 파일이 전부 프록시를 탄다.
+ *
+ * 타입을 `boolean` 으로 적은 것은 의도다 — `true` 리터럴로 좁혀지면 아래 두 문이
+ * 도달 불가 코드가 되어 린트가 문다. */
+const CLOSED: boolean = true;
+
 export function proxy(req: NextRequest) {
+  if (CLOSED) return closed();
+
   const { pathname } = req.nextUrl;
   return pathname.startsWith("/admin") || pathname.startsWith("/api/admin")
     ? admin(req)
     : company(req);
 }
+
+/** **`no-store` 가 있어야 한다.** 없으면 Vercel 엣지와 브라우저가 이 응답을 들고
+ *  있어서, 다시 열어도 그 사람에게는 계속 이 화면이 뜬다.
+ *
+ *  **503 이다.** 404 는 「이런 주소는 없다」이고 이건 「지금은 없다」다. */
+function closed(): NextResponse {
+  return new NextResponse(CLOSED_PAGE, {
+    status: 503,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "retry-after": "172800",
+    },
+  });
+}
+
+/** **한 파일로 끝나야 한다.** matcher 가 정적 파일까지 잡아서 `_next/` 의 CSS 와
+ *  웹폰트가 안 나간다 — 스타일을 밖에 두면 이 화면만 스타일 없이 뜬다. 그래서
+ *  값을 토큰 이름이 아니라 실값으로 적는다(`DESIGN.md` §2 · `app/tokens.css`).
+ *
+ *  **서체는 대부분 시스템 고딕으로 뜬다.** IBM Plex Sans KR 을 스택 앞에 적어 두지만
+ *  이 응답에는 웹폰트가 안 실려서, 기기에 깔린 사람만 그것으로 본다. */
+const CLOSED_PAGE = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>준비 중이에요 — 라스트마일</title>
+<style>
+  :root { color-scheme: light }
+  body {
+    margin: 0; min-height: 100dvh; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px calc(24px + env(safe-area-inset-left)) 24px calc(24px + env(safe-area-inset-right));
+    background: #f7f7f8; color: #222;
+    font-family: "IBM Plex Sans KR", system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 32rem }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 500 }
+  .mark { width: 18px; height: 18px; border-radius: 6px; background: #222 }
+  h1 { margin: 24px 0 12px; font-size: 20px; font-weight: 600; line-height: 1.3 }
+  p { margin: 0; color: #6b7280 }
+</style>
+</head>
+<body>
+<main>
+  <span class="brand"><i class="mark" aria-hidden="true"></i>라스트마일</span>
+  <h1>준비 중이에요</h1>
+  <p>지금은 잠시 닫아 뒀어요. 다시 열리면 이 주소로 그대로 들어올 수 있어요.</p>
+</main>
+</body>
+</html>`;
 
 /** 운영 화면·운영 라우트(ADR-0067).
  *
@@ -118,10 +194,13 @@ function company(req: NextRequest) {
  * **`/admin/*` 을 따로 안 적는다.** 아래 catch-all 이 이미 잡고, `proxy()` 가 경로를
  * 보고 Basic 쪽으로 보낸다. 두 번 적으면 한쪽만 고쳐지는 날이 온다. */
 export const config = {
-  matcher: [
-    // 운영 API — `api/` 로 빠지니 다시 넣는다. Basic 이 걸린다
-    "/api/admin/:path*",
-    // 그 밖 화면 전부 — 쿠키. 위 표의 넷만 빠진다
-    "/((?!api/|_next/|enter|rhwp/|icon|apple-icon|manifest|favicon).*)",
-  ],
+  // **2026-08-25 임시 차단(위 `CLOSED`)이 이 목록을 덮었다.** 원래 두 줄은 바로
+  // 아래에 주석으로 남아 있고 커밋을 revert 하면 돌아온다. 넓히는 이유는 화면만으로는
+  // 안 닫히기 때문이다 — 원래 목록은 `api/` 와 정적 파일을 빼므로 `/api/account` 와
+  // `/icon-192.png` 가 그대로 나간다.
+  matcher: ["/", "/:path*"],
+  // matcher: [
+  //   "/api/admin/:path*",
+  //   "/((?!api/|_next/|enter|rhwp/|icon|apple-icon|manifest|favicon).*)",
+  // ],
 };

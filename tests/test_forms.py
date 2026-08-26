@@ -474,6 +474,65 @@ class Test열_머리:
         assert {x.col_head for x in got} == {"국내", "국외", "합계"}
 
 
+class Test이름이_아닌_칸:
+    """**단위와 안내문은 이름이 아니다.** 육안에서 나왔다 (표 하나 75칸 · ADR-0070).
+
+    이름을 잘못 붙이면 좌표가 밀리는 것이 아니라 **그 이름으로 글이 써진다** —
+    `label_paths` 가 항목을 만드는 경로에서는 저 문자열이 그대로 집필 프롬프트다.
+    """
+
+    def test_단위만_든_칸은_열_머리가_아니다(self) -> None:
+        """`종업원수 | 사무직 | 00 명 | 기술직 | 00 명` 아래 칸이 `아이템명 × 사무직`
+        을 이름으로 들고 있었다. 저 행은 머리가 아니라 자기 값을 든 데이터 행이다."""
+        from finnect.forms import label_paths
+
+        cells = _sized(
+            [
+                ["종업원수", "사무직", "00 명", "기술직", "00 명"],
+                ["아이템명", "", "", "", ""],
+            ]
+        )
+        got = [x for x in label_paths(cells) if x.anchor.row == 1]
+
+        assert {x.col_head for x in got} == {None}
+        assert {str(x) for x in got} == {"아이템명"}
+
+    def test_단위가_이름_안에_있으면_이름이다(self) -> None:
+        """`인원(명)` 은 이름이다. **혼자 있을 때만** 단위로 본다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["구분", "인원(명)", "금액(원)"], ["2024년", "", ""]])
+        got = {str(x) for x in label_paths(cells) if x.anchor.row == 1}
+
+        assert got == {"2024년 × 인원(명)", "2024년 × 금액(원)"}
+
+    def test_통째로_괄호에_싸인_칸은_이름이_아니다(self) -> None:
+        """`(기업의 경우만 작성)` 이 `기업명` 과 `대표자명` 사이에 앉아 있었다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["기업명", "(기업의 경우만 작성)", "대표자명", ""]])
+        got = {str(x) for x in label_paths(cells)}
+
+        assert got == {"대표자명"}
+
+    def test_번호가_붙은_이름은_이름이다(self) -> None:
+        """`(1) 사업 개요` 는 진짜 이름이다 — 여는 괄호만 보면 이것을 잃는다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["(1) 사업 개요", ""]])
+
+        assert [str(x) for x in label_paths(cells)] == ["(1) 사업 개요"]
+
+    def test_머리_행에_이름_아닌_글자가_섞이면_안_쓴다(self) -> None:
+        """빈 칸은 섞인 것이 아니다 — 진짜 머리 행의 왼쪽 위 모서리가 비어 있다."""
+        from finnect.forms import label_paths
+
+        cells = _sized([["", "2020년", "2021년", "2022년"], ["매출액", "", "", ""]])
+        got = [x for x in label_paths(cells) if x.anchor.row == 1]
+
+        assert {x.col_head for x in got} == {"2020년", "2021년", "2022년"}
+
+
 class Test얇은_칸:
     """양식 저자가 여백을 주려고 넣은 칸. **글자를 넣으면 파일엔 있는데 안 보인다.**
 

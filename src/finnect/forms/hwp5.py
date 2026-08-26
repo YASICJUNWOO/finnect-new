@@ -70,6 +70,18 @@ _ADDR_BYTES = 24
 #: `DocInfo` 의 문단 모양. `attach/hwp.py` 에는 없다 — 텍스트만 뽑을 때는 안 본다.
 HWPTAG_PARA_SHAPE = 25
 
+#: 문단에 매달리는 나머지 둘. **글자를 갈면 이 둘도 같이 갈아야 한다** — 실측
+#: 8,910문단에서 뒤에 붙는 순서가 `TEXT/CS/LS` 6,887 · `CS/LS` 2,012 · `TEXT/CS` 11
+#: 이고 그 밖은 없었다. `PARA_RANGE_TAG` 는 **한 번도 안 나왔다**(0/8,910).
+HWPTAG_PARA_CHAR_SHAPE = 68
+HWPTAG_PARA_LINE_SEG = 69
+
+#: 문단에 매달리는 레코드. 여기서 끊기면 그 문단이 끝난 것이다.
+_TRAILERS = (HWPTAG_PARA_TEXT, HWPTAG_PARA_CHAR_SHAPE, HWPTAG_PARA_LINE_SEG)
+
+#: `PARA_LINE_SEG` 한 줄의 크기. 머리의 `nLineSegs` 와 대조하는 데 쓴다.
+_LINE_SEG_BYTES = 36
+
 #: `PARA_HEADER.nChars` 의 최상위 비트는 개수가 아니라 **플래그다.** 지우면 안 된다.
 NCHARS_FLAG = 0x80000000
 
@@ -333,6 +345,7 @@ __all__ = [
     "align_substitutes",
     "edit",
     "has_object_anchor",
+    "one_char_shape",
     "pack",
     "parse_addr",
     "parse_section",
@@ -360,14 +373,50 @@ def has_object_anchor(payload: bytes) -> bool:
     return any(c in CTRL_EXTENDED for c in struct.unpack_from(f"<{n}H", payload, 0))
 
 
-def _header_with(payload: bytes, nchars: int, shape: int | None) -> bytes:
-    """문단 머리를 고쳐 쓴다. **플래그 비트를 보존한다.**"""
+def _header_with(
+    payload: bytes,
+    nchars: int,
+    shape: int | None,
+    *,
+    shapes: int | None = None,
+    segs: int | None = None,
+) -> bytes:
+    """문단 머리를 고쳐 쓴다. **플래그 비트를 보존한다.**
+
+    개수가 셋이다 — `nChars`(0) · `nCharShapes`(12) · `nLineSegs`(16). **하나만 고치면
+    나머지 둘이 옛 글자 수를 가리킨다**(`forms/hwplib.py` `_recount` 와 같은 자리).
+    """
     h = bytearray(payload)
     (old,) = struct.unpack_from("<I", h, 0)
     struct.pack_into("<I", h, 0, (old & NCHARS_FLAG) | nchars)
     if shape is not None and len(h) >= 10:
         struct.pack_into("<H", h, 8, shape)
+    if shapes is not None and len(h) >= 14:
+        struct.pack_into("<H", h, 12, shapes)
+    if segs is not None and len(h) >= 18:
+        struct.pack_into("<H", h, 16, segs)
     return bytes(h)
+
+
+def one_char_shape(payload: bytes) -> bytes:
+    """`PARA_CHAR_SHAPE` 를 **첫 쌍 하나로 접는다**(위치 0).
+
+    이 레코드는 `(글자 위치, 글자모양 id)` 쌍의 배열이라 **옛 글자 수를 기준으로
+    남는다.** 글자만 갈고 두면 새 값이 옛 조각 경계에서 잘려서, 실측한 파일에서는
+    값 중간부터 안내문 색(`#a3401d`·`#0000ff`)으로 나왔다 — 육안 3건. 위치가 새
+    글자 수 밖으로 나가면 규격 위반이기도 하다.
+
+    **첫 쌍의 모양을 남기는 이유는 그것이 그 자리에 원래 쓰인 서식이라서다**
+    (`forms/hwplib.py` `_reshape` 판본 I 와 같은 판단). 중립으로 만들지 않는다 —
+    남의 글이 같이 쓰는 모양을 고치는 일이 되고, 그것은 `align_substitutes` 처럼
+    **대신할 모양을 찾는** 별개의 문제다.
+
+    **빈 문단에서는 아무 일도 안 한다** — 실측 2,012문단 전부가 이미 한 쌍이었다.
+    """
+    if len(payload) < 8:
+        return payload
+    _pos, sid = struct.unpack_from("<II", payload, 0)
+    return struct.pack("<II", 0, sid)
 
 
 def edit(
@@ -380,6 +429,21 @@ def edit(
     빈 자리면 **없던 `PARA_TEXT` 를 만들고**, 글자가 있으면 갈아 끼우고, 값이 `""`
     면 **레코드를 없앤다**(빈 문단은 `PARA_TEXT` 가 아예 없고 `nChars` 가 1 이다 —
     실측 13,104건 전부).
+
+    ## 글자만 갈면 안 된다
+
+    문단에 매달린 것이 넷이고 **셋이 글자 수를 기준으로 산다.** 글자만 갈면
+    `PARA_CHAR_SHAPE` 의 위치 쌍과 `PARA_LINE_SEG` 의 줄 시작 위치가 옛 글자 수를
+    가리키고, 머리의 `nCharShapes`·`nLineSegs` 도 그대로 남는다. 실측(HWP5 20건 ·
+    대상 문단 4,151개)에서 이렇게 나왔다.
+
+        글자모양 조각이 둘 이상    360 (8.7%)   ← 새 값이 조각 경계에서 잘린다
+        조각이 새 길이 밖을 가리킴  69 (1.7%)   ← 규격 위반
+        줄정보를 들고 있는 문단   4,151 (100%)  ← 한 번도 안 건드리고 있었다
+        줄정보가 두 줄 이상       382 (9.2%)
+
+    `forms/hwplib.py` 가 판본 B~I 로 이미 잡아 둔 것이다(`_reshape`·`deleteLineSeg`·
+    `_recount`). **바이트 경로로 옮길 때 셋이 안 따라왔다.**
 
     반환은 `(바이트, 넣은 것, 거절한 것)` 이다. 거절은 개체 앵커가 든 문단뿐이다.
     """
@@ -403,11 +467,45 @@ def edit(
             i += 1
             continue
 
+        # **뒤에 붙은 것을 먼저 찾는다.** 머리에 적을 개수가 그것으로 정해진다 —
+        # 없는 레코드를 1 이라고 적으면 개수와 실제가 어긋난다
+        j = i + 1
+        cshape: tuple[int, int, bytes] | None = None
+        nsegs = 0
+        while j < n and records[j][0] in _TRAILERS:
+            if records[j][0] == HWPTAG_PARA_CHAR_SHAPE and cshape is None:
+                cshape = records[j]
+            elif records[j][0] == HWPTAG_PARA_LINE_SEG:
+                nsegs += len(records[j][2]) // _LINE_SEG_BYTES
+            j += 1
+
+        # **줄 나눔 캐시를 버린다.** 캐시는 옛 글자 기준이라 남겨 두면 한/글이 넣은
+        # 글을 그 자리에 그려서 **글자가 겹친다** — hwplib 판본 B(색만 고침)에서
+        # 겹쳤고 C(캐시 삭제)에서 풀렸다.
+        #
+        # **비어 있던 표 칸에서는 안 버린다.** 거기는 지금 그대로 정상이고(ADR-0060
+        # 육안 165칸) 칸은 크기가 정해져 있어 한/글이 다시 계산한다. 최상위 문단
+        # (`level == 0`)은 서술 자리라 여러 줄이 되므로 비어 있어도 버린다 —
+        # `forms/hwplib.py` 의 `if into_para or overwriting` 과 같은 규칙이다.
+        drop_segs = had_text or level == 0
+
         shape = None
         if text and align_sub and len(payload) >= 10:
             (ps,) = struct.unpack_from("<H", payload, 8)
             shape = align_sub.get(ps)
-        out.append(emit(tag, level, _header_with(payload, len(text) + 1 if text else 1, shape)))
+        out.append(
+            emit(
+                tag,
+                level,
+                _header_with(
+                    payload,
+                    len(text) + 1 if text else 1,
+                    shape,
+                    shapes=1 if cshape is not None else 0,
+                    segs=0 if drop_segs else nsegs,
+                ),
+            )
+        )
         if text:
             out.append(
                 emit(
@@ -416,8 +514,15 @@ def edit(
                     (text + CR).encode("utf-16-le"),
                 )
             )
+        if cshape is not None:
+            out.append(emit(cshape[0], cshape[1], one_char_shape(cshape[2])))
+        if not drop_segs:
+            # **순서를 지킨다** — `TEXT` · `CS` · `LS` 다(실측 8,910문단 전부)
+            for t2, lv2, p2 in records[i + 1 : j]:
+                if t2 == HWPTAG_PARA_LINE_SEG:
+                    out.append(emit(t2, lv2, p2))
         done.add(i)
-        i += 2 if had_text else 1
+        i = j
     return b"".join(out), done, refused
 
 

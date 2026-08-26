@@ -206,6 +206,23 @@ _PLACEHOLDER = re.compile(r"(OO|00|○○|ＯＯ)")
 #: 플레이스홀더로 볼 글자 수 상한. 넘으면 안내 문장이지 채울 자리가 아니다.
 _PLACEHOLDER_MAX = 60
 
+#: 값 뒤에 붙는 단위만 든 칸. **라벨이 아니다.**
+#:
+#: `종업원수 | 사무직 | 00 명 | 기술직 | 00 명` 에서 `명` 을 라벨로 세면 그것이 아래
+#: 칸의 열 머리가 되어 `아이템명 × 사무직` 이 나온다(육안 · 표 하나 75칸). 단위가
+#: **혼자 있을 때만** 걸린다 — `인원(명)` 은 이름이라 그대로 라벨이다.
+_UNIT_ONLY = re.compile(
+    r"^[(\[（【]?\s*(명|원|천원|만원|백만원|억원|개|건|년|월|일|%|％|㎡|평|점|시간|kg|톤|배|회)"
+    r"\s*[)\]）】]?$"
+)
+
+#: 통째로 괄호에 싸인 칸. **안내문이지 이름이 아니다.**
+#:
+#: `(기업의 경우만 작성)`·`(직함)`·`(무료 회원가입)` 이 라벨로 잡혀 있었다.
+#: **통째로 싸인 것만 본다** — `(1) 사업 개요` 는 번호가 붙은 진짜 이름이고
+#: `(주)가나다` 는 값이라, 여는 괄호만 보면 앞엣것을 잃는다.
+_WRAPPED = re.compile(r"^[(（]\s*[^()（）]*\s*[)）]?$")
+
 
 def is_placeholder(text: str) -> bool:
     """`00 명` 처럼 **형식만 적어 둔 칸**인가.
@@ -298,14 +315,21 @@ def _grid(cells: list[Cell]) -> dict[tuple[int, int], Cell]:
 
 
 def _is_label(c: Cell) -> bool:
-    """이 칸이 **이름**인가. 글자가 있고 플레이스홀더가 아니면 이름이다.
+    """이 칸이 **이름**인가. 글자가 있고 이름 노릇을 할 수 있으면 이름이다.
+
+    아닌 것이 셋이다 — 플레이스홀더(`000-00-00000`) · **단위만 든 칸**(`명`) ·
+    **통째로 괄호에 싸인 안내문**(`(기업의 경우만 작성)`). 뒤의 둘은 육안에서 나왔다
+    (표 하나 75칸 · `초기창업 현황 › 전년도매출액 › 백만원 › 업종/업태 × 명`).
 
     **`fillable` 을 안 본다.** 판정이 라벨을 값 자리로 오검출해도 그 오른쪽 빈 칸은
     여전히 그 라벨의 자리다 — 실측에서 `실무자성명 | (빈칸)` 이 그렇게 살았고,
     여기까지 버리면 오검출 하나가 **좌표 둘을 잃게 만든다.** 한 칸이 이름이면서
     동시에 값 자리인 것은 모순이 아니다.
     """
-    return bool(c.text.strip()) and not is_placeholder(c.text)
+    t = c.text.strip()
+    if not t or is_placeholder(t):
+        return False
+    return not _UNIT_ONLY.match(t) and not _WRAPPED.match(t)
 
 
 def _is_slot(c: Cell, fillable: frozenset[Anchor]) -> bool:
@@ -356,6 +380,12 @@ def _col_head(g: dict[tuple[int, int], Cell], c: Cell, labels: list[Cell]) -> Ce
 
     **② 머리 행에서만 인정한다.** 값이 하나 있는 행은 머리가 아니다 —
     `사업자등록번호 × 2000-00-00` 이 그렇게 생긴다.
+
+    **③ 머리 행에는 이름 아닌 글자가 없다.** 라벨 셋만 세면 `종업원수 | 사무직 |
+    00 명 | 기술직 | 00 명 | …` 이 머리 행으로 통과해서 아래 칸이 `아이템명 ×
+    사무직` 을 이름으로 든다(육안). 그 행은 머리가 아니라 **자기 값을 든 데이터
+    행**이고, 가르는 재료가 「이름 아닌 글자가 섞여 있는가」다. 빈 칸은 섞인 것이
+    아니다 — 진짜 머리 행의 왼쪽 위 모서리가 비어 있다.
     """
     stop = min((o.anchor.row for o in labels), default=c.anchor.row)
     r = c.anchor.row - 1
@@ -366,8 +396,11 @@ def _col_head(g: dict[tuple[int, int], Cell], c: Cell, labels: list[Cell]) -> Ce
         if _is_label(o):
             if o.anchor.row > stop:
                 return None
-            peers = {id(x) for (rr, _cc), x in g.items() if rr == o.anchor.row and _is_label(x)}
-            return o if len(peers) >= _HEADER_ROW_MIN else None
+            row = {id(x): x for (rr, _cc), x in g.items() if rr == o.anchor.row}.values()
+            names = [x for x in row if _is_label(x)]
+            if len(names) < _HEADER_ROW_MIN:
+                return None
+            return o if all(_is_label(x) or not x.text.strip() for x in row) else None
         # 빈 칸도 플레이스홀더도 머리가 아니다 — 지나쳐서 계속 올라간다
         r = o.anchor.row - 1
     return None

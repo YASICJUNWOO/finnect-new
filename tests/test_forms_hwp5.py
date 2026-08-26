@@ -192,10 +192,37 @@ def _docinfo(*shapes: bytes) -> bytes:
     return b"".join(_rec(HWPTAG_PARA_SHAPE, 0, p) for p in shapes)
 
 
-def _header(nchars: int, *, flag: bool = False, shape: int = 0) -> bytes:
-    """PARA_HEADER — nChars(4) + ctrlMask(4) + paraShapeID(2) + 나머지."""
+def _header(
+    nchars: int, *, flag: bool = False, shape: int = 0, shapes: int = 0, segs: int = 0
+) -> bytes:
+    """PARA_HEADER — **개수가 셋이다.**
+
+        offset  0  <I>  nChars        최상위 비트는 플래그
+        offset  8  <H>  paraShapeID
+        offset 12  <H>  nCharShapes
+        offset 16  <H>  nLineSegs
+    """
     n = nchars | (0x80000000 if flag else 0)
-    return struct.pack("<I", n) + b"\x00" * 4 + struct.pack("<H", shape) + b"\x00" * 12
+    return (
+        struct.pack("<I", n)
+        + b"\x00" * 4
+        + struct.pack("<H", shape)
+        + b"\x00" * 2
+        + struct.pack("<H", shapes)
+        + b"\x00" * 2
+        + struct.pack("<H", segs)
+        + b"\x00" * 4
+    )
+
+
+def _cs(*pairs: tuple[int, int]) -> bytes:
+    """PARA_CHAR_SHAPE — `(글자 위치, 글자모양 id)` 쌍의 배열."""
+    return b"".join(struct.pack("<II", pos, sid) for pos, sid in pairs)
+
+
+def _ls(*starts: int) -> bytes:
+    """PARA_LINE_SEG — 줄마다 36바이트. 맨 앞이 그 줄의 시작 글자 위치다."""
+    return b"".join(struct.pack("<i", s) + b"\x00" * 32 for s in starts)
 
 
 class Test레코드_규칙:
@@ -343,3 +370,160 @@ class Test정렬_보정:
 
         assert struct.unpack_from("<H", heads[0], 8)[0] == 9
         assert struct.unpack_from("<H", heads[1], 8)[0] == 5
+
+
+class Test글자모양과_줄정보:
+    """글자를 갈면 **매달린 것 셋도 같이 갈아야 한다.**
+
+    `forms/hwplib.py` 가 판본 B~I 로 이미 잡아 둔 자리인데(`_reshape` ·
+    `deleteLineSeg` · `_recount`) 바이트 경로로 옮길 때 안 따라왔다. 실측
+    (HWP5 20건 · 채운 문단 5,082개)에서 옛 방식이 이랬다.
+
+        조각이 둘 이상 → 값이 잘린다   361
+        조각이 글 밖 → 규격 위반        69
+        줄정보가 둘 이상 → 겹친다      382
+        줄정보가 글 밖                 94
+    """
+
+    def test_글자모양_조각을_하나로_접는다(self) -> None:
+        """조각을 남기면 **새 값이 옛 조각 경계에서 잘린다.** 실측한 파일에서 값
+        중간부터 안내문 색(`#a3401d`)으로 나왔다 — 육안 3건."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import HWPTAG_PARA_CHAR_SHAPE, edit
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(41, shapes=4, segs=1)),
+            (PARA_TEXT, 3, _text("□ 해당( *우대조건 상세 작성")),
+            (HWPTAG_PARA_CHAR_SHAPE, 3, _cs((0, 42), (5, 34), (7, 35), (39, 34))),
+        ]
+        data, done, _r = edit(recs, {0: "라스트마일 주식회사"})
+        got = list(iter_records(data))
+        cs = next(p for t, _lv, p in got if t == HWPTAG_PARA_CHAR_SHAPE)
+
+        assert done == {0}
+        # **첫 쌍의 모양을 남긴다** — 그것이 그 자리에 원래 쓰인 서식이다
+        assert cs == _cs((0, 42))
+        assert struct.unpack_from("<H", got[0][2], 12)[0] == 1
+
+    def test_조각이_글_밖을_안_가리킨다(self) -> None:
+        """짧은 값으로 갈면 옛 위치가 `nChars` 밖으로 나간다. 규격 위반이다."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import HWPTAG_PARA_CHAR_SHAPE, edit
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(60, shapes=2)),
+            (PARA_TEXT, 3, _text("가" * 59)),
+            (HWPTAG_PARA_CHAR_SHAPE, 3, _cs((0, 1), (40, 2))),
+        ]
+        data, _d, _r = edit(recs, {0: "짧다"})
+        got = list(iter_records(data))
+        (nchars,) = struct.unpack_from("<I", got[0][2], 0)
+        cs = next(p for t, _lv, p in got if t == HWPTAG_PARA_CHAR_SHAPE)
+
+        assert nchars == 3
+        assert all(pos < nchars for pos, _sid in [struct.unpack_from("<II", cs, 0)])
+
+    def test_덮어쓰면_줄정보를_버린다(self) -> None:
+        """캐시는 옛 글자 기준이라 남기면 한/글이 **넣은 글을 그 자리에 그려서
+        글자가 겹친다** — hwplib 판본 B 에서 겹쳤고 C(캐시 삭제)에서 풀렸다."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import HWPTAG_PARA_LINE_SEG, edit
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(80, shapes=1, segs=3)),
+            (PARA_TEXT, 3, _text("가" * 79)),
+            (HWPTAG_PARA_LINE_SEG, 3, _ls(0, 30, 60)),
+        ]
+        data, _d, _r = edit(recs, {0: "새 값"})
+        got = list(iter_records(data))
+
+        assert [t for t, _lv, _p in got] == [HWPTAG_PARA_HEADER, PARA_TEXT]
+        assert struct.unpack_from("<H", got[0][2], 16)[0] == 0
+
+    def test_빈_표_칸에서는_줄정보를_안_버린다(self) -> None:
+        """거기는 지금 그대로 정상이고(ADR-0060 육안 165칸) 칸은 크기가 정해져 있어
+        한/글이 다시 계산한다. **재 보지 않은 것을 같이 고치지 않는다.**"""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import HWPTAG_PARA_LINE_SEG, edit
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(1, shapes=1, segs=1)),
+            (HWPTAG_PARA_LINE_SEG, 3, _ls(0)),
+        ]
+        data, _d, _r = edit(recs, {0: "주식회사 가나다"})
+        got = list(iter_records(data))
+
+        assert [t for t, _lv, _p in got] == [
+            HWPTAG_PARA_HEADER,
+            PARA_TEXT,
+            HWPTAG_PARA_LINE_SEG,
+        ]
+        assert struct.unpack_from("<H", got[0][2], 16)[0] == 1
+
+    def test_최상위_문단은_비어_있어도_버린다(self) -> None:
+        """서술 자리는 여러 줄이 된다. `level == 0` 이 표 밖 문단이라는 뜻이고,
+        hwplib 의 `if into_para or overwriting` 과 같은 규칙이다."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import HWPTAG_PARA_LINE_SEG, edit
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 0, _header(1, shapes=1, segs=1)),
+            (HWPTAG_PARA_LINE_SEG, 1, _ls(0)),
+        ]
+        data, _d, _r = edit(recs, {0: "사업 개요를 적는다"})
+        got = list(iter_records(data))
+
+        assert [t for t, _lv, _p in got] == [HWPTAG_PARA_HEADER, PARA_TEXT]
+        assert struct.unpack_from("<H", got[0][2], 16)[0] == 0
+
+    def test_레코드가_없으면_개수를_0으로_적는다(self) -> None:
+        """없는 레코드를 1 이라고 적으면 개수와 실제가 어긋난다."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import edit
+
+        recs = [(HWPTAG_PARA_HEADER, 2, _header(1, shapes=1, segs=1))]
+        data, _d, _r = edit(recs, {0: "값"})
+        hdr = next(p for t, _lv, p in iter_records(data) if t == HWPTAG_PARA_HEADER)
+
+        assert struct.unpack_from("<H", hdr, 12)[0] == 0
+        assert struct.unpack_from("<H", hdr, 16)[0] == 0
+
+    def test_순서가_글_모양_줄정보다(self) -> None:
+        """실측 8,910문단에서 `TEXT/CS/LS` 6,887 · `CS/LS` 2,012 · `TEXT/CS` 11 이었다."""
+        from finnect.attach.hwp import iter_records
+        from finnect.forms.hwp5 import (
+            HWPTAG_PARA_CHAR_SHAPE,
+            HWPTAG_PARA_LINE_SEG,
+            edit,
+        )
+
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(1, shapes=1, segs=1)),
+            (HWPTAG_PARA_CHAR_SHAPE, 3, _cs((0, 7))),
+            (HWPTAG_PARA_LINE_SEG, 3, _ls(0)),
+            (HWPTAG_PARA_HEADER, 2, _header(1)),
+        ]
+        data, _d, _r = edit(recs, {0: "값"})
+
+        assert [t for t, _lv, _p in iter_records(data)] == [
+            HWPTAG_PARA_HEADER,
+            PARA_TEXT,
+            HWPTAG_PARA_CHAR_SHAPE,
+            HWPTAG_PARA_LINE_SEG,
+            HWPTAG_PARA_HEADER,
+        ]
+
+    def test_거절한_문단은_아무것도_안_건드린다(self) -> None:
+        """개체 앵커가 든 문단은 조각도 줄정보도 그대로다."""
+        from finnect.forms.hwp5 import HWPTAG_PARA_CHAR_SHAPE, edit
+
+        anchored = struct.pack("<8H", 11, 0, 0, 0, 0, 0, 0, 0) + _text("그림 옆 글")
+        recs = [
+            (HWPTAG_PARA_HEADER, 2, _header(14, shapes=2, segs=2)),
+            (PARA_TEXT, 3, anchored),
+            (HWPTAG_PARA_CHAR_SHAPE, 3, _cs((0, 1), (9, 2))),
+        ]
+        data, done, refused = edit(recs, {0: "새 값"})
+
+        assert (done, refused) == (set(), {0})
+        assert data == b"".join(_rec(t, lv, p) for t, lv, p in recs)
